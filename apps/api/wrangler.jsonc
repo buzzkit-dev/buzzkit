@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "buzzkit-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true
+  },
+
+  "workers_dev": true,
+  "preview_urls": true,
+
+  // Non-secret runtime config; override per environment at deploy time.
+  "vars": {
+    "ENVIRONMENT": "development"
+  }
+}

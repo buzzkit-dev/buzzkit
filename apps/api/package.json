@@ -1,0 +1,29 @@
+{
+  "name": "@buzzkit/api",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./*": {
+      "types": "./.types/*.d.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --test-scheduled --local --ip 0.0.0.0 --persist-to=../../.wrangler/state --port 8790",
+    "start": "wrangler dev --test-scheduled",
+    "cf-typegen": "wrangler types",
+    "check-types": "bun run cf-typegen && tsc --noEmit",
+    "types:emit": "rm -rf .types && tsc --noEmit false --emitDeclarationOnly --declaration --rootDir src --outDir .types"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.115.0"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.2",
+    "@elysiajs/openapi": "^1.4.15",
+    "elysia": "^1.4.29"
+  }
+}

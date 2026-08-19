@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "buzzkit-web",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2025-10-08",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true
+  },
+
+  "upload_source_maps": true,
+
+  "workers_dev": true,
+  "preview_urls": true,
+
+  "vars": {
+    "ENVIRONMENT": "development",
+    // Origin of the buzzkit API this dashboard talks to. Local dev overrides live in .dev.vars.
+    "API_URL": "http://localhost:8790"
+  }
+}

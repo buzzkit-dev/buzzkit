@@ -1,0 +1,34 @@
+{
+  "name": "buzzkit",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "biome lint .",
+    "format": "biome check .",
+    "format:fix": "biome check . --write",
+    "prepare": "husky",
+    "check-types": "turbo run check-types"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.2.0",
+    "sherif": "^1.13.0",
+    "turbo": "^2.10.7",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.22"
+  },
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "lint-staged": {
+    "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
+      "bun format:fix"
+    ]
+  }
+}

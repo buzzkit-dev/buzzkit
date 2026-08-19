@@ -1,0 +1,33 @@
+{
+  "name": "@buzzkit/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev --port 5180",
+    "build": "react-router build",
+    "deploy": "bun run build && wrangler deploy",
+    "preview": "bun run build && vite preview",
+    "cf-typegen": "wrangler types && react-router typegen",
+    "check-types": "bun run cf-typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "isbot": "^5.2.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "^8.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.50.0",
+    "@react-router/dev": "^8.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.1",
+    "vite-tsconfig-paths": "^6.1.1",
+    "wrangler": "^4.118.0"
+  }
+}

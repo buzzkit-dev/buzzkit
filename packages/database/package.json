@@ -1,0 +1,35 @@
+{
+  "name": "@buzzkit/database",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./schema": {
+      "types": "./src/schema/index.ts",
+      "default": "./src/schema/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^0.45.2",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "postgres": "^3.4.9"
+  }
+}
