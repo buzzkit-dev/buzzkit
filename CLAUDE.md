@@ -18,11 +18,12 @@ Two layers, one codebase:
 ```
 apps/api/           → @buzzkit/api       Cloudflare Worker API (Elysia + CloudflareAdapter)
 apps/web/           → @buzzkit/web       Platform dashboard (Vite + React Router 8 SSR on CF Workers, dev port 5180)
-packages/core/      → @buzzkit/core      Channel-agnostic primitives: connectors, workflows, campaigns, segments
-packages/sdk/       → @buzzkit/sdk       Public TypeScript SDK
+packages/buzzkit/   → buzzkit            The framework itself — the main public package
 packages/cli/       → @buzzkit/cli       Pushes code-defined config to a buzzkit deployment
 packages/database/  → @buzzkit/database  Drizzle ORM, PostgreSQL schema, migrations
 ```
+
+**`buzzkit` is one package, not core + sdk.** The main package IS the framework (like `sst`): channel-agnostic primitives (connectors, workflows, campaigns, segments), the send client, and device token APIs all live in `packages/buzzkit`, organized by subpath exports (`buzzkit/channels`, `buzzkit/workflows`, …) as it grows — never split into separate npm packages for organization's sake. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
 
 The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side).
 

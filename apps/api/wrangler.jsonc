@@ -13,7 +13,25 @@
   "preview_urls": true,
 
   // Non-secret runtime config; override per environment at deploy time.
+  // SQIDS_ALPHABET is a shuffled alphabet so IDs aren't trivially enumerable —
+  // hosted/production deployments MUST override it (wrangler secret).
   "vars": {
-    "ENVIRONMENT": "development"
-  }
+    "ENVIRONMENT": "development",
+    "SQIDS_ALPHABET": "kdiEK9YyRrDlM4pnPXWQmL2wNZzeUxIqSHVvTGtjb0aJFuh3s618Bf5cCgAO7o"
+  },
+
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "your-hyperdrive-id",
+      "localConnectionString": "postgresql://postgres:postgres@localhost:5460/buzzkit"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "SESSION_CACHE",
+      "id": "your-kv-namespace-id"
+    }
+  ]
 }

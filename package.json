@@ -1,9 +1,11 @@
 {
-  "name": "buzzkit",
+  "name": "buzzkit-monorepo",
   "private": true,
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
     "lint": "biome lint .",
     "format": "biome check .",
     "format:fix": "biome check . --write",

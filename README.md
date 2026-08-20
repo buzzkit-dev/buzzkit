@@ -21,8 +21,8 @@ apps/
 └── web/          @buzzkit/web       Platform dashboard (React Router 8 SSR on Cloudflare Workers)
 
 packages/
-├── core/         @buzzkit/core      Channel-agnostic primitives: connectors, workflows, campaigns, segments
-├── sdk/          @buzzkit/sdk       Public TypeScript SDK
+├── auth/         @buzzkit/auth      BetterAuth configuration (email/password, bearer tokens)
+├── buzzkit/      buzzkit            The framework: channel connectors, workflows, campaigns, segments, send client
 ├── cli/          @buzzkit/cli       Pushes code-defined config to a buzzkit deployment
 └── database/     @buzzkit/database  Drizzle ORM, PostgreSQL schema, migrations
 ```
@@ -31,6 +31,9 @@ packages/
 
 ```sh
 bun install
+bun db:up                                  # local Postgres (docker compose, port 5460)
+cp apps/api/.dev.vars.example apps/api/.dev.vars   # then set BETTER_AUTH_SECRET
+cd packages/database && bun db:migrate && cd ../..
 bun dev
 ```
 

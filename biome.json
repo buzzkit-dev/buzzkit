@@ -18,7 +18,9 @@
     "enabled": true,
     "rules": {
       "recommended": true,
-      "a11y": { "noSvgWithoutTitle": "off" },
+      "a11y": {
+        "noSvgWithoutTitle": "off"
+      },
       "correctness": {
         "noChildrenProp": "error",
         "useHookAtTopLevel": "error",
@@ -37,7 +39,9 @@
       "style": {
         "noNonNullAssertion": "off"
       },
-      "complexity": { "noForEach": "warn" }
+      "complexity": {
+        "noForEach": "warn"
+      }
     }
   },
   "assist": {

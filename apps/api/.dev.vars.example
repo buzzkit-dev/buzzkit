@@ -1,0 +1,3 @@
+# Copy to .dev.vars and fill in — required for local dev
+BETTER_AUTH_URL=http://localhost:8790
+BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32

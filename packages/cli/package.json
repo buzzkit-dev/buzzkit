@@ -13,7 +13,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@buzzkit/core": "workspace:*"
+    "buzzkit": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

@@ -1,4 +1,33 @@
-// @buzzkit/database — Drizzle ORM client, PostgreSQL schema, and migrations.
-// Placeholder until the data model (workspaces, credentials, tokens, deliveries) is designed.
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import { authTables } from './schema/auth';
+import { inviteTables } from './schema/invite';
+import { apiKeyTables } from './schema/key';
+import { tenantTables } from './schema/tenant';
+import { workspaceTables } from './schema/workspace';
 
-export * as schema from './schema/index';
+export const tables = {
+  auth: authTables,
+  ...workspaceTables,
+  ...tenantTables,
+  ...apiKeyTables,
+  ...inviteTables,
+};
+
+export const createDrizzle = (url: string) => {
+  const client = postgres(url, {
+    max: 5,
+    fetch_types: false,
+    connection: {
+      TimeZone: 'UTC',
+    },
+  });
+
+  return drizzle(client, { schema: tables });
+};
+
+export type Db = ReturnType<typeof createDrizzle>;
+
+export * from 'drizzle-orm';
+export { drizzle } from 'drizzle-orm/postgres-js';
+export { default as postgres } from 'postgres';

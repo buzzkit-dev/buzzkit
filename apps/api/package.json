@@ -12,6 +12,7 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev --test-scheduled --local --ip 0.0.0.0 --persist-to=../../.wrangler/state --port 8790",
     "start": "wrangler dev --test-scheduled",
+    "test": "vitest",
     "cf-typegen": "wrangler types",
     "check-types": "bun run cf-typegen && tsc --noEmit",
     "types:emit": "rm -rf .types && tsc --noEmit false --emitDeclarationOnly --declaration --rootDir src --outDir .types"
@@ -19,11 +20,17 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "^7.0.2",
+    "vitest": "~4.1.10",
     "wrangler": "^4.115.0"
   },
   "dependencies": {
+    "@buzzkit/auth": "workspace:*",
+    "@buzzkit/database": "workspace:*",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.15",
-    "elysia": "^1.4.29"
+    "better-auth": "1.6.25",
+    "drizzle-orm": "^0.45.2",
+    "elysia": "^1.4.29",
+    "sqids": "^0.3.0"
   }
 }
