@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
+import { db, eq, tables } from '../../utils/db';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 function fakeToken() {
@@ -88,6 +89,64 @@ describe('POST /v1/subscriptions', () => {
     const moved = await register(keyBearer, { token, externalId: movedTo });
     expect(moved.status).toBe(200);
     expect(moved.body.data?.externalId).toBe(movedTo);
+  });
+
+  it('an unchanged relaunch writes nothing: no row version, no lastSeenAt bump, no event', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const token = fakeToken();
+    const externalId = `user_${uniq()}`;
+
+    const first = await register(keyBearer, { token, externalId });
+    const before = await db
+      .select({ updatedAt: tables.subscription.updatedAt, lastSeenAt: tables.subscription.lastSeenAt })
+      .from(tables.subscription)
+      .where(eq(tables.subscription.endpoint, token));
+
+    const refreshed = await register(keyBearer, { token, externalId });
+    expect(refreshed.status).toBe(200);
+    expect((refreshed.body.data as unknown as { lastSeenAt: string }).lastSeenAt).toBe(
+      (first.body.data as unknown as { lastSeenAt: string }).lastSeenAt
+    );
+
+    const after = await db
+      .select({ updatedAt: tables.subscription.updatedAt, lastSeenAt: tables.subscription.lastSeenAt })
+      .from(tables.subscription)
+      .where(eq(tables.subscription.endpoint, token));
+    expect(after[0]?.updatedAt.toISOString()).toBe(before[0]?.updatedAt.toISOString());
+    expect(after[0]?.lastSeenAt.toISOString()).toBe(before[0]?.lastSeenAt.toISOString());
+
+    const events = await db
+      .select({ event: tables.event.event })
+      .from(tables.event)
+      .where(eq(tables.event.targetId, refreshed.body.data!.id.replace(/^sbn_/, '')));
+    expect(events.filter((row) => row.event === 'subscription.created')).toHaveLength(1);
+  });
+
+  it('a changed relaunch writes: stale lastSeenAt, platform change, or a moved endpoint', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const token = fakeToken();
+    const externalId = `user_${uniq()}`;
+
+    await register(keyBearer, { token, externalId });
+    const stale = new Date(Date.now() - 10 * 60 * 1000);
+    await db
+      .update(tables.subscription)
+      .set({ lastSeenAt: stale, updatedAt: stale })
+      .where(eq(tables.subscription.endpoint, token));
+
+    const refreshed = await register(keyBearer, { token, externalId });
+    const [row] = await db
+      .select({ updatedAt: tables.subscription.updatedAt, lastSeenAt: tables.subscription.lastSeenAt })
+      .from(tables.subscription)
+      .where(eq(tables.subscription.endpoint, token));
+    expect(refreshed.status).toBe(200);
+    expect(row?.lastSeenAt.getTime()).toBeGreaterThan(stale.getTime());
+    expect(row?.updatedAt.getTime()).toBeGreaterThan(stale.getTime());
+
+    const moved = await register(keyBearer, { token, externalId: `user_${uniq()}`, platform: 'android' });
+    expect(moved.status).toBe(200);
+    expect(moved.body.data?.platform).toBe('android');
+    expect(moved.body.data?.externalId).not.toBe(externalId);
   });
 
   it('validates channel-shaped input', async () => {

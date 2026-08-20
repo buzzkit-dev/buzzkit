@@ -48,9 +48,11 @@ describe('error envelope', () => {
   });
 
   it('wraps validation failures in the standard envelope', async () => {
-    const { status, body } = await api('/v1/spike/apns', {
+    const { keyBearer } = await setupWorkspace();
+    const { status, body } = await api('/v1/tenants', {
       method: 'POST',
-      body: JSON.stringify({ environment: 'not-a-real-environment' }),
+      headers: keyBearer,
+      body: JSON.stringify({ name: 'x', slug: 'NOT VALID' }),
     });
 
     expect(status).toBe(400);

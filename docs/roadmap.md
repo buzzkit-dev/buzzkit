@@ -1,6 +1,13 @@
 # Roadmap
 
-**Status: Phases 0 ✅, 1 ✅, 2 ✅, 3 ✅ (built, awaiting review) — next up: Phase 4 (send API + APNs delivery, the core-product milestone).** Phase 3 shipped beyond plan: topics + per-subscriber preferences (the OneSignal gap — code-defined notification categories with automatic send-time filtering in Phase 4), the full `/v1/client/*` surface with optional HMAC identity verification, and **multi-channel as a first-class primitive** — subscribers have **subscriptions** (one per channel endpoint: push device, email address, later SMS phone) each with its own `enabled` mute; preferences are per topic × channel; Resend ships as the first email credential provider; identity verification stamps subscribers `verified` when proof is offered even without enforcement. Noted for later hardening: once-verified-always-require-proof mode. Tenant `settings` JSONB (Stripe-style structured groups with a validated catalog) landed with `identity.requireVerification` and `channels.*.enabled`; credentials refactored onto a provider registry (one generic validate/lifecycle, per-provider modules). Notes: the event/audit ledger shipped early (with Phase 2) since webhooks build on it; data-plane tenant selection uses the `buzzkit-tenant` header (Stripe-Account pattern) instead of path params; invite emails ship via Cloudflare Email Service (domain onboarding needed for delivery); profile DELETE deferred (needs an ownership-handover story); APNs credential validation is `unvalidated` in local dev (workerd HTTP/2 limitation) and full in production.
+**Status: Phases 0–4 ✅ (Phase 4 built, awaiting review) — next: Phase 5 (real-device verification of APNs/FCM delivery; email sending via the provider registry).**
+
+Deviations from the original plan, all deliberate:
+- Observability (OTel + Axiom via `@buzzkit/observability`) landed in Phase 4 instead of Phase 10 — one Worker reports as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler`.
+- Event/audit ledger shipped with Phase 2 (webhooks build on it). Tenant selection uses the `BuzzKit-Tenant` header (Stripe-Account pattern) instead of path params.
+- Phase 3 grew: topics + per-subscriber, per-channel preferences (the OneSignal gap); subscribers have **subscriptions** (push device / email address / later SMS) each with its own `enabled` mute; `/v1/client/*` with optional HMAC identity verification (valid proof always stamps `verified`); Resend as the first email credential; tenant `settings` JSONB; provider registry.
+- Phase 4 delivered APNs **and** FCM `send()` through the registry (the abstraction proved itself a phase early); the Phase 0 spike endpoint is retired. The delivery layer is built to webhook-grade standards: append-only attempt ledger (request/response per attempt), one error taxonomy across providers with core-owned policy, durable progressive retries honouring Retry-After, self-chaining fan-out, batched counters, DLQ, reconciliation cron, message TTLs, and delivered/bounced states reserved for async-confirming channels.
+- Deferred: invite email delivery needs the Email Sending domain onboarded; profile DELETE needs an ownership-handover story; once-verified-always-require-proof mode; per-subscription×topic preferences (mute + topic×channel compose to cover it).
 
 The full build plan, staged into phases. Each phase ends in something shippable and verified. We go phase after phase, in order — a phase is not done until its **Done when** criteria pass.
 
@@ -59,7 +66,7 @@ Finish the skeleton so every later phase drops into place, and kill the one tech
 
 - **APNs-from-Workers spike (do this first).** APNs requires HTTP/2 to `api.push.apple.com`. Verify a Worker can deliver a real push to a device with a p8 key (ES256 JWT via WebCrypto). If outbound HTTP/2 is a problem, decide the fallback now (e.g. a minimal delivery sidecar or provider-specific egress) — this decision shapes the delivery layer. FCM is plain HTTPS + OAuth2, no risk.
 - `packages/database`: real Drizzle setup — `createDrizzle()` via Hyperdrive binding, `drizzle.config.ts`, local Postgres (docker compose, own port), migration workflow (`db:generate` / `db:migrate`).
-- `apps/api` libs (ported from the feedbase template): error classes + global handler, response envelope with Sqids ID transformation, buffered logger, telemetry hooks (can stay no-op until Phase 10).
+- `apps/api` libs (ported from the feedbase template): error classes + global handler, response envelope with Sqids ID transformation, buffered logger, telemetry hooks (wired to real OTel/Axiom in Phase 4 via `@buzzkit/observability`).
 - Wrangler bindings: Hyperdrive, KV, Queues (declared as they're needed, typegen after each change).
 - Write `docs/architecture.md` and start `docs/data-model.md`; one file per API resource under `docs/api/` as resources appear.
 
@@ -275,7 +282,7 @@ Everything the hosted version needs to take real traffic, all of it useful to se
 
 - **Webhooks:** delivery events (`message.completed`, `device.invalidated`, `workflow.run.completed`) to customer endpoints — queue-backed with signed payloads, retries, reconciliation cron (feedbase webhook pattern).
 - Quotas & rate limits per workspace/tenant (hosted free tier needs ceilings); usage counters.
-- Observability: OTel tracing + Axiom logging (feedbase observability package pattern), delivery metrics, queue-depth visibility, alerting on provider error spikes.
+- Observability: ✅ OTel tracing + Axiom logging landed in Phase 4 (`@buzzkit/observability`: api/queue/scheduler services, drizzle + better-auth spans, per-invocation logs). Remaining: delivery metrics dashboards, queue-depth visibility, alerting on provider error spikes.
 - Analytics API + dashboard cards: sends, delivery rate, failures by reason, token churn.
 - Audit log for control-plane actions (key created, credential replaced, member added).
 - Security pass: credential-handling review, key-rotation runbook, dependency audit; comprehensive isolation test suite as a permanent CI fixture.

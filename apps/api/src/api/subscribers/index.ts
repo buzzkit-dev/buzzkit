@@ -1,7 +1,8 @@
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, asc, type Db, eq, gt, isNull, tables } from '@buzzkit/database';
+import { deepEqual } from '@buzzkit/api/utils/equality';
+import { and, asc, type Db, eq, getTableColumns, gt, isNull, sql, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Subscriber = typeof tables.subscriber.$inferSelect;
@@ -85,51 +86,81 @@ export function serializeSubscription(subscription: Subscription) {
   };
 }
 
+export const SUBSCRIPTION_TOUCH_THROTTLE_MS = 5 * 60 * 1000;
+
+export const IDENTITY_REVERIFY_THROTTLE_MS = 5 * 60 * 1000;
+
+type SubscriberInput = { attributes?: Record<string, unknown>; verifiedNow?: boolean };
+
+function isSubscriberCurrent(existing: Subscriber, input: SubscriberInput, now: Date): boolean {
+  if (input.attributes !== undefined && !deepEqual(existing.attributes, input.attributes)) return false;
+  if (
+    input.verifiedNow &&
+    (!existing.identityVerifiedAt ||
+      now.getTime() - existing.identityVerifiedAt.getTime() > IDENTITY_REVERIFY_THROTTLE_MS)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function findExistingSubscriber(
+  db: Db,
+  tenantId: number,
+  externalId: string
+): Promise<Subscriber | null> {
+  const [subscriber] = await db
+    .select()
+    .from(tables.subscriber)
+    .where(
+      and(
+        eq(tables.subscriber.tenantId, tenantId),
+        eq(tables.subscriber.externalId, externalId),
+        isNull(tables.subscriber.deletedAt)
+      )
+    );
+  return subscriber ?? null;
+}
+
 export async function upsertSubscriber(
   db: Db,
   tenantId: number,
   externalId: string,
-  input: { attributes?: Record<string, unknown>; verifiedNow?: boolean } = {}
-): Promise<{ subscriber: Subscriber; created: boolean }> {
+  input: SubscriberInput = {}
+): Promise<{ subscriber: Subscriber; created: boolean; changed: boolean }> {
   assertAttributesSize(input.attributes);
 
-  return await trace('subscribers.upsert', async () => {
-    const [existing] = await db
-      .select()
-      .from(tables.subscriber)
-      .where(
-        and(
-          eq(tables.subscriber.tenantId, tenantId),
-          eq(tables.subscriber.externalId, externalId),
-          isNull(tables.subscriber.deletedAt)
-        )
-      );
+  return await trace('subscribers.upsert', async (t) => {
+    const now = new Date();
+    const existing = await findExistingSubscriber(db, tenantId, externalId);
 
-    const verifiedPatch = input.verifiedNow ? { identityVerifiedAt: new Date() } : {};
-
-    if (existing) {
-      if (input.attributes === undefined && !input.verifiedNow) {
-        return { subscriber: existing, created: false };
-      }
-
-      const [updated] = await db
-        .update(tables.subscriber)
-        .set({
-          ...(input.attributes !== undefined ? { attributes: input.attributes } : {}),
-          ...verifiedPatch,
-        })
-        .where(eq(tables.subscriber.id, existing.id))
-        .returning();
-
-      return { subscriber: updated!, created: false };
+    if (existing && isSubscriberCurrent(existing, input, now)) {
+      t.set('subscriber.written', false);
+      return { subscriber: existing, created: false, changed: false };
     }
 
-    const [created] = await db
+    const [row] = await db
       .insert(tables.subscriber)
-      .values({ tenantId, externalId, attributes: input.attributes ?? {}, ...verifiedPatch })
-      .returning();
+      .values({
+        tenantId,
+        externalId,
+        attributes: input.attributes ?? {},
+        ...(input.verifiedNow ? { identityVerifiedAt: now } : {}),
+      })
+      .onConflictDoUpdate({
+        target: [tables.subscriber.tenantId, tables.subscriber.externalId],
+        targetWhere: isNull(tables.subscriber.deletedAt),
+        set: {
+          ...(input.attributes !== undefined ? { attributes: input.attributes } : {}),
+          ...(input.verifiedNow ? { identityVerifiedAt: now } : {}),
+          updatedAt: now,
+        },
+      })
+      .returning({ ...getTableColumns(tables.subscriber), inserted: sql<boolean>`(xmax = 0)` });
 
-    return { subscriber: created!, created: true };
+    t.set('subscriber.written', true);
+    const { inserted, ...subscriber } = row!;
+    return { subscriber, created: inserted, changed: true };
   });
 }
 
@@ -204,6 +235,40 @@ export async function softDeleteSubscriber(db: Db, subscriber: Subscriber): Prom
   );
 }
 
+function isSubscriptionCurrent(
+  existing: Subscription,
+  subscriberId: number,
+  platform: 'ios' | 'android' | null,
+  now: Date
+): boolean {
+  return (
+    existing.subscriberId === subscriberId &&
+    existing.platform === platform &&
+    existing.status === 'active' &&
+    now.getTime() - existing.lastSeenAt.getTime() < SUBSCRIPTION_TOUCH_THROTTLE_MS
+  );
+}
+
+async function findExistingSubscription(
+  db: Db,
+  tenantId: number,
+  channel: SubscriptionChannel,
+  endpoint: string
+): Promise<Subscription | null> {
+  const [subscription] = await db
+    .select()
+    .from(tables.subscription)
+    .where(
+      and(
+        eq(tables.subscription.tenantId, tenantId),
+        eq(tables.subscription.channel, channel),
+        eq(tables.subscription.endpoint, endpoint),
+        isNull(tables.subscription.deletedAt)
+      )
+    );
+  return subscription ?? null;
+}
+
 export async function registerSubscription(
   db: Db,
   tenantId: number,
@@ -213,6 +278,7 @@ export async function registerSubscription(
     platform: 'ios' | 'android' | null;
     endpoint: string;
     verifiedNow?: boolean;
+    subscriber?: Subscriber;
   }
 ): Promise<{
   subscription: Subscription;
@@ -220,44 +286,20 @@ export async function registerSubscription(
   subscriberCreated: boolean;
   subscriber: Subscriber;
 }> {
-  return await trace('subscriptions.register', async () => {
-    const { subscriber, created: subscriberCreated } = await upsertSubscriber(
-      db,
-      tenantId,
-      input.externalId,
-      { verifiedNow: input.verifiedNow }
-    );
+  return await trace('subscriptions.register', async (t) => {
+    const { subscriber, created: subscriberCreated } = input.subscriber
+      ? { subscriber: input.subscriber, created: false }
+      : await upsertSubscriber(db, tenantId, input.externalId, { verifiedNow: input.verifiedNow });
 
-    const [existing] = await db
-      .select()
-      .from(tables.subscription)
-      .where(
-        and(
-          eq(tables.subscription.tenantId, tenantId),
-          eq(tables.subscription.channel, input.channel),
-          eq(tables.subscription.endpoint, input.endpoint),
-          isNull(tables.subscription.deletedAt)
-        )
-      );
+    const now = new Date();
+    const existing = await findExistingSubscription(db, tenantId, input.channel, input.endpoint);
 
-    if (existing) {
-      const [updated] = await db
-        .update(tables.subscription)
-        .set({
-          subscriberId: subscriber.id,
-          platform: input.platform,
-          status: 'active',
-          lastSeenAt: new Date(),
-          invalidatedAt: null,
-          invalidationReason: null,
-        })
-        .where(eq(tables.subscription.id, existing.id))
-        .returning();
-
-      return { subscription: updated!, subscriptionCreated: false, subscriberCreated, subscriber };
+    if (existing && isSubscriptionCurrent(existing, subscriber.id, input.platform, now)) {
+      t.set('subscription.written', false);
+      return { subscription: existing, subscriptionCreated: false, subscriberCreated, subscriber };
     }
 
-    const [created] = await db
+    const [row] = await db
       .insert(tables.subscription)
       .values({
         tenantId,
@@ -265,10 +307,26 @@ export async function registerSubscription(
         channel: input.channel,
         platform: input.platform,
         endpoint: input.endpoint,
+        lastSeenAt: now,
       })
-      .returning();
+      .onConflictDoUpdate({
+        target: [tables.subscription.tenantId, tables.subscription.channel, tables.subscription.endpoint],
+        targetWhere: isNull(tables.subscription.deletedAt),
+        set: {
+          subscriberId: subscriber.id,
+          platform: input.platform,
+          status: 'active',
+          invalidatedAt: null,
+          invalidationReason: null,
+          lastSeenAt: now,
+          updatedAt: now,
+        },
+      })
+      .returning({ ...getTableColumns(tables.subscription), inserted: sql<boolean>`(xmax = 0)` });
 
-    return { subscription: created!, subscriptionCreated: true, subscriberCreated, subscriber };
+    t.set('subscription.written', true);
+    const { inserted, ...subscription } = row!;
+    return { subscription, subscriptionCreated: inserted, subscriberCreated, subscriber };
   });
 }
 

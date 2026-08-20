@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -175,10 +176,40 @@ export async function revokeApiKey(db: Db, keyId: number): Promise<ApiKey> {
         .returning()
   );
 
+  await purgeApiKeyCache([revoked!.keyHash]);
+
   return revoked!;
 }
 
-export async function findActiveApiKeyByHash(db: Db, keyHash: string) {
+export type ResolvedApiKey = {
+  key: ApiKey;
+  workspace: typeof tables.workspace.$inferSelect;
+  tenant: typeof tables.tenant.$inferSelect | null;
+};
+
+const KEY_CACHE_TTL_SECONDS = 60;
+
+const keyCacheKey = (keyHash: string) => `apikey:${keyHash}`;
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+function reviveDates<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(reviveDates) as T;
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    out[key] =
+      typeof entry === 'string' && key.endsWith('At') && ISO_DATE.test(entry)
+        ? new Date(entry)
+        : reviveDates(entry);
+  }
+  return out as T;
+}
+
+export async function findActiveApiKeyByHash(db: Db, keyHash: string): Promise<ResolvedApiKey | null> {
+  const cached = await env.AUTH_CACHE?.get<ResolvedApiKey>(keyCacheKey(keyHash), 'json');
+  if (cached) return reviveDates(cached);
+
   const [result] = await trace(
     'keys.findActiveByHash',
     async () =>
@@ -206,7 +237,36 @@ export async function findActiveApiKeyByHash(db: Db, keyHash: string) {
 
   if (result.key.kind !== 'workspace' && !result.tenant) return null;
 
+  const secondsUntilExpiry = result.key.expiresAt
+    ? Math.floor((result.key.expiresAt.getTime() - Date.now()) / 1000)
+    : KEY_CACHE_TTL_SECONDS;
+  if (secondsUntilExpiry >= 60) {
+    await env.AUTH_CACHE?.put(keyCacheKey(keyHash), JSON.stringify(result), {
+      expirationTtl: Math.min(KEY_CACHE_TTL_SECONDS, secondsUntilExpiry),
+    });
+  }
+
   return result;
+}
+
+export async function purgeApiKeyCache(keyHashes: string[]): Promise<void> {
+  await Promise.all(keyHashes.map((keyHash) => env.AUTH_CACHE?.delete(keyCacheKey(keyHash))));
+}
+
+export async function purgeApiKeyCacheForTenant(db: Db, tenantId: number): Promise<void> {
+  const rows = await db
+    .select({ keyHash: tables.apiKey.keyHash })
+    .from(tables.apiKey)
+    .where(eq(tables.apiKey.tenantId, tenantId));
+  await purgeApiKeyCache(rows.map((row) => row.keyHash));
+}
+
+export async function purgeApiKeyCacheForWorkspace(db: Db, workspaceId: number): Promise<void> {
+  const rows = await db
+    .select({ keyHash: tables.apiKey.keyHash })
+    .from(tables.apiKey)
+    .where(eq(tables.apiKey.workspaceId, workspaceId));
+  await purgeApiKeyCache(rows.map((row) => row.keyHash));
 }
 
 export async function touchApiKey(db: Db, key: ApiKey): Promise<void> {
@@ -218,4 +278,13 @@ export async function touchApiKey(db: Db, key: ApiKey): Promise<void> {
     'keys.touch',
     async () => await db.update(tables.apiKey).set({ lastUsedAt: now }).where(eq(tables.apiKey.id, key.id))
   );
+  key.lastUsedAt = now;
+
+  const cached = await env.AUTH_CACHE?.get<ResolvedApiKey>(keyCacheKey(key.keyHash), 'json');
+  if (cached) {
+    cached.key.lastUsedAt = now;
+    await env.AUTH_CACHE?.put(keyCacheKey(key.keyHash), JSON.stringify(cached), {
+      expirationTtl: KEY_CACHE_TTL_SECONDS,
+    });
+  }
 }

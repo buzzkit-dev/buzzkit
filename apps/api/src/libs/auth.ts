@@ -10,9 +10,10 @@ import {
 } from '@buzzkit/api/api/keys/index';
 import { findTenantBySlug, type Tenant } from '@buzzkit/api/api/tenants/index';
 import { createBetterAuth } from '@buzzkit/auth';
-import { and, createDrizzle, eq, type InferSelectModel, isNull, tables } from '@buzzkit/database';
+import { and, type Db, eq, type InferSelectModel, isNull, tables } from '@buzzkit/database';
+import { instrumentBetterAuth } from '@kubiks/otel-better-auth';
 import Elysia from 'elysia';
-import { database } from './database';
+import { createDb, database } from './database';
 import {
   BadRequestError,
   ForbiddenError,
@@ -41,16 +42,14 @@ type CachedSession = {
   session: Session;
 };
 
-const SESSION_CACHE_TTL = 300;
+const AUTH_CACHE_TTL = 300;
 
 const sessionCacheKey = (token: string) => `session:${token.slice(-16)}`;
 
-export const authClient = (db?: ReturnType<typeof createDrizzle>) =>
-  createBetterAuth({
-    db: db ?? createDrizzle(env.HYPERDRIVE.connectionString),
-    env: env,
-    schema: tables.auth,
-  });
+export const authClient = (db?: Db) => {
+  const auth = createBetterAuth({ db: db ?? createDb(), env, schema: tables.auth });
+  return instrumentBetterAuth(auth as unknown as Parameters<typeof instrumentBetterAuth>[0]) as typeof auth;
+};
 
 function getAuthLogContext(request: Request) {
   const url = new URL(request.url);
@@ -66,7 +65,7 @@ function getAuthLogContext(request: Request) {
   };
 }
 
-const userMiddleware = (request: Request, db: ReturnType<typeof createDrizzle>) =>
+const userMiddleware = (request: Request, db: Db) =>
   trace('auth.userMiddleware', async (t) => {
     const authHeader = request.headers.get('authorization');
 
@@ -80,7 +79,7 @@ const userMiddleware = (request: Request, db: ReturnType<typeof createDrizzle>) 
 
     const cached = await t.trace(
       'auth.getCachedSession',
-      async () => await env.SESSION_CACHE?.get<CachedSession>(cacheKey, 'json')
+      async () => await env.AUTH_CACHE?.get<CachedSession>(cacheKey, 'json')
     );
 
     if (cached) {
@@ -102,8 +101,8 @@ const userMiddleware = (request: Request, db: ReturnType<typeof createDrizzle>) 
     const result = { user: session.user, session: session.session };
 
     await t.trace('auth.cacheSession', async () =>
-      env.SESSION_CACHE?.put(cacheKey, JSON.stringify(result), {
-        expirationTtl: SESSION_CACHE_TTL,
+      env.AUTH_CACHE?.put(cacheKey, JSON.stringify(result), {
+        expirationTtl: AUTH_CACHE_TTL,
       })
     );
 
@@ -114,11 +113,7 @@ function resolveWorkspaceSlug(request: Request, params: Record<string, string>):
   return params.slug ?? request.headers.get('buzzkit-workspace');
 }
 
-const workspaceMiddleware = (
-  request: Request,
-  params: Record<string, string>,
-  db: ReturnType<typeof createDrizzle>
-) =>
+const workspaceMiddleware = (request: Request, params: Record<string, string>, db: Db) =>
   trace('auth.workspaceMiddleware', async (t) => {
     const auth = await userMiddleware(request, db);
 
@@ -179,11 +174,7 @@ const workspaceMiddleware = (
     };
   });
 
-const apiKeyMiddleware = (
-  request: Request,
-  params: Record<string, string>,
-  db: ReturnType<typeof createDrizzle>
-) =>
+const apiKeyMiddleware = (request: Request, params: Record<string, string>, db: Db) =>
   trace('auth.apiKeyMiddleware', async (t) => {
     t.set('auth.method', 'api_key');
 
@@ -238,7 +229,7 @@ export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
     if (response.ok && new URL(request.url).pathname.endsWith('/sign-out')) {
       const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       if (token) {
-        await env.SESSION_CACHE?.delete(sessionCacheKey(token));
+        await env.AUTH_CACHE?.delete(sessionCacheKey(token));
       }
     }
 
@@ -337,9 +328,9 @@ export const auth = new Elysia({ name: 'auth/service' })
         }
 
         requireScope(base.scopes, required);
-        setAuthSpanAttributes(base);
 
         const auth: TenantAuth = { ...(base as WorkspaceAuth), tenant };
+        setAuthSpanAttributes(auth);
         return auth;
       },
     }),
@@ -372,6 +363,7 @@ export const auth = new Elysia({ name: 'auth/service' })
 
           t.set('workspace.id', result.workspace.id);
           t.set('auth.method', 'client_key');
+          setAuthSpanAttributes({ apiKey: result.key, workspace: result.workspace, tenant: result.tenant });
 
           const clientEvent = (display: string) =>
             createEventLogger(db, { type: 'user', subscriber: { display } }, request, result.workspace.id);

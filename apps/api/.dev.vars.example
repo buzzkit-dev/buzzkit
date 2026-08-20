@@ -2,3 +2,10 @@
 BETTER_AUTH_URL=http://localhost:8790
 BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
 CREDENTIAL_MASTER_KEY=generate-with-openssl-rand-base64-32
+
+# Optional telemetry. Traces: OTEL_EXPORTER_OTLP_ENDPOINT wins (local: `bun jaeger` then http://localhost:4318),
+# else Axiom when token + dataset are set, else dropped. Logs always print to console; Axiom when configured.
+OTEL_EXPORTER_OTLP_ENDPOINT=
+AXIOM_API_TOKEN=
+AXIOM_LOGS_DATASET=
+AXIOM_TRACES_DATASET=

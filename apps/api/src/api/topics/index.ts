@@ -1,11 +1,11 @@
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, asc, type Db, eq, inArray, isNull, tables } from '@buzzkit/database';
+import { and, asc, channel, type Db, eq, inArray, isNull, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Topic = typeof tables.topic.$inferSelect;
 
-export const CHANNELS = ['push', 'email'] as const;
+export const CHANNELS = channel.enumValues;
 export type Channel = (typeof CHANNELS)[number];
 
 export const ChannelDefaultsSchema = t.Record(t.String(), t.Any());

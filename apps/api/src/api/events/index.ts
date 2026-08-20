@@ -1,6 +1,6 @@
 import type { ApiKey } from '@buzzkit/api/api/keys/index';
 import { log } from '@buzzkit/api/libs/logger';
-import { decodeSqid, ID_PREFIXES, s, TARGET_ENTITIES } from '@buzzkit/api/libs/sqids';
+import { decodeSqid, encodeBareId, ID_PREFIXES, s, TARGET_ENTITIES } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import { and, type Db, desc, eq, lt, tables } from '@buzzkit/database';
@@ -85,13 +85,13 @@ export function actorColumns(actor: Actor) {
 export function createEventLogger(
   db: Db,
   actor: Actor,
-  request: Request,
+  request: Request | null,
   boundWorkspaceId: number | null
 ): EventFn {
   const requestMeta = {
-    requestId: request.headers.get('cf-ray') ?? request.headers.get('x-request-id'),
-    ip: request.headers.get('cf-connecting-ip'),
-    userAgent: request.headers.get('user-agent'),
+    requestId: request?.headers.get('cf-ray') ?? request?.headers.get('x-request-id') ?? null,
+    ip: request?.headers.get('cf-connecting-ip') ?? null,
+    userAgent: request?.headers.get('user-agent') ?? null,
   };
 
   return async (entry: EventEntry) => {
@@ -106,7 +106,7 @@ export function createEventLogger(
           targetId:
             entry.target !== undefined
               ? typeof entry.target.id === 'number'
-                ? s.encode([entry.target.id])
+                ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
                 : entry.target.id
               : undefined,
           data: entry.data,

@@ -1,4 +1,4 @@
-import { randomString } from '@buzzkit/api/api/keys/index';
+import { purgeApiKeyCacheForTenant, randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, asc, type Db, eq, gt, isNull, tables } from '@buzzkit/database';
@@ -243,9 +243,9 @@ export async function softDeleteTenant(db: Db, tenant: Tenant): Promise<Tenant> 
     throw new BadRequestError('The default tenant cannot be deleted');
   }
 
-  return await trace('tenants.softDelete', async () =>
+  const deleted = await trace('tenants.softDelete', async () =>
     db.transaction(async (tx) => {
-      const [deleted] = await tx
+      const [row] = await tx
         .update(tables.tenant)
         .set({ deletedAt: new Date() })
         .where(eq(tables.tenant.id, tenant.id))
@@ -256,7 +256,11 @@ export async function softDeleteTenant(db: Db, tenant: Tenant): Promise<Tenant> 
         .set({ revokedAt: new Date() })
         .where(and(eq(tables.apiKey.tenantId, tenant.id), isNull(tables.apiKey.revokedAt)));
 
-      return deleted!;
+      return row!;
     })
   );
+
+  await purgeApiKeyCacheForTenant(db, tenant.id);
+
+  return deleted;
 }

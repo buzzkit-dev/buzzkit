@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
+import { db, eq, tables } from '../../utils/db';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 async function identify(headers: Record<string, string>, externalId: string, attributes?: object) {
@@ -40,6 +41,53 @@ describe('PUT /v1/subscribers/:externalId', () => {
 
     expect(noop.status).toBe(200);
     expect(noop.body.data?.attributes).toEqual({ plan: 'free', city: 'berlin' });
+  });
+
+  it('an identical identify writes nothing and records no event; a change does both', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `user_${uniq()}`;
+
+    const first = await identify(keyBearer, externalId, { plan: 'free', tags: ['a', 'b'], nested: { x: 1 } });
+    const sqid = first.body.data!.id.replace(/^sub_/, '');
+    const [before] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+
+    const same = await identify(keyBearer, externalId, { nested: { x: 1 }, tags: ['a', 'b'], plan: 'free' });
+    expect(same.status).toBe(200);
+    const omitted = await identify(keyBearer, externalId);
+    expect(omitted.status).toBe(200);
+
+    const [after] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+    expect(after?.updatedAt.toISOString()).toBe(before?.updatedAt.toISOString());
+
+    const eventsBefore = await db
+      .select({ event: tables.event.event })
+      .from(tables.event)
+      .where(eq(tables.event.targetId, sqid));
+    expect(eventsBefore.map((row) => row.event)).toEqual(['subscriber.created']);
+
+    const changed = await identify(keyBearer, externalId, {
+      plan: 'pro',
+      tags: ['a', 'b'],
+      nested: { x: 1 },
+    });
+    expect(changed.status).toBe(200);
+    const [afterChange] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+    expect(afterChange?.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
+
+    const eventsAfter = await db
+      .select({ event: tables.event.event })
+      .from(tables.event)
+      .where(eq(tables.event.targetId, sqid));
+    expect(eventsAfter.map((row) => row.event)).toEqual(['subscriber.created', 'subscriber.updated']);
   });
 
   it('email on identify creates an email subscription', async () => {

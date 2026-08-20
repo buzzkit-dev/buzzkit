@@ -1,6 +1,7 @@
 import { authHandler } from '@buzzkit/api/libs/auth';
 import { error } from '@buzzkit/api/libs/error';
 import { logger } from '@buzzkit/api/libs/logger';
+import { telemetry } from '@buzzkit/api/libs/telemetry';
 import { v1 } from '@buzzkit/api/modules/v1/index';
 import cors from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
@@ -12,6 +13,7 @@ export const app = new Elysia({
 })
   .use(cors())
   .use(logger)
+  .use(telemetry)
   .use(error)
   .use(
     openapi({

@@ -9,11 +9,15 @@ import { credentialValidate } from './credentials/[id]/validate';
 import { credentialsApns } from './credentials/apns';
 import { credentialsFcm } from './credentials/fcm';
 import { credentialsResend } from './credentials/resend';
+import { delivery } from './deliveries/[id]';
+import { deliveryAttempts } from './deliveries/[id]/attempts';
 import { health } from './health';
 import { invitePreview } from './invites/[token]';
 import { inviteAccept } from './invites/[token]/accept';
+import { messages } from './messages';
+import { message } from './messages/[id]';
+import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
-import { apnsSpike } from './spike/apns';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
 import { subscriberPreferences } from './subscribers/[externalId]/preferences';
@@ -41,10 +45,6 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/health
    */
   .use(health)
-  /*
-   * /v1/spike/apns — Phase 0 APNs spike, removed in Phase 4
-   */
-  .use(apnsSpike)
   /*
    * /v1/profile
    */
@@ -161,6 +161,26 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/topics/:topicSlug
    */
   .use(topic)
+  /*
+   * /v1/messages
+   */
+  .use(messages)
+  /*
+   * /v1/messages/:id
+   */
+  .use(message)
+  /*
+   * /v1/messages/:id/deliveries
+   */
+  .use(messageDeliveries)
+  /*
+   * /v1/deliveries/:id
+   */
+  .use(delivery)
+  /*
+   * /v1/deliveries/:id/attempts
+   */
+  .use(deliveryAttempts)
   /*
    * /v1/client/identify
    */

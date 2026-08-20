@@ -16,6 +16,7 @@ export const SCOPE_CATALOG = {
 
   'members:read': { context: 'workspace', role: 'member', key: true },
   'members:write': { context: 'workspace', role: 'admin', key: true },
+
   'invites:read': { context: 'workspace', role: 'admin', key: true },
   'invites:write': { context: 'workspace', role: 'admin', key: true },
 
@@ -32,11 +33,15 @@ export const SCOPE_CATALOG = {
 
   'subscribers:read': { context: 'tenant', role: 'member', key: true },
   'subscribers:write': { context: 'tenant', role: 'member', key: true },
+
   'subscriptions:read': { context: 'tenant', role: 'member', key: true },
   'subscriptions:write': { context: 'tenant', role: 'member', key: true },
 
   'topics:read': { context: 'tenant', role: 'member', key: true },
   'topics:write': { context: 'tenant', role: 'admin', key: true },
+
+  'messages:read': { context: 'tenant', role: 'member', key: true },
+  'messages:send': { context: 'tenant', role: 'member', key: true },
 } as const satisfies Record<string, ScopeDefinition>;
 
 export type Scope = keyof typeof SCOPE_CATALOG;

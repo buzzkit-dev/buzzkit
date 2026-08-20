@@ -1,4 +1,4 @@
-import { randomString } from '@buzzkit/api/api/keys/index';
+import { purgeApiKeyCacheForWorkspace, randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
@@ -99,9 +99,9 @@ export async function updateWorkspace(
 }
 
 export async function softDeleteWorkspace(db: Db, workspaceId: number): Promise<Workspace> {
-  return await trace('workspaces.softDelete', async () =>
+  const deleted = await trace('workspaces.softDelete', async () =>
     db.transaction(async (tx) => {
-      const [deleted] = await tx
+      const [row] = await tx
         .update(tables.workspace)
         .set({ deletedAt: new Date() })
         .where(eq(tables.workspace.id, workspaceId))
@@ -112,7 +112,11 @@ export async function softDeleteWorkspace(db: Db, workspaceId: number): Promise<
         .set({ revokedAt: new Date() })
         .where(and(eq(tables.apiKey.workspaceId, workspaceId), isNull(tables.apiKey.revokedAt)));
 
-      return deleted!;
+      return row!;
     })
   );
+
+  await purgeApiKeyCacheForWorkspace(db, workspaceId);
+
+  return deleted;
 }

@@ -25,6 +25,7 @@ export const clientIdentify = new Elysia()
 
       if (body.email) {
         await registerSubscription(db, tenant.id, {
+          subscriber,
           externalId: subscriber.externalId,
           channel: 'email',
           platform: null,

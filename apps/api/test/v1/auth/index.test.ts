@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
-import { db, eq, tables } from '../../utils/db';
 import { addMember, createKey, createTenant, setupWorkspace, signUpUser, uniq } from '../../utils/setup';
 
 /**
@@ -141,26 +140,30 @@ describe('isolation: API keys', () => {
     expect(otherResource.status).toBe(403);
   });
 
-  it('an expired key stops authenticating', async () => {
+  it('an expired key stops authenticating at its expiry', async () => {
     const { owner, workspace } = await setupWorkspace();
-    const name = `expiring-${uniq()}`;
-    const key = await createKey(owner.token, workspace.slug, { name, scopes: ['tenants:read'] });
-    const bearer = { Authorization: `Bearer ${key.secret}` };
+    const expiresAt = new Date(Date.now() + 2000).toISOString();
+    const key = await api<{ secret: string }>(`/v1/workspaces/${workspace.slug}/keys`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${owner.token}` },
+      body: JSON.stringify({ name: `short-${uniq()}`, scopes: ['tenants:read'], expiresAt }),
+    });
+    const bearer = { Authorization: `Bearer ${key.body.data?.secret}` };
 
     const before = await api('/v1/tenants', { headers: bearer });
     expect(before.status).toBe(200);
 
-    await db
-      .update(tables.apiKey)
-      .set({ expiresAt: new Date(Date.now() - 1000) })
-      .where(eq(tables.apiKey.name, name));
+    await new Promise((resolve) => setTimeout(resolve, 2500));
 
     const after = await api('/v1/tenants', { headers: bearer });
     expect(after.status).toBe(401);
   });
 
-  it('a revoked key stops authenticating', async () => {
+  it('a revoked key stops authenticating — even when it was cached a moment ago', async () => {
     const { owner, workspace, key } = await setupWorkspace();
+
+    const warm = await api('/v1/tenants', { headers: { Authorization: `Bearer ${key.secret}` } });
+    expect(warm.status).toBe(200);
 
     const revoke = await api(`/v1/workspaces/${workspace.slug}/keys/${key.id}`, {
       method: 'DELETE',

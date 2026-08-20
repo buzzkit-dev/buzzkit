@@ -24,7 +24,7 @@ Every route declares exactly one scope; the scope's context decides authenticati
 
 - **user context** (`account:read|write`) — session-only.
 - **workspace context** (control plane) — session membership (scopes from the role bundle) or workspace API key (scopes from its grants; wildcards `*` / `resource:*` supported). Tenant keys are rejected.
-- **tenant context** (data plane: `credentials:*`, `subscribers:*`, `devices:*`, `topics:*`, later messages) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
+- **tenant context** (data plane: `credentials:*`, `subscribers:*`, `subscriptions:*`, `topics:*`, `messages:*`) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
 - **client context** (`/v1/client/*`) — client keys ONLY (secret keys and sessions are refused); the key implies workspace + tenant. Subscriber identity comes from the request (`externalId` in bodies, `BuzzKit-Subscriber` header on preferences), optionally proven by `identityHash` / `BuzzKit-Identity` (HMAC-SHA256 of the externalId with the tenant's identity secret) when the tenant enforces verification.
 
 Role bundles: `member` → read scopes + members:read; `admin` → + workspace:write, members:write, invites:*, tenants:write, keys:*; `owner` → + workspace:delete.
@@ -38,4 +38,4 @@ Role bundles: `member` → read scopes + members:read; `admin` → + workspace:w
 3. Keys never manage keys.
 3b. Ownership is owner-only: granting or revoking the `owner` role requires owner-level authority, so `members:write` alone can never escalate.
 4. Cross-workspace addressing fails closed (403), invalid/revoked/expired credentials fail closed (401).
-5. Sessions are cached in KV for 5 minutes (`SESSION_CACHE`) and the cache entry is purged on sign-out, so sign-out revokes access immediately; API keys are verified against the database on every request.
+5. Sessions are cached in KV for 5 minutes (`AUTH_CACHE`) and purged on sign-out; resolved API keys are cached for 60 seconds (bounded by the key's own expiry) and purged on revoke and on tenant/workspace deletion — revocation is immediate in-region, with KV propagation bounding worst-case global staleness at ~60s.

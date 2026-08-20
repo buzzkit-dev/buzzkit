@@ -19,7 +19,9 @@
     "ENVIRONMENT": "development",
     "SQIDS_ALPHABET": "kdiEK9YyRrDlM4pnPXWQmL2wNZzeUxIqSHVvTGtjb0aJFuh3s618Bf5cCgAO7o",
     "DASHBOARD_URL": "http://localhost:5180",
-    "EMAIL_FROM": "invites@buzzkit.dev"
+    "EMAIL_FROM": "invites@buzzkit.dev",
+    // Head-sampling ratio for traces (0..1); tail sampling always keeps error traces.
+    "TRACE_SAMPLE_RATIO": "1"
   },
 
   // Cloudflare Email Service. `remote: true` sends real email even in local
@@ -39,10 +41,36 @@
     }
   ],
 
+  // AUTH_CACHE: resolved dashboard sessions (5 min) and API keys (60s, purged on revoke).
+  // PROVIDER_CACHE: short-lived provider tokens (APNs JWT, FCM OAuth).
   "kv_namespaces": [
     {
-      "binding": "SESSION_CACHE",
-      "id": "your-kv-namespace-id"
+      "binding": "AUTH_CACHE",
+      "id": "your-auth-cache-kv-id"
+    },
+    {
+      "binding": "PROVIDER_CACHE",
+      "id": "your-provider-cache-kv-id"
     }
-  ]
+  ],
+
+  "queues": {
+    "producers": [{ "queue": "buzzkit-deliveries", "binding": "DELIVERIES" }],
+    "consumers": [
+      {
+        "queue": "buzzkit-deliveries",
+        "max_batch_size": 100,
+        "max_batch_timeout": 1,
+        // Delivery retries are scheduled in-code (persisted next_attempt_at +
+        // delayed re-enqueue); this caps runaway redelivery of crashing jobs
+        "max_retries": 8,
+        "dead_letter_queue": "buzzkit-deliveries-dlq"
+      }
+    ]
+  },
+
+  "triggers": {
+    // Delivery reconciliation: due retries, lost enqueues, expiries, stalled fan-outs
+    "crons": ["*/5 * * * *"]
+  }
 }

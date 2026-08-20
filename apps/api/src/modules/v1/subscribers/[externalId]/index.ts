@@ -26,25 +26,28 @@ export const subscriber = new Elysia()
   .put(
     '/subscribers/:externalId',
     async ({ body, db, params, set, tenant, event }) => {
-      const { subscriber, created } = await upsertSubscriber(db, tenant.id, params.externalId, {
+      const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, params.externalId, {
         attributes: body?.attributes,
       });
 
-      if (body?.email) {
-        await registerSubscription(db, tenant.id, {
-          externalId: subscriber.externalId,
-          channel: 'email',
-          platform: null,
-          endpoint: body.email,
+      const registered = body?.email
+        ? await registerSubscription(db, tenant.id, {
+            subscriber,
+            externalId: subscriber.externalId,
+            channel: 'email',
+            platform: null,
+            endpoint: body.email,
+          })
+        : null;
+
+      if (created || changed || registered?.subscriptionCreated) {
+        await event({
+          event: created ? 'subscriber.created' : 'subscriber.updated',
+          tenantId: tenant.id,
+          target: { type: 'subscriber', id: subscriber.id },
+          data: { externalId: subscriber.externalId },
         });
       }
-
-      await event({
-        event: created ? 'subscriber.created' : 'subscriber.updated',
-        tenantId: tenant.id,
-        target: { type: 'subscriber', id: subscriber.id },
-        data: { externalId: subscriber.externalId },
-      });
 
       return Response.success(withSubscriberId(serializeSubscriber(subscriber)), {
         ignoreTransform: ['attributes'],

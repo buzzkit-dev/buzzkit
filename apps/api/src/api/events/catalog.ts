@@ -9,6 +9,7 @@ export const EVENT_CATALOG = {
 
   'member.role_changed': { webhook: true },
   'member.removed': { webhook: true },
+
   'invite.created': { webhook: true },
   'invite.resent': { webhook: false },
   'invite.revoked': { webhook: true },
@@ -28,14 +29,20 @@ export const EVENT_CATALOG = {
   'subscriber.created': { webhook: true },
   'subscriber.updated': { webhook: true },
   'subscriber.deleted': { webhook: true },
+
   'subscription.created': { webhook: true },
   'subscription.updated': { webhook: true },
   'subscription.removed': { webhook: true },
+  'subscription.invalidated': { webhook: true },
 
   'topic.created': { webhook: true },
   'topic.updated': { webhook: true },
   'topic.deleted': { webhook: true },
+
   'preferences.updated': { webhook: true },
+
+  'message.created': { webhook: true },
+  'message.completed': { webhook: true },
 
   'profile.updated': { webhook: false },
 } as const satisfies Record<string, EventDefinition>;

@@ -39,13 +39,11 @@ export async function validateCredentialUpload(
     return { status: 'active', lastError: null };
   }
 
-  if (result.transportError) {
+  if (result.code === 'transport' || result.code === 'timeout' || result.code === 'provider_unavailable') {
     return { status: 'unvalidated', lastError: `${definition.displayName} unreachable: ${result.reason}` };
   }
 
-  throw new BadRequestError(
-    result.structural ? result.reason : `${definition.displayName} rejected the credential: ${result.reason}`
-  );
+  throw new BadRequestError(`${definition.displayName} rejected the credential: ${result.reason}`);
 }
 
 export function serializeCredential(credential: Credential) {

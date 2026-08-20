@@ -46,9 +46,12 @@ export const TARGET_ENTITIES: Record<string, IdEntity> = {
   event: 'event',
 };
 
+export function encodeBareId(entity: IdEntity | undefined, id: number): string {
+  return entity === 'subscriber' ? subscriberSqids.encode([id]) : s.encode([id]);
+}
+
 export function encodeId(entity: IdEntity, id: number): string {
-  const encoded = entity === 'subscriber' ? subscriberSqids.encode([id]) : s.encode([id]);
-  return `${ID_PREFIXES[entity]}_${encoded}`;
+  return `${ID_PREFIXES[entity]}_${encodeBareId(entity, id)}`;
 }
 
 function stripPrefix(id: string): string {

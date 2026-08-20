@@ -1,185 +1,225 @@
-const HOSTS = {
+import { cachedToken, evictToken } from '../shared/cache';
+import { providerFetch, retryAfterSeconds } from '../shared/http';
+import { signJwt } from '../shared/jwt';
+import type {
+  DeliveryErrorCode,
+  ProviderDefinition,
+  ProviderEnvironment,
+  ProviderSendInput,
+  ProviderSendResult,
+  ProviderValidationInput,
+  ProviderValidationResult,
+} from '../types';
+
+const HOSTS: Record<ProviderEnvironment, string> = {
   production: 'https://api.push.apple.com',
   sandbox: 'https://api.sandbox.push.apple.com',
-} as const;
-
-export type ApnsEnvironment = keyof typeof HOSTS;
-
-function base64UrlEncode(data: Uint8Array | string): string {
-  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function pemToPkcs8(p8: string): Uint8Array {
-  const base64 = p8
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-export async function createApnsJwt(params: { p8: string; teamId: string; keyId: string }): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    pemToPkcs8(params.p8) as BufferSource,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  );
-
-  const header = base64UrlEncode(JSON.stringify({ alg: 'ES256', kid: params.keyId }));
-  const claims = base64UrlEncode(JSON.stringify({ iss: params.teamId, iat: Math.floor(Date.now() / 1000) }));
-  const signingInput = `${header}.${claims}`;
-
-  const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    key,
-    new TextEncoder().encode(signingInput)
-  );
-
-  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
-}
-
-export type ApnsResult = {
-  ok: boolean;
-  status: number;
-  apnsId: string | null;
-  reason: string | null;
 };
 
-export async function sendApns(params: {
-  jwt: string;
-  deviceToken: string;
-  bundleId: string;
-  environment: ApnsEnvironment;
-  payload: Record<string, unknown>;
-  pushType?: string;
-  priority?: number;
-}): Promise<ApnsResult> {
-  const response = await fetch(`${HOSTS[params.environment]}/3/device/${params.deviceToken}`, {
-    method: 'POST',
-    headers: {
-      authorization: `bearer ${params.jwt}`,
-      'apns-topic': params.bundleId,
-      'apns-push-type': params.pushType ?? 'alert',
-      'apns-priority': String(params.priority ?? 10),
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(params.payload),
-  });
+const JWT_TTL_SECONDS = 50 * 60;
+const PROBE_DEVICE_TOKEN = '0'.repeat(64);
 
-  let reason: string | null = null;
-  if (!response.ok) {
-    try {
-      const body = (await response.json()) as { reason?: string };
-      reason = body.reason ?? null;
-    } catch {
-      reason = null;
-    }
-  }
+const REASON_CODES: Record<string, DeliveryErrorCode> = {
+  BadDeviceToken: 'invalid_endpoint',
+  Unregistered: 'invalid_endpoint',
+  ExpiredToken: 'invalid_endpoint',
+  DeviceTokenNotForTopic: 'invalid_endpoint',
+  InvalidProviderToken: 'invalid_credential',
+  MissingProviderToken: 'invalid_credential',
+  ExpiredProviderToken: 'invalid_credential',
+  BadCertificate: 'invalid_credential',
+  BadCertificateEnvironment: 'invalid_credential',
+  TopicDisallowed: 'invalid_credential',
+  PayloadTooLarge: 'payload_too_large',
+  PayloadEmpty: 'payload_invalid',
+  BadCollapseId: 'payload_invalid',
+  BadExpirationDate: 'payload_invalid',
+  BadMessageId: 'payload_invalid',
+  BadPriority: 'payload_invalid',
+  BadTopic: 'payload_invalid',
+  MissingTopic: 'payload_invalid',
+  InvalidPushType: 'payload_invalid',
+  TooManyRequests: 'rate_limited',
+  TooManyProviderTokenUpdates: 'rate_limited',
+  InternalServerError: 'provider_unavailable',
+  ServiceUnavailable: 'provider_unavailable',
+  Shutdown: 'provider_unavailable',
+};
+
+function classify(status: number, reason: string | null): DeliveryErrorCode {
+  if (status === 410) return 'invalid_endpoint';
+  if (reason && REASON_CODES[reason]) return REASON_CODES[reason]!;
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'provider_unavailable';
+  return 'unknown';
+}
+
+function jwtCacheKey(input: { credentialId: number; keyVersion: number }): string {
+  return `apns:jwt:${input.credentialId}:${input.keyVersion}`;
+}
+
+export function createApnsJwt(params: { p8: string; teamId: string; keyId: string }): Promise<string> {
+  return signJwt({
+    algorithm: 'ES256',
+    privateKeyPem: params.p8,
+    header: { kid: params.keyId },
+    claims: { iss: params.teamId, iat: Math.floor(Date.now() / 1000) },
+  });
+}
+
+export function buildApnsPayload(payload: ProviderSendInput['payload']): Record<string, unknown> {
+  const alert: Record<string, unknown> = {};
+  if (payload.title !== undefined) alert.title = payload.title;
+  if (payload.subtitle !== undefined) alert.subtitle = payload.subtitle;
+  if (payload.body !== undefined) alert.body = payload.body;
+
+  const aps: Record<string, unknown> = {};
+  if (Object.keys(alert).length > 0) aps.alert = alert;
+  if (payload.badge !== undefined) aps.badge = payload.badge;
+  if (payload.sound !== undefined) aps.sound = payload.sound;
+  if (payload.imageUrl !== undefined) aps['mutable-content'] = 1;
 
   return {
-    ok: response.ok,
-    status: response.status,
-    apnsId: response.headers.get('apns-id'),
-    reason,
+    aps,
+    ...(payload.data ?? {}),
+    ...(payload.imageUrl !== undefined ? { imageUrl: payload.imageUrl } : {}),
+    ...(payload.apns?.payload ?? {}),
   };
 }
 
-export type ApnsValidationResult =
-  | { ok: true }
-  | { ok: false; reason: string; structural: boolean; transportError: boolean };
-
-export async function validateApnsCredential(params: {
-  p8: string;
-  teamId: string;
-  keyId: string;
+function buildHeaders(params: {
+  jwt: string;
   bundleId: string;
-  environment: ApnsEnvironment;
-}): Promise<ApnsValidationResult> {
+  priority: number;
+  collapseId?: string;
+  expiresAt: Date | null;
+}): Record<string, string> {
+  return {
+    authorization: `bearer ${params.jwt}`,
+    'apns-topic': params.bundleId,
+    'apns-push-type': 'alert',
+    'apns-priority': String(params.priority),
+    'apns-expiration': String(params.expiresAt ? Math.floor(params.expiresAt.getTime() / 1000) : 0),
+    'content-type': 'application/json',
+    ...(params.collapseId ? { 'apns-collapse-id': params.collapseId } : {}),
+  };
+}
+
+async function validate({
+  secret,
+  details,
+  environment,
+}: ProviderValidationInput): Promise<ProviderValidationResult> {
   let jwt: string;
   try {
-    jwt = await createApnsJwt(params);
+    jwt = await createApnsJwt({ p8: secret, teamId: details.teamId ?? '', keyId: details.keyId ?? '' });
   } catch {
     return {
       ok: false,
+      code: 'invalid_credential',
       reason: 'The key is not a valid APNs .p8 (PKCS#8 / P-256) private key',
-      structural: true,
-      transportError: false,
     };
   }
 
+  const result = await providerFetch(`${HOSTS[environment]}/3/device/${PROBE_DEVICE_TOKEN}`, {
+    method: 'POST',
+    headers: buildHeaders({ jwt, bundleId: details.bundleId ?? '', priority: 10, expiresAt: null }),
+    body: JSON.stringify({ aps: {} }),
+  });
+
+  if (!result.ok) {
+    return { ok: false, code: result.code, reason: result.reason };
+  }
+
+  const reason = (result.captured.body as { reason?: string } | null)?.reason ?? null;
+  if (result.response.status === 400 && reason === 'BadDeviceToken') {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    code: classify(result.response.status, reason),
+    reason: reason ?? `apns_status_${result.response.status}`,
+  };
+}
+
+async function send(input: ProviderSendInput): Promise<ProviderSendResult> {
+  const startedAt = Date.now();
+  const request = buildApnsPayload(input.payload);
+
+  let jwt: string;
   try {
-    const result = await sendApns({
-      jwt,
-      deviceToken: '0'.repeat(64),
-      bundleId: params.bundleId,
-      environment: params.environment,
-      payload: { aps: {} },
-    });
-
-    if (result.status === 400 && result.reason === 'BadDeviceToken') {
-      return { ok: true };
-    }
-
-    return {
-      ok: false,
-      reason: result.reason ?? `apns_status_${result.status}`,
-      structural: false,
-      transportError: false,
-    };
+    jwt = await cachedToken(jwtCacheKey(input), JWT_TTL_SECONDS, () =>
+      createApnsJwt({
+        p8: input.secret,
+        teamId: input.details.teamId ?? '',
+        keyId: input.details.keyId ?? '',
+      })
+    );
   } catch (error) {
     return {
       ok: false,
+      code: 'invalid_credential',
       reason: error instanceof Error ? error.message : String(error),
-      structural: false,
-      transportError: true,
+      request,
+      response: null,
+      latencyMs: Date.now() - startedAt,
     };
   }
-}
 
-export type ApnsProbeResult = {
-  http2: boolean;
-  status: number | null;
-  reason: string | null;
-  error: string | null;
-};
+  const result = await providerFetch(`${HOSTS[input.environment]}/3/device/${input.endpoint}`, {
+    method: 'POST',
+    headers: buildHeaders({
+      jwt,
+      bundleId: input.details.bundleId ?? '',
+      priority: input.payload.priority === 'normal' ? 5 : 10,
+      collapseId: input.payload.collapseId,
+      expiresAt: input.expiresAt,
+    }),
+    body: JSON.stringify(request),
+  });
 
-export async function probeApns(environment: ApnsEnvironment = 'sandbox'): Promise<ApnsProbeResult> {
-  try {
-    const response = await fetch(`${HOSTS[environment]}/3/device/${'0'.repeat(64)}`, {
-      method: 'POST',
-      headers: {
-        'apns-topic': 'dev.buzzkit.probe',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ aps: { alert: 'probe' } }),
-    });
-
-    let reason: string | null = null;
-    try {
-      const body = (await response.json()) as { reason?: string };
-      reason = body.reason ?? null;
-    } catch {
-      reason = null;
-    }
-
-    return { http2: true, status: response.status, reason, error: null };
-  } catch (error) {
+  if (!result.ok) {
     return {
-      http2: false,
-      status: null,
-      reason: null,
-      error: error instanceof Error ? error.message : String(error),
+      ok: false,
+      code: result.code,
+      reason: result.reason,
+      request,
+      response: null,
+      latencyMs: result.latencyMs,
     };
   }
+
+  if (result.response.ok) {
+    return {
+      ok: true,
+      providerMessageId: result.response.headers.get('apns-id'),
+      request,
+      response: result.captured,
+      latencyMs: result.latencyMs,
+    };
+  }
+
+  const reason = (result.captured.body as { reason?: string } | null)?.reason ?? null;
+  if (reason === 'ExpiredProviderToken') {
+    await evictToken(jwtCacheKey(input));
+  }
+
+  return {
+    ok: false,
+    code: classify(result.response.status, reason),
+    reason: reason ?? `apns_status_${result.response.status}`,
+    retryAfterSeconds: retryAfterSeconds(result.response),
+    request,
+    response: result.captured,
+    latencyMs: result.latencyMs,
+  };
 }
+
+export const apnsProvider: ProviderDefinition = {
+  name: 'apns',
+  channel: 'push',
+  displayName: 'APNs',
+  validate,
+  send,
+};

@@ -35,9 +35,11 @@ PostgreSQL schema, owned by `packages/database` (Drizzle). Tables land per roadm
 > Migrations were **squashed to a single `0000`** pre-launch when the subscription model landed — nothing was deployed anywhere yet.
 - `tenant` carries `identity_secret` (client HMAC verification) and **`settings` JSONB** — Stripe-style structured groups (identity, channels), resolved with defaults at read time, deep-merged on PATCH, validated against a settings catalog; `api_key` has kind `client` + plaintext `token` column (client keys are public and re-viewable).
 
-### Phase 4 — sending
+### Phase 4 — sending *(implemented)*
 
-`message` (request, target spec, counts) · `delivery` (one per device: status, attempts, provider response).
+- `message` — tenant-scoped send request: channel, `topic`, `targets` JSONB (`{ to?, topic? }`), `payload` JSONB, `idempotency_key` (partial-unique per tenant), `expires_at` (ttl), status enum (queued → processing → completed), counters `total`/`sent`/`delivered`/`bounced`/`failed`/`invalid` (applied in batches), `fanout_cursor` (resumable self-chaining fan-out), `fanout_completed_at` (completion requires fan-out to have finished), `completed_at`.
+- `delivery` — one per (message, subscription) (unique): tenant, subscriber, subscription, channel, `provider`, status enum (pending | retrying | sent | delivered | bounced | failed | invalid), `attempts`, `last_error_code` (shared taxonomy) + `last_error_message` (provider reason), `provider_message_id`, `next_attempt_at` (durable retry schedule; partial index for the reconciliation sweep), `first/last_attempted_at`, `sent_at`, `settled_at`.
+- `delivery_attempt` — **append-only ledger**, unique per (delivery, attempt): outcome enum (sent | retry | failed | invalid), `error_code`, `provider_reason`, `provider_status`, `provider_message_id`, `request` JSONB (exact provider payload), `response` JSONB (status + first 4KB), `latency_ms`, `next_attempt_at`, `started_at`/`finished_at`. Never updated, never deleted.
 
 ### Phase 7/8 — definitions & workflows
 

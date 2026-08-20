@@ -6,21 +6,22 @@ Elysia API on Cloudflare Workers with the CloudflareAdapter. Conventions ported 
 
 ```
 src/
-├── index.ts              Entry point — compiles app, exports fetch handler
+├── index.ts              Entry point — instrument({ fetch, queue, scheduled }) (one Worker, three traced services)
 ├── libs/                 Shared infrastructure (each an Elysia plugin or utility)
 │   ├── database.ts       Drizzle client via Hyperdrive (`db` in context)
 │   ├── error.ts          Custom error classes + global error handler
-│   ├── logger.ts         Buffered logger (console sink until observability phase)
+│   ├── logger.ts         Per-invocation buffered logger (console + Axiom) from @buzzkit/observability
 │   ├── response.ts       Response envelope builder with auto Sqids ID transformation
+│   ├── telemetry.ts      trace() spans, route/auth span attributes, instrument() binding
 │   └── sqids.ts          Sqids encoder/decoder + ID_PREFIXES catalog
 ├── utils/errorCodes.ts   Error code → HTTP status mapping (includes PostgreSQL codes)
-├── providers/            Delivery providers behind a generic interface (apns, fcm, …)
+├── providers/            Provider registry: one module per provider (validate + send), aggregated in index.ts
+├── queue/                Queue consumer (deliveries: chained fan-out + deliver, batched counters) and the reconciliation cron
 └── modules/              File-based routes
     ├── index.ts          App: CloudflareAdapter + CORS + logger + error + OpenAPI + v1
     └── v1/
         ├── index.ts      V1 router: response guard + route modules (flat registration)
-        ├── health/       GET /v1/health — DB-checked liveness
-        └── spike/apns/   Phase 0 APNs spike — REMOVE in Phase 4
+        └── health/       GET /v1/health — DB-checked liveness
 ```
 
 ## Rules (non-negotiable)
@@ -38,11 +39,15 @@ src/
 
 Every mutation endpoint calls the context-bound `event()` exactly once — always `await`ed (the ledger INSERT is synchronous; the row is durable before the response; failures are logged, never thrown). Names follow Stripe's convention (`tenant.created`, `member.role_changed`) and MUST exist in `EVENT_CATALOG` (`api/events/catalog.ts`) — calls are type-checked against it. The ledger powers the audit log (`GET /v1/workspaces/:slug/events`) and future webhook delivery (the catalog's `webhook` flag). Never recorded: reads, auth denials.
 
+## Observability — every unit of work is a span
+
+Traces and logs come from `@buzzkit/observability` (`packages/observability`). Wrap domain operations, provider calls, and queue/cron work in `trace('resource.verb', attrs?, fn)` and stamp outcomes with `t.set()`; log with `log.info/warn/error(message, fields)` — never `console`. Services report as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler` from one Worker. Caches live in KV only (`AUTH_CACHE`, `PROVIDER_CACHE`) — never in isolate memory. Details: `docs/architecture.md` → Observability.
+
 ## Testing
 
 Integration over HTTP in the plain Node vitest pool (NEVER `@cloudflare/vitest-pool-workers`): requires `bun dev` running (port 8790) + local Postgres (`bun db:up` at repo root). `test/` mirrors `modules/` exactly (`test/v1/health/index.test.ts` ↔ `/v1/health`). Helpers in `test/utils/`.
 
-Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `docs/architecture.md`; APNs delivery is only testable deployed.
+Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `docs/architecture.md`; APNs delivery is only testable deployed. Queues run locally in `wrangler dev` — fan-out, targeting, retry accounting, and `no_credential` outcomes are fully tested locally.
 
 ## Code conventions
 
@@ -64,7 +69,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `POST /v1/spike/apns` (Phase 0 spike) · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `events` · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` · `/v1/credentials` (+ `/apns`, `/fcm`, `/resend`, `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/client/*` (identify, subscriptions, preferences — client keys only) — see `docs/api/`.
+`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `events` · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` · `/v1/credentials` (+ `/apns`, `/fcm`, `/resend`, `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/messages` (+ `/:id`, `/:id/deliveries`) · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences — client keys only) — see `docs/api/`.
 
 ## Commands
 
