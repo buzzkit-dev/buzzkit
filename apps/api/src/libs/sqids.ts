@@ -19,6 +19,7 @@ export const ID_PREFIXES = {
   credential: 'crd',
   subscriber: 'sub',
   device: 'dev',
+  topic: 'tpc',
   message: 'msg',
   delivery: 'dlv',
   event: 'evt',
@@ -40,6 +41,7 @@ export const TARGET_ENTITIES: Record<string, IdEntity> = {
   invite: 'invite',
   subscriber: 'subscriber',
   device: 'device',
+  topic: 'topic',
   message: 'message',
   event: 'event',
 };

@@ -8,14 +8,20 @@ export type ApiKeyKind = ApiKey['kind'];
 
 export const WORKSPACE_KEY_PREFIX = 'bk_ws_';
 export const TENANT_KEY_PREFIX = 'bk_tn_';
+export const CLIENT_KEY_PREFIX = 'bk_pk_';
 
 const SECRET_KEY_PREFIXES = [WORKSPACE_KEY_PREFIX, TENANT_KEY_PREFIX] as const;
+const ALL_KEY_PREFIXES = [WORKSPACE_KEY_PREFIX, TENANT_KEY_PREFIX, CLIENT_KEY_PREFIX] as const;
 
 const SECRET_LENGTH = 40;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 export function isApiKeyToken(token: string): boolean {
   return SECRET_KEY_PREFIXES.some((prefix) => token.startsWith(prefix));
+}
+
+export function isClientKeyToken(token: string): boolean {
+  return token.startsWith(CLIENT_KEY_PREFIX);
 }
 
 export function randomString(length: number): string {
@@ -34,13 +40,18 @@ export function randomString(length: number): string {
   return chars.join('');
 }
 
+const KIND_PREFIXES: Record<ApiKeyKind, string> = {
+  workspace: WORKSPACE_KEY_PREFIX,
+  tenant: TENANT_KEY_PREFIX,
+  client: CLIENT_KEY_PREFIX,
+};
+
 export function generateApiKeySecret(kind: ApiKeyKind): string {
-  const prefix = kind === 'tenant' ? TENANT_KEY_PREFIX : WORKSPACE_KEY_PREFIX;
-  return `${prefix}${randomString(SECRET_LENGTH)}`;
+  return `${KIND_PREFIXES[kind]}${randomString(SECRET_LENGTH)}`;
 }
 
 export function stripApiKeyPrefix(token: string): string {
-  const prefix = SECRET_KEY_PREFIXES.find((p) => token.startsWith(p));
+  const prefix = ALL_KEY_PREFIXES.find((p) => token.startsWith(p));
   return prefix ? token.slice(prefix.length) : token;
 }
 
@@ -57,6 +68,7 @@ export function maskApiKey(key: ApiKey) {
     name: key.name,
     kind: key.kind,
     tenantId: key.tenantId,
+    token: key.kind === 'client' ? key.token : undefined,
     prefix: key.prefix,
     last4: key.last4,
     scopes: key.scopes,
@@ -77,13 +89,13 @@ export async function createApiKey(
     throw new BadRequestError('expiresAt must be in the future');
   }
 
-  if (input.kind === 'tenant' && !input.tenantId) {
-    throw new BadRequestError('Tenant keys require a tenant');
+  if (input.kind !== 'workspace' && !input.tenantId) {
+    throw new BadRequestError(`${input.kind === 'client' ? 'Client' : 'Tenant'} keys require a tenant`);
   }
 
   const secret = generateApiKeySecret(input.kind);
   const keyHash = await hashApiKeySecret(secret);
-  const prefixLength = (input.kind === 'tenant' ? TENANT_KEY_PREFIX : WORKSPACE_KEY_PREFIX).length;
+  const prefixLength = KIND_PREFIXES[input.kind].length;
 
   const [key] = await trace(
     'keys.create',
@@ -92,10 +104,11 @@ export async function createApiKey(
         .insert(tables.apiKey)
         .values({
           workspaceId,
-          tenantId: input.kind === 'tenant' ? input.tenantId : null,
+          tenantId: input.kind === 'workspace' ? null : input.tenantId,
           name: input.name,
           kind: input.kind,
           keyHash,
+          token: input.kind === 'client' ? secret : null,
           prefix: secret.slice(0, prefixLength + 6),
           last4: secret.slice(-4),
           scopes: input.scopes,
@@ -191,7 +204,7 @@ export async function findActiveApiKeyByHash(db: Db, keyHash: string) {
 
   if (!result) return null;
 
-  if (result.key.kind === 'tenant' && !result.tenant) return null;
+  if (result.key.kind !== 'workspace' && !result.tenant) return null;
 
   return result;
 }

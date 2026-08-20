@@ -20,6 +20,14 @@ Uploading again for the same (provider, environment) **replaces** the credential
 
 Accepts the JSON object or its string form. Validated by requesting a real OAuth2 access token from Google. Environment is always `production`.
 
+## POST /v1/credentials/resend
+
+```json
+{ "apiKey": "re_…" }
+```
+
+The first email-channel credential — buzzkit doesn't compete with providers; it wraps them (the SST model). Validated with a real call against the Resend API. One live credential per (tenant, channel, provider, environment) means a tenant can hold APNs + FCM + Resend side by side.
+
 ## GET /v1/credentials — list the tenant's credentials (masked)
 ## GET /v1/credentials/:id — retrieve one (masked)
 ## POST /v1/credentials/:id/validate — re-run validation, update status

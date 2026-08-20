@@ -12,10 +12,11 @@ export const apiKey = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     tenantId: integer('tenant_id').references(() => tenant.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    kind: text('kind', { enum: ['workspace', 'tenant'] })
+    kind: text('kind', { enum: ['workspace', 'tenant', 'client'] })
       .notNull()
       .default('workspace'),
     keyHash: text('key_hash').notNull(),
+    token: text('token'),
     prefix: text('prefix').notNull(),
     last4: text('last4').notNull(),
     scopes: text('scopes').array().notNull(),

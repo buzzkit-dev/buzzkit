@@ -15,6 +15,7 @@ type ActorUser = { id: string; email: string };
 export type Actor =
   | { type: 'member'; user: ActorUser; memberId?: number }
   | { type: 'key'; apiKey: ApiKey }
+  | { type: 'user'; subscriber: { id?: number; display: string } }
   | { type: 'system' };
 
 export type EventEntry = {
@@ -70,6 +71,11 @@ export function actorColumns(actor: Actor) {
         actorType: 'key' as const,
         actorKeyId: actor.apiKey.id,
         actorDisplay: `${actor.apiKey.name} (${actor.apiKey.prefix}…${actor.apiKey.last4})`,
+      };
+    case 'user':
+      return {
+        actorType: 'user' as const,
+        actorDisplay: actor.subscriber.display,
       };
     case 'system':
       return { actorType: 'system' as const, actorDisplay: 'system' };

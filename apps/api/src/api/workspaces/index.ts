@@ -1,3 +1,4 @@
+import { randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
@@ -54,6 +55,7 @@ export async function createWorkspace(
         name: 'Default',
         slug: 'default',
         isDefault: true,
+        identitySecret: randomString(32),
       });
 
       return workspace!;

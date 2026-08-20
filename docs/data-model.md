@@ -24,9 +24,14 @@ PostgreSQL schema, owned by `packages/database` (Drizzle). Tables land per roadm
 - `credential` — tenant-scoped; envelope-encrypted secret (`secret_ciphertext`/`secret_iv` sealed by a per-credential DEK, `dek_ciphertext`/`dek_iv` sealed by the master key, `key_version` for rotation); non-secret `details` JSONB (APNs: teamId/keyId/bundleId; FCM: projectId/clientEmail); enums channel (push — email/sms later), provider (apns|fcm), environment (production|sandbox), status (unvalidated|active|invalid); one live row per (tenant, channel, provider, environment) via partial unique index.
 - `event` — the append-only ledger (audit log + future webhooks): workspace/tenant scope, actor columns (type/user/member/key/display), Stripe-style event names, target type + bare sqid id, `data` JSONB, request metadata. No soft delete — events are never deleted.
 
-### Phase 3 — subscribers & devices
+### Phase 3 — subscribers, devices, topics *(implemented — migration `0003`)*
 
-`subscriber` (external_id + attributes JSONB) · `device` (platform, token, status, last_seen_at).
+- `subscriber` — tenant-scoped, (tenant, external_id) partial-unique, `attributes` JSONB (segment fuel).
+- `device` — (tenant, token) partial-unique so re-registration is idempotent and tokens move between subscribers; platform enum (ios|android), status enum (active|invalid), `last_seen_at`, invalidation fields for the Phase 4 feedback loop.
+- `topic` — tenant-scoped notification categories, (tenant, slug) partial-unique, `default_opted_in` baseline + `channel_defaults` JSONB per-channel overrides.
+- `subscriber_preference` — (subscriber, topic, **channel**) unique — preferences are per topic × channel; stores only deviations from the topic's channel default; hard rows (no soft delete — resolved against live topics).
+- Migration `0004` (multi-channel): shared channel enum gains `email`; `subscriber.email` (the email-channel endpoint); credential provider gains `resend`.
+- `tenant` gains `identity_secret` + `require_identity_verification` (client HMAC identity verification); `api_key` gains kind `client` + plaintext `token` column (client keys are public and re-viewable).
 
 ### Phase 4 — sending
 

@@ -5,6 +5,7 @@ import {
   findActiveApiKeyByHash,
   hashApiKeySecret,
   isApiKeyToken,
+  isClientKeyToken,
   touchApiKey,
 } from '@buzzkit/api/api/keys/index';
 import { findTenantBySlug, type Tenant } from '@buzzkit/api/api/tenants/index';
@@ -331,6 +332,42 @@ export const auth = new Elysia({ name: 'auth/service' })
 
         const auth: TenantAuth = { ...(base as WorkspaceAuth), tenant };
         return auth;
+      },
+    }),
+    client: (enabled: true) => ({
+      resolve: async ({ request, db }) => {
+        if (!enabled) throw new UnauthorizedError('Client authentication required');
+
+        const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+
+        if (!isClientKeyToken(token)) {
+          throw new UnauthorizedError('Client endpoints require a client key (bk_pk_…)');
+        }
+
+        return await trace('auth.clientMiddleware', async (t) => {
+          const keyHash = await hashApiKeySecret(token);
+          const result = await findActiveApiKeyByHash(db, keyHash);
+
+          if (result?.key.kind !== 'client' || !result.tenant) {
+            t.set('auth.error', 'invalid_client_key');
+            throw new UnauthorizedError('Invalid client key');
+          }
+
+          await touchApiKey(db, result.key);
+
+          t.set('workspace.id', result.workspace.id);
+          t.set('auth.method', 'client_key');
+
+          const clientEvent = (display: string) =>
+            createEventLogger(db, { type: 'user', subscriber: { display } }, request, result.workspace.id);
+
+          return {
+            workspace: result.workspace,
+            tenant: result.tenant as Tenant,
+            apiKey: result.key,
+            clientEvent,
+          };
+        });
       },
     }),
     account: (access: AccountAction) => ({

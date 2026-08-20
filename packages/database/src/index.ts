@@ -5,7 +5,9 @@ import { credentialTables } from './schema/credential';
 import { eventTables } from './schema/event';
 import { inviteTables } from './schema/invite';
 import { apiKeyTables } from './schema/key';
+import { subscriberTables } from './schema/subscriber';
 import { tenantTables } from './schema/tenant';
+import { topicTables } from './schema/topic';
 import { workspaceTables } from './schema/workspace';
 
 export const tables = {
@@ -16,6 +18,8 @@ export const tables = {
   ...inviteTables,
   ...eventTables,
   ...credentialTables,
+  ...subscriberTables,
+  ...topicTables,
 };
 
 export const createDrizzle = (url: string) => {

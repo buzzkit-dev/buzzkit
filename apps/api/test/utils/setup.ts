@@ -116,6 +116,23 @@ export async function addMember(
   return { ...user, memberId: accepted.body.data.id };
 }
 
+export async function createClientKey(token: string, slug: string, tenantSlug: string) {
+  const { status, body } = await api<{ id: string; secret: string; token: string }>(
+    `/v1/workspaces/${slug}/keys`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: 'App key', kind: 'client', tenant: tenantSlug }),
+    }
+  );
+
+  if (status !== 201 || !body.data) {
+    throw new Error(`client key create failed: ${status} ${JSON.stringify(body)}`);
+  }
+
+  return body.data;
+}
+
 /** A user with a workspace and a full-access workspace API key. */
 export async function setupWorkspace() {
   const owner = await signUpUser('Owner');

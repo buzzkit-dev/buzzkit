@@ -7,7 +7,7 @@
 | **Session** (bearer token) | — | BetterAuth (`/v1/auth/*`, email + password) | Dashboard use: everything the user's workspace role allows, plus account routes and key management |
 | **Workspace API key** | `bk_ws_` | Dashboard → `/v1/workspaces/:slug/keys` | **The one key you store.** Server-side: any granted scope across ALL tenants of its workspace, tenant addressed per request — this is the key the product promise runs on |
 | **Tenant API key** | `bk_tn_` | Same, with `kind: "tenant"` + tenant slug | *Optional* — the restricted-key analog (Stripe `rk_`): locked to one tenant's data plane, for handing a customer or semi-trusted subsystem direct access with a one-tenant blast radius. Never required; rejected on all workspace-context routes |
-| **Client key** | `bk_pk_` | *Phase 3* | Embed-safe: device registration + subscriber identify only |
+| **Client key** | `bk_pk_` | Same, with `kind: "client"` + tenant (no scopes) | Embed-safe, ships in the app binary: `/v1/client/*` only — identify, device register/unregister, own preferences. Optional per-tenant HMAC identity verification stops externalId spoofing |
 
 Secrets are stored as SHA-256 hashes (of the post-prefix portion) and shown exactly once at creation. `Authorization: Bearer <secret>` everywhere.
 
@@ -24,7 +24,8 @@ Every route declares exactly one scope; the scope's context decides authenticati
 
 - **user context** (`account:read|write`) — session-only.
 - **workspace context** (control plane) — session membership (scopes from the role bundle) or workspace API key (scopes from its grants; wildcards `*` / `resource:*` supported). Tenant keys are rejected.
-- **tenant context** (data plane: `credentials:*`, later devices/messages) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
+- **tenant context** (data plane: `credentials:*`, `subscribers:*`, `devices:*`, `topics:*`, later messages) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
+- **client context** (`/v1/client/*`) — client keys ONLY (secret keys and sessions are refused); the key implies workspace + tenant. Subscriber identity comes from the request (`externalId` in bodies, `BuzzKit-Subscriber` header on preferences), optionally proven by `identityHash` / `BuzzKit-Identity` (HMAC-SHA256 of the externalId with the tenant's identity secret) when the tenant enforces verification.
 
 Role bundles: `member` → read scopes + members:read; `admin` → + workspace:write, members:write, invites:*, tenants:write, keys:*; `owner` → + workspace:delete.
 

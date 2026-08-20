@@ -25,6 +25,16 @@ export const EVENT_CATALOG = {
   'credential.validated': { webhook: true },
   'credential.revoked': { webhook: true },
 
+  'subscriber.created': { webhook: true },
+  'subscriber.updated': { webhook: true },
+  'subscriber.deleted': { webhook: true },
+  'device.registered': { webhook: true },
+  'device.removed': { webhook: true },
+  'topic.created': { webhook: true },
+  'topic.updated': { webhook: true },
+  'topic.deleted': { webhook: true },
+  'preferences.updated': { webhook: true },
+
   'profile.updated': { webhook: false },
 } as const satisfies Record<string, EventDefinition>;
 

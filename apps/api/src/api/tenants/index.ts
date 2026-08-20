@@ -1,3 +1,4 @@
+import { randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, asc, type Db, eq, gt, isNull, tables } from '@buzzkit/database';
@@ -25,6 +26,8 @@ export function serializeTenant(tenant: Tenant) {
     slug: tenant.slug,
     isDefault: tenant.isDefault,
     metadata: tenant.metadata,
+    identitySecret: tenant.identitySecret,
+    requireIdentityVerification: tenant.requireIdentityVerification,
     createdAt: tenant.createdAt,
     updatedAt: tenant.updatedAt,
   };
@@ -66,6 +69,7 @@ export async function createTenant(
           name: input.name,
           slug: input.slug,
           metadata: input.metadata ?? {},
+          identitySecret: randomString(32),
         })
         .returning()
   );
@@ -121,12 +125,22 @@ export async function findTenantBySlug(db: Db, workspaceId: number, slug: string
 
 export async function updateTenant(
   db: Db,
-  tenantId: number,
-  patch: { name?: string; slug?: string; metadata?: Record<string, unknown> }
+  tenant: Tenant,
+  patch: {
+    name?: string;
+    slug?: string;
+    metadata?: Record<string, unknown>;
+    requireIdentityVerification?: boolean;
+  }
 ): Promise<Tenant> {
+  const values: Record<string, unknown> = { ...patch };
+  if (patch.requireIdentityVerification && !tenant.identitySecret) {
+    values.identitySecret = randomString(32);
+  }
+
   const [updated] = await trace(
     'tenants.update',
-    async () => await db.update(tables.tenant).set(patch).where(eq(tables.tenant.id, tenantId)).returning()
+    async () => await db.update(tables.tenant).set(values).where(eq(tables.tenant.id, tenant.id)).returning()
   );
 
   return updated!;

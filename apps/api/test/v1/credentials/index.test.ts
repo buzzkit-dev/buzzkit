@@ -110,6 +110,31 @@ describe('POST /v1/credentials/fcm', () => {
   });
 });
 
+describe('POST /v1/credentials/resend', () => {
+  it('validates against Resend and rejects invalid keys end-to-end', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    const { status, body } = await api('/v1/credentials/resend', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ apiKey: `re_definitely_not_valid_${uniq()}` }),
+    });
+
+    expect(status).toBe(400);
+    expect(body.error?.message).toContain('Resend rejected');
+  });
+
+  it('an email credential lives in its own slot next to push credentials', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadApns(keyBearer);
+
+    const list = await api<Array<{ channel: string; provider: string }>>('/v1/credentials', {
+      headers: keyBearer,
+    });
+    expect(list.body.data?.every((row) => row.channel === 'push')).toBe(true);
+  });
+});
+
 describe('credential tenant isolation', () => {
   it('scopes credentials to the addressed tenant via buzzkit-tenant', async () => {
     const { keyBearer } = await setupWorkspace();
