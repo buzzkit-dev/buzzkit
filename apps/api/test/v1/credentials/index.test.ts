@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
-import { db, tables } from '../../utils/db';
+import { db, sql, tables } from '../../utils/db';
 import { generateP8, generateServiceAccount } from '../../utils/providerKeys';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
@@ -64,8 +64,10 @@ describe('POST /v1/credentials/apns', () => {
       expect(row.dekCiphertext).toBeUndefined();
     }
 
-    const rows = await db.select().from(tables.credential);
-    const stored = rows.find((row) => (row.details as { bundleId?: string }).bundleId === bundleId);
+    const [stored] = await db
+      .select()
+      .from(tables.credential)
+      .where(sql`${tables.credential.details}->>'bundleId' = ${bundleId}`);
     expect(stored?.secretCiphertext).toBeTruthy();
     expect(stored?.secretCiphertext).not.toContain('PRIVATE KEY');
     expect(stored?.secretCiphertext).not.toBe(p8);
@@ -79,6 +81,66 @@ describe('POST /v1/credentials/apns', () => {
 
     const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
     expect(list.body.data).toHaveLength(1);
+  });
+});
+
+describe('credential input validation and slots', () => {
+  it('validates APNs metadata shape before touching any provider', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const p8 = await generateP8();
+
+    for (const body of [
+      { p8, teamId: 'SHORT', keyId: 'XYZ9876543', bundleId: 'a.b' },
+      { p8, teamId: 'ABCDE12345', keyId: 'X', bundleId: 'a.b' },
+      { p8, teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: '' },
+      { p8, teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'a.b', environment: 'staging' },
+      { teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'a.b' },
+    ]) {
+      const { status } = await api('/v1/credentials/apns', {
+        method: 'POST',
+        headers: keyBearer,
+        body: JSON.stringify(body),
+      });
+      expect(status, JSON.stringify({ ...body, p8: body.p8 ? '<p8>' : undefined })).toBe(400);
+    }
+  });
+
+  it('sandbox and production APNs credentials are separate slots', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const base = { teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'dev.buzzkit.slots' };
+
+    const sandbox = await api('/v1/credentials/apns', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ ...base, p8: await generateP8(), environment: 'sandbox' }),
+    });
+    const production = await api('/v1/credentials/apns', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ ...base, p8: await generateP8(), environment: 'production' }),
+    });
+    expect(sandbox.status).toBe(201);
+    expect(production.status).toBe(201);
+
+    const list = await api<Array<{ environment: string }>>('/v1/credentials', { headers: keyBearer });
+    expect(list.body.data?.map((c) => c.environment).sort()).toEqual(['production', 'sandbox']);
+  });
+
+  it('dashboard sessions upload with workspace + tenant headers', async () => {
+    const { workspace, ownerBearer, keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+
+    const { status } = await uploadApns({
+      ...ownerBearer,
+      'buzzkit-workspace': workspace.slug,
+      'buzzkit-tenant': tenant.slug,
+    });
+    expect(status).toBe(201);
+
+    const viaKey = await api<unknown[]>('/v1/credentials', {
+      headers: { ...keyBearer, 'buzzkit-tenant': tenant.slug },
+    });
+    expect(viaKey.body.data).toHaveLength(1);
   });
 });
 
@@ -106,7 +168,7 @@ describe('POST /v1/credentials/fcm', () => {
     });
 
     expect(status).toBe(400);
-    expect(body.error?.message).toContain('Google rejected');
+    expect(body.error?.message).toContain('Firebase rejected');
   });
 });
 
@@ -235,6 +297,62 @@ describe('credential id isolation', () => {
 
     const wrongEntity = await api(`/v1/credentials/${tenant.id}`, { headers: keyBearer });
     expect(wrongEntity.status).toBe(400);
+  });
+});
+
+describe('credential lifecycle edges', () => {
+  it('a replaced credential id dies; a revoked one 404s on every verb; read-only keys cannot act', async () => {
+    const { owner, workspace, keyBearer } = await setupWorkspace();
+
+    const first = await uploadApns(keyBearer);
+    const second = await uploadApns(keyBearer);
+    expect(first.body.data?.id).not.toBe(second.body.data?.id);
+
+    const oldId = await api(`/v1/credentials/${first.body.data?.id}`, { headers: keyBearer });
+    expect(oldId.status).toBe(404);
+
+    await api(`/v1/credentials/${second.body.data?.id}`, { method: 'DELETE', headers: keyBearer });
+    for (const [method, suffix] of [
+      ['GET', ''],
+      ['POST', '/validate'],
+      ['DELETE', ''],
+    ] as const) {
+      const { status } = await api(`/v1/credentials/${second.body.data?.id}${suffix}`, {
+        method,
+        headers: keyBearer,
+      });
+      expect(status, `${method} ${suffix}`).toBe(404);
+    }
+
+    const third = await uploadApns(keyBearer);
+    const readOnly = await createKey(owner.token, workspace.slug, { scopes: ['credentials:read'] });
+    const readBearer = { Authorization: `Bearer ${readOnly.secret}` };
+
+    const read = await api(`/v1/credentials/${third.body.data?.id}`, { headers: readBearer });
+    expect(read.status).toBe(200);
+
+    const validate = await api(`/v1/credentials/${third.body.data?.id}/validate`, {
+      method: 'POST',
+      headers: readBearer,
+    });
+    expect(validate.status).toBe(403);
+
+    const revoke = await api(`/v1/credentials/${third.body.data?.id}`, {
+      method: 'DELETE',
+      headers: readBearer,
+    });
+    expect(revoke.status).toBe(403);
+  });
+
+  it('the audit ledger never contains credential secrets', async () => {
+    const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
+    const p8 = await generateP8();
+    await uploadApns(keyBearer, { p8, bundleId: `dev.buzzkit.ledger${uniq()}` });
+
+    const events = await api(`/v1/workspaces/${workspace.slug}/events`, { headers: ownerBearer });
+    const serialized = JSON.stringify(events.body);
+    expect(serialized).not.toContain('PRIVATE KEY');
+    expect(serialized).not.toContain(p8.split('\n')[1] ?? 'never');
   });
 });
 

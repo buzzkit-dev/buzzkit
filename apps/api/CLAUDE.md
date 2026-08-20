@@ -64,7 +64,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `POST /v1/spike/apns` (Phase 0 spike) · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `events` · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` · `/v1/credentials` (+ `/apns`, `/fcm`, `/:id`, `/:id/validate`) — see `docs/api/`.
+`GET /v1/health` · `POST /v1/spike/apns` (Phase 0 spike) · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `events` · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` · `/v1/credentials` (+ `/apns`, `/fcm`, `/resend`, `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/client/*` (identify, subscriptions, preferences — client keys only) — see `docs/api/`.
 
 ## Commands
 

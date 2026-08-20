@@ -24,14 +24,16 @@ PostgreSQL schema, owned by `packages/database` (Drizzle). Tables land per roadm
 - `credential` — tenant-scoped; envelope-encrypted secret (`secret_ciphertext`/`secret_iv` sealed by a per-credential DEK, `dek_ciphertext`/`dek_iv` sealed by the master key, `key_version` for rotation); non-secret `details` JSONB (APNs: teamId/keyId/bundleId; FCM: projectId/clientEmail); enums channel (push — email/sms later), provider (apns|fcm), environment (production|sandbox), status (unvalidated|active|invalid); one live row per (tenant, channel, provider, environment) via partial unique index.
 - `event` — the append-only ledger (audit log + future webhooks): workspace/tenant scope, actor columns (type/user/member/key/display), Stripe-style event names, target type + bare sqid id, `data` JSONB, request metadata. No soft delete — events are never deleted.
 
-### Phase 3 — subscribers, devices, topics *(implemented — migration `0003`)*
+### Phase 3 — subscribers, subscriptions, topics *(implemented)*
 
-- `subscriber` — tenant-scoped, (tenant, external_id) partial-unique, `attributes` JSONB (segment fuel).
-- `device` — (tenant, token) partial-unique so re-registration is idempotent and tokens move between subscribers; platform enum (ios|android), status enum (active|invalid), `last_seen_at`, invalidation fields for the Phase 4 feedback loop.
+- `subscriber` — tenant-scoped, (tenant, external_id) partial-unique, `attributes` JSONB (tag data / segment fuel), `identity_verified_at` (client HMAC proof).
+- `subscription` — one way to reach a subscriber on one channel: `channel` enum + `endpoint` (push token / email address / later phone), `platform` (push only), **`enabled`** (per-subscription mute — the work-iPhone case), status enum (active|invalid) + invalidation fields for the delivery feedback loop. (tenant, channel, endpoint) partial-unique so re-registration is idempotent and endpoints move between subscribers.
 - `topic` — tenant-scoped notification categories, (tenant, slug) partial-unique, `default_opted_in` baseline + `channel_defaults` JSONB per-channel overrides.
-- `subscriber_preference` — (subscriber, topic, **channel**) unique — preferences are per topic × channel; stores only deviations from the topic's channel default; hard rows (no soft delete — resolved against live topics).
-- Migration `0004` (multi-channel): shared channel enum gains `email`; `subscriber.email` (the email-channel endpoint); credential provider gains `resend`.
-- `tenant` gains `identity_secret` + `require_identity_verification` (client HMAC identity verification); `api_key` gains kind `client` + plaintext `token` column (client keys are public and re-viewable).
+- `subscriber_preference` — (subscriber, topic, channel) unique — preferences are per topic × channel; stores only deviations from the topic's channel default; hard rows (no soft delete — resolved against live topics).
+- Send-time resolution (Phase 4): a topic send on a channel reaches the subscriptions that are `enabled` AND `active` AND whose (topic, channel) preference resolves opted-in.
+
+> Migrations were **squashed to a single `0000`** pre-launch when the subscription model landed — nothing was deployed anywhere yet.
+- `tenant` carries `identity_secret` (client HMAC verification) and **`settings` JSONB** — Stripe-style structured groups (identity, channels), resolved with defaults at read time, deep-merged on PATCH, validated against a settings catalog; `api_key` has kind `client` + plaintext `token` column (client keys are public and re-viewable).
 
 ### Phase 4 — sending
 

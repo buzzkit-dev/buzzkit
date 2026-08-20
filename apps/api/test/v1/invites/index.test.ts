@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
-import { addMember, setupWorkspace, signUpUser } from '../../utils/setup';
+import { addMember, setupWorkspace, signUpUser, uniq } from '../../utils/setup';
 
 describe('invite lifecycle', () => {
   it('invite → public preview → accept grants membership with the invited role', async () => {
@@ -39,6 +39,23 @@ describe('invite lifecycle', () => {
       headers: invitee.bearer,
     });
     expect(again.status).toBe(409);
+  });
+
+  it('the public preview never leaks the token or the full email', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    const email = `secret-${uniq()}@buzzkit.dev`;
+
+    const invite = await api<{ token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email }),
+    });
+
+    const preview = await api<Record<string, unknown>>(`/v1/invites/${invite.body.data?.token}`);
+    const serialized = JSON.stringify(preview.body);
+    expect(preview.body.data?.token).toBeUndefined();
+    expect(serialized).not.toContain(invite.body.data?.token ?? 'never');
+    expect(serialized).not.toContain(email);
   });
 
   it('only the invited email can accept', async () => {
@@ -160,6 +177,85 @@ describe('invite lifecycle', () => {
     expect(accept.status).toBe(404);
   });
 
+  it('normalizes email casing and validates role/email shape', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    const invitee = await signUpUser('Invitee');
+
+    const upper = await api<{ email: string; token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: invitee.email.toUpperCase() }),
+    });
+    expect(upper.status).toBe(201);
+    expect(upper.body.data?.email).toBe(invitee.email);
+
+    const accept = await api(`/v1/invites/${upper.body.data?.token}/accept`, {
+      method: 'POST',
+      headers: invitee.bearer,
+    });
+    expect(accept.status).toBe(201);
+
+    for (const body of [
+      { email: 'not-an-email' },
+      { email: `x-${uniq()}@buzzkit.dev`, role: 'owner' },
+      { email: `x-${uniq()}@buzzkit.dev`, role: 'superuser' },
+      {},
+    ]) {
+      const { status } = await api(`/v1/workspaces/${workspace.slug}/invites`, {
+        method: 'POST',
+        headers: ownerBearer,
+        body: JSON.stringify(body),
+      });
+      expect(status, JSON.stringify(body)).toBe(400);
+    }
+  });
+
+  it('resend refuses accepted invites and unknown ids', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    const invitee = await signUpUser('Invitee');
+
+    const invite = await api<{ id: string; token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: invitee.email }),
+    });
+    await api(`/v1/invites/${invite.body.data?.token}/accept`, { method: 'POST', headers: invitee.bearer });
+
+    const accepted = await api(`/v1/workspaces/${workspace.slug}/invites/${invite.body.data?.id}/resend`, {
+      method: 'POST',
+      headers: ownerBearer,
+    });
+    expect(accepted.status).toBe(409);
+
+    const malformed = await api(`/v1/workspaces/${workspace.slug}/invites/nope!/resend`, {
+      method: 'POST',
+      headers: ownerBearer,
+    });
+    expect(malformed.status).toBe(400);
+
+    const pending = await api<Array<{ id: string }>>(`/v1/workspaces/${workspace.slug}/invites`, {
+      headers: ownerBearer,
+    });
+    expect(pending.body.data?.some((i) => i.id === invite.body.data?.id)).toBe(false);
+  });
+
+  it('workspace API keys can invite (no inviting member recorded)', async () => {
+    const { workspace, keyBearer } = await setupWorkspace();
+
+    const { status, body } = await api<{ invitedByMemberId: string | null; token: string }>(
+      `/v1/workspaces/${workspace.slug}/invites`,
+      {
+        method: 'POST',
+        headers: keyBearer,
+        body: JSON.stringify({ email: `via-key-${uniq()}@buzzkit.dev` }),
+      }
+    );
+
+    expect(status).toBe(201);
+    expect(body.data?.invitedByMemberId).toBeNull();
+    expect(body.data?.token).toBeTruthy();
+  });
+
   it('members cannot create or list invites', async () => {
     const { owner, workspace } = await setupWorkspace();
     const member = await addMember(owner.token, workspace.slug, 'member');
@@ -177,6 +273,76 @@ describe('invite lifecycle', () => {
 });
 
 describe('member management', () => {
+  it('lists members with user identity and rejects bad member ids', async () => {
+    const { owner, workspace, ownerBearer } = await setupWorkspace();
+    const member = await addMember(owner.token, workspace.slug, 'member');
+
+    const list = await api<Array<{ id: string; role: string; user: { email: string; name: string } }>>(
+      `/v1/workspaces/${workspace.slug}/members`,
+      { headers: ownerBearer }
+    );
+    expect(list.status).toBe(200);
+    expect(list.body.data).toHaveLength(2);
+    const row = list.body.data?.find((m) => m.id === member.memberId);
+    expect(row?.role).toBe('member');
+    expect(row?.user.email).toBe(member.email);
+
+    const malformed = await api(`/v1/workspaces/${workspace.slug}/members/not-an-id!`, {
+      method: 'PATCH',
+      headers: ownerBearer,
+      body: JSON.stringify({ role: 'admin' }),
+    });
+    expect(malformed.status).toBe(400);
+
+    const badRole = await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
+      method: 'PATCH',
+      headers: ownerBearer,
+      body: JSON.stringify({ role: 'god' }),
+    });
+    expect(badRole.status).toBe(400);
+
+    const foreign = await setupWorkspace();
+    const notMine = await api(`/v1/workspaces/${foreign.workspace.slug}/members/${member.memberId}`, {
+      method: 'PATCH',
+      headers: foreign.ownerBearer,
+      body: JSON.stringify({ role: 'admin' }),
+    });
+    expect(notMine.status).toBe(404);
+  });
+
+  it('promoting member → admin → member works and is audited', async () => {
+    const { owner, workspace, ownerBearer } = await setupWorkspace();
+    const member = await addMember(owner.token, workspace.slug, 'member');
+
+    const promote = await api<{ role: string }>(
+      `/v1/workspaces/${workspace.slug}/members/${member.memberId}`,
+      {
+        method: 'PATCH',
+        headers: ownerBearer,
+        body: JSON.stringify({ role: 'admin' }),
+      }
+    );
+    expect(promote.body.data?.role).toBe('admin');
+
+    const nowAdmin = await api(`/v1/workspaces/${workspace.slug}/invites`, { headers: member.bearer });
+    expect(nowAdmin.status).toBe(200);
+
+    await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
+      method: 'PATCH',
+      headers: ownerBearer,
+      body: JSON.stringify({ role: 'member' }),
+    });
+    const demoted = await api(`/v1/workspaces/${workspace.slug}/invites`, { headers: member.bearer });
+    expect(demoted.status).toBe(403);
+
+    const events = await api<{ items: Array<{ event: string; data: { from: string; to: string } }> }>(
+      `/v1/workspaces/${workspace.slug}/events?event=member.role_changed`,
+      { headers: ownerBearer }
+    );
+    expect(events.body.data?.items.length).toBe(2);
+    expect(events.body.data?.items[0]?.data).toEqual({ from: 'admin', to: 'member' });
+  });
+
   it('the last owner can never be demoted or removed', async () => {
     const { workspace, ownerBearer } = await setupWorkspace();
 
@@ -224,6 +390,42 @@ describe('member management', () => {
 
     const access = await api(`/v1/workspaces/${workspace.slug}`, { headers: second.bearer });
     expect(access.status).toBe(403);
+  });
+
+  it('admins may remove members and other admins; members may remove nobody', async () => {
+    const { owner, workspace } = await setupWorkspace();
+    const admin = await addMember(owner.token, workspace.slug, 'admin');
+    const otherAdmin = await addMember(owner.token, workspace.slug, 'admin');
+    const member = await addMember(owner.token, workspace.slug, 'member');
+    const victim = await addMember(owner.token, workspace.slug, 'member');
+
+    const memberRemoves = await api(`/v1/workspaces/${workspace.slug}/members/${victim.memberId}`, {
+      method: 'DELETE',
+      headers: member.bearer,
+    });
+    expect(memberRemoves.status).toBe(403);
+
+    const selfPromote = await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
+      method: 'PATCH',
+      headers: member.bearer,
+      body: JSON.stringify({ role: 'admin' }),
+    });
+    expect(selfPromote.status).toBe(403);
+
+    const adminRemovesMember = await api(`/v1/workspaces/${workspace.slug}/members/${victim.memberId}`, {
+      method: 'DELETE',
+      headers: admin.bearer,
+    });
+    expect(adminRemovesMember.status).toBe(200);
+
+    const adminRemovesAdmin = await api(`/v1/workspaces/${workspace.slug}/members/${otherAdmin.memberId}`, {
+      method: 'DELETE',
+      headers: admin.bearer,
+    });
+    expect(adminRemovesAdmin.status).toBe(200);
+
+    const gone = await api(`/v1/workspaces/${workspace.slug}`, { headers: otherAdmin.bearer });
+    expect(gone.status).toBe(403);
   });
 
   it('a removed member can be re-invited and rejoin', async () => {

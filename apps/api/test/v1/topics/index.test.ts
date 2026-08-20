@@ -43,6 +43,73 @@ describe('/v1/topics', () => {
     expect(gone.status).toBe(404);
   });
 
+  it('renames slugs safely and validates input', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const slug = `gym-${uniq()}`;
+    const taken = `taken-${uniq()}`;
+    await createTopic(keyBearer, { slug });
+    await createTopic(keyBearer, { slug: taken });
+
+    const conflict = await api(`/v1/topics/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: taken }),
+    });
+    expect(conflict.status).toBe(409);
+
+    const empty = await api(`/v1/topics/${slug}`, { method: 'PATCH', headers: keyBearer, body: '{}' });
+    expect(empty.status).toBe(400);
+
+    const newSlug = `gym-renamed-${uniq()}`;
+    const renamed = await api(`/v1/topics/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: newSlug }),
+    });
+    expect(renamed.status).toBe(200);
+    expect((await api(`/v1/topics/${slug}`, { headers: keyBearer })).status).toBe(404);
+    expect((await api(`/v1/topics/${newSlug}`, { headers: keyBearer })).status).toBe(200);
+
+    for (const body of [
+      { slug: 'Bad Slug', name: 'x' },
+      { slug: `ok-${uniq()}`, name: '' },
+      { slug: `ok-${uniq()}`, name: 'x', channelDefaults: { fax: true } },
+      { slug: `ok-${uniq()}`, name: 'x', channelDefaults: { push: 'yes' } },
+      { slug: `ok-${uniq()}`, name: 'x', description: 'd'.repeat(501) },
+    ]) {
+      const { status } = await createTopic(keyBearer, body);
+      expect(status, JSON.stringify(body)).toBe(400);
+    }
+  });
+
+  it('deleting a topic removes it from every preference list and is audited', async () => {
+    const { keyBearer, ownerBearer, workspace } = await setupWorkspace();
+    const slug = `gone-${uniq()}`;
+    await createTopic(keyBearer, { slug });
+    const externalId = `user_${uniq()}`;
+    await api(`/v1/subscribers/${externalId}`, { method: 'PUT', headers: keyBearer, body: '{}' });
+    await api(`/v1/subscribers/${externalId}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [slug]: false } }),
+    });
+
+    await api(`/v1/topics/${slug}`, { method: 'DELETE', headers: keyBearer });
+
+    const prefs = await api<Array<{ topic: string }>>(`/v1/subscribers/${externalId}/preferences`, {
+      headers: keyBearer,
+    });
+    expect(prefs.body.data?.some((p) => p.topic === slug)).toBe(false);
+
+    const events = await api<{ items: Array<{ event: string }> }>(`/v1/workspaces/${workspace.slug}/events`, {
+      headers: ownerBearer,
+    });
+    const names = events.body.data?.items.map((i) => i.event);
+    for (const expected of ['topic.created', 'topic.deleted', 'preferences.updated']) {
+      expect(names, expected).toContain(expected);
+    }
+  });
+
   it('rejects duplicate slugs within a tenant but allows them across tenants', async () => {
     const { keyBearer } = await setupWorkspace();
     const tenant = await createTenant(keyBearer);
@@ -140,6 +207,34 @@ describe('preferences', () => {
     const prefs = await getPrefs(keyBearer, externalId);
     expect(prefs.get(digest)?.channels.push).toMatchObject({ optedIn: false, isDefault: true });
     expect(prefs.get(digest)?.channels.email).toMatchObject({ optedIn: true, isDefault: true });
+  });
+
+  it('undecided subscribers follow topic default changes; decided ones keep their choice', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const slug = `shift-${uniq()}`;
+    await createTopic(keyBearer, { slug, defaultOptedIn: true });
+
+    const undecided = `user_${uniq()}`;
+    const decided = `user_${uniq()}`;
+    await api(`/v1/subscribers/${undecided}`, { method: 'PUT', headers: keyBearer, body: '{}' });
+    await api(`/v1/subscribers/${decided}`, { method: 'PUT', headers: keyBearer, body: '{}' });
+    await api(`/v1/subscribers/${decided}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [slug]: true } }),
+    });
+
+    await api(`/v1/topics/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ defaultOptedIn: false }),
+    });
+
+    const undecidedPrefs = await getPrefs(keyBearer, undecided);
+    expect(undecidedPrefs.get(slug)?.channels.push).toMatchObject({ optedIn: false, isDefault: true });
+
+    const decidedPrefs = await getPrefs(keyBearer, decided);
+    expect(decidedPrefs.get(slug)?.channels.push).toMatchObject({ optedIn: true, isDefault: false });
   });
 
   it('rejects unknown channels', async () => {

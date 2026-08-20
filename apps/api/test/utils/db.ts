@@ -1,6 +1,6 @@
 import { drizzle, postgres } from '@buzzkit/database';
 
-export { eq, tables } from '@buzzkit/database';
+export { eq, sql, tables } from '@buzzkit/database';
 
 /**
  * Direct database access for tests that need to seed or time-travel state the

@@ -73,7 +73,7 @@ const FIELD_ENTITIES: Record<string, IdEntity> = {
   actorKeyId: 'key',
   credentialId: 'credential',
   subscriberId: 'subscriber',
-  deviceId: 'device',
+  subscriptionId: 'subscription',
   topicId: 'topic',
   messageId: 'message',
   deliveryId: 'delivery',

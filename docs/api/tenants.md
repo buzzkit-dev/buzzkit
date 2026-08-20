@@ -22,7 +22,25 @@ Keyset-paginated (`limit` ≤ 100, `cursor` from `nextCursor`), oldest-first: `{
 
 ## PATCH /v1/tenants/:tenantSlug
 
-Any of `name`, `slug`, `metadata` (metadata replaces wholesale). The default tenant keeps its slug.
+Any of `name`, `slug`, `metadata` (metadata replaces wholesale), `settings`. The default tenant keeps its slug.
+
+## Settings
+
+Structured tenant configuration (Stripe-style `settings` object, JSONB on the tenant row). Responses always return the fully-resolved object with defaults applied; PATCH deep-merges per group; unknown groups/keys/types are a 400 (validated against the settings catalog).
+
+```json
+{
+  "settings": {
+    "identity": { "requireVerification": false },
+    "channels": { "push": { "enabled": true }, "email": { "enabled": true } }
+  }
+}
+```
+
+- `identity.requireVerification` — enforce client HMAC identity proof (see [client.md](client.md)); enabling it generates the tenant's identity secret if missing.
+- `channels.<channel>.enabled` — per-tenant channel kill-switch ("pause all email without deleting the Resend key"); enforced at send time from Phase 4.
+
+Settings are deliberately **small tenant configuration only**. Routing logic (segment→provider, geo rules, traffic splits) is NOT settings — it ships later as code-defined routing rules (Phase 7 specs, like campaigns/segments).
 
 ## DELETE /v1/tenants/:tenantSlug
 

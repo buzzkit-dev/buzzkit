@@ -1,3 +1,4 @@
+import { resolveTenantSettings } from '@buzzkit/api/api/tenants/index';
 import { UnauthorizedError } from './error';
 
 export async function computeIdentityHash(externalId: string, identitySecret: string): Promise<string> {
@@ -17,14 +18,19 @@ export async function computeIdentityHash(externalId: string, identitySecret: st
 }
 
 export async function verifyIdentity(
-  tenant: { requireIdentityVerification: boolean; identitySecret: string | null },
+  tenant: { settings: unknown; identitySecret: string | null },
   externalId: string,
   identityHash: string | null | undefined
-): Promise<void> {
-  if (!tenant.requireIdentityVerification) return;
+): Promise<boolean> {
+  if (!identityHash) {
+    if (resolveTenantSettings(tenant.settings).identity.requireVerification) {
+      throw new UnauthorizedError('Identity verification required — provide identityHash');
+    }
+    return false;
+  }
 
-  if (!tenant.identitySecret || !identityHash) {
-    throw new UnauthorizedError('Identity verification required — provide identityHash');
+  if (!tenant.identitySecret) {
+    throw new UnauthorizedError('Identity verification is not configured for this tenant');
   }
 
   const expected = await computeIdentityHash(externalId, tenant.identitySecret);
@@ -42,4 +48,6 @@ export async function verifyIdentity(
   if (mismatch !== 0) {
     throw new UnauthorizedError('Invalid identity hash');
   }
+
+  return true;
 }

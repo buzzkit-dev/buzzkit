@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { api } from '../../utils/api';
+import { api, BASE_URL } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
 import { addMember, createKey, createTenant, setupWorkspace, signUpUser, uniq } from '../../utils/setup';
 
@@ -369,6 +369,188 @@ describe('role scope matrix', () => {
       body: JSON.stringify({ role: 'owner' }),
     });
     expect(promote.status).toBe(200);
+  });
+});
+
+describe('sessions', () => {
+  it('sign-out revokes access immediately — no cached-session grace period', async () => {
+    const user = await signUpUser();
+
+    const before = await api('/v1/profile', { headers: user.bearer });
+    expect(before.status).toBe(200);
+
+    const signOut = await fetch(`${BASE_URL}/v1/auth/sign-out`, {
+      method: 'POST',
+      headers: { ...user.bearer, 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect(signOut.ok).toBe(true);
+
+    const after = await api('/v1/profile', { headers: user.bearer });
+    expect(after.status).toBe(401);
+  });
+
+  it('accepts a lowercase bearer scheme and refuses cookie-only auth on the API', async () => {
+    const { key, owner } = await setupWorkspace();
+
+    const lowercase = await api('/v1/tenants', { headers: { Authorization: `bearer ${key.secret}` } });
+    expect(lowercase.status).toBe(200);
+
+    const cookieOnly = await api('/v1/workspaces', {
+      headers: { Cookie: `better-auth.session_token=${owner.token}` },
+    });
+    expect(cookieOnly.status).toBe(401);
+  });
+});
+
+describe('key lifecycle details', () => {
+  it('a tenant key survives its tenant being renamed and follows the new slug', async () => {
+    const { owner, workspace, keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+    const tenantKey = await createKey(owner.token, workspace.slug, {
+      kind: 'tenant',
+      tenant: tenant.slug,
+      scopes: ['credentials:read'],
+    });
+    const bearer = { Authorization: `Bearer ${tenantKey.secret}` };
+    const newSlug = `cust-renamed-${uniq()}`;
+
+    await api(`/v1/tenants/${tenant.slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: newSlug }),
+    });
+
+    const implied = await api('/v1/credentials', { headers: bearer });
+    expect(implied.status).toBe(200);
+
+    const newHeader = await api('/v1/credentials', { headers: { ...bearer, 'buzzkit-tenant': newSlug } });
+    expect(newHeader.status).toBe(200);
+
+    const staleHeader = await api('/v1/credentials', {
+      headers: { ...bearer, 'buzzkit-tenant': tenant.slug },
+    });
+    expect(staleHeader.status).toBe(403);
+  });
+
+  it('stamps lastUsedAt on use', async () => {
+    const { workspace, ownerBearer, key, keyBearer } = await setupWorkspace();
+
+    await api('/v1/tenants', { headers: keyBearer });
+
+    const list = await api<Array<{ id: string; lastUsedAt: string | null }>>(
+      `/v1/workspaces/${workspace.slug}/keys`,
+      { headers: ownerBearer }
+    );
+    expect(list.body.data?.find((k) => k.id === key.id)?.lastUsedAt).toBeTruthy();
+  });
+
+  it('a wildcard tenant key cannot change tenant settings or read the identity secret', async () => {
+    const { owner, workspace, keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+    const tenantKey = await createKey(owner.token, workspace.slug, {
+      kind: 'tenant',
+      tenant: tenant.slug,
+      scopes: ['*'],
+    });
+    const bearer = { Authorization: `Bearer ${tenantKey.secret}` };
+
+    const patch = await api(`/v1/tenants/${tenant.slug}`, {
+      method: 'PATCH',
+      headers: bearer,
+      body: JSON.stringify({ settings: { identity: { requireVerification: false } } }),
+    });
+    expect(patch.status).toBe(403);
+
+    const read = await api(`/v1/tenants/${tenant.slug}`, { headers: bearer });
+    expect(read.status).toBe(403);
+  });
+
+  it('a deleted workspace is unreachable through every addressing path', async () => {
+    const { workspace, ownerBearer, keyBearer } = await setupWorkspace();
+
+    await api(`/v1/workspaces/${workspace.slug}`, { method: 'DELETE', headers: ownerBearer });
+
+    const viaHeader = await api('/v1/tenants', {
+      headers: { ...ownerBearer, 'buzzkit-workspace': workspace.slug },
+    });
+    expect(viaHeader.status).toBe(404);
+
+    const viaKey = await api('/v1/subscribers', { headers: keyBearer });
+    expect(viaKey.status).toBe(401);
+
+    const listed = await api<Array<{ slug: string }>>('/v1/workspaces', { headers: ownerBearer });
+    expect(listed.body.data?.some((w) => w.slug === workspace.slug)).toBe(false);
+  });
+});
+
+describe('data-plane role scopes', () => {
+  it('members may write subscribers/subscriptions, only admins manage topics and credentials', async () => {
+    const { owner, workspace, ownerBearer } = await setupWorkspace();
+    const member = await addMember(owner.token, workspace.slug, 'member');
+    const admin = await addMember(owner.token, workspace.slug, 'admin');
+    const ws = { 'buzzkit-workspace': workspace.slug };
+
+    const memberIdentify = await api(`/v1/subscribers/user_${uniq()}`, {
+      method: 'PUT',
+      headers: { ...member.bearer, ...ws },
+      body: '{}',
+    });
+    expect(memberIdentify.status).toBe(201);
+
+    const memberTopic = await api('/v1/topics', {
+      method: 'POST',
+      headers: { ...member.bearer, ...ws },
+      body: JSON.stringify({ slug: `t-${uniq()}`, name: 'T' }),
+    });
+    expect(memberTopic.status).toBe(403);
+
+    const memberTopicRead = await api('/v1/topics', { headers: { ...member.bearer, ...ws } });
+    expect(memberTopicRead.status).toBe(200);
+
+    const memberCredential = await api('/v1/credentials/resend', {
+      method: 'POST',
+      headers: { ...member.bearer, ...ws },
+      body: JSON.stringify({ apiKey: 're_nope' }),
+    });
+    expect(memberCredential.status).toBe(403);
+
+    const memberCredentialRead = await api('/v1/credentials', { headers: { ...member.bearer, ...ws } });
+    expect(memberCredentialRead.status).toBe(200);
+
+    const adminTopic = await api('/v1/topics', {
+      method: 'POST',
+      headers: { ...admin.bearer, ...ws },
+      body: JSON.stringify({ slug: `t-${uniq()}`, name: 'T' }),
+    });
+    expect(adminTopic.status).toBe(201);
+
+    const ownerTopic = await api('/v1/topics', {
+      method: 'POST',
+      headers: { ...ownerBearer, ...ws },
+      body: JSON.stringify({ slug: `t-${uniq()}`, name: 'T' }),
+    });
+    expect(ownerTopic.status).toBe(201);
+  });
+
+  it('tenant keys honour their own scope grants on the data plane', async () => {
+    const { owner, workspace, keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+    const readOnly = await createKey(owner.token, workspace.slug, {
+      kind: 'tenant',
+      tenant: tenant.slug,
+      scopes: ['subscribers:read', 'topics:read'],
+    });
+    const bearer = { Authorization: `Bearer ${readOnly.secret}` };
+
+    const list = await api('/v1/subscribers', { headers: bearer });
+    expect(list.status).toBe(200);
+
+    const write = await api(`/v1/subscribers/user_${uniq()}`, { method: 'PUT', headers: bearer, body: '{}' });
+    expect(write.status).toBe(403);
+
+    const credentials = await api('/v1/credentials', { headers: bearer });
+    expect(credentials.status).toBe(403);
   });
 });
 

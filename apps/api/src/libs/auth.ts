@@ -43,6 +43,8 @@ type CachedSession = {
 
 const SESSION_CACHE_TTL = 300;
 
+const sessionCacheKey = (token: string) => `session:${token.slice(-16)}`;
+
 export const authClient = (db?: ReturnType<typeof createDrizzle>) =>
   createBetterAuth({
     db: db ?? createDrizzle(env.HYPERDRIVE.connectionString),
@@ -74,7 +76,7 @@ const userMiddleware = (request: Request, db: ReturnType<typeof createDrizzle>) 
     }
 
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    const cacheKey = `session:${token.slice(-16)}`;
+    const cacheKey = sessionCacheKey(token);
 
     const cached = await t.trace(
       'auth.getCachedSession',
@@ -233,6 +235,13 @@ export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
   try {
     const response = await authClient().handler(request);
 
+    if (response.ok && new URL(request.url).pathname.endsWith('/sign-out')) {
+      const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+      if (token) {
+        await env.SESSION_CACHE?.delete(sessionCacheKey(token));
+      }
+    }
+
     if (response.status >= 400) {
       const responseBody = await response
         .clone()
@@ -351,6 +360,12 @@ export const auth = new Elysia({ name: 'auth/service' })
           if (result?.key.kind !== 'client' || !result.tenant) {
             t.set('auth.error', 'invalid_client_key');
             throw new UnauthorizedError('Invalid client key');
+          }
+
+          const requestedTenant = request.headers.get('buzzkit-tenant');
+          if (requestedTenant && requestedTenant !== result.tenant.slug) {
+            t.set('auth.error', 'client_key_wrong_tenant');
+            throw new ForbiddenError('This client key belongs to a different tenant');
           }
 
           await touchApiKey(db, result.key);

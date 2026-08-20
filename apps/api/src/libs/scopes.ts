@@ -32,8 +32,9 @@ export const SCOPE_CATALOG = {
 
   'subscribers:read': { context: 'tenant', role: 'member', key: true },
   'subscribers:write': { context: 'tenant', role: 'member', key: true },
-  'devices:read': { context: 'tenant', role: 'member', key: true },
-  'devices:write': { context: 'tenant', role: 'member', key: true },
+  'subscriptions:read': { context: 'tenant', role: 'member', key: true },
+  'subscriptions:write': { context: 'tenant', role: 'member', key: true },
+
   'topics:read': { context: 'tenant', role: 'member', key: true },
   'topics:write': { context: 'tenant', role: 'admin', key: true },
 } as const satisfies Record<string, ScopeDefinition>;

@@ -42,17 +42,24 @@ describe('PUT /v1/subscribers/:externalId', () => {
     expect(noop.body.data?.attributes).toEqual({ plan: 'free', city: 'berlin' });
   });
 
-  it('stores and updates the email channel endpoint', async () => {
+  it('email on identify creates an email subscription', async () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
+    const address = `jane-${uniq()}@acme.com`;
 
-    const withEmail = await api<{ email: string | null }>(`/v1/subscribers/${externalId}`, {
+    const withEmail = await api(`/v1/subscribers/${externalId}`, {
       method: 'PUT',
       headers: keyBearer,
-      body: JSON.stringify({ email: 'jane@acme.com' }),
+      body: JSON.stringify({ email: address }),
     });
     expect(withEmail.status).toBe(201);
-    expect(withEmail.body.data?.email).toBe('jane@acme.com');
+
+    const detail = await api<{ subscriptions: Array<{ channel: string; endpoint: string }> }>(
+      `/v1/subscribers/${externalId}`,
+      { headers: keyBearer }
+    );
+    expect(detail.body.data?.subscriptions).toHaveLength(1);
+    expect(detail.body.data?.subscriptions[0]).toMatchObject({ channel: 'email', endpoint: address });
 
     const invalid = await api(`/v1/subscribers/${externalId}`, {
       method: 'PUT',
@@ -60,14 +67,29 @@ describe('PUT /v1/subscribers/:externalId', () => {
       body: JSON.stringify({ email: 'not-an-email' }),
     });
     expect(invalid.status).toBe(400);
+  });
 
-    const cleared = await api<{ email: string | null }>(`/v1/subscribers/${externalId}`, {
-      method: 'PUT',
-      headers: keyBearer,
-      body: JSON.stringify({ email: null }),
-    });
-    expect(cleared.status).toBe(200);
-    expect(cleared.body.data?.email).toBeNull();
+  it('caps attributes at 64KB', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    const fine = await identify(keyBearer, `user_${uniq()}`, { blob: 'x'.repeat(60_000) });
+    expect(fine.status).toBe(201);
+
+    const tooBig = await identify(keyBearer, `user_${uniq()}`, { blob: 'x'.repeat(70_000) });
+    expect(tooBig.status).toBe(400);
+  });
+
+  it('re-identifying after deletion creates a fresh subscriber', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `user_${uniq()}`;
+
+    const first = await identify(keyBearer, externalId, { plan: 'pro' });
+    await api(`/v1/subscribers/${externalId}`, { method: 'DELETE', headers: keyBearer });
+    const second = await identify(keyBearer, externalId);
+
+    expect(second.status).toBe(201);
+    expect(second.body.data?.id).not.toBe(first.body.data?.id);
+    expect(second.body.data?.attributes).toEqual({});
   });
 
   it('never sqid-transforms user attributes, even id-looking ones', async () => {
@@ -79,7 +101,59 @@ describe('PUT /v1/subscribers/:externalId', () => {
   });
 });
 
+describe('externalId handling', () => {
+  it('accepts email-like, unicode, and spaced ids via URL encoding', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    for (const externalId of [
+      `jane+${uniq()}@acme.com`,
+      `üser-${uniq()}-日本`,
+      `has space ${uniq()}`,
+      `a/b/${uniq()}`,
+    ]) {
+      const created = await identify(keyBearer, externalId);
+      expect(created.status, externalId).toBe(201);
+      expect(created.body.data?.externalId).toBe(externalId);
+
+      const fetched = await api<{ externalId: string }>(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+        headers: keyBearer,
+      });
+      expect(fetched.status, externalId).toBe(200);
+      expect(fetched.body.data?.externalId).toBe(externalId);
+    }
+  });
+
+  it('rejects over-long ids and 404s consistently for unknown subscribers', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    const tooLong = await identify(keyBearer, 'x'.repeat(257));
+    expect(tooLong.status).toBe(400);
+
+    const ghost = `ghost_${uniq()}`;
+    const get = await api(`/v1/subscribers/${ghost}`, { headers: keyBearer });
+    const del = await api(`/v1/subscribers/${ghost}`, { method: 'DELETE', headers: keyBearer });
+    const prefs = await api(`/v1/subscribers/${ghost}/preferences`, { headers: keyBearer });
+    const subs = await api(`/v1/subscribers/${ghost}/subscriptions`, { headers: keyBearer });
+    expect([get.status, del.status, prefs.status, subs.status]).toEqual([404, 404, 404, 404]);
+  });
+});
+
 describe('GET /v1/subscribers', () => {
+  it('rejects garbage cursors and bad limits', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    const badCursor = await api('/v1/subscribers?cursor=nope!', { headers: keyBearer });
+    expect(badCursor.status).toBe(400);
+
+    const badLimit = await api('/v1/subscribers?limit=0', { headers: keyBearer });
+    expect(badLimit.status).toBe(400);
+
+    const tenantCursor = await setupWorkspace();
+    const foreignEntity = await createTenant(tenantCursor.keyBearer);
+    const wrongEntity = await api(`/v1/subscribers?cursor=${foreignEntity.id}`, { headers: keyBearer });
+    expect(wrongEntity.status).toBe(400);
+  });
+
   it('lists with keyset pagination', async () => {
     const { keyBearer } = await setupWorkspace();
     for (let i = 0; i < 3; i++) {
@@ -103,24 +177,24 @@ describe('GET /v1/subscribers', () => {
 });
 
 describe('subscriber lifecycle & isolation', () => {
-  it('GET returns the subscriber with devices; DELETE cascades to devices', async () => {
+  it('GET returns the subscriber with subscriptions; DELETE cascades to them', async () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
     const token = `apns-token-${uniq()}${'0'.repeat(40)}`;
 
-    await api('/v1/devices', {
+    await api('/v1/subscriptions', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ externalId, platform: 'ios', token }),
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token }),
     });
 
-    const detail = await api<{ externalId: string; devices: Array<{ id: string; platform: string }> }>(
+    const detail = await api<{ externalId: string; subscriptions: Array<{ id: string }> }>(
       `/v1/subscribers/${externalId}`,
       { headers: keyBearer }
     );
     expect(detail.status).toBe(200);
-    expect(detail.body.data?.devices).toHaveLength(1);
-    expect(detail.body.data?.devices[0]?.id).toMatch(/^dev_/);
+    expect(detail.body.data?.subscriptions).toHaveLength(1);
+    expect(detail.body.data?.subscriptions[0]?.id).toMatch(/^sbn_/);
 
     const del = await api(`/v1/subscribers/${externalId}`, { method: 'DELETE', headers: keyBearer });
     expect(del.status).toBe(200);
@@ -128,10 +202,10 @@ describe('subscriber lifecycle & isolation', () => {
     const gone = await api(`/v1/subscribers/${externalId}`, { headers: keyBearer });
     expect(gone.status).toBe(404);
 
-    const reregister = await api('/v1/devices', {
+    const reregister = await api('/v1/subscriptions', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ externalId, platform: 'ios', token }),
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token }),
     });
     expect(reregister.status).toBe(201);
   });

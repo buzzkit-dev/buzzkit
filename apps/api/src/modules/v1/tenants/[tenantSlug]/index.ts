@@ -1,11 +1,13 @@
 import { diffForEvent } from '@buzzkit/api/api/events/index';
 import {
   assertTenantSlugAvailable,
+  assertValidTenantSettings,
   findTenantBySlug,
   serializeTenant,
   softDeleteTenant,
   TenantMetadataSchema,
   TenantNameSchema,
+  TenantSettingsSchema,
   TenantSlugSchema,
   updateTenant,
 } from '@buzzkit/api/api/tenants/index';
@@ -29,8 +31,17 @@ export const tenant = new Elysia()
   .patch(
     '/tenants/:tenantSlug',
     async ({ body, db, params, workspace, event }) => {
-      if (body.name === undefined && body.slug === undefined && body.metadata === undefined) {
+      if (
+        body.name === undefined &&
+        body.slug === undefined &&
+        body.metadata === undefined &&
+        body.settings === undefined
+      ) {
         throw new BadRequestError('Nothing to update');
+      }
+
+      if (body.settings !== undefined) {
+        assertValidTenantSettings(body.settings);
       }
 
       const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
@@ -42,7 +53,7 @@ export const tenant = new Elysia()
         await assertTenantSlugAvailable(db, workspace.id, body.slug);
       }
 
-      const updated = await updateTenant(db, tenant.id, body);
+      const updated = await updateTenant(db, tenant, body);
 
       await event({
         event: 'tenant.updated',
@@ -59,6 +70,7 @@ export const tenant = new Elysia()
         name: t.Optional(TenantNameSchema),
         slug: t.Optional(TenantSlugSchema),
         metadata: t.Optional(TenantMetadataSchema),
+        settings: t.Optional(TenantSettingsSchema),
       }),
     }
   )

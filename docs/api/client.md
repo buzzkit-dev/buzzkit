@@ -4,15 +4,19 @@
 
 ## POST /v1/client/identify
 
-`{ externalId, identityHash? }` — creates the subscriber if new. Call at login (or before showing preferences, so they work even if push permission was denied).
+`{ externalId, email?, identityHash? }` — creates the subscriber if new (`email` upserts an email subscription). Call at login (or before showing preferences, so they work even if push permission was denied).
 
-## POST /v1/client/devices
+## POST /v1/client/subscriptions
 
-`{ externalId, platform, token, identityHash? }` — register/refresh the push token. Same idempotent semantics as the server-side endpoint. Call on every app launch after obtaining the token.
+`{ externalId, channel: "push", platform, token, identityHash? }` — register/refresh the push subscription. Same idempotent semantics as the server-side endpoint. Call on every app launch after obtaining the token.
 
-## DELETE /v1/client/devices
+## PATCH /v1/client/subscriptions
 
-`{ token }` — unregister on logout.
+`{ channel, platform?, token?|address?, enabled }` — the in-app "notifications on this device" toggle: mutes ONE subscription, everything else keeps receiving.
+
+## DELETE /v1/client/subscriptions
+
+`{ channel, platform?, token?|address? }` — unregister on logout.
 
 ## GET / PATCH /v1/client/preferences
 
@@ -20,4 +24,7 @@ Headers: `BuzzKit-Subscriber: <externalId>` (+ `BuzzKit-Identity: <hash>` when e
 
 ## Identity verification (recommended for production)
 
-A public key alone lets any caller claim any `externalId`. To close that, enable per tenant: `PATCH /v1/tenants/:slug { "requireIdentityVerification": true }`. Your backend then computes `identityHash = HMAC-SHA256(externalId, identitySecret)` (hex; the secret is on the tenant object, server-side only — never ship it in the app) and hands it to the app at login. With enforcement on, every client call must carry a valid hash for its externalId — a stolen hash only ever impersonates the one user it was minted for. Verified with constant-time comparison.
+A public key alone lets any caller claim any `externalId`. Your backend computes `identityHash = HMAC-SHA256(externalId, identitySecret)` (hex; the secret is on the tenant object, server-side only — never ship it in the app) and hands it to the app at login.
+
+- **Always allowed**: a valid hash on any client call stamps the subscriber `verified` (`identityVerifiedAt`) — visible on every subscriber read, so anonymous and verified users coexist and you can see which is which. An invalid hash is always a 401, enforced or not.
+- **Enforced** (`PATCH /v1/tenants/:slug { "settings": { "identity": { "requireVerification": true } } }`): every client call must carry a valid hash. A stolen hash only ever impersonates the one user it was minted for. Verified with constant-time comparison.

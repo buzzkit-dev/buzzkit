@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
-import { db, eq, tables } from '../../utils/db';
+import { db, eq, sql, tables } from '../../utils/db';
 import { generateP8 } from '../../utils/providerKeys';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
@@ -23,8 +23,10 @@ async function uploadApns(headers: Record<string, string>, bundleId: string) {
 }
 
 async function storedRow(bundleId: string) {
-  const rows = await db.select().from(tables.credential);
-  const row = rows.find((r) => (r.details as { bundleId?: string }).bundleId === bundleId);
+  const [row] = await db
+    .select()
+    .from(tables.credential)
+    .where(sql`${tables.credential.details}->>'bundleId' = ${bundleId}`);
   if (!row) throw new Error(`no stored credential for ${bundleId}`);
   return row;
 }

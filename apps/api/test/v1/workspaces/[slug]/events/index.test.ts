@@ -50,6 +50,18 @@ describe('GET /v1/workspaces/:slug/events', () => {
     expect(byName.get('invite.accepted')).toBeDefined();
   });
 
+  it('tenant-scoped events carry a prefixed tenantId', async () => {
+    const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+
+    const events = await api<{ items: Array<{ event: string; tenantId: string | null; targetId: string }> }>(
+      `/v1/workspaces/${workspace.slug}/events?event=tenant.created`,
+      { headers: ownerBearer }
+    );
+    const created = events.body.data?.items.find((i) => i.targetId === tenant.id);
+    expect(created?.tenantId).toBe(tenant.id);
+  });
+
   it('filters by event name and actor type', async () => {
     const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
     await createTenant(keyBearer);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../../utils/api';
-import { setupWorkspace, uniq } from '../../../utils/setup';
+import { setupWorkspace, signUpUser, uniq } from '../../../utils/setup';
 
 describe('GET /v1/workspaces/:slug', () => {
   it('returns the workspace with the caller role for sessions and null for keys', async () => {
@@ -47,6 +47,24 @@ describe('PATCH /v1/workspaces/:slug', () => {
 
     const newAddress = await api(`/v1/workspaces/${newSlug}`, { headers: ownerBearer });
     expect(newAddress.status).toBe(200);
+  });
+
+  it('a renamed slug is immediately free for another workspace', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    const other = await signUpUser();
+
+    await api(`/v1/workspaces/${workspace.slug}`, {
+      method: 'PATCH',
+      headers: ownerBearer,
+      body: JSON.stringify({ slug: `ws-${uniq()}` }),
+    });
+
+    const claim = await api('/v1/workspaces', {
+      method: 'POST',
+      headers: other.bearer,
+      body: JSON.stringify({ name: 'Claimed', slug: workspace.slug }),
+    });
+    expect(claim.status).toBe(201);
   });
 
   it('rejects empty patches, taken slugs, and reserved slugs', async () => {

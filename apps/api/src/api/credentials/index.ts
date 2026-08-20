@@ -2,26 +2,51 @@ import { type SealedSecret, sealSecret, unsealSecret } from '@buzzkit/api/libs/c
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { validateApnsCredential } from '@buzzkit/api/providers/apns/index';
-import { type FcmServiceAccount, requestFcmAccessToken } from '@buzzkit/api/providers/fcm/index';
+import { PROVIDERS } from '@buzzkit/api/providers/index';
 import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
 
 export type Credential = typeof tables.credential.$inferSelect;
 export type CredentialProvider = Credential['provider'];
 export type CredentialEnvironment = Credential['environment'];
+export type CredentialChannel = Credential['channel'];
+
+export const PROVIDER_CHANNELS = Object.fromEntries(
+  Object.entries(PROVIDERS).map(([name, definition]) => [name, definition.channel])
+) as Record<CredentialProvider, CredentialChannel>;
 
 function sealingContext(input: {
   tenantId: number;
+  channel: CredentialChannel;
   provider: CredentialProvider;
   environment: CredentialEnvironment;
 }): string {
-  return ['credential', 'v1', input.tenantId, 'push', input.provider, input.environment].join(':');
+  return ['credential', 'v1', input.tenantId, input.channel, input.provider, input.environment].join(':');
 }
 
 type ValidationOutcome = {
   status: 'active' | 'unvalidated';
   lastError: string | null;
 };
+
+export async function validateCredentialUpload(
+  provider: CredentialProvider,
+  input: { secret: string; details: Record<string, string>; environment: CredentialEnvironment }
+): Promise<ValidationOutcome> {
+  const definition = PROVIDERS[provider];
+  const result = await trace(`credentials.validate.${provider}`, async () => definition.validate(input));
+
+  if (result.ok) {
+    return { status: 'active', lastError: null };
+  }
+
+  if (result.transportError) {
+    return { status: 'unvalidated', lastError: `${definition.displayName} unreachable: ${result.reason}` };
+  }
+
+  throw new BadRequestError(
+    result.structural ? result.reason : `${definition.displayName} rejected the credential: ${result.reason}`
+  );
+}
 
 export function serializeCredential(credential: Credential) {
   return {
@@ -38,42 +63,6 @@ export function serializeCredential(credential: Credential) {
   };
 }
 
-export async function validateApnsUpload(input: {
-  p8: string;
-  teamId: string;
-  keyId: string;
-  bundleId: string;
-  environment: CredentialEnvironment;
-}): Promise<ValidationOutcome> {
-  const result = await trace('credentials.validateApns', async () => validateApnsCredential(input));
-
-  if (result.ok) {
-    return { status: 'active', lastError: null };
-  }
-
-  if (result.transportError) {
-    return { status: 'unvalidated', lastError: `APNs unreachable: ${result.reason}` };
-  }
-
-  throw new BadRequestError(
-    result.structural ? result.reason : `APNs rejected the credential: ${result.reason}`
-  );
-}
-
-export async function validateFcmUpload(account: FcmServiceAccount): Promise<ValidationOutcome> {
-  const result = await trace('credentials.validateFcm', async () => requestFcmAccessToken(account));
-
-  if (result.ok) {
-    return { status: 'active', lastError: null };
-  }
-
-  if (result.transportError) {
-    return { status: 'unvalidated', lastError: `Google OAuth unreachable: ${result.reason}` };
-  }
-
-  throw new BadRequestError(`Google rejected the service account: ${result.reason}`);
-}
-
 export async function replaceCredential(
   db: Db,
   tenantId: number,
@@ -85,9 +74,10 @@ export async function replaceCredential(
     outcome: ValidationOutcome;
   }
 ): Promise<Credential> {
+  const channel = PROVIDER_CHANNELS[input.provider];
   const sealed = await sealSecret(
     input.secret,
-    sealingContext({ tenantId, provider: input.provider, environment: input.environment })
+    sealingContext({ tenantId, channel, provider: input.provider, environment: input.environment })
   );
 
   return await trace('credentials.replace', async () =>
@@ -98,7 +88,7 @@ export async function replaceCredential(
         .where(
           and(
             eq(tables.credential.tenantId, tenantId),
-            eq(tables.credential.channel, 'push'),
+            eq(tables.credential.channel, channel),
             eq(tables.credential.provider, input.provider),
             eq(tables.credential.environment, input.environment),
             isNull(tables.credential.deletedAt)
@@ -109,7 +99,7 @@ export async function replaceCredential(
         .insert(tables.credential)
         .values({
           tenantId,
-          channel: 'push',
+          channel,
           provider: input.provider,
           environment: input.environment,
           ...sealed,
@@ -182,22 +172,13 @@ export async function revalidateCredential(db: Db, credential: Credential): Prom
   }
   const details = credential.details as Record<string, string>;
 
-  let outcome: ValidationOutcome & { invalidError?: string };
+  let outcome: ValidationOutcome;
   try {
-    outcome =
-      credential.provider === 'apns'
-        ? await validateApnsUpload({
-            p8: secret,
-            teamId: details.teamId ?? '',
-            keyId: details.keyId ?? '',
-            bundleId: details.bundleId ?? '',
-            environment: credential.environment,
-          })
-        : await validateFcmUpload({
-            project_id: details.projectId ?? '',
-            client_email: details.clientEmail ?? '',
-            private_key: secret,
-          });
+    outcome = await validateCredentialUpload(credential.provider, {
+      secret,
+      details,
+      environment: credential.environment,
+    });
   } catch (error) {
     const [updated] = await db
       .update(tables.credential)
@@ -251,6 +232,7 @@ export async function decryptCredentialSecret(credential: Credential): Promise<s
       sealed,
       sealingContext({
         tenantId: credential.tenantId,
+        channel: credential.channel,
         provider: credential.provider,
         environment: credential.environment,
       })

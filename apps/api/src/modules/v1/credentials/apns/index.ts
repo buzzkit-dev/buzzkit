@@ -1,7 +1,7 @@
 import {
   replaceCredential,
   serializeCredential,
-  validateApnsUpload,
+  validateCredentialUpload,
 } from '@buzzkit/api/api/credentials/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
@@ -15,19 +15,14 @@ export const credentialsApns = new Elysia()
     async ({ body, db, set, tenant, event }) => {
       const environment = body.environment ?? 'production';
 
-      const outcome = await validateApnsUpload({
-        p8: body.p8,
-        teamId: body.teamId,
-        keyId: body.keyId,
-        bundleId: body.bundleId,
-        environment,
-      });
+      const details = { teamId: body.teamId, keyId: body.keyId, bundleId: body.bundleId };
+      const outcome = await validateCredentialUpload('apns', { secret: body.p8, details, environment });
 
       const credential = await replaceCredential(db, tenant.id, {
         provider: 'apns',
         environment,
         secret: body.p8,
-        details: { teamId: body.teamId, keyId: body.keyId, bundleId: body.bundleId },
+        details,
         outcome,
       });
 

@@ -8,7 +8,7 @@ export type Topic = typeof tables.topic.$inferSelect;
 export const CHANNELS = ['push', 'email'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-export const ChannelDefaultsSchema = t.Partial(t.Object({ push: t.Boolean(), email: t.Boolean() }));
+export const ChannelDefaultsSchema = t.Record(t.String(), t.Any());
 
 export const TopicSlugSchema = t.String({
   minLength: 1,
@@ -29,6 +29,21 @@ export function serializeTopic(topic: Topic) {
     createdAt: topic.createdAt,
     updatedAt: topic.updatedAt,
   };
+}
+
+export function assertValidChannelDefaults(channelDefaults: unknown): void {
+  if (channelDefaults === undefined) return;
+  if (!channelDefaults || typeof channelDefaults !== 'object' || Array.isArray(channelDefaults)) {
+    throw new BadRequestError('channelDefaults must be an object');
+  }
+  for (const [channel, value] of Object.entries(channelDefaults)) {
+    if (!CHANNELS.includes(channel as Channel)) {
+      throw new BadRequestError(`Unknown channel '${channel}' in channelDefaults`);
+    }
+    if (typeof value !== 'boolean') {
+      throw new BadRequestError(`channelDefaults.${channel} must be a boolean`);
+    }
+  }
 }
 
 function topicDefault(topic: Topic, channel: Channel): boolean {

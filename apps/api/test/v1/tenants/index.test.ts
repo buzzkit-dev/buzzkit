@@ -175,6 +175,115 @@ describe('/v1/tenants (workspace API key)', () => {
     expect(viaKey.body.data?.slug).toBe(tenant.slug);
   });
 
+  it('the default tenant keeps its slug; empty patches are refused; metadata replaces wholesale', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    const rename = await api('/v1/tenants/default', {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: `renamed-${uniq()}` }),
+    });
+    expect(rename.status).toBe(400);
+
+    const empty = await api('/v1/tenants/default', { method: 'PATCH', headers: keyBearer, body: '{}' });
+    expect(empty.status).toBe(400);
+
+    const slug = `cust-${uniq()}`;
+    await api('/v1/tenants', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ name: 'C', slug, metadata: { a: 1 } }),
+    });
+    const renamedDefaultOnly = await api<{ name: string; metadata: Record<string, unknown> }>(
+      `/v1/tenants/${slug}`,
+      {
+        method: 'PATCH',
+        headers: keyBearer,
+        body: JSON.stringify({ name: 'Renamed' }),
+      }
+    );
+    expect(renamedDefaultOnly.body.data?.name).toBe('Renamed');
+    expect(renamedDefaultOnly.body.data?.metadata).toEqual({ a: 1 });
+  });
+
+  it('deleting a tenant takes its data plane with it', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+    const inTenant = { ...keyBearer, 'buzzkit-tenant': tenant.slug };
+    const externalId = `user_${uniq()}`;
+
+    await api(`/v1/subscribers/${externalId}`, { method: 'PUT', headers: inTenant, body: '{}' });
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: inTenant,
+      body: JSON.stringify({ slug: `t-${uniq()}`, name: 'T' }),
+    });
+
+    await api(`/v1/tenants/${tenant.slug}`, { method: 'DELETE', headers: keyBearer });
+
+    for (const path of [`/v1/subscribers/${externalId}`, '/v1/topics', '/v1/credentials']) {
+      const { status } = await api(path, { headers: inTenant });
+      expect(status, path).toBe(404);
+    }
+
+    const recreated = await api('/v1/tenants', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ name: 'Again', slug: tenant.slug }),
+    });
+    expect(recreated.status).toBe(201);
+
+    const fresh = await api(`/v1/subscribers/${externalId}`, { headers: inTenant });
+    expect(fresh.status).toBe(404);
+  });
+
+  it('returns resolved settings with defaults and deep-merges patches', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    type TenantDetail = {
+      settings: {
+        identity: { requireVerification: boolean };
+        channels: { push: { enabled: boolean }; email: { enabled: boolean } };
+      };
+    };
+
+    const fresh = await api<TenantDetail>('/v1/tenants/default', { headers: keyBearer });
+    expect(fresh.body.data?.settings).toEqual({
+      identity: { requireVerification: false },
+      channels: { push: { enabled: true }, email: { enabled: true } },
+    });
+
+    const disableEmail = await api<TenantDetail>('/v1/tenants/default', {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ settings: { channels: { email: { enabled: false } } } }),
+    });
+    expect(disableEmail.body.data?.settings.channels.email.enabled).toBe(false);
+    expect(disableEmail.body.data?.settings.channels.push.enabled).toBe(true);
+
+    const enableIdentity = await api<TenantDetail>('/v1/tenants/default', {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ settings: { identity: { requireVerification: true } } }),
+    });
+    expect(enableIdentity.body.data?.settings.identity.requireVerification).toBe(true);
+    expect(enableIdentity.body.data?.settings.channels.email.enabled).toBe(false);
+
+    const unknownGroup = await api('/v1/tenants/default', {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ settings: { billing: { plan: 'pro' } } }),
+    });
+    expect(unknownGroup.status).toBe(400);
+
+    const unknownChannel = await api('/v1/tenants/default', {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ settings: { channels: { fax: { enabled: true } } } }),
+    });
+    expect(unknownChannel.status).toBe(400);
+  });
+
   it('leaks no numeric ids anywhere in tenant responses', async () => {
     const { keyBearer } = await setupWorkspace();
 

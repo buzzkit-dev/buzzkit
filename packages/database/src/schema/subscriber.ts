@@ -1,9 +1,20 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
+import { channel } from './shared';
 import { tenant } from './tenant';
 
-export const devicePlatform = pgEnum('device_platform', ['ios', 'android']);
-export const deviceStatus = pgEnum('device_status', ['active', 'invalid']);
+export const subscriptionPlatform = pgEnum('subscription_platform', ['ios', 'android']);
+export const subscriptionStatus = pgEnum('subscription_status', ['active', 'invalid']);
 
 export const subscriber = pgTable(
   'subscriber',
@@ -14,6 +25,7 @@ export const subscriber = pgTable(
       .references(() => tenant.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
     attributes: jsonb('attributes').notNull().default({}),
+    identityVerifiedAt: timestamp('identity_verified_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')
       .notNull()
@@ -29,8 +41,8 @@ export const subscriber = pgTable(
   ]
 );
 
-export const device = pgTable(
-  'device',
+export const subscription = pgTable(
+  'subscription',
   {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     tenantId: integer('tenant_id')
@@ -39,9 +51,11 @@ export const device = pgTable(
     subscriberId: integer('subscriber_id')
       .notNull()
       .references(() => subscriber.id, { onDelete: 'cascade' }),
-    platform: devicePlatform('platform').notNull(),
-    token: text('token').notNull(),
-    status: deviceStatus('status').notNull().default('active'),
+    channel: channel('channel').notNull(),
+    platform: subscriptionPlatform('platform'),
+    endpoint: text('endpoint').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    status: subscriptionStatus('status').notNull().default('active'),
     lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
     invalidatedAt: timestamp('invalidated_at'),
     invalidationReason: text('invalidation_reason'),
@@ -53,12 +67,12 @@ export const device = pgTable(
     deletedAt: timestamp('deleted_at'),
   },
   (table) => [
-    uniqueIndex('device_tenant_token_unique')
-      .on(table.tenantId, table.token)
+    uniqueIndex('subscription_tenant_channel_endpoint_unique')
+      .on(table.tenantId, table.channel, table.endpoint)
       .where(sql`${table.deletedAt} is null`),
-    index('device_subscriber_idx').on(table.subscriberId),
-    index('device_tenant_idx').on(table.tenantId),
+    index('subscription_subscriber_idx').on(table.subscriberId),
+    index('subscription_tenant_idx').on(table.tenantId),
   ]
 );
 
-export const subscriberTables = { subscriber, device };
+export const subscriberTables = { subscriber, subscription };

@@ -1,7 +1,7 @@
 import {
   replaceCredential,
   serializeCredential,
-  validateFcmUpload,
+  validateCredentialUpload,
 } from '@buzzkit/api/api/credentials/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { BadRequestError } from '@buzzkit/api/libs/error';
@@ -22,13 +22,18 @@ export const credentialsFcm = new Elysia()
         );
       }
 
-      const outcome = await validateFcmUpload(account);
+      const details = { projectId: account.project_id, clientEmail: account.client_email };
+      const outcome = await validateCredentialUpload('fcm', {
+        secret: account.private_key,
+        details,
+        environment: 'production',
+      });
 
       const credential = await replaceCredential(db, tenant.id, {
         provider: 'fcm',
         environment: 'production',
         secret: account.private_key,
-        details: { projectId: account.project_id, clientEmail: account.client_email },
+        details,
         outcome,
       });
 

@@ -105,6 +105,46 @@ describe('POST /v1/workspaces/:slug/keys', () => {
     }
   });
 
+  it('accepts a future expiry and reports it in the listing', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
+    const name = `expiring-${uniq()}`;
+
+    const created = await api<{ expiresAt: string }>(`/v1/workspaces/${workspace.slug}/keys`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ name, scopes: ['tenants:read'], expiresAt }),
+    });
+    expect(created.status).toBe(201);
+    expect(new Date(created.body.data?.expiresAt ?? 0).toISOString()).toBe(expiresAt);
+
+    const list = await api<Array<{ name: string; expiresAt: string | null }>>(
+      `/v1/workspaces/${workspace.slug}/keys`,
+      { headers: ownerBearer }
+    );
+    expect(list.body.data?.find((k) => k.name === name)?.expiresAt).toBeTruthy();
+  });
+
+  it('rejects malformed expiry, empty names, and too many scopes', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+
+    for (const body of [
+      { name: 'k', scopes: ['tenants:read'], expiresAt: 'tomorrow' },
+      { name: '', scopes: ['tenants:read'] },
+      { name: 'x'.repeat(101), scopes: ['tenants:read'] },
+      { name: 'k', scopes: Array.from({ length: 33 }, () => 'tenants:read') },
+      { name: 'k', scopes: [] },
+      { name: 'k' },
+    ]) {
+      const { status } = await api(`/v1/workspaces/${workspace.slug}/keys`, {
+        method: 'POST',
+        headers: ownerBearer,
+        body: JSON.stringify(body),
+      });
+      expect(status, JSON.stringify(body)).toBe(400);
+    }
+  });
+
   it('rejects a past expiry', async () => {
     const { workspace, ownerBearer } = await setupWorkspace();
 
@@ -152,6 +192,23 @@ describe('DELETE /v1/workspaces/:slug/keys/:id', () => {
     );
     expect(revoke.status).toBe(200);
     expect(revoke.body.data?.revokedAt).not.toBeNull();
+  });
+
+  it('revoking is idempotent and revoked keys stay visible with revokedAt', async () => {
+    const { workspace, ownerBearer, key } = await setupWorkspace();
+
+    await api(`/v1/workspaces/${workspace.slug}/keys/${key.id}`, { method: 'DELETE', headers: ownerBearer });
+    const again = await api<{ revokedAt: string | null }>(`/v1/workspaces/${workspace.slug}/keys/${key.id}`, {
+      method: 'DELETE',
+      headers: ownerBearer,
+    });
+    expect(again.status).toBe(200);
+
+    const list = await api<Array<{ id: string; revokedAt: string | null }>>(
+      `/v1/workspaces/${workspace.slug}/keys`,
+      { headers: ownerBearer }
+    );
+    expect(list.body.data?.find((k) => k.id === key.id)?.revokedAt).toBeTruthy();
   });
 
   it('400s on malformed ids and 404s on unknown ones', async () => {

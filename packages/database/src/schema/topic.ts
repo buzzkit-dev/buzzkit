@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { channel } from './shared';
 import { subscriber } from './subscriber';
 import { tenant } from './tenant';
 
@@ -14,6 +15,7 @@ export const topic = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     defaultOptedIn: boolean('default_opted_in').notNull().default(true),
+    channelDefaults: jsonb('channel_defaults').notNull().default({}),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')
       .notNull()
@@ -42,6 +44,7 @@ export const subscriberPreference = pgTable(
     topicId: integer('topic_id')
       .notNull()
       .references(() => topic.id, { onDelete: 'cascade' }),
+    channel: channel('channel').notNull().default('push'),
     optedIn: boolean('opted_in').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')
@@ -50,7 +53,7 @@ export const subscriberPreference = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex('subscriber_preference_unique').on(table.subscriberId, table.topicId),
+    uniqueIndex('subscriber_preference_unique').on(table.subscriberId, table.topicId, table.channel),
     index('subscriber_preference_topic_idx').on(table.topicId),
     index('subscriber_preference_tenant_idx').on(table.tenantId),
   ]

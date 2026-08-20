@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { api } from '../../utils/api';
+import { api, BASE_URL } from '../../utils/api';
+import { setupWorkspace } from '../../utils/setup';
 
 describe('GET /v1/health', () => {
   it('returns ok with a live database check inside the envelope', async () => {
@@ -27,6 +28,23 @@ describe('error envelope', () => {
     expect(body.data).toBeNull();
     expect(body.error?.code).toBe('NOT_FOUND');
     expect(body.metadata.timestamp).toBeTypeOf('number');
+  });
+
+  it('wraps malformed JSON and unsupported methods in the envelope', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const malformed = await fetch(`${BASE_URL}/v1/tenants`, {
+      method: 'POST',
+      headers: { ...keyBearer, 'content-type': 'application/json' },
+      body: '{not json',
+    });
+    expect(malformed.status).toBe(400);
+    const body = (await malformed.json()) as { success: boolean; error: { code: string } };
+    expect(body.success).toBe(false);
+    expect(['PARSE', 'VALIDATION', 'BAD_REQUEST']).toContain(body.error.code);
+
+    const unsupported = await api('/v1/health', { method: 'DELETE' });
+    expect(unsupported.status).toBe(404);
+    expect(unsupported.body.success).toBe(false);
   });
 
   it('wraps validation failures in the standard envelope', async () => {

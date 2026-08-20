@@ -33,6 +33,10 @@ The first email-channel credential — buzzkit doesn't compete with providers; i
 ## POST /v1/credentials/:id/validate — re-run validation, update status
 ## DELETE /v1/credentials/:id — revoke (soft delete)
 
+## Provider registry
+
+Every provider is one self-contained module in `apps/api/src/providers/<name>/` plus one entry in the registry (`providers/index.ts`: channel, display name, `validate()`). The credentials domain is fully generic — one `validateCredentialUpload()` for all providers, one lifecycle, one storage shape (sealed secret + `details` JSONB). Adding a provider = provider module + registry entry + one thin upload route. No per-provider logic ever accumulates in the domain.
+
 ## Encryption (industry-standard envelope encryption)
 
 The KMS pattern (AWS KMS / Google Cloud KMS / Vault — the same scheme push platforms use for customer credentials):

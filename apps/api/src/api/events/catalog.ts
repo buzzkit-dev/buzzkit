@@ -28,8 +28,10 @@ export const EVENT_CATALOG = {
   'subscriber.created': { webhook: true },
   'subscriber.updated': { webhook: true },
   'subscriber.deleted': { webhook: true },
-  'device.registered': { webhook: true },
-  'device.removed': { webhook: true },
+  'subscription.created': { webhook: true },
+  'subscription.updated': { webhook: true },
+  'subscription.removed': { webhook: true },
+
   'topic.created': { webhook: true },
   'topic.updated': { webhook: true },
   'topic.deleted': { webhook: true },

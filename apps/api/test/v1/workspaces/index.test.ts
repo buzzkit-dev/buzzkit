@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
-import { createWorkspace, signUpUser, uniq } from '../../utils/setup';
+import { createWorkspace, setupWorkspace, signUpUser, uniq } from '../../utils/setup';
 
 describe('POST /v1/workspaces', () => {
   it('creates a workspace with prefixed sqid id and owner role', async () => {
@@ -53,6 +53,41 @@ describe('POST /v1/workspaces', () => {
       body: JSON.stringify({ name: 'Nope', slug: 'workspaces' }),
     });
     expect(reserved.status).toBe(400);
+  });
+
+  it('lists only the workspaces the caller belongs to, with their role', async () => {
+    const user = await signUpUser();
+    const mine = await createWorkspace(user.token);
+    await setupWorkspace();
+
+    const { status, body } = await api<Array<{ id: string; slug: string; role: string }>>('/v1/workspaces', {
+      headers: user.bearer,
+    });
+
+    expect(status).toBe(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data?.[0]?.slug).toBe(mine.slug);
+    expect(body.data?.[0]?.role).toBe('owner');
+    expect(body.data?.[0]?.id).toMatch(/^ws_/);
+  });
+
+  it('validates name and slug shape at creation', async () => {
+    const user = await signUpUser();
+
+    for (const body of [
+      { name: '', slug: `ws-${uniq()}` },
+      { name: 'x'.repeat(101), slug: `ws-${uniq()}` },
+      { name: 'Ok', slug: 'ab' },
+      { name: 'Ok', slug: 'Has Caps' },
+      { name: 'Ok' },
+    ]) {
+      const { status } = await api('/v1/workspaces', {
+        method: 'POST',
+        headers: user.bearer,
+        body: JSON.stringify(body),
+      });
+      expect(status, JSON.stringify(body)).toBe(400);
+    }
   });
 
   it('requires a session', async () => {

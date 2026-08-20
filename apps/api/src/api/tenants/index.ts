@@ -19,6 +19,95 @@ export const TenantMetadataSchema = t.Record(t.String(), t.Any(), {
   description: 'Free-form data, e.g. your own customer id',
 });
 
+export const TenantSettingsSchema = t.Record(t.String(), t.Any(), {
+  description: 'Structured tenant settings — validated against the settings catalog',
+});
+
+const SETTINGS_CATALOG: Record<string, Record<string, 'boolean'>> = {
+  identity: { requireVerification: 'boolean' },
+  'channels.push': { enabled: 'boolean' },
+  'channels.email': { enabled: 'boolean' },
+};
+
+export function assertValidTenantSettings(patch: unknown): asserts patch is TenantSettingsPatch {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new BadRequestError('settings must be an object');
+  }
+
+  const groups = new Map<string, unknown>();
+  for (const [group, value] of Object.entries(patch)) {
+    if (group === 'channels') {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new BadRequestError('settings.channels must be an object');
+      }
+      for (const [channel, channelValue] of Object.entries(value)) {
+        groups.set(`channels.${channel}`, channelValue);
+      }
+    } else {
+      groups.set(group, value);
+    }
+  }
+
+  for (const [path, value] of groups) {
+    const catalog = SETTINGS_CATALOG[path];
+    if (!catalog) {
+      throw new BadRequestError(`Unknown setting group 'settings.${path}'`);
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestError(`settings.${path} must be an object`);
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      const expected = catalog[key];
+      if (!expected) {
+        throw new BadRequestError(`Unknown setting 'settings.${path}.${key}'`);
+      }
+      if (typeof entry !== expected) {
+        throw new BadRequestError(`settings.${path}.${key} must be a ${expected}`);
+      }
+    }
+  }
+}
+
+export type TenantSettings = {
+  identity: { requireVerification: boolean };
+  channels: Record<'push' | 'email', { enabled: boolean }>;
+};
+
+type TenantSettingsPatch = {
+  identity?: { requireVerification?: boolean };
+  channels?: Partial<Record<'push' | 'email', { enabled?: boolean }>>;
+};
+
+export function resolveTenantSettings(raw: unknown): TenantSettings {
+  const stored = (raw ?? {}) as TenantSettingsPatch;
+  return {
+    identity: { requireVerification: false, ...stored.identity },
+    channels: {
+      push: { enabled: true, ...stored.channels?.push },
+      email: { enabled: true, ...stored.channels?.email },
+    },
+  };
+}
+
+export function mergeTenantSettings(current: unknown, patch: TenantSettingsPatch): TenantSettingsPatch {
+  const stored = (current ?? {}) as TenantSettingsPatch;
+  return {
+    ...stored,
+    ...(patch.identity ? { identity: { ...stored.identity, ...patch.identity } } : {}),
+    ...(patch.channels
+      ? {
+          channels: {
+            ...stored.channels,
+            ...(patch.channels.push ? { push: { ...stored.channels?.push, ...patch.channels.push } } : {}),
+            ...(patch.channels.email
+              ? { email: { ...stored.channels?.email, ...patch.channels.email } }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 export function serializeTenant(tenant: Tenant) {
   return {
     id: tenant.id,
@@ -27,7 +116,7 @@ export function serializeTenant(tenant: Tenant) {
     isDefault: tenant.isDefault,
     metadata: tenant.metadata,
     identitySecret: tenant.identitySecret,
-    requireIdentityVerification: tenant.requireIdentityVerification,
+    settings: resolveTenantSettings(tenant.settings),
     createdAt: tenant.createdAt,
     updatedAt: tenant.updatedAt,
   };
@@ -130,12 +219,15 @@ export async function updateTenant(
     name?: string;
     slug?: string;
     metadata?: Record<string, unknown>;
-    requireIdentityVerification?: boolean;
+    settings?: TenantSettingsPatch;
   }
 ): Promise<Tenant> {
   const values: Record<string, unknown> = { ...patch };
-  if (patch.requireIdentityVerification && !tenant.identitySecret) {
-    values.identitySecret = randomString(32);
+  if (patch.settings) {
+    values.settings = mergeTenantSettings(tenant.settings, patch.settings);
+    if (patch.settings.identity?.requireVerification && !tenant.identitySecret) {
+      values.identitySecret = randomString(32);
+    }
   }
 
   const [updated] = await trace(

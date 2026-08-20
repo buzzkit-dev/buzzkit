@@ -1,17 +1,29 @@
 import { response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
+import { clientIdentify } from './client/identify';
+import { clientPreferences } from './client/preferences';
+import { clientSubscriptions } from './client/subscriptions';
 import { credentials } from './credentials';
 import { credential } from './credentials/[id]';
 import { credentialValidate } from './credentials/[id]/validate';
 import { credentialsApns } from './credentials/apns';
 import { credentialsFcm } from './credentials/fcm';
+import { credentialsResend } from './credentials/resend';
 import { health } from './health';
 import { invitePreview } from './invites/[token]';
 import { inviteAccept } from './invites/[token]/accept';
 import { profile } from './profile';
 import { apnsSpike } from './spike/apns';
+import { subscribers } from './subscribers';
+import { subscriber } from './subscribers/[externalId]';
+import { subscriberPreferences } from './subscribers/[externalId]/preferences';
+import { subscriberSubscriptions } from './subscribers/[externalId]/subscriptions';
+import { subscriptions } from './subscriptions';
+import { subscription } from './subscriptions/[id]';
 import { tenants } from './tenants';
 import { tenant } from './tenants/[tenantSlug]';
+import { topics } from './topics';
+import { topic } from './topics/[topicSlug]';
 import { workspaces } from './workspaces';
 import { workspace } from './workspaces/[slug]';
 import { events } from './workspaces/[slug]/events';
@@ -106,10 +118,58 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(credentialsFcm)
   /*
+   * /v1/credentials/resend
+   */
+  .use(credentialsResend)
+  /*
    * /v1/credentials/:id
    */
   .use(credential)
   /*
    * /v1/credentials/:id/validate
    */
-  .use(credentialValidate);
+  .use(credentialValidate)
+  /*
+   * /v1/subscribers
+   */
+  .use(subscribers)
+  /*
+   * /v1/subscribers/:externalId
+   */
+  .use(subscriber)
+  /*
+   * /v1/subscribers/:externalId/subscriptions
+   */
+  .use(subscriberSubscriptions)
+  /*
+   * /v1/subscribers/:externalId/preferences
+   */
+  .use(subscriberPreferences)
+  /*
+   * /v1/subscriptions
+   */
+  .use(subscriptions)
+  /*
+   * /v1/subscriptions/:id
+   */
+  .use(subscription)
+  /*
+   * /v1/topics
+   */
+  .use(topics)
+  /*
+   * /v1/topics/:topicSlug
+   */
+  .use(topic)
+  /*
+   * /v1/client/identify
+   */
+  .use(clientIdentify)
+  /*
+   * /v1/client/subscriptions
+   */
+  .use(clientSubscriptions)
+  /*
+   * /v1/client/preferences
+   */
+  .use(clientPreferences);

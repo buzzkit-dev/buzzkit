@@ -12,6 +12,8 @@ export const tenant = pgTable(
     name: text('name').notNull(),
     slug: text('slug').notNull(),
     isDefault: boolean('is_default').notNull().default(false),
+    identitySecret: text('identity_secret'),
+    settings: jsonb('settings').notNull().default({}),
     metadata: jsonb('metadata').notNull().default({}),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')

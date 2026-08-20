@@ -38,4 +38,4 @@ Role bundles: `member` → read scopes + members:read; `admin` → + workspace:w
 3. Keys never manage keys.
 3b. Ownership is owner-only: granting or revoking the `owner` role requires owner-level authority, so `members:write` alone can never escalate.
 4. Cross-workspace addressing fails closed (403), invalid/revoked/expired credentials fail closed (401).
-5. Sessions are cached in KV for 5 minutes (`SESSION_CACHE`); API keys are verified against the database on every request.
+5. Sessions are cached in KV for 5 minutes (`SESSION_CACHE`) and the cache entry is purged on sign-out, so sign-out revokes access immediately; API keys are verified against the database on every request.
