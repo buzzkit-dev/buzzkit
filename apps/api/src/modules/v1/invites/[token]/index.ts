@@ -5,11 +5,6 @@ import { trace } from '@buzzkit/api/libs/telemetry';
 import { eq, tables } from '@buzzkit/database';
 import Elysia from 'elysia';
 
-/**
- * Public invite preview — what an invitee sees before signing in. The token IS
- * the credential here, so the response exposes only what the invite email
- * would: workspace name, role, masked email, expiry.
- */
 export const invitePreview = new Elysia()
   .use(database)
   .guard({ detail: { tags: ['Invites'] } })

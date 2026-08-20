@@ -23,7 +23,7 @@ export const profile = new Elysia()
   )
   .patch(
     '/profile',
-    async ({ body, db, user }) => {
+    async ({ body, db, user, event }) => {
       const [updated] = await trace(
         'profile.update',
         async () =>
@@ -33,6 +33,11 @@ export const profile = new Elysia()
             .where(eq(tables.auth.user.id, user.id))
             .returning()
       );
+
+      await event({
+        event: 'profile.updated',
+        data: { from: { name: user.name }, to: { name: body.name } },
+      });
 
       return Response.success(serializeUser(updated!)).send();
     },

@@ -1,3 +1,4 @@
+import { diffForEvent } from '@buzzkit/api/api/events/index';
 import {
   assertTenantSlugAvailable,
   findTenantBySlug,
@@ -27,7 +28,7 @@ export const tenant = new Elysia()
   )
   .patch(
     '/tenants/:tenantSlug',
-    async ({ body, db, params, workspace }) => {
+    async ({ body, db, params, workspace, event }) => {
       if (body.name === undefined && body.slug === undefined && body.metadata === undefined) {
         throw new BadRequestError('Nothing to update');
       }
@@ -43,6 +44,13 @@ export const tenant = new Elysia()
 
       const updated = await updateTenant(db, tenant.id, body);
 
+      await event({
+        event: 'tenant.updated',
+        tenantId: tenant.id,
+        target: { type: 'tenant', id: tenant.id },
+        data: diffForEvent(tenant, updated),
+      });
+
       return Response.success(serializeTenant(updated), { entity: 'tenant' }).send();
     },
     {
@@ -56,10 +64,17 @@ export const tenant = new Elysia()
   )
   .delete(
     '/tenants/:tenantSlug',
-    async ({ db, params, workspace }) => {
+    async ({ db, params, workspace, event }) => {
       const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
 
       const deleted = await softDeleteTenant(db, tenant);
+
+      await event({
+        event: 'tenant.deleted',
+        tenantId: tenant.id,
+        target: { type: 'tenant', id: tenant.id },
+        data: { name: tenant.name, slug: tenant.slug },
+      });
 
       return Response.success(serializeTenant(deleted), { entity: 'tenant' }).send();
     },

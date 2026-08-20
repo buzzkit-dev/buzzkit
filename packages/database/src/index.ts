@@ -1,6 +1,8 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { authTables } from './schema/auth';
+import { credentialTables } from './schema/credential';
+import { eventTables } from './schema/event';
 import { inviteTables } from './schema/invite';
 import { apiKeyTables } from './schema/key';
 import { tenantTables } from './schema/tenant';
@@ -12,6 +14,8 @@ export const tables = {
   ...tenantTables,
   ...apiKeyTables,
   ...inviteTables,
+  ...eventTables,
+  ...credentialTables,
 };
 
 export const createDrizzle = (url: string) => {

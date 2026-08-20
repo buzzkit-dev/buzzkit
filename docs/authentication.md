@@ -5,24 +5,26 @@
 | Credential | Prefix | Obtained | Powers |
 |---|---|---|---|
 | **Session** (bearer token) | — | BetterAuth (`/v1/auth/*`, email + password) | Dashboard use: everything the user's workspace role allows, plus account routes and key management |
-| **Workspace API key** | `bk_ws_` | Dashboard → `/v1/workspaces/:slug/keys` | Server-side: any granted scope across ALL tenants of its workspace — this is the key the product promise runs on |
-| **Tenant API key** | `bk_tn_` | Same, with `kind: "tenant"` + tenant slug | Locked to one tenant's data plane (devices, sends — from Phase 3/4). Rejected on all workspace-context routes |
+| **Workspace API key** | `bk_ws_` | Dashboard → `/v1/workspaces/:slug/keys` | **The one key you store.** Server-side: any granted scope across ALL tenants of its workspace, tenant addressed per request — this is the key the product promise runs on |
+| **Tenant API key** | `bk_tn_` | Same, with `kind: "tenant"` + tenant slug | *Optional* — the restricted-key analog (Stripe `rk_`): locked to one tenant's data plane, for handing a customer or semi-trusted subsystem direct access with a one-tenant blast radius. Never required; rejected on all workspace-context routes |
 | **Client key** | `bk_pk_` | *Phase 3* | Embed-safe: device registration + subscriber identify only |
 
 Secrets are stored as SHA-256 hashes (of the post-prefix portion) and shown exactly once at creation. `Authorization: Bearer <secret>` everywhere.
 
-## Workspace addressing
+## Addressing
 
-- `/v1/workspaces/:slug/*` — the slug is in the path.
-- `/v1/tenants*` (and future data-plane routes) — an API key implies its own workspace; dashboard sessions pass `x-workspace: <slug>` instead.
-- A key used against a slug it doesn't belong to is a 403 — always.
+- `/v1/workspaces/:slug/*` — the workspace slug is in the path.
+- Slug-less routes (`/v1/tenants*`, `/v1/credentials*`, all future data-plane routes) — an API key implies its own workspace; dashboard sessions pass `buzzkit-workspace: <slug>` instead.
+- **Tenant selection (data plane)** — the Stripe-Account pattern, and the PRIMARY multi-tenant flow: a platform stores exactly one workspace key and passes `buzzkit-tenant: <slug>` per request (Stripe platforms do the identical thing — one platform secret key + `Stripe-Account: acct_…`; Stripe issues no per-connected-account keys). The **default tenant** is used when the header is absent — the simple case needs no tenant awareness at all. Tenant keys, when used, imply their tenant and need no header.
+- A key used against a slug or tenant it doesn't belong to is a 403 — always.
 
 ## Scopes
 
 Every route declares exactly one scope; the scope's context decides authentication (catalog in `apps/api/src/libs/scopes.ts`):
 
 - **user context** (`account:read|write`) — session-only.
-- **workspace context** (everything else in Phase 1) — session membership (scopes from the role bundle) or workspace API key (scopes from its grants; wildcards `*` / `resource:*` supported).
+- **workspace context** (control plane) — session membership (scopes from the role bundle) or workspace API key (scopes from its grants; wildcards `*` / `resource:*` supported). Tenant keys are rejected.
+- **tenant context** (data plane: `credentials:*`, later devices/messages) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
 
 Role bundles: `member` → read scopes + members:read; `admin` → + workspace:write, members:write, invites:*, tenants:write, keys:*; `owner` → + workspace:delete.
 
@@ -33,5 +35,6 @@ Role bundles: `member` → read scopes + members:read; `admin` → + workspace:w
 1. No route touches workspace or tenant data without a resolved, authorized workspace context.
 2. Tenant keys never satisfy workspace-context scopes.
 3. Keys never manage keys.
+3b. Ownership is owner-only: granting or revoking the `owner` role requires owner-level authority, so `members:write` alone can never escalate.
 4. Cross-workspace addressing fails closed (403), invalid/revoked/expired credentials fail closed (401).
 5. Sessions are cached in KV for 5 minutes (`SESSION_CACHE`); API keys are verified against the database on every request.

@@ -1,10 +1,3 @@
-/**
- * Span-level tracing interface. Currently a no-op passthrough — call sites wrap
- * database calls and business logic in `trace('name', async (t) => …)` from day
- * one, and the Phase 10 observability pass swaps these internals for real
- * OpenTelemetry spans without touching any call site.
- */
-
 export type Span = {
   set(key: string, value: unknown): void;
   trace<T>(name: string, fn: (t: Span) => Promise<T>): Promise<T>;

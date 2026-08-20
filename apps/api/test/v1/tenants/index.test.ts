@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
-import { setupWorkspace, uniq } from '../../utils/setup';
+import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 describe('/v1/tenants (workspace API key)', () => {
   it('creates, reads, updates and deletes a tenant', async () => {
@@ -112,6 +112,67 @@ describe('/v1/tenants (workspace API key)', () => {
     );
     expect(page2.body.data?.items).toHaveLength(2);
     expect(page2.body.data?.hasMore).toBe(false);
+  });
+
+  it('rejects malformed slugs, unknown limits, and garbage cursors', async () => {
+    const { keyBearer } = await setupWorkspace();
+
+    for (const slug of ['UPPER', 'has space', '-x', 'x-', 'a--b']) {
+      const { status } = await api('/v1/tenants', {
+        method: 'POST',
+        headers: keyBearer,
+        body: JSON.stringify({ name: 'Bad', slug }),
+      });
+      expect(status, `slug '${slug}' must be refused`).toBe(400);
+    }
+
+    const overLimit = await api('/v1/tenants?limit=101', { headers: keyBearer });
+    expect(overLimit.status).toBe(400);
+
+    const badCursor = await api('/v1/tenants?cursor=not-a-cursor!', { headers: keyBearer });
+    expect(badCursor.status).toBe(400);
+  });
+
+  it('replaces metadata wholesale on patch and frees a renamed slug', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const slug = `cust-${uniq()}`;
+    await api('/v1/tenants', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ name: 'C', slug, metadata: { a: 1, b: 2 } }),
+    });
+
+    const patched = await api<{ metadata: Record<string, unknown>; slug: string }>(`/v1/tenants/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ metadata: { c: 3 } }),
+    });
+    expect(patched.body.data?.metadata).toEqual({ c: 3 });
+
+    const newSlug = `cust-${uniq()}`;
+    await api(`/v1/tenants/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: newSlug }),
+    });
+
+    const reuse = await api('/v1/tenants', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ name: 'Reuse', slug }),
+    });
+    expect(reuse.status).toBe(201);
+  });
+
+  it('serves sessions with buzzkit-workspace identically to workspace keys', async () => {
+    const { workspace, ownerBearer, keyBearer } = await setupWorkspace();
+    const sessionHeaders = { ...ownerBearer, 'buzzkit-workspace': workspace.slug };
+
+    const tenant = await createTenant(sessionHeaders);
+
+    const viaKey = await api<{ slug: string }>(`/v1/tenants/${tenant.slug}`, { headers: keyBearer });
+    expect(viaKey.status).toBe(200);
+    expect(viaKey.body.data?.slug).toBe(tenant.slug);
   });
 
   it('leaks no numeric ids anywhere in tenant responses', async () => {

@@ -34,6 +34,31 @@ export function serializeInvite(invite: WorkspaceInvite) {
   };
 }
 
+export function inviteEmailContent(input: {
+  workspaceName: string;
+  inviterName: string | null;
+  email: string;
+  role: string;
+  token: string;
+  expiresAt: Date;
+  dashboardUrl: string;
+}): { subject: string; text: string } {
+  const inviter = input.inviterName ?? 'A teammate';
+  const expires = input.expiresAt.toISOString().slice(0, 10);
+  return {
+    subject: `${inviter} invited you to ${input.workspaceName} on buzzkit`,
+    text: [
+      `${inviter} invited you to join the ${input.workspaceName} workspace on buzzkit as ${input.role}.`,
+      '',
+      'Accept the invite:',
+      `${input.dashboardUrl}/invite/${input.token}`,
+      '',
+      `This invite was sent to ${input.email} and expires on ${expires}.`,
+      'If you were not expecting it, you can ignore this email.',
+    ].join('\n'),
+  };
+}
+
 export async function listPendingInvites(db: Db, workspaceId: number): Promise<WorkspaceInvite[]> {
   return await trace(
     'invites.list',
@@ -122,7 +147,7 @@ export async function createInvite(
   );
 
   if (existingInvite) {
-    throw new ConflictError('This email already has a pending invite');
+    throw new ConflictError('This email already has a pending invite. Resend it instead.');
   }
 
   const [existingMember] = await trace(
@@ -162,6 +187,24 @@ export async function createInvite(
   );
 
   return invite!;
+}
+
+export async function resendInvite(db: Db, invite: WorkspaceInvite): Promise<WorkspaceInvite> {
+  if (invite.acceptedAt) {
+    throw new ConflictError('This invite was already accepted');
+  }
+
+  const [updated] = await trace(
+    'invites.resend',
+    async () =>
+      await db
+        .update(tables.workspaceInvite)
+        .set({ expiresAt: inviteExpiry() })
+        .where(eq(tables.workspaceInvite.id, invite.id))
+        .returning()
+  );
+
+  return updated!;
 }
 
 export async function revokeInvite(db: Db, inviteId: number): Promise<WorkspaceInvite> {

@@ -19,10 +19,9 @@ export const keys = new Elysia()
   )
   .post(
     '/workspaces/:slug/keys',
-    async ({ body, db, set, workspace, user }) => {
-      assertValidKeyScopes(body.scopes);
-
+    async ({ body, db, set, workspace, user, event }) => {
       const kind = body.kind ?? 'workspace';
+      assertValidKeyScopes(body.scopes, kind);
       const tenant = kind === 'tenant' ? await findTenantBySlug(db, workspace.id, body.tenant ?? '') : null;
 
       const { key, secret } = await createApiKey(
@@ -37,6 +36,12 @@ export const keys = new Elysia()
         },
         user!.id
       );
+
+      await event({
+        event: 'key.created',
+        target: { type: 'key', id: key.id },
+        data: { name: key.name, kind: key.kind, scopes: key.scopes },
+      });
 
       return Response.success({ ...maskApiKey(key), secret }, { entity: 'key' })
         .status(201)

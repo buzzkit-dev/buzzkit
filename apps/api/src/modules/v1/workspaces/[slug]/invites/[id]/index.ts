@@ -8,10 +8,16 @@ export const invite = new Elysia()
   .guard({ detail: { tags: ['Invites'] } })
   .delete(
     '/workspaces/:slug/invites/:id',
-    async ({ db, params, workspace }) => {
+    async ({ db, params, workspace, event }) => {
       const target = await findInvite(db, workspace.id, params.id);
 
       const revoked = await revokeInvite(db, target.id);
+
+      await event({
+        event: 'invite.revoked',
+        target: { type: 'invite', id: target.id },
+        data: { email: target.email },
+      });
 
       return Response.success(serializeInvite(revoked), { entity: 'invite' }).send();
     },

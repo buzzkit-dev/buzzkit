@@ -14,10 +14,17 @@ export const workspaces = new Elysia()
   .guard({ detail: { tags: ['Workspaces'] } })
   .post(
     '/workspaces',
-    async ({ body, db, set, user }) => {
+    async ({ body, db, set, user, event }) => {
       await assertSlugAvailable(db, body.slug);
 
       const workspace = await createWorkspace(db, body, user.id);
+
+      await event({
+        event: 'workspace.created',
+        workspaceId: workspace.id,
+        target: { type: 'workspace', id: workspace.id },
+        data: { name: body.name, slug: body.slug },
+      });
 
       return Response.success({ ...workspace, role: 'owner' }, { entity: 'workspace' })
         .status(201)

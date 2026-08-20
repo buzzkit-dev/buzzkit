@@ -2,7 +2,6 @@ import { ErrorCodes, getErrorInfo } from '@buzzkit/api/utils/errorCodes';
 import { Elysia } from 'elysia';
 import { Response } from './response';
 
-// Base error class with common functionality
 class ApiError extends Error {
   constructor(
     message: string,
@@ -12,7 +11,6 @@ class ApiError extends Error {
   }
 }
 
-// Create error classes with default messages
 const createErrorClass = (defaultMessage: string) =>
   class extends ApiError {
     constructor(message = defaultMessage, details?: unknown) {
@@ -20,7 +18,6 @@ const createErrorClass = (defaultMessage: string) =>
     }
   };
 
-// Define error types
 export const UnauthorizedError = createErrorClass('Unauthorized access');
 export const ForbiddenError = createErrorClass('Access forbidden');
 export const BadRequestError = createErrorClass('Invalid request');
@@ -44,9 +41,6 @@ export const error = new Elysia()
   .onError(async ({ error, code, set }) => {
     let errorCodeKey = Object.entries(ErrorCodes).find(([_, v]) => v === code)?.[0];
 
-    // Unrecognized errors may carry their own code (e.g. PostgresError '23505',
-    // possibly wrapped by drizzle with the driver error as `cause`) — map it
-    // through the PG_* table instead of collapsing to a 500
     const getThrownCode = (e: unknown, depth = 0): string | undefined => {
       if (depth > 3 || typeof e !== 'object' || e === null) return undefined;
       if ('code' in e && typeof e.code === 'string') return e.code;
@@ -61,12 +55,10 @@ export const error = new Elysia()
 
     errorCodeKey ??= ErrorCodes.UNKNOWN;
 
-    // getErrorInfo switches on ErrorCodes VALUES ('23505'), not keys ('PG_DUPLICATE_ENTRY')
     const errorInfo = getErrorInfo(ErrorCodes[errorCodeKey as keyof typeof ErrorCodes] ?? errorCodeKey);
 
     let { message, details } = errorInfo;
 
-    // Database errors keep the mapped message — raw driver messages leak schema internals
     const isDatabaseError = errorCodeKey.startsWith('PG_');
 
     if (
@@ -82,7 +74,6 @@ export const error = new Elysia()
       }
     }
 
-    // Transform validation error
     if (code === 'VALIDATION' && 'message' in error) {
       const parsed = JSON.parse(error.message);
       message = parsed.summary;

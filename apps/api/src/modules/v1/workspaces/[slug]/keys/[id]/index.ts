@@ -8,10 +8,16 @@ export const key = new Elysia()
   .guard({ detail: { tags: ['Keys'] } })
   .delete(
     '/workspaces/:slug/keys/:id',
-    async ({ db, params, workspace }) => {
+    async ({ db, params, workspace, event }) => {
       const target = await findApiKey(db, workspace.id, params.id);
 
       const revoked = await revokeApiKey(db, target.id);
+
+      await event({
+        event: 'key.revoked',
+        target: { type: 'key', id: target.id },
+        data: { name: target.name, kind: target.kind },
+      });
 
       return Response.success(maskApiKey(revoked), { entity: 'key' }).send();
     },

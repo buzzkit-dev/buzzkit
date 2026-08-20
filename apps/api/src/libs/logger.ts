@@ -5,12 +5,6 @@ type Level = 'debug' | 'info' | 'warn' | 'error';
 
 type Entry = { level: Level; message: string; fields?: Record<string, unknown>; timestamp: number };
 
-/**
- * Buffered request logger: entries accumulate during a request and flush once
- * after the response. Console-backed for now (visible in `wrangler dev` and
- * Workers observability); the Phase 10 observability pass swaps the sink for
- * Axiom/OTel without changing call sites.
- */
 class BufferedLogger {
   private buffer: Entry[] = [];
 

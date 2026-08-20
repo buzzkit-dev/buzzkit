@@ -1,11 +1,5 @@
 import { BadRequestError } from '@buzzkit/api/libs/error';
 
-/**
- * Keyset (cursor) pagination over serial integer PKs — the standard for every
- * list endpoint. Opaque sqid cursors, newest-first (`id desc`), limit+1
- * lookahead for hasMore (no COUNT queries), O(1) pages at any depth.
- */
-
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 
@@ -19,7 +13,6 @@ export function clampLimit(limit: number | undefined): number {
   return Math.min(limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 }
 
-/** Decodes an opaque cursor with the resource's own decoder; 400 on garbage. */
 export function resolveCursor(
   cursor: string | undefined,
   decode: (id: string) => number | undefined
@@ -34,7 +27,6 @@ export function resolveCursor(
   return id;
 }
 
-/** Turns a limit+1 lookahead result into a page with the next opaque cursor. */
 export function toPage<T extends { id: number }>(
   rows: T[],
   limit: number,

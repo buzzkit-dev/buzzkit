@@ -24,7 +24,6 @@ export function randomString(length: number): string {
   while (chars.length < length) {
     const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
     for (const byte of bytes) {
-      // 248 = 62 * 4 — reject the tail to keep the distribution uniform
       if (byte < 248) {
         chars.push(ALPHABET[byte % 62] as string);
         if (chars.length === length) break;

@@ -64,11 +64,6 @@ type SuccessOptions = {
   entity?: IdEntity;
 };
 
-/**
- * `*Id` field name → prefix entity, so foreign keys get prefixes
- * without per-call configuration. Bare `id` uses the `entity` option instead.
- * New `*Id` field name → add one map entry.
- */
 const FIELD_ENTITIES: Record<string, IdEntity> = {
   workspaceId: 'workspace',
   memberId: 'member',
@@ -101,8 +96,6 @@ type ErrorParams = {
   error: { code: string; message: string; details?: unknown } | AppError;
 };
 
-// Type utility to transform ids to sqids
-// Matches: 'id', keys ending with 'Id', keys ending with '_id'
 type TransformIdToString<T> =
   T extends Array<infer U>
     ? Array<TransformIdToString<U>>
@@ -137,7 +130,6 @@ export function transformIds<T>(
 ): T {
   if (!data || typeof data !== 'object') return data;
 
-  // Handle Date objects - convert to ISO string
   if (data instanceof Date) {
     return data.toISOString() as T;
   }
@@ -148,26 +140,18 @@ export function transformIds<T>(
 
   const transformed = { ...data };
   for (const key in transformed) {
-    // Skip if key is in ignoreKeys — no transform, no recursion (protects
-    // arbitrary user data like subscriber attributes)
     if (ignoreKeys.includes(key)) continue;
 
     const value = transformed[key];
     const shouldTransform = forceTransform.includes(key) || isIdField(key);
 
-    // Transform if key is in forceTransform or is an ID field with numeric value
     if (shouldTransform && typeof value === 'number') {
       // @ts-expect-error
       transformed[key] = encodeFieldId(key, value, rootEntity);
-    }
-    // ID-named keys holding numeric arrays are ID lists; any other array is data
-    else if (shouldTransform && Array.isArray(value) && value.every((item) => typeof item === 'number')) {
+    } else if (shouldTransform && Array.isArray(value) && value.every((item) => typeof item === 'number')) {
       // @ts-expect-error
       transformed[key] = value.map((num) => encodeFieldId(key, num, rootEntity));
-    }
-    // Recursively transform nested objects — nested objects lose the root
-    // entity (their bare `id` is pre-encoded by serializers/embed helpers)
-    else if (typeof value === 'object') {
+    } else if (typeof value === 'object') {
       transformed[key] = transformIds(value, ignoreKeys, forceTransform);
     }
   }
@@ -200,8 +184,6 @@ class SuccessResponseBuilder<T> {
     pagination: CursorPagination
   ): SuccessResponseBuilder<{ items: T; hasMore: boolean; nextCursor: string | null }> {
     this._cursor = pagination;
-    // Runtime shape changes in send(); retype the builder so clients (Eden)
-    // infer the `{ items, hasMore, nextCursor }` wrapper instead of bare T.
     return this as unknown as SuccessResponseBuilder<{
       items: T;
       hasMore: boolean;

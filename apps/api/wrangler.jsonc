@@ -17,8 +17,19 @@
   // hosted/production deployments MUST override it (wrangler secret).
   "vars": {
     "ENVIRONMENT": "development",
-    "SQIDS_ALPHABET": "kdiEK9YyRrDlM4pnPXWQmL2wNZzeUxIqSHVvTGtjb0aJFuh3s618Bf5cCgAO7o"
+    "SQIDS_ALPHABET": "kdiEK9YyRrDlM4pnPXWQmL2wNZzeUxIqSHVvTGtjb0aJFuh3s618Bf5cCgAO7o",
+    "DASHBOARD_URL": "http://localhost:5180",
+    "EMAIL_FROM": "invites@buzzkit.dev"
   },
+
+  // Cloudflare Email Service. `remote: true` sends real email even in local
+  // dev; the EMAIL_FROM domain must be onboarded to Email Sending first.
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "remote": true
+    }
+  ],
 
   "hyperdrive": [
     {

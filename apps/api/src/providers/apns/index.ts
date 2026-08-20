@@ -1,11 +1,3 @@
-/**
- * APNs building blocks (Phase 0 spike, grows into the real provider in Phase 4).
- *
- * APNs only speaks HTTP/2. Workers' fetch negotiates HTTP/2 at the Cloudflare
- * edge in production; local workerd on macOS is known to be flaky here
- * (cloudflare/workerd#4841) — the probe below tells us which world we're in.
- */
-
 const HOSTS = {
   production: 'https://api.push.apple.com',
   sandbox: 'https://api.sandbox.push.apple.com',
@@ -35,10 +27,6 @@ function pemToPkcs8(p8: string): Uint8Array {
   return bytes;
 }
 
-/**
- * Provider token for APNs: ES256 JWT over the .p8 key. Apple accepts tokens up
- * to 1h old and throttles regeneration — Phase 4 caches these in KV (~50min).
- */
 export async function createApnsJwt(params: { p8: string; teamId: string; keyId: string }): Promise<string> {
   const key = await crypto.subtle.importKey(
     'pkcs8',
@@ -52,7 +40,6 @@ export async function createApnsJwt(params: { p8: string; teamId: string; keyId:
   const claims = base64UrlEncode(JSON.stringify({ iss: params.teamId, iat: Math.floor(Date.now() / 1000) }));
   const signingInput = `${header}.${claims}`;
 
-  // WebCrypto ECDSA emits raw r||s (64 bytes) — exactly the JOSE ES256 format
   const signature = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     key,
@@ -108,6 +95,58 @@ export async function sendApns(params: {
   };
 }
 
+export type ApnsValidationResult =
+  | { ok: true }
+  | { ok: false; reason: string; structural: boolean; transportError: boolean };
+
+export async function validateApnsCredential(params: {
+  p8: string;
+  teamId: string;
+  keyId: string;
+  bundleId: string;
+  environment: ApnsEnvironment;
+}): Promise<ApnsValidationResult> {
+  let jwt: string;
+  try {
+    jwt = await createApnsJwt(params);
+  } catch {
+    return {
+      ok: false,
+      reason: 'The key is not a valid APNs .p8 (PKCS#8 / P-256) private key',
+      structural: true,
+      transportError: false,
+    };
+  }
+
+  try {
+    const result = await sendApns({
+      jwt,
+      deviceToken: '0'.repeat(64),
+      bundleId: params.bundleId,
+      environment: params.environment,
+      payload: { aps: {} },
+    });
+
+    if (result.status === 400 && result.reason === 'BadDeviceToken') {
+      return { ok: true };
+    }
+
+    return {
+      ok: false,
+      reason: result.reason ?? `apns_status_${result.status}`,
+      structural: false,
+      transportError: false,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+      structural: false,
+      transportError: true,
+    };
+  }
+}
+
 export type ApnsProbeResult = {
   http2: boolean;
   status: number | null;
@@ -115,11 +154,6 @@ export type ApnsProbeResult = {
   error: string | null;
 };
 
-/**
- * Unauthenticated reachability probe: APNs kills non-HTTP/2 connections at the
- * transport level, so ANY HTTP status back (403 MissingProviderToken expected)
- * proves the runtime negotiated HTTP/2 end-to-end.
- */
 export async function probeApns(environment: ApnsEnvironment = 'sandbox'): Promise<ApnsProbeResult> {
   try {
     const response = await fetch(`${HOSTS[environment]}/3/device/${'0'.repeat(64)}`, {

@@ -11,15 +11,16 @@
 ## Members
 
 - `GET /v1/workspaces/:slug/members` — `members:read`; members with user info.
-- `PATCH /v1/workspaces/:slug/members/:id` — `members:write`; `{ role: member|admin|owner }`. The last owner cannot be demoted.
-- `DELETE /v1/workspaces/:slug/members/:id` — `members:write`; soft-remove. The last owner cannot be removed.
+- `PATCH /v1/workspaces/:slug/members/:id` — `members:write`; `{ role: member|admin|owner }`. Granting or revoking `owner` additionally requires owner-level authority (`workspace:delete`) — an admin can never escalate. The last owner cannot be demoted.
+- `DELETE /v1/workspaces/:slug/members/:id` — `members:write`; soft-remove (removing an owner is owner-only). The last owner cannot be removed.
 
 ## Invites
 
-No email delivery yet (dashboard phase wires it) — the create/list responses include the `token`; share `<dashboard>/invite/<token>` out-of-band.
+Invite emails are sent through the Cloudflare Email Service binding (`EMAIL`, from `EMAIL_FROM`); delivery failure never fails the mutation — responses carry `emailSent` and always include the `token` so the link (`<dashboard>/invite/<token>`) can also be shared directly.
 
-- `POST /v1/workspaces/:slug/invites` — `invites:write`; `{ email, role?: member|admin }` → 201 with token. One pending invite per email; existing members conflict.
+- `POST /v1/workspaces/:slug/invites` — `invites:write`; `{ email, role?: member|admin }` → 201 with token + `emailSent`. One pending invite per email; existing members conflict.
 - `GET /v1/workspaces/:slug/invites` — `invites:read`; pending invites.
+- `POST /v1/workspaces/:slug/invites/:id/resend` — `invites:write`; refreshes the 7-day expiry and re-sends the email.
 - `DELETE /v1/workspaces/:slug/invites/:id` — `invites:write`; revoke.
 - `GET /v1/invites/:token` — **public** preview: workspace name/slug, masked email, role, expired/accepted flags.
 - `POST /v1/invites/:token/accept` — session; only the invited email may accept; expiry 7 days.

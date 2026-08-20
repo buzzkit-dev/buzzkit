@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: Phase 0 ✅ and Phase 1 ✅ (built, awaiting review) — next up: Phase 2 (credential vault).** Phase 1 notes: invite emails deferred to the dashboard phase (tokens returned in API responses); no event/audit ledger yet (Phase 10); profile DELETE deferred (needs an ownership-handover story).
+**Status: Phases 0 ✅, 1 ✅, 2 ✅ (built, awaiting review) — next up: Phase 3 (subscribers & devices).** Notes: the event/audit ledger shipped early (with Phase 2) since webhooks build on it; data-plane tenant selection uses the `buzzkit-tenant` header (Stripe-Account pattern) instead of path params; invite emails ship via Cloudflare Email Service (domain onboarding needed for delivery); profile DELETE deferred (needs an ownership-handover story); APNs credential validation is `unvalidated` in local dev (workerd HTTP/2 limitation) and full in production.
 
 The full build plan, staged into phases. Each phase ends in something shippable and verified. We go phase after phase, in order — a phase is not done until its **Done when** criteria pass.
 
@@ -39,7 +39,7 @@ workspace            ← hosted customer / self-hoster's org. Auth, members, bil
 ```
 
 - **Every workspace gets a `default` tenant at creation.** A simple app developer never learns tenants exist — their keys, devices, and sends live in the default tenant. A platform calls `POST /v1/tenants` and gets the exact same machinery per customer. The simple case is a degenerate case of the multi-tenant one; there is no separate code path.
-- **Every data-plane API is tenant-scoped.** Workspace keys may act on any tenant of the workspace (tenant addressed in path); tenant-scoped keys are locked to one.
+- **Every data-plane API is tenant-scoped.** Tenant keys imply their tenant; workspace keys and sessions select one via the `buzzkit-tenant` header (default tenant when absent) — the Stripe-Account pattern. Tenant-scoped keys are locked to one tenant.
 
 ### Cross-cutting conventions (from day one, inherited from feedbase)
 

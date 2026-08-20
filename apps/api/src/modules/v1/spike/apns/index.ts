@@ -2,13 +2,6 @@ import { Response } from '@buzzkit/api/libs/response';
 import { type ApnsEnvironment, createApnsJwt, probeApns, sendApns } from '@buzzkit/api/providers/apns/index';
 import Elysia, { t } from 'elysia';
 
-/**
- * Phase 0 spike endpoint — REMOVE in Phase 4 when the real delivery layer lands.
- *
- * Without a body: unauthenticated HTTP/2 reachability probe against APNs.
- * With credentials: signs a real provider JWT and delivers a real push,
- * verifying the full path (p8 → ES256 JWT → APNs → device).
- */
 export const apnsSpike = new Elysia().post(
   '/spike/apns',
   async ({ body, set }) => {

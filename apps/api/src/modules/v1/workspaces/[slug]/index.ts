@@ -1,3 +1,4 @@
+import { diffForEvent } from '@buzzkit/api/api/events/index';
 import {
   assertSlugAvailable,
   SlugSchema,
@@ -16,7 +17,6 @@ export const workspace = new Elysia()
   .get(
     '/workspaces/:slug',
     ({ workspace, membership }) => {
-      // API-key callers have no membership — role is null for them
       return Response.success(
         { ...workspace, role: membership?.role ?? null },
         { entity: 'workspace' }
@@ -26,7 +26,7 @@ export const workspace = new Elysia()
   )
   .patch(
     '/workspaces/:slug',
-    async ({ body, db, workspace }) => {
+    async ({ body, db, workspace, event }) => {
       if (body.name === undefined && body.slug === undefined && body.avatarUrl === undefined) {
         throw new BadRequestError('Nothing to update');
       }
@@ -36,6 +36,12 @@ export const workspace = new Elysia()
       }
 
       const updated = await updateWorkspace(db, workspace.id, body);
+
+      await event({
+        event: 'workspace.updated',
+        target: { type: 'workspace', id: workspace.id },
+        data: diffForEvent(workspace, updated),
+      });
 
       return Response.success(updated, { entity: 'workspace' }).send();
     },
@@ -50,8 +56,14 @@ export const workspace = new Elysia()
   )
   .delete(
     '/workspaces/:slug',
-    async ({ db, workspace }) => {
+    async ({ db, workspace, event }) => {
       const deleted = await softDeleteWorkspace(db, workspace.id);
+
+      await event({
+        event: 'workspace.deleted',
+        target: { type: 'workspace', id: workspace.id },
+        data: { name: workspace.name, slug: workspace.slug },
+      });
 
       return Response.success(deleted, { entity: 'workspace' }).send();
     },

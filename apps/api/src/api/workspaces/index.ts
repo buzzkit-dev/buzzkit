@@ -1,50 +1,10 @@
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
 import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Workspace = typeof tables.workspace.$inferSelect;
-
-export const RESERVED_SLUGS = new Set([
-  'account',
-  'admin',
-  'api',
-  'app',
-  'auth',
-  'blog',
-  'buzzkit',
-  'client',
-  'dashboard',
-  'default',
-  'design',
-  'docs',
-  'help',
-  'internal',
-  'invite',
-  'invites',
-  'join',
-  'login',
-  'logout',
-  'new',
-  'onboarding',
-  'profile',
-  'settings',
-  'sign-in',
-  'sign-out',
-  'sign-up',
-  'signin',
-  'signout',
-  'signup',
-  'status',
-  'support',
-  'tenant',
-  'tenants',
-  'ui',
-  'v1',
-  'workspace',
-  'workspaces',
-  'www',
-]);
 
 export const SlugSchema = t.String({
   minLength: 3,

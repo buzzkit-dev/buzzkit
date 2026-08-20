@@ -6,20 +6,11 @@ export const s = new Sqids({
   alphabet: env.SQIDS_ALPHABET,
 });
 
-/**
- * Subscriber IDs only: extra-long so the highest-volume, most exposed IDs are
- * not practically enumerable. Everything else uses the 18-char default.
- */
 export const subscriberSqids = new Sqids({
   minLength: 32,
   alphabet: env.SQIDS_ALPHABET,
 });
 
-/**
- * Stripe-style ID prefixes — one per table/object. The prefixed form is the
- * canonical OUTPUT everywhere (payloads, responses, URLs we emit); INPUT
- * accepts both prefixed and bare forms.
- */
 export const ID_PREFIXES = {
   workspace: 'ws',
   member: 'mem',
@@ -39,6 +30,19 @@ export const ID_PREFIXES = {
 } as const;
 
 export type IdEntity = keyof typeof ID_PREFIXES;
+
+export const TARGET_ENTITIES: Record<string, IdEntity> = {
+  workspace: 'workspace',
+  member: 'member',
+  tenant: 'tenant',
+  key: 'key',
+  credential: 'credential',
+  invite: 'invite',
+  subscriber: 'subscriber',
+  device: 'device',
+  message: 'message',
+  event: 'event',
+};
 
 export function encodeId(entity: IdEntity, id: number): string {
   const encoded = entity === 'subscriber' ? subscriberSqids.encode([id]) : s.encode([id]);
@@ -67,12 +71,10 @@ function createDecoder(sqids: Sqids) {
 
     const num = decoded[0];
 
-    // Check if number exceeds safe integer range (would cause encode to throw)
     if (num === undefined || num > Number.MAX_SAFE_INTEGER) {
       return undefined;
     }
 
-    // Verify the sqid is canonical (re-encoding produces same result)
     try {
       if (sqids.encode(decoded) !== bare) {
         return undefined;
@@ -90,12 +92,6 @@ export const decodeSqid = createDecoder(s);
 export const encodeSubscriberSqid = (id: number): string => encodeId('subscriber', id);
 export const decodeSubscriberSqid = createDecoder(subscriberSqids);
 
-/**
- * Entity-aware decode: bare ids are accepted, correctly-prefixed ids are
- * accepted, and a KNOWN-but-wrong prefix is rejected — `dev_x` can never
- * resolve at a messages endpoint even though all ids share one number
- * space. Unknown underscore-y garbage falls through to canonical rejection.
- */
 export function decodeEntityId(entity: IdEntity, id: string): number | undefined {
   const underscore = id.indexOf('_');
   if (underscore !== -1) {

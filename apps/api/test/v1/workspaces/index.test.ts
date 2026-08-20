@@ -26,7 +26,7 @@ describe('POST /v1/workspaces', () => {
     const { status, body } = await api<{
       items: Array<{ id: string; slug: string; isDefault: boolean }>;
     }>('/v1/tenants', {
-      headers: { ...user.bearer, 'x-workspace': workspace.slug },
+      headers: { ...user.bearer, 'buzzkit-workspace': workspace.slug },
     });
 
     expect(status).toBe(200);

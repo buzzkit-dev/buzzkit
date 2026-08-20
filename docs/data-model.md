@@ -19,9 +19,10 @@ PostgreSQL schema, owned by `packages/database` (Drizzle). Tables land per roadm
 - `api_key` — kind `workspace` | `tenant` (tenant keys carry `tenant_id`), SHA-256 `key_hash` (unique), display `prefix`/`last4`, `scopes` text[], `expires_at`/`revoked_at`/`last_used_at`.
 - `workspace_invite` — token partial-unique, one pending invite per (workspace, email), 7-day expiry, accepted → `accepted_member_id`.
 
-### Phase 2 — credentials
+### Phase 2 — credentials & events *(implemented — migration `0001`)*
 
-`credential` — tenant-scoped, envelope-encrypted payload (per-credential DEK wrapped by the master key), non-secret metadata, status `unvalidated → active → invalid`.
+- `credential` — tenant-scoped; envelope-encrypted secret (`secret_ciphertext`/`secret_iv` sealed by a per-credential DEK, `dek_ciphertext`/`dek_iv` sealed by the master key, `key_version` for rotation); non-secret `details` JSONB (APNs: teamId/keyId/bundleId; FCM: projectId/clientEmail); enums channel (push — email/sms later), provider (apns|fcm), environment (production|sandbox), status (unvalidated|active|invalid); one live row per (tenant, channel, provider, environment) via partial unique index.
+- `event` — the append-only ledger (audit log + future webhooks): workspace/tenant scope, actor columns (type/user/member/key/display), Stripe-style event names, target type + bare sqid id, `data` JSONB, request metadata. No soft delete — events are never deleted.
 
 ### Phase 3 — subscribers & devices
 

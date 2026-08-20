@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { type Actor, createEventLogger, type EventFn } from '@buzzkit/api/api/events/index';
 import {
   type ApiKey,
   findActiveApiKeyByHash,
@@ -6,6 +7,7 @@ import {
   isApiKeyToken,
   touchApiKey,
 } from '@buzzkit/api/api/keys/index';
+import { findTenantBySlug, type Tenant } from '@buzzkit/api/api/tenants/index';
 import { createBetterAuth } from '@buzzkit/auth';
 import { and, createDrizzle, eq, type InferSelectModel, isNull, tables } from '@buzzkit/database';
 import Elysia from 'elysia';
@@ -38,7 +40,7 @@ type CachedSession = {
   session: Session;
 };
 
-const SESSION_CACHE_TTL = 300; // 5 minutes
+const SESSION_CACHE_TTL = 300;
 
 export const authClient = (db?: ReturnType<typeof createDrizzle>) =>
   createBetterAuth({
@@ -105,14 +107,8 @@ const userMiddleware = (request: Request, db: ReturnType<typeof createDrizzle>) 
     return result;
   });
 
-/**
- * The workspace a request addresses comes from the `:slug` path param on
- * `/v1/workspaces/:slug/*` routes. On slug-less routes (`/v1/tenants*`) an API
- * key implies its own workspace; session callers (the dashboard) pass the
- * `x-workspace` header instead.
- */
 function resolveWorkspaceSlug(request: Request, params: Record<string, string>): string | null {
-  return params.slug ?? request.headers.get('x-workspace');
+  return params.slug ?? request.headers.get('buzzkit-workspace');
 }
 
 const workspaceMiddleware = (
@@ -121,15 +117,13 @@ const workspaceMiddleware = (
   db: ReturnType<typeof createDrizzle>
 ) =>
   trace('auth.workspaceMiddleware', async (t) => {
-    // Authenticate first — a missing credential is always a 401, regardless of
-    // whether the request addressed a workspace correctly
     const auth = await userMiddleware(request, db);
 
     const slug = resolveWorkspaceSlug(request, params);
 
     if (!slug) {
       t.set('auth.error', 'missing_workspace_slug');
-      throw new BadRequestError('Missing workspace identifier (path slug or x-workspace header)');
+      throw new BadRequestError('Missing workspace identifier (path slug or buzzkit-workspace header)');
     }
 
     t.set('workspace.slug', slug);
@@ -167,13 +161,18 @@ const workspaceMiddleware = (
     t.set('workspace.id', result.workspace.id);
     t.set('membership.role', result.membership.role);
 
+    const user = auth.user as User;
+    const actor: Actor = { type: 'member', user, memberId: result.membership.id };
+
     return {
-      user: auth.user as User,
+      user,
       session: auth.session as Session,
       workspace: result.workspace,
       membership: result.membership,
       apiKey: null,
       scopes,
+      actor,
+      event: createEventLogger(db, actor, request, result.workspace.id),
     };
   });
 
@@ -200,11 +199,6 @@ const apiKeyMiddleware = (
       throw new UnauthorizedError('API key expired');
     }
 
-    if (result.key.kind === 'tenant') {
-      t.set('auth.error', 'tenant_key_on_workspace_route');
-      throw new MissingPermissionError('This action requires a workspace API key');
-    }
-
     const slug = resolveWorkspaceSlug(request, params);
     if (slug && result.workspace.slug !== slug) {
       t.set('auth.error', 'api_key_wrong_workspace');
@@ -217,13 +211,18 @@ const apiKeyMiddleware = (
 
     t.set('workspace.id', result.workspace.id);
 
+    const actor: Actor = { type: 'key', apiKey: result.key };
+
     return {
       user: null,
       session: null,
       workspace: result.workspace,
       membership: null,
       apiKey: result.key,
+      keyTenant: result.tenant,
       scopes,
+      actor,
+      event: createEventLogger(db, actor, request, result.workspace.id),
     };
   });
 
@@ -257,17 +256,16 @@ export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
   }
 });
 
-/** Workspace-context scopes only — `account:*` uses the `account` macro instead. */
 type WorkspaceScope = {
   [K in Scope]: (typeof SCOPES)[K] extends 'workspace' ? K : never;
 }[Scope];
 
+type TenantScope = {
+  [K in Scope]: (typeof SCOPES)[K] extends 'tenant' ? K : never;
+}[Scope];
+
 type AccountAction = 'read' | 'write';
 
-/**
- * Unified context for workspace routes. Both middlewares must be assignable to
- * this single type — Elysia's resolve typing cannot handle a union.
- */
 type WorkspaceAuth = {
   user: User | null;
   session: Session | null;
@@ -275,33 +273,20 @@ type WorkspaceAuth = {
   membership: WorkspaceMember | null;
   apiKey: ApiKey | null;
   scopes: readonly string[];
+  actor: Actor;
+  event: EventFn;
 };
 
-/**
- * The single authorization macro. Every route declares exactly one scope; the
- * scope's context decides how the request is authenticated:
- *  - user-context scopes ('account:*'): session bearer token; sessions
- *    implicitly hold all account scopes
- *  - workspace-context scopes: session membership or workspace API key; the
- *    workspace comes from `:slug`, the key itself, or `x-workspace`
- *
- * Resolution is per-request via `resolve` — auth context is injected into the
- * handler context, never shared between requests.
- */
+type TenantAuth = WorkspaceAuth & { tenant: Tenant };
+
 export const auth = new Elysia({ name: 'auth/service' })
   .use(database)
   .macro({
-    /**
-     * Workspace routes: authenticates session membership or workspace API key
-     * and enforces the scope. `workspace` is guaranteed; `user`, `membership`
-     * and `apiKey` depend on the credential.
-     */
     scope: (required: WorkspaceScope) => ({
       resolve: async ({ request, params, db }) => {
         const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
         const isApiKey = isApiKeyToken(token);
 
-        // Key management always requires a user session — even a '*' key is refused
         if (isApiKey && SESSION_ONLY_SCOPES.has(required)) {
           throw new MissingPermissionError(`The '${required}' scope requires a user session`);
         }
@@ -310,15 +295,44 @@ export const auth = new Elysia({ name: 'auth/service' })
           ? await apiKeyMiddleware(request, (params ?? {}) as Record<string, string>, db)
           : await workspaceMiddleware(request, (params ?? {}) as Record<string, string>, db);
 
+        if (auth.apiKey?.kind === 'tenant') {
+          throw new MissingPermissionError('This action requires a workspace API key');
+        }
+
         requireScope(auth.scopes, required);
         setAuthSpanAttributes(auth);
 
         return auth;
       },
     }),
-    /**
-     * Account routes (no workspace): session-only, `user` is guaranteed.
-     */
+    tenant: (required: TenantScope) => ({
+      resolve: async ({ request, params, db }) => {
+        const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+        const isApiKey = isApiKeyToken(token);
+
+        const base = isApiKey
+          ? await apiKeyMiddleware(request, (params ?? {}) as Record<string, string>, db)
+          : await workspaceMiddleware(request, (params ?? {}) as Record<string, string>, db);
+
+        const requestedSlug = request.headers.get('buzzkit-tenant');
+
+        let tenant: Tenant;
+        if ('keyTenant' in base && base.keyTenant) {
+          if (requestedSlug && requestedSlug !== base.keyTenant.slug) {
+            throw new ForbiddenError('This API key belongs to a different tenant');
+          }
+          tenant = base.keyTenant;
+        } else {
+          tenant = await findTenantBySlug(db, base.workspace.id, requestedSlug ?? 'default');
+        }
+
+        requireScope(base.scopes, required);
+        setAuthSpanAttributes(base);
+
+        const auth: TenantAuth = { ...(base as WorkspaceAuth), tenant };
+        return auth;
+      },
+    }),
     account: (access: AccountAction) => ({
       resolve: async ({ request, db }) => {
         const required: Scope = `account:${access}`;
@@ -327,13 +341,18 @@ export const auth = new Elysia({ name: 'auth/service' })
         requireScope(SESSION_SCOPES, required);
         setAuthSpanAttributes(session);
 
+        const user = session.user as User;
+        const actor: Actor = { type: 'member', user };
+
         return {
-          user: session.user as User,
+          user,
           session: session.session as Session,
           workspace: null,
           membership: null,
           apiKey: null,
           scopes: SESSION_SCOPES as readonly string[],
+          actor,
+          event: createEventLogger(db, actor, request, null),
         };
       },
     }),

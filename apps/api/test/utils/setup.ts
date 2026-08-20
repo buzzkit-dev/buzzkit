@@ -65,11 +65,68 @@ export async function createKey(
   return body.data;
 }
 
+export async function createTenant(headers: Record<string, string>, name = 'Customer') {
+  const slug = `cust-${uniq()}`;
+  const { status, body } = await api<{ id: string; slug: string }>('/v1/tenants', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name, slug }),
+  });
+
+  if (status !== 201 || !body.data) {
+    throw new Error(`tenant create failed: ${status} ${JSON.stringify(body)}`);
+  }
+
+  return body.data;
+}
+
+/** Signs up a fresh user and joins them to the workspace via the invite flow. */
+export async function addMember(
+  ownerToken: string,
+  workspaceSlug: string,
+  role: 'member' | 'admin' | 'owner' = 'member'
+) {
+  const user = await signUpUser(role);
+  const inviteRole = role === 'owner' ? 'admin' : role;
+
+  const invite = await api<{ token: string }>(`/v1/workspaces/${workspaceSlug}/invites`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ownerToken}` },
+    body: JSON.stringify({ email: user.email, role: inviteRole }),
+  });
+
+  const accepted = await api<{ id: string }>(`/v1/invites/${invite.body.data?.token}/accept`, {
+    method: 'POST',
+    headers: user.bearer,
+  });
+  if (accepted.status !== 201 || !accepted.body.data) {
+    throw new Error(`invite accept failed: ${accepted.status}`);
+  }
+
+  // Owners can't be invited directly — promote after joining
+  if (role === 'owner') {
+    const promote = await api(`/v1/workspaces/${workspaceSlug}/members/${accepted.body.data.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${ownerToken}` },
+      body: JSON.stringify({ role: 'owner' }),
+    });
+    if (promote.status !== 200) throw new Error(`owner promotion failed: ${promote.status}`);
+  }
+
+  return { ...user, memberId: accepted.body.data.id };
+}
+
 /** A user with a workspace and a full-access workspace API key. */
 export async function setupWorkspace() {
   const owner = await signUpUser('Owner');
   const workspace = await createWorkspace(owner.token);
   const key = await createKey(owner.token, workspace.slug);
 
-  return { owner, workspace, key, keyBearer: { Authorization: `Bearer ${key.secret}` } };
+  return {
+    owner,
+    workspace,
+    key,
+    keyBearer: { Authorization: `Bearer ${key.secret}` },
+    ownerBearer: { Authorization: `Bearer ${owner.token}` },
+  };
 }

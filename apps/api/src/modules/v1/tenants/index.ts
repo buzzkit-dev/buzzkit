@@ -13,21 +13,22 @@ import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
 import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
-/**
- * The tenants API — the product promise for platforms: create a tenant per
- * customer and get fully isolated push infrastructure for each. Authenticated
- * by a workspace API key (which implies the workspace) or a dashboard session
- * with the `x-workspace` header.
- */
 export const tenants = new Elysia()
   .use(auth)
   .guard({ detail: { tags: ['Tenants'] } })
   .post(
     '/tenants',
-    async ({ body, db, set, workspace }) => {
+    async ({ body, db, set, workspace, event }) => {
       await assertTenantSlugAvailable(db, workspace.id, body.slug);
 
       const tenant = await createTenant(db, workspace.id, body);
+
+      await event({
+        event: 'tenant.created',
+        tenantId: tenant.id,
+        target: { type: 'tenant', id: tenant.id },
+        data: { name: tenant.name, slug: tenant.slug },
+      });
 
       return Response.success(serializeTenant(tenant), { entity: 'tenant' }).status(201).send(set);
     },

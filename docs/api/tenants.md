@@ -2,7 +2,9 @@
 
 The multi-tenant product promise: one tenant per customer, each with fully isolated credentials, subscribers, devices, and sends. Every workspace has an undeletable `default` tenant — the simple single-app case uses it without ever knowing tenants exist.
 
-Auth: workspace API key (implies the workspace) or session + `x-workspace` header. Scopes: `tenants:read` / `tenants:write`.
+Auth: workspace API key (implies the workspace) or session + `buzzkit-workspace` header. Scopes: `tenants:read` / `tenants:write`.
+
+**The platform flow stores exactly one key.** Create tenants and act on them with the same `bk_ws_` key — tenant-scoped calls just add `buzzkit-tenant: <slug>`. There is no per-tenant key to mint or store (tenant keys exist only as optional restricted keys for delegating one-tenant access).
 
 ## POST /v1/tenants
 
