@@ -6,6 +6,7 @@ import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup
 
 type Counts = {
   total: number;
+  pending: number;
   sent: number;
   delivered: number;
   bounced: number;
@@ -30,6 +31,7 @@ type DeliveryBody = {
   lastErrorCode: string | null;
   lastErrorMessage: string | null;
   nextAttemptAt: string | null;
+  lastAttemptedAt: string | null;
   settledAt: string | null;
 };
 type AttemptBody = {
@@ -44,6 +46,7 @@ type AttemptBody = {
 
 const zeroCounts = (total: number, overrides: Partial<Counts> = {}): Counts => ({
   total,
+  pending: 0,
   sent: 0,
   delivered: 0,
   bounced: 0,
@@ -382,7 +385,10 @@ describe('delivery outcomes and the attempt ledger', () => {
 
     expect(attempted.status).toBe('retrying');
     expect(['transport', 'timeout', 'provider_unavailable']).toContain(attempted.lastErrorCode);
-    expect(new Date(attempted.nextAttemptAt ?? 0).getTime()).toBeGreaterThan(Date.now());
+    const scheduledIn =
+      new Date(attempted.nextAttemptAt ?? 0).getTime() - new Date(attempted.lastAttemptedAt ?? 0).getTime();
+    expect(scheduledIn).toBeGreaterThanOrEqual(4_000);
+    expect(scheduledIn).toBeLessThanOrEqual(20_000);
     expect(attempted.settledAt).toBeNull();
 
     const single = await api<DeliveryBody>(`/v1/deliveries/${attempted.id}`, { headers: keyBearer });
@@ -402,6 +408,38 @@ describe('delivery outcomes and the attempt ledger', () => {
       deepLink: 'app://x',
     });
     expect(JSON.stringify(first?.request)).not.toContain('PRIVATE KEY');
+  });
+
+  it('heals a message whose counters drifted: completion is derived and counts are recounted', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+
+    const sent = await send(keyBearer, { to: user });
+    const messageId = sent.body.data?.id ?? '';
+    const done = await awaitCompletion(keyBearer, messageId);
+    expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
+
+    const [owning] = await db
+      .select({ messageId: tables.delivery.messageId })
+      .from(tables.delivery)
+      .where(eq(tables.delivery.id, await deliveryRowIdFor(user)));
+    const stale = new Date(Date.now() - 10 * 60 * 1000);
+    await db
+      .update(tables.message)
+      .set({ status: 'processing', total: 0, failed: 0, completedAt: null, updatedAt: stale })
+      .where(eq(tables.message.id, owning!.messageId));
+
+    const drifted = await api<MessageBody>(`/v1/messages/${messageId}`, { headers: keyBearer });
+    expect(drifted.body.data?.status).toBe('processing');
+
+    await triggerReconciliation();
+
+    const healed = await waitFor(async () => {
+      const { body } = await api<MessageBody>(`/v1/messages/${messageId}`, { headers: keyBearer });
+      return body.data?.status === 'completed' ? body.data : null;
+    });
+    expect(healed.counts).toEqual(zeroCounts(1, { failed: 1 }));
   });
 
   it('reconciliation re-drives due retries and expires overdue deliveries', async () => {

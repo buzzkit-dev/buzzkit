@@ -4,6 +4,7 @@ import {
   finalizeMessageIfComplete,
   findDueRetries,
   findStalePending,
+  findUnfinalizedMessages,
 } from '@buzzkit/api/api/deliveries/index';
 import { STALLED_FANOUT_MINUTES } from '@buzzkit/api/api/deliveries/policy';
 import { type DeliveryQueueMessage, enqueueDeliveries, enqueueFanout } from '@buzzkit/api/api/messages/index';
@@ -49,16 +50,24 @@ async function reconcileDeliveriesInner(t: Span): Promise<void> {
     await enqueueFanout(row.id, row.cursor);
   }
 
+  const unfinalized = await findUnfinalizedMessages(db, SWEEP_LIMIT);
+  let healed = 0;
+  for (const row of unfinalized) {
+    if (await finalizeMessageIfComplete(db, row.id)) healed += 1;
+  }
+
   t.set('reconcile.due_retries', due.length);
   t.set('reconcile.stale_pending', stale.length);
   t.set('reconcile.expired_messages', expired.size);
   t.set('reconcile.stalled_fanouts', stalled.length);
+  t.set('reconcile.healed_messages', healed);
 
   log.info('[Reconcile] sweep', {
     dueRetries: due.length,
     stalePending: stale.length,
     expiredMessages: expired.size,
     stalledFanouts: stalled.length,
+    healedMessages: healed,
   });
 }
 

@@ -5,6 +5,7 @@ import { credentialTables } from './schema/credential';
 import { eventTables } from './schema/event';
 import { inviteTables } from './schema/invite';
 import { apiKeyTables } from './schema/key';
+import { messageTables } from './schema/message';
 import { subscriberTables } from './schema/subscriber';
 import { tenantTables } from './schema/tenant';
 import { topicTables } from './schema/topic';
@@ -20,6 +21,7 @@ export const tables = {
   ...credentialTables,
   ...subscriberTables,
   ...topicTables,
+  ...messageTables,
 };
 
 export const createDrizzle = (url: string) => {
@@ -39,3 +41,9 @@ export type Db = ReturnType<typeof createDrizzle>;
 export * from 'drizzle-orm';
 export { drizzle } from 'drizzle-orm/postgres-js';
 export { default as postgres } from 'postgres';
+export { credentialEnvironment, credentialProvider, credentialStatus } from './schema/credential';
+export { eventActorType } from './schema/event';
+export { deliveryAttemptOutcome, deliveryStatus, messageStatus } from './schema/message';
+export { channel } from './schema/shared';
+export { subscriptionPlatform, subscriptionStatus } from './schema/subscriber';
+export { workspaceMemberRole } from './schema/workspace';

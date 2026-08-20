@@ -72,6 +72,9 @@ export const subscription = pgTable(
       .where(sql`${table.deletedAt} is null`),
     index('subscription_subscriber_idx').on(table.subscriberId),
     index('subscription_tenant_idx').on(table.tenantId),
+    index('subscription_fanout_idx')
+      .on(table.tenantId, table.channel, table.id)
+      .where(sql`${table.enabled} = true and ${table.status} = 'active' and ${table.deletedAt} is null`),
   ]
 );
 

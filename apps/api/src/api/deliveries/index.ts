@@ -3,13 +3,27 @@ import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import type { DeliveryErrorCode, ProviderName, ProviderSendResult } from '@buzzkit/api/providers/index';
-import { and, asc, type Db, eq, inArray, isNull, lt, lte, sql, tables } from '@buzzkit/database';
+import {
+  and,
+  asc,
+  type Db,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  sql,
+  tables,
+} from '@buzzkit/database';
 import {
   backoffSeconds,
   ERROR_POLICY,
   MAX_DELIVERY_ATTEMPTS,
   RETRY_GRACE_SECONDS,
   STALE_PENDING_MINUTES,
+  UNFINALIZED_GRACE_MINUTES,
 } from './policy';
 
 export type Delivery = typeof tables.delivery.$inferSelect;
@@ -19,6 +33,8 @@ export type DeliveryStatus = Delivery['status'];
 export const DELIVERY_STATUSES = tables.delivery.status.enumValues;
 
 export type CounterDelta = 'sent' | 'failed' | 'invalid';
+
+export const UNSETTLED_STATUSES: DeliveryStatus[] = ['pending', 'retrying'];
 
 export function serializeDelivery(delivery: Delivery) {
   return {
@@ -156,70 +172,72 @@ async function applyAttemptResultInner(
 
   const decision = decide(attempt, result);
 
-  const inserted = await db
-    .insert(tables.deliveryAttempt)
-    .values({
-      tenantId: delivery.tenantId,
-      deliveryId: delivery.id,
-      attempt,
-      provider,
-      outcome: decision.outcome,
-      errorCode: result.ok ? null : result.code,
-      providerReason: result.ok ? null : result.reason,
-      providerStatus: result.response?.status ?? null,
-      providerMessageId: result.ok ? result.providerMessageId : null,
-      request: result.request ?? null,
-      response: result.response ?? null,
-      latencyMs: result.latencyMs,
-      nextAttemptAt: decision.nextAttemptAt,
-      startedAt,
-      finishedAt,
-    })
-    .onConflictDoNothing({ target: [tables.deliveryAttempt.deliveryId, tables.deliveryAttempt.attempt] })
-    .returning({ id: tables.deliveryAttempt.id });
-
-  if (inserted.length === 0) return null;
-
-  const [updated] = await db
-    .update(tables.delivery)
-    .set({
-      status: decision.status,
-      attempts: attempt,
-      lastErrorCode: result.ok ? null : result.code,
-      lastErrorMessage: result.ok ? null : result.reason,
-      providerMessageId: result.ok ? result.providerMessageId : delivery.providerMessageId,
-      nextAttemptAt: decision.nextAttemptAt,
-      firstAttemptedAt: delivery.firstAttemptedAt ?? startedAt,
-      lastAttemptedAt: startedAt,
-      sentAt: decision.status === 'sent' ? finishedAt : delivery.sentAt,
-      settledAt: decision.terminal ? finishedAt : null,
-    })
-    .where(and(eq(tables.delivery.id, delivery.id), inArray(tables.delivery.status, ['pending', 'retrying'])))
-    .returning({ id: tables.delivery.id });
-
-  if (!updated) return null;
-
-  let invalidatedSubscriptionId: number | null = null;
-  if (decision.invalidatesSubscription) {
-    const [subscription] = await db
-      .update(tables.subscription)
-      .set({
-        status: 'invalid',
-        invalidatedAt: finishedAt,
-        invalidationReason: result.ok ? null : result.reason,
+  return await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(tables.deliveryAttempt)
+      .values({
+        tenantId: delivery.tenantId,
+        deliveryId: delivery.id,
+        attempt,
+        provider,
+        outcome: decision.outcome,
+        errorCode: result.ok ? null : result.code,
+        providerReason: result.ok ? null : result.reason,
+        providerStatus: result.response?.status ?? null,
+        providerMessageId: result.ok ? result.providerMessageId : null,
+        request: result.request ?? null,
+        response: result.response ?? null,
+        latencyMs: result.latencyMs,
+        nextAttemptAt: decision.nextAttemptAt,
+        startedAt,
+        finishedAt,
       })
-      .where(
-        and(eq(tables.subscription.id, delivery.subscriptionId), eq(tables.subscription.status, 'active'))
-      )
-      .returning({ id: tables.subscription.id });
-    invalidatedSubscriptionId = subscription?.id ?? null;
-  }
+      .onConflictDoNothing({ target: [tables.deliveryAttempt.deliveryId, tables.deliveryAttempt.attempt] })
+      .returning({ id: tables.deliveryAttempt.id });
 
-  return {
-    counterDelta: decision.counterDelta,
-    retryDelaySeconds: decision.status === 'retrying' ? backoffSecondsFrom(decision.nextAttemptAt) : null,
-    invalidatedSubscriptionId,
-  };
+    if (inserted.length === 0) return null;
+
+    const [updated] = await tx
+      .update(tables.delivery)
+      .set({
+        status: decision.status,
+        attempts: attempt,
+        lastErrorCode: result.ok ? null : result.code,
+        lastErrorMessage: result.ok ? null : result.reason,
+        providerMessageId: result.ok ? result.providerMessageId : delivery.providerMessageId,
+        nextAttemptAt: decision.nextAttemptAt,
+        firstAttemptedAt: delivery.firstAttemptedAt ?? startedAt,
+        lastAttemptedAt: startedAt,
+        sentAt: decision.status === 'sent' ? finishedAt : delivery.sentAt,
+        settledAt: decision.terminal ? finishedAt : null,
+      })
+      .where(and(eq(tables.delivery.id, delivery.id), inArray(tables.delivery.status, UNSETTLED_STATUSES)))
+      .returning({ id: tables.delivery.id });
+
+    if (!updated) return null;
+
+    let invalidatedSubscriptionId: number | null = null;
+    if (decision.invalidatesSubscription) {
+      const [subscription] = await tx
+        .update(tables.subscription)
+        .set({
+          status: 'invalid',
+          invalidatedAt: finishedAt,
+          invalidationReason: result.ok ? null : result.reason,
+        })
+        .where(
+          and(eq(tables.subscription.id, delivery.subscriptionId), eq(tables.subscription.status, 'active'))
+        )
+        .returning({ id: tables.subscription.id });
+      invalidatedSubscriptionId = subscription?.id ?? null;
+    }
+
+    return {
+      counterDelta: decision.counterDelta,
+      retryDelaySeconds: decision.status === 'retrying' ? backoffSecondsFrom(decision.nextAttemptAt) : null,
+      invalidatedSubscriptionId,
+    };
+  });
 }
 
 type Decision = {
@@ -257,7 +275,7 @@ function decide(attempt: number, result: ProviderSendResult): Decision {
   }
 
   if (policy.retryable && attempt < MAX_DELIVERY_ATTEMPTS) {
-    const delay = backoffSeconds(attempt, result.retryAfterSeconds);
+    const delay = backoffSeconds(attempt, result.code, result.retryAfterSeconds);
     return {
       status: 'retrying',
       outcome: 'retry',
@@ -318,15 +336,39 @@ export async function applyMessageCounters(
 }
 
 export async function finalizeMessageIfComplete(db: Db, messageId: number): Promise<boolean> {
+  const [message] = await db
+    .select({ status: tables.message.status, fanoutCompletedAt: tables.message.fanoutCompletedAt })
+    .from(tables.message)
+    .where(eq(tables.message.id, messageId));
+  if (!message || message.status === 'completed' || !message.fanoutCompletedAt) return false;
+
+  const [unsettled] = await db
+    .select({ id: tables.delivery.id })
+    .from(tables.delivery)
+    .where(and(eq(tables.delivery.messageId, messageId), inArray(tables.delivery.status, UNSETTLED_STATUSES)))
+    .limit(1);
+  if (unsettled) return false;
+
+  const [counts] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      sent: sql<number>`count(*) filter (where ${tables.delivery.status} in ('sent', 'delivered', 'bounced'))::int`,
+      delivered: sql<number>`count(*) filter (where ${tables.delivery.status} = 'delivered')::int`,
+      bounced: sql<number>`count(*) filter (where ${tables.delivery.status} = 'bounced')::int`,
+      failed: sql<number>`count(*) filter (where ${tables.delivery.status} = 'failed')::int`,
+      invalid: sql<number>`count(*) filter (where ${tables.delivery.status} = 'invalid')::int`,
+    })
+    .from(tables.delivery)
+    .where(eq(tables.delivery.messageId, messageId));
+
   const [completed] = await db
     .update(tables.message)
-    .set({ status: 'completed', completedAt: new Date() })
+    .set({ status: 'completed', completedAt: new Date(), ...counts! })
     .where(
       and(
         eq(tables.message.id, messageId),
         sql`${tables.message.status} <> 'completed'`,
-        sql`${tables.message.fanoutCompletedAt} is not null`,
-        sql`${tables.message.sent} + ${tables.message.failed} + ${tables.message.invalid} >= ${tables.message.total}`
+        isNotNull(tables.message.fanoutCompletedAt)
       )
     )
     .returning();
@@ -349,6 +391,33 @@ export async function finalizeMessageIfComplete(db: Db, messageId: number): Prom
   });
 
   return true;
+}
+
+export async function findUnfinalizedMessages(db: Db, limit: number): Promise<Array<{ id: number }>> {
+  const cutoff = new Date(Date.now() - UNFINALIZED_GRACE_MINUTES * 60 * 1000);
+  return await db
+    .select({ id: tables.message.id })
+    .from(tables.message)
+    .where(
+      and(
+        eq(tables.message.status, 'processing'),
+        isNotNull(tables.message.fanoutCompletedAt),
+        lt(tables.message.updatedAt, cutoff),
+        notExists(
+          db
+            .select({ id: tables.delivery.id })
+            .from(tables.delivery)
+            .where(
+              and(
+                eq(tables.delivery.messageId, tables.message.id),
+                inArray(tables.delivery.status, UNSETTLED_STATUSES)
+              )
+            )
+        )
+      )
+    )
+    .orderBy(asc(tables.message.updatedAt))
+    .limit(limit);
 }
 
 export function systemEvent(db: Db, tenantId: number) {

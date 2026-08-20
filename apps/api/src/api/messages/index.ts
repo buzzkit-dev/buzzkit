@@ -91,6 +91,7 @@ export function serializeMessage(message: Message) {
     status: message.status,
     counts: {
       total: message.total,
+      pending: Math.max(0, message.total - message.sent - message.failed - message.invalid),
       sent: message.sent,
       delivered: message.delivered,
       bounced: message.bounced,

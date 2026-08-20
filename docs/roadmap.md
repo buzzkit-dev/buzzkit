@@ -283,6 +283,9 @@ Everything the hosted version needs to take real traffic, all of it useful to se
 - **Webhooks:** delivery events (`message.completed`, `device.invalidated`, `workflow.run.completed`) to customer endpoints — queue-backed with signed payloads, retries, reconciliation cron (feedbase webhook pattern).
 - Quotas & rate limits per workspace/tenant (hosted free tier needs ceilings); usage counters.
 - Observability: ✅ OTel tracing + Axiom logging landed in Phase 4 (`@buzzkit/observability`: api/queue/scheduler services, drizzle + better-auth spans, per-invocation logs). Remaining: delivery metrics dashboards, queue-depth visibility, alerting on provider error spikes.
+- Retention: expire `delivery_attempt.request/response` and `message.payload` after a configurable window (Svix retains payloads 90 days; Stripe events 30 days) — the ledger rows stay, the bodies go.
+- Queue scale-out: shard `buzzkit-deliveries` across N queues (Cloudflare's documented answer to the 5,000 msg/s per-queue cap) once a single tenant needs more than ~300k deliveries/minute.
+- Idempotency: accept `Idempotency-Key` as a header (Stripe/Svix/Resend convention) in addition to the body field, and reject reuse with a different payload.
 - Analytics API + dashboard cards: sends, delivery rate, failures by reason, token churn.
 - Audit log for control-plane actions (key created, credential replaced, member added).
 - Security pass: credential-handling review, key-rotation runbook, dependency audit; comprehensive isolation test suite as a permanent CI fixture.

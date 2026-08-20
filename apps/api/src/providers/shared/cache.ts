@@ -1,18 +1,19 @@
 import { env } from 'cloudflare:workers';
+import { deleteCache, readCache, writeCache } from '@buzzkit/api/libs/cache';
 
 export async function cachedToken(
   key: string,
   ttlSeconds: number,
   produce: () => Promise<string>
 ): Promise<string> {
-  const cached = await env.PROVIDER_CACHE.get(key);
+  const cached = await readCache<string>(env.PROVIDER_CACHE, key);
   if (cached) return cached;
 
   const token = await produce();
-  await env.PROVIDER_CACHE.put(key, token, { expirationTtl: Math.max(60, ttlSeconds) });
+  await writeCache(env.PROVIDER_CACHE, key, token, ttlSeconds);
   return token;
 }
 
 export async function evictToken(key: string): Promise<void> {
-  await env.PROVIDER_CACHE.delete(key);
+  await deleteCache(env.PROVIDER_CACHE, [key]);
 }

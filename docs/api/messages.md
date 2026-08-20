@@ -43,7 +43,7 @@ POST /v1/messages ──► queue: fanout(page) ──► deliveries (one per re
 ```
 
 - **Fan-out pages chain themselves** (500 subscriptions per job, cursor persisted on the message) — a million-subscriber topic is 2000 small jobs, resumable from the cursor if anything dies.
-- **Retries are durable**: the next attempt is written to the row (`nextAttemptAt`) *and* scheduled on the queue with a delay; if the queue ever loses it, the reconciliation cron re-enqueues it. Backoff is exponential with equal jitter (30s base, 1h cap, up to 8 attempts) and honours provider `Retry-After`.
+- **Retries are durable**: the next attempt is written to the row (`nextAttemptAt`) *and* scheduled on the queue with a delay; if the queue ever loses it, the reconciliation cron re-enqueues it. The schedule is explicit (Svix-style, tuned for push TTLs): retries at `5s, 30s, 2m, 10m, 30m, 1h, 2h` after the first attempt (8 attempts, ~3h45m total), each with ±20% jitter; provider `Retry-After` is honoured, and `rate_limited`/`timeout` carry a 60s floor so an overloaded provider is never hammered.
 - **Idempotent processing**: attempts are unique per (delivery, attempt) and state transitions are guarded — a duplicated queue message can neither double-send nor double-count.
 - **Counters are batched**: the consumer aggregates outcomes per message per batch (one update per message per 100 deliveries, no hot-row contention) and completion is checked once fan-out has finished.
 - **Dead-letter queue** (`buzzkit-deliveries-dlq`) catches jobs that crash repeatedly — application-level exhaustion is always recorded in the DB, the DLQ only exists for bugs.
@@ -65,7 +65,9 @@ Providers classify their native reasons into a shared taxonomy; **policy lives i
 
 ## Reading results
 
-- `GET /v1/messages/:id` — `status`, `counts { total, sent, delivered, bounced, failed, invalid }`, `expiresAt`, `completedAt`.
+- `GET /v1/messages/:id` — `status`, `counts { total, pending, sent, delivered, bounced, failed, invalid }`, `expiresAt`, `completedAt`.
+
+**Counter semantics.** `delivery` rows are the ground truth; `counts` is a projection of them. While a message is `processing`, counters advance incrementally (once per message per queue batch) so progress is visible; `pending` is derived (`total − sent − failed − invalid`, Stripe's `pending_webhooks`). Completion is **derived, never counted**: a message completes when fan-out has finished and no delivery is still `pending`/`retrying` (an index-backed existence check), at which point every counter is **recounted from the deliveries** and written exactly — so final numbers are correct even if a batch crashed mid-update. The reconciliation cron re-derives completion for any message left `processing` with nothing unsettled. Counters are a funnel: `total ≥ sent ≥ delivered`, `bounced ≤ sent`, and `sent + failed + invalid = total` at completion (`delivered`/`bounced` are sub-states of `sent`, written only by channels that confirm asynchronously).
 - `GET /v1/messages/:id/deliveries?status=` — keyset-paginated deliveries: `provider`, `status`, `attempts`, `lastErrorCode`, `lastErrorMessage`, `nextAttemptAt`, `firstAttemptedAt`, `lastAttemptedAt`, `sentAt`, `settledAt`, `providerMessageId`.
 - `GET /v1/deliveries/:id` — one delivery.
 - `GET /v1/deliveries/:id/attempts` — **the ledger**: every attempt with `outcome`, `errorCode`, `providerReason`, `providerStatus`, the exact `request` payload sent, the captured `response` (first 4KB), `latencyMs`, `nextAttemptAt`. Credentials and auth headers are never stored.

@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { deleteCache, readCache, writeCache } from '@buzzkit/api/libs/cache';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -207,7 +208,7 @@ function reviveDates<T>(value: T): T {
 }
 
 export async function findActiveApiKeyByHash(db: Db, keyHash: string): Promise<ResolvedApiKey | null> {
-  const cached = await env.AUTH_CACHE?.get<ResolvedApiKey>(keyCacheKey(keyHash), 'json');
+  const cached = await readCache<ResolvedApiKey>(env.AUTH_CACHE, keyCacheKey(keyHash));
   if (cached) return reviveDates(cached);
 
   const [result] = await trace(
@@ -241,16 +242,19 @@ export async function findActiveApiKeyByHash(db: Db, keyHash: string): Promise<R
     ? Math.floor((result.key.expiresAt.getTime() - Date.now()) / 1000)
     : KEY_CACHE_TTL_SECONDS;
   if (secondsUntilExpiry >= 60) {
-    await env.AUTH_CACHE?.put(keyCacheKey(keyHash), JSON.stringify(result), {
-      expirationTtl: Math.min(KEY_CACHE_TTL_SECONDS, secondsUntilExpiry),
-    });
+    await writeCache(
+      env.AUTH_CACHE,
+      keyCacheKey(keyHash),
+      result,
+      Math.min(KEY_CACHE_TTL_SECONDS, secondsUntilExpiry)
+    );
   }
 
   return result;
 }
 
 export async function purgeApiKeyCache(keyHashes: string[]): Promise<void> {
-  await Promise.all(keyHashes.map((keyHash) => env.AUTH_CACHE?.delete(keyCacheKey(keyHash))));
+  await deleteCache(env.AUTH_CACHE, keyHashes.map(keyCacheKey));
 }
 
 export async function purgeApiKeyCacheForTenant(db: Db, tenantId: number): Promise<void> {
@@ -280,11 +284,9 @@ export async function touchApiKey(db: Db, key: ApiKey): Promise<void> {
   );
   key.lastUsedAt = now;
 
-  const cached = await env.AUTH_CACHE?.get<ResolvedApiKey>(keyCacheKey(key.keyHash), 'json');
+  const cached = await readCache<ResolvedApiKey>(env.AUTH_CACHE, keyCacheKey(key.keyHash));
   if (cached) {
     cached.key.lastUsedAt = now;
-    await env.AUTH_CACHE?.put(keyCacheKey(key.keyHash), JSON.stringify(cached), {
-      expirationTtl: KEY_CACHE_TTL_SECONDS,
-    });
+    await writeCache(env.AUTH_CACHE, keyCacheKey(key.keyHash), cached, KEY_CACHE_TTL_SECONDS);
   }
 }

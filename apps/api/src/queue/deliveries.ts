@@ -16,7 +16,7 @@ import { log } from '@buzzkit/api/libs/logger';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import type { Db } from '@buzzkit/database';
 
-const DELIVERY_CONCURRENCY = 10;
+const DELIVERY_CONCURRENCY = 6;
 
 const CRASH_RETRY_DELAY_SECONDS = 30;
 

@@ -13,6 +13,7 @@ import { createBetterAuth } from '@buzzkit/auth';
 import { and, type Db, eq, type InferSelectModel, isNull, tables } from '@buzzkit/database';
 import { instrumentBetterAuth } from '@kubiks/otel-better-auth';
 import Elysia from 'elysia';
+import { deleteCache, readCache, writeCache } from './cache';
 import { createDb, database } from './database';
 import {
   BadRequestError,
@@ -42,7 +43,7 @@ type CachedSession = {
   session: Session;
 };
 
-const AUTH_CACHE_TTL = 300;
+const SESSION_CACHE_TTL = 300;
 
 const sessionCacheKey = (token: string) => `session:${token.slice(-16)}`;
 
@@ -79,7 +80,7 @@ const userMiddleware = (request: Request, db: Db) =>
 
     const cached = await t.trace(
       'auth.getCachedSession',
-      async () => await env.AUTH_CACHE?.get<CachedSession>(cacheKey, 'json')
+      async () => await readCache<CachedSession>(env.AUTH_CACHE, cacheKey)
     );
 
     if (cached) {
@@ -101,9 +102,7 @@ const userMiddleware = (request: Request, db: Db) =>
     const result = { user: session.user, session: session.session };
 
     await t.trace('auth.cacheSession', async () =>
-      env.AUTH_CACHE?.put(cacheKey, JSON.stringify(result), {
-        expirationTtl: AUTH_CACHE_TTL,
-      })
+      writeCache(env.AUTH_CACHE, cacheKey, result, SESSION_CACHE_TTL)
     );
 
     return result;
@@ -229,7 +228,7 @@ export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
     if (response.ok && new URL(request.url).pathname.endsWith('/sign-out')) {
       const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       if (token) {
-        await env.AUTH_CACHE?.delete(sessionCacheKey(token));
+        await deleteCache(env.AUTH_CACHE, [sessionCacheKey(token)]);
       }
     }
 

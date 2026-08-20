@@ -2,6 +2,9 @@ CREATE TYPE "public"."credential_environment" AS ENUM('production', 'sandbox');-
 CREATE TYPE "public"."credential_provider" AS ENUM('apns', 'fcm', 'resend');--> statement-breakpoint
 CREATE TYPE "public"."credential_status" AS ENUM('unvalidated', 'active', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."event_actor_type" AS ENUM('member', 'user', 'key', 'system');--> statement-breakpoint
+CREATE TYPE "public"."delivery_attempt_outcome" AS ENUM('sent', 'retry', 'failed', 'invalid');--> statement-breakpoint
+CREATE TYPE "public"."delivery_status" AS ENUM('pending', 'retrying', 'sent', 'delivered', 'bounced', 'failed', 'invalid');--> statement-breakpoint
+CREATE TYPE "public"."message_status" AS ENUM('queued', 'processing', 'completed');--> statement-breakpoint
 CREATE TYPE "public"."channel" AS ENUM('push', 'email');--> statement-breakpoint
 CREATE TYPE "public"."subscription_platform" AS ENUM('ios', 'android');--> statement-breakpoint
 CREATE TYPE "public"."subscription_status" AS ENUM('active', 'invalid');--> statement-breakpoint
@@ -129,6 +132,72 @@ CREATE TABLE "api_key" (
 	"deleted_at" timestamp
 );
 --> statement-breakpoint
+CREATE TABLE "delivery" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "delivery_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"tenant_id" integer NOT NULL,
+	"message_id" integer NOT NULL,
+	"subscriber_id" integer NOT NULL,
+	"subscription_id" integer NOT NULL,
+	"channel" "channel" NOT NULL,
+	"provider" text NOT NULL,
+	"status" "delivery_status" DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error_code" text,
+	"last_error_message" text,
+	"provider_message_id" text,
+	"next_attempt_at" timestamp,
+	"first_attempted_at" timestamp,
+	"last_attempted_at" timestamp,
+	"sent_at" timestamp,
+	"settled_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "delivery_attempt" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "delivery_attempt_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"tenant_id" integer NOT NULL,
+	"delivery_id" integer NOT NULL,
+	"attempt" integer NOT NULL,
+	"provider" text NOT NULL,
+	"outcome" "delivery_attempt_outcome" NOT NULL,
+	"error_code" text,
+	"provider_reason" text,
+	"provider_status" integer,
+	"provider_message_id" text,
+	"request" jsonb,
+	"response" jsonb,
+	"latency_ms" integer,
+	"next_attempt_at" timestamp,
+	"started_at" timestamp NOT NULL,
+	"finished_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "message" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "message_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"tenant_id" integer NOT NULL,
+	"channel" "channel" NOT NULL,
+	"topic" text,
+	"targets" jsonb NOT NULL,
+	"payload" jsonb NOT NULL,
+	"idempotency_key" text,
+	"status" "message_status" DEFAULT 'queued' NOT NULL,
+	"total" integer DEFAULT 0 NOT NULL,
+	"sent" integer DEFAULT 0 NOT NULL,
+	"delivered" integer DEFAULT 0 NOT NULL,
+	"bounced" integer DEFAULT 0 NOT NULL,
+	"failed" integer DEFAULT 0 NOT NULL,
+	"invalid" integer DEFAULT 0 NOT NULL,
+	"expires_at" timestamp,
+	"fanout_cursor" integer DEFAULT 0 NOT NULL,
+	"fanout_completed_at" timestamp,
+	"completed_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"deleted_at" timestamp
+);
+--> statement-breakpoint
 CREATE TABLE "subscriber" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "subscriber_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer NOT NULL,
@@ -224,6 +293,13 @@ ALTER TABLE "workspace_invite" ADD CONSTRAINT "workspace_invite_accepted_member_
 ALTER TABLE "api_key" ADD CONSTRAINT "api_key_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_key" ADD CONSTRAINT "api_key_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_key" ADD CONSTRAINT "api_key_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery" ADD CONSTRAINT "delivery_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery" ADD CONSTRAINT "delivery_message_id_message_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."message"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery" ADD CONSTRAINT "delivery_subscriber_id_subscriber_id_fk" FOREIGN KEY ("subscriber_id") REFERENCES "public"."subscriber"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery" ADD CONSTRAINT "delivery_subscription_id_subscription_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."subscription"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_attempt" ADD CONSTRAINT "delivery_attempt_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_attempt" ADD CONSTRAINT "delivery_attempt_delivery_id_delivery_id_fk" FOREIGN KEY ("delivery_id") REFERENCES "public"."delivery"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "message" ADD CONSTRAINT "message_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscriber" ADD CONSTRAINT "subscriber_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription" ADD CONSTRAINT "subscription_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subscription" ADD CONSTRAINT "subscription_subscriber_id_subscriber_id_fk" FOREIGN KEY ("subscriber_id") REFERENCES "public"."subscriber"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -244,11 +320,24 @@ CREATE INDEX "workspace_invite_workspace_idx" ON "workspace_invite" USING btree 
 CREATE UNIQUE INDEX "api_key_hash_unique" ON "api_key" USING btree ("key_hash");--> statement-breakpoint
 CREATE INDEX "api_key_workspace_idx" ON "api_key" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "api_key_tenant_idx" ON "api_key" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "delivery_message_subscription_unique" ON "delivery" USING btree ("message_id","subscription_id");--> statement-breakpoint
+CREATE INDEX "delivery_message_idx" ON "delivery" USING btree ("message_id","id");--> statement-breakpoint
+CREATE INDEX "delivery_tenant_idx" ON "delivery" USING btree ("tenant_id","id");--> statement-breakpoint
+CREATE INDEX "delivery_due_idx" ON "delivery" USING btree ("next_attempt_at") WHERE "delivery"."status" in ('pending', 'retrying');--> statement-breakpoint
+CREATE INDEX "delivery_unsettled_idx" ON "delivery" USING btree ("message_id") WHERE "delivery"."status" in ('pending', 'retrying');--> statement-breakpoint
+CREATE UNIQUE INDEX "delivery_attempt_unique" ON "delivery_attempt" USING btree ("delivery_id","attempt");--> statement-breakpoint
+CREATE INDEX "delivery_attempt_tenant_idx" ON "delivery_attempt" USING btree ("tenant_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "message_tenant_idempotency_unique" ON "message" USING btree ("tenant_id","idempotency_key") WHERE "message"."idempotency_key" is not null and "message"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "message_tenant_idx" ON "message" USING btree ("tenant_id","id");--> statement-breakpoint
+CREATE INDEX "message_processing_idx" ON "message" USING btree ("updated_at") WHERE "message"."status" = 'processing' and "message"."fanout_completed_at" is null;--> statement-breakpoint
+CREATE INDEX "message_expiry_idx" ON "message" USING btree ("expires_at") WHERE "message"."status" <> 'completed';--> statement-breakpoint
+CREATE INDEX "message_unfinalized_idx" ON "message" USING btree ("updated_at") WHERE "message"."status" = 'processing' and "message"."fanout_completed_at" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "subscriber_tenant_external_unique" ON "subscriber" USING btree ("tenant_id","external_id") WHERE "subscriber"."deleted_at" is null;--> statement-breakpoint
 CREATE INDEX "subscriber_tenant_idx" ON "subscriber" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subscription_tenant_channel_endpoint_unique" ON "subscription" USING btree ("tenant_id","channel","endpoint") WHERE "subscription"."deleted_at" is null;--> statement-breakpoint
 CREATE INDEX "subscription_subscriber_idx" ON "subscription" USING btree ("subscriber_id");--> statement-breakpoint
 CREATE INDEX "subscription_tenant_idx" ON "subscription" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "subscription_fanout_idx" ON "subscription" USING btree ("tenant_id","channel","id") WHERE "subscription"."enabled" = true and "subscription"."status" = 'active' and "subscription"."deleted_at" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "tenant_workspace_slug_unique" ON "tenant" USING btree ("workspace_id","slug") WHERE "tenant"."deleted_at" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "tenant_workspace_default_unique" ON "tenant" USING btree ("workspace_id") WHERE "tenant"."deleted_at" is null and "tenant"."is_default" = true;--> statement-breakpoint
 CREATE INDEX "tenant_workspace_idx" ON "tenant" USING btree ("workspace_id");--> statement-breakpoint
