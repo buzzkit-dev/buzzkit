@@ -1,6 +1,8 @@
+import { and } from '@buzzkit/database';
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
+import { encodeMessageId } from '../../utils/ids';
 import { generateP8 } from '../../utils/providerKeys';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
@@ -546,5 +548,334 @@ describe('GET /v1/messages, deliveries', () => {
     const names = events.body.data?.items.map((i) => i.event) ?? [];
     expect(names.filter((n) => n === 'message.created')).toHaveLength(3);
     expect(events.body.data?.items.find((i) => i.event === 'message.completed')?.actorType).toBe('system');
+  });
+});
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function subscriptionFor(externalId: string) {
+  const [row] = await db
+    .select({
+      tenantId: tables.subscription.tenantId,
+      subscriberId: tables.subscription.subscriberId,
+      subscriptionId: tables.subscription.id,
+    })
+    .from(tables.subscription)
+    .innerJoin(tables.subscriber, eq(tables.subscriber.id, tables.subscription.subscriberId))
+    .where(eq(tables.subscriber.externalId, externalId));
+  return row!;
+}
+
+async function seedMessage(
+  tenantId: number,
+  to: string[],
+  overrides: Partial<typeof tables.message.$inferInsert> = {}
+): Promise<number> {
+  const [row] = await db
+    .insert(tables.message)
+    .values({
+      tenantId,
+      channel: 'push',
+      targets: { to },
+      payload: { title: 'Seed', body: 'seed' },
+      status: 'processing',
+      total: to.length,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      fanoutCompletedAt: new Date(),
+      ...overrides,
+    })
+    .returning({ id: tables.message.id });
+  return row!.id;
+}
+
+async function seedDelivery(
+  messageId: number,
+  externalId: string,
+  overrides: Partial<typeof tables.delivery.$inferInsert> = {}
+): Promise<number> {
+  const target = await subscriptionFor(externalId);
+  const [row] = await db
+    .insert(tables.delivery)
+    .values({
+      tenantId: target.tenantId,
+      messageId,
+      subscriberId: target.subscriberId,
+      subscriptionId: target.subscriptionId,
+      channel: 'push',
+      provider: 'apns',
+      status: 'pending',
+      ...overrides,
+    })
+    .returning({ id: tables.delivery.id });
+  return row!.id;
+}
+
+async function deliveryRow(id: number) {
+  const [row] = await db.select().from(tables.delivery).where(eq(tables.delivery.id, id));
+  return row!;
+}
+
+async function messageRow(id: number) {
+  const [row] = await db.select().from(tables.message).where(eq(tables.message.id, id));
+  return row!;
+}
+
+async function attemptsOf(deliveryId: number) {
+  return db
+    .select({ attempt: tables.deliveryAttempt.attempt, outcome: tables.deliveryAttempt.outcome })
+    .from(tables.deliveryAttempt)
+    .where(eq(tables.deliveryAttempt.deliveryId, deliveryId));
+}
+
+describe('scheduling, queueing and retries', () => {
+  it('concurrent sends with one idempotency key create exactly one message', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const idempotencyKey = `race-${uniq()}`;
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => send(keyBearer, { to: `u_${uniq()}`, idempotencyKey }))
+    );
+    const ids = new Set(results.map((r) => r.body.data?.id));
+    expect(ids.size).toBe(1);
+    expect(results.every((r) => r.status === 202 || r.status === 200)).toBe(true);
+    expect(results.filter((r) => r.status === 202)).toHaveLength(1);
+  });
+
+  it('deduplicates `to` and skips invalid or deleted subscriptions', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const user = `user_${uniq()}`;
+    const dead = `dead_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const deadSub = await subscribe(keyBearer, dead);
+    await api(`/v1/subscriptions/${deadSub}`, { method: 'DELETE', headers: keyBearer });
+    const invalid = `invalid_${uniq()}`;
+    await subscribe(keyBearer, invalid);
+    const target = await subscriptionFor(invalid);
+    await db
+      .update(tables.subscription)
+      .set({ status: 'invalid' })
+      .where(eq(tables.subscription.id, target.subscriptionId));
+
+    const sent = await send(keyBearer, { to: [user, user, dead, invalid] });
+    const done = await awaitCompletion(keyBearer, sent.body.data?.id ?? '');
+    expect(done.counts.total).toBe(1);
+  });
+
+  it('routes each platform to its provider and only fails the one without a credential', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const user = `user_${uniq()}`;
+    const ios = await subscribe(keyBearer, user, 'ios');
+    const android = await subscribe(keyBearer, user, 'android');
+
+    const sent = await send(keyBearer, { to: user, apns: { environment: 'sandbox' } });
+    const messageId = sent.body.data?.id ?? '';
+    const rows = await waitFor(async () => {
+      const list = await deliveries(keyBearer, messageId);
+      return list.length === 2 && list.every((d) => d.attempts >= 1 || d.status === 'failed') ? list : null;
+    });
+
+    const iosRow = rows.find((d) => d.subscriptionId === ios)!;
+    const androidRow = rows.find((d) => d.subscriptionId === android)!;
+    expect(androidRow.status).toBe('failed');
+    expect(androidRow.lastErrorCode).toBe('no_credential');
+    expect(iosRow.status).toBe('retrying');
+
+    const { body } = await api<MessageBody>(`/v1/messages/${messageId}`, { headers: keyBearer });
+    expect(body.data?.status).toBe('processing');
+    expect(body.data?.counts).toMatchObject({ total: 2, pending: 1, failed: 1, sent: 0 });
+  });
+
+  it('re-drives a due retry exactly once — never inside the grace period, never twice under duplicate sweeps', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const messageId = await seedMessage(tenantId, [user]);
+    const deliveryId = await seedDelivery(messageId, user, {
+      status: 'retrying',
+      attempts: 1,
+      nextAttemptAt: new Date(Date.now() - 30_000),
+      firstAttemptedAt: new Date(Date.now() - 40_000),
+      lastAttemptedAt: new Date(Date.now() - 40_000),
+    });
+
+    await triggerReconciliation();
+    await sleep(2_000);
+    expect((await deliveryRow(deliveryId)).attempts).toBe(1);
+
+    await db
+      .update(tables.delivery)
+      .set({ nextAttemptAt: new Date(Date.now() - 120_000) })
+      .where(eq(tables.delivery.id, deliveryId));
+    await Promise.all([triggerReconciliation(), triggerReconciliation(), triggerReconciliation()]);
+
+    await waitFor(async () => {
+      const row = await deliveryRow(deliveryId);
+      return row.attempts >= 2 ? row : null;
+    });
+    await sleep(2_000);
+
+    const settled = await deliveryRow(deliveryId);
+    expect(settled.attempts).toBe(2);
+    expect(settled.status).toBe('retrying');
+    expect(settled.leaseExpiresAt).toBeNull();
+    expect(settled.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
+    expect((await attemptsOf(deliveryId)).map((a) => a.attempt)).toEqual([2]);
+  });
+
+  it('exhausts retries at the attempt cap: terminal failed, settled, message completed with exact counts', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const messageId = await seedMessage(tenantId, [user], { total: 0 });
+    const deliveryId = await seedDelivery(messageId, user, {
+      status: 'retrying',
+      attempts: 7,
+      nextAttemptAt: new Date(Date.now() - 120_000),
+    });
+
+    await triggerReconciliation();
+
+    const failed = await waitFor(async () => {
+      const row = await deliveryRow(deliveryId);
+      return row.status === 'failed' ? row : null;
+    });
+    expect(failed.attempts).toBe(8);
+    expect(failed.settledAt).not.toBeNull();
+    expect(failed.nextAttemptAt).toBeNull();
+    expect(['transport', 'timeout', 'provider_unavailable']).toContain(failed.lastErrorCode);
+    expect((await attemptsOf(deliveryId)).map((a) => a.outcome)).toEqual(['failed']);
+
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
+  });
+
+  it('re-drives deliveries whose enqueue was lost and deliveries whose worker died mid-attempt', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const lost = `lost_${uniq()}`;
+    const crashed = `crashed_${uniq()}`;
+    await subscribe(keyBearer, lost);
+    await subscribe(keyBearer, crashed);
+    const { tenantId } = await subscriptionFor(lost);
+    const messageId = await seedMessage(tenantId, [lost, crashed]);
+    const lostId = await seedDelivery(messageId, lost, {
+      status: 'pending',
+      createdAt: new Date(Date.now() - 11 * 60 * 1000),
+    });
+    const crashedId = await seedDelivery(messageId, crashed, {
+      status: 'retrying',
+      attempts: 2,
+      nextAttemptAt: null,
+      leaseExpiresAt: new Date(Date.now() - 11 * 60 * 1000),
+    });
+    const fresh = `fresh_${uniq()}`;
+    await subscribe(keyBearer, fresh);
+    const freshId = await seedDelivery(messageId, fresh, { status: 'pending' });
+
+    await triggerReconciliation();
+
+    const lostRow = await waitFor(async () => {
+      const row = await deliveryRow(lostId);
+      return row.attempts >= 1 ? row : null;
+    });
+    const crashedRow = await waitFor(async () => {
+      const row = await deliveryRow(crashedId);
+      return row.attempts >= 3 ? row : null;
+    });
+    expect(lostRow.status).toBe('retrying');
+    expect(crashedRow.status).toBe('retrying');
+    expect(crashedRow.leaseExpiresAt).toBeNull();
+    await sleep(1_000);
+    expect((await deliveryRow(freshId)).attempts).toBe(0);
+  });
+
+  it('resumes a stalled fan-out from its cursor', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    const messageId = await seedMessage(tenantId, [user], {
+      total: 0,
+      fanoutCompletedAt: null,
+      fanoutCursor: 0,
+      createdAt: stale,
+      updatedAt: stale,
+    });
+
+    await triggerReconciliation();
+
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
+    expect((await messageRow(messageId)).fanoutCompletedAt).not.toBeNull();
+  });
+
+  it('expiry only touches unsettled deliveries; sent ones keep their state and count', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const sentUser = `sent_${uniq()}`;
+    const stuckUser = `stuck_${uniq()}`;
+    await subscribe(keyBearer, sentUser);
+    await subscribe(keyBearer, stuckUser);
+    const { tenantId } = await subscriptionFor(sentUser);
+    const messageId = await seedMessage(tenantId, [sentUser, stuckUser], {
+      expiresAt: new Date(Date.now() - 1_000),
+      total: 2,
+      sent: 1,
+    });
+    const sentId = await seedDelivery(messageId, sentUser, {
+      status: 'sent',
+      attempts: 1,
+      sentAt: new Date(),
+      settledAt: new Date(),
+    });
+    const stuckId = await seedDelivery(messageId, stuckUser, {
+      status: 'retrying',
+      attempts: 3,
+      nextAttemptAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    await triggerReconciliation();
+
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(2, { sent: 1, failed: 1 }));
+    expect((await deliveryRow(sentId)).status).toBe('sent');
+    const stuck = await deliveryRow(stuckId);
+    expect(stuck.status).toBe('failed');
+    expect(stuck.lastErrorCode).toBe('expired');
+    expect(stuck.settledAt).not.toBeNull();
+  });
+
+  it('never completes a message while a delivery is still in flight, even if it looks stalled', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    const messageId = await seedMessage(tenantId, [user], { updatedAt: stale });
+    await seedDelivery(messageId, user, {
+      status: 'retrying',
+      attempts: 2,
+      nextAttemptAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    await triggerReconciliation();
+    await sleep(1_500);
+
+    const { body } = await api<MessageBody>(`/v1/messages/${encodeMessageId(messageId)}`, {
+      headers: keyBearer,
+    });
+    expect(body.data?.status).toBe('processing');
+    expect(body.data?.counts.pending).toBe(1);
+    expect(
+      await db
+        .select({ id: tables.delivery.id })
+        .from(tables.delivery)
+        .where(and(eq(tables.delivery.messageId, messageId), eq(tables.delivery.status, 'retrying')))
+    ).toHaveLength(1);
   });
 });

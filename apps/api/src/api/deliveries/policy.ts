@@ -1,4 +1,5 @@
-import type { DeliveryErrorCode } from '@buzzkit/api/providers/index';
+import type { DeliveryErrorCode, ProviderSendResult } from '@buzzkit/api/providers/index';
+import type { deliveryAttemptOutcome, deliveryStatus } from '@buzzkit/database';
 
 export const RETRY_SCHEDULE_SECONDS = [5, 30, 120, 600, 1800, 3600, 7200] as const;
 export const MAX_DELIVERY_ATTEMPTS = RETRY_SCHEDULE_SECONDS.length + 1;
@@ -9,6 +10,7 @@ export const STALE_PENDING_MINUTES = 10;
 export const STALLED_FANOUT_MINUTES = 10;
 export const UNFINALIZED_GRACE_MINUTES = 5;
 export const RETRY_GRACE_SECONDS = 60;
+export const ATTEMPT_LEASE_SECONDS = 60;
 
 type ErrorPolicy = { retryable: boolean; invalidatesSubscription: boolean; overload: boolean };
 
@@ -34,4 +36,62 @@ export function backoffSeconds(attempt: number, code: DeliveryErrorCode, retryAf
   const base = Math.max(scheduled, floor, retryAfterSeconds ?? 0);
   const jitter = base * RETRY_JITTER_RATIO * (Math.random() * 2 - 1);
   return Math.min(MAX_BACKOFF_SECONDS, Math.max(1, Math.round(base + jitter)));
+}
+
+export type CounterDelta = 'sent' | 'failed' | 'invalid';
+
+export type Decision = {
+  status: (typeof deliveryStatus.enumValues)[number];
+  outcome: (typeof deliveryAttemptOutcome.enumValues)[number];
+  terminal: boolean;
+  counterDelta: CounterDelta | null;
+  invalidatesSubscription: boolean;
+  nextAttemptAt: Date | null;
+};
+
+export function decide(attempt: number, result: ProviderSendResult, now = new Date()): Decision {
+  if (result.ok) {
+    return {
+      status: 'sent',
+      outcome: 'sent',
+      terminal: true,
+      counterDelta: 'sent',
+      invalidatesSubscription: false,
+      nextAttemptAt: null,
+    };
+  }
+
+  const policy = ERROR_POLICY[result.code];
+
+  if (policy.invalidatesSubscription) {
+    return {
+      status: 'invalid',
+      outcome: 'invalid',
+      terminal: true,
+      counterDelta: 'invalid',
+      invalidatesSubscription: true,
+      nextAttemptAt: null,
+    };
+  }
+
+  if (policy.retryable && attempt < MAX_DELIVERY_ATTEMPTS) {
+    const delay = backoffSeconds(attempt, result.code, result.retryAfterSeconds);
+    return {
+      status: 'retrying',
+      outcome: 'retry',
+      terminal: false,
+      counterDelta: null,
+      invalidatesSubscription: false,
+      nextAttemptAt: new Date(now.getTime() + delay * 1000),
+    };
+  }
+
+  return {
+    status: 'failed',
+    outcome: 'failed',
+    terminal: true,
+    counterDelta: 'failed',
+    invalidatesSubscription: false,
+    nextAttemptAt: null,
+  };
 }

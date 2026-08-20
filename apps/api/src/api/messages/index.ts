@@ -3,6 +3,7 @@ import { decryptCredentialSecret } from '@buzzkit/api/api/credentials/index';
 import {
   type AttemptApplication,
   applyAttemptResult,
+  claimDeliveryAttempt,
   type Delivery,
   failDeliveriesImmediately,
   finalizeMessageIfComplete,
@@ -155,26 +156,6 @@ export async function createMessage(
     await findTopicBySlug(db, tenant.id, input.topic);
   }
 
-  if (input.idempotencyKey) {
-    const [existing] = await trace(
-      'messages.findByIdempotencyKey',
-      async () =>
-        await db
-          .select()
-          .from(tables.message)
-          .where(
-            and(
-              eq(tables.message.tenantId, tenant.id),
-              eq(tables.message.idempotencyKey, input.idempotencyKey!),
-              isNull(tables.message.deletedAt)
-            )
-          )
-    );
-    if (existing) {
-      return { message: existing, created: false };
-    }
-  }
-
   const targets: MessageTargets = { ...(to ? { to } : {}), ...(input.topic ? { topic: input.topic } : {}) };
   const ttlSeconds = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
@@ -192,10 +173,31 @@ export async function createMessage(
           idempotencyKey: input.idempotencyKey ?? null,
           expiresAt: new Date(Date.now() + ttlSeconds * 1000),
         })
+        .onConflictDoNothing({
+          target: [tables.message.tenantId, tables.message.idempotencyKey],
+          where: sql`${tables.message.idempotencyKey} is not null and ${tables.message.deletedAt} is null`,
+        })
         .returning()
   );
 
-  return { message: message!, created: true };
+  if (message) return { message, created: true };
+
+  const [existing] = await trace(
+    'messages.findByIdempotencyKey',
+    async () =>
+      await db
+        .select()
+        .from(tables.message)
+        .where(
+          and(
+            eq(tables.message.tenantId, tenant.id),
+            eq(tables.message.idempotencyKey, input.idempotencyKey!),
+            isNull(tables.message.deletedAt)
+          )
+        )
+  );
+
+  return { message: existing!, created: false };
 }
 
 export async function enqueueFanout(messageId: number, afterId = 0): Promise<void> {
@@ -556,9 +558,12 @@ async function processDeliveryInner(
     };
   }
 
+  const startedAt = new Date();
+  const claimed = await claimDeliveryAttempt(db, delivery.id, expectedAttempt, startedAt);
+  if (!claimed) return null;
+
   const provider = delivery.provider as ProviderName;
   const payload = message.payload as MessagePayload;
-  const startedAt = new Date();
 
   const credential = await resolveCredential(
     db,

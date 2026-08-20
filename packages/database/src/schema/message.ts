@@ -92,6 +92,7 @@ export const delivery = pgTable(
     lastErrorMessage: text('last_error_message'),
     providerMessageId: text('provider_message_id'),
     nextAttemptAt: timestamp('next_attempt_at'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
     firstAttemptedAt: timestamp('first_attempted_at'),
     lastAttemptedAt: timestamp('last_attempted_at'),
     sentAt: timestamp('sent_at'),

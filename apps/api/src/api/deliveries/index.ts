@@ -18,9 +18,9 @@ import {
   tables,
 } from '@buzzkit/database';
 import {
-  backoffSeconds,
-  ERROR_POLICY,
-  MAX_DELIVERY_ATTEMPTS,
+  ATTEMPT_LEASE_SECONDS,
+  type CounterDelta,
+  decide,
   RETRY_GRACE_SECONDS,
   STALE_PENDING_MINUTES,
   UNFINALIZED_GRACE_MINUTES,
@@ -32,7 +32,7 @@ export type DeliveryStatus = Delivery['status'];
 
 export const DELIVERY_STATUSES = tables.delivery.status.enumValues;
 
-export type CounterDelta = 'sent' | 'failed' | 'invalid';
+export type { CounterDelta };
 
 export const UNSETTLED_STATUSES: DeliveryStatus[] = ['pending', 'retrying'];
 
@@ -148,6 +148,27 @@ export type AttemptApplication = {
   invalidatedSubscriptionId: number | null;
 };
 
+export async function claimDeliveryAttempt(
+  db: Db,
+  deliveryId: number,
+  expectedAttempt: number,
+  now = new Date()
+): Promise<Delivery | null> {
+  const [claimed] = await db
+    .update(tables.delivery)
+    .set({ leaseExpiresAt: new Date(now.getTime() + ATTEMPT_LEASE_SECONDS * 1000), nextAttemptAt: null })
+    .where(
+      and(
+        eq(tables.delivery.id, deliveryId),
+        inArray(tables.delivery.status, UNSETTLED_STATUSES),
+        eq(tables.delivery.attempts, expectedAttempt - 1),
+        sql`(${tables.delivery.leaseExpiresAt} is null or ${tables.delivery.leaseExpiresAt} < ${now.toISOString()}::timestamp)`
+      )
+    )
+    .returning();
+  return claimed ?? null;
+}
+
 export async function applyAttemptResult(
   db: Db,
   context: AttemptContext,
@@ -206,6 +227,7 @@ async function applyAttemptResultInner(
         lastErrorMessage: result.ok ? null : result.reason,
         providerMessageId: result.ok ? result.providerMessageId : delivery.providerMessageId,
         nextAttemptAt: decision.nextAttemptAt,
+        leaseExpiresAt: null,
         firstAttemptedAt: delivery.firstAttemptedAt ?? startedAt,
         lastAttemptedAt: startedAt,
         sentAt: decision.status === 'sent' ? finishedAt : delivery.sentAt,
@@ -238,62 +260,6 @@ async function applyAttemptResultInner(
       invalidatedSubscriptionId,
     };
   });
-}
-
-type Decision = {
-  status: DeliveryStatus;
-  outcome: DeliveryAttempt['outcome'];
-  terminal: boolean;
-  counterDelta: CounterDelta | null;
-  invalidatesSubscription: boolean;
-  nextAttemptAt: Date | null;
-};
-
-function decide(attempt: number, result: ProviderSendResult): Decision {
-  if (result.ok) {
-    return {
-      status: 'sent',
-      outcome: 'sent',
-      terminal: true,
-      counterDelta: 'sent',
-      invalidatesSubscription: false,
-      nextAttemptAt: null,
-    };
-  }
-
-  const policy = ERROR_POLICY[result.code];
-
-  if (policy.invalidatesSubscription) {
-    return {
-      status: 'invalid',
-      outcome: 'invalid',
-      terminal: true,
-      counterDelta: 'invalid',
-      invalidatesSubscription: true,
-      nextAttemptAt: null,
-    };
-  }
-
-  if (policy.retryable && attempt < MAX_DELIVERY_ATTEMPTS) {
-    const delay = backoffSeconds(attempt, result.code, result.retryAfterSeconds);
-    return {
-      status: 'retrying',
-      outcome: 'retry',
-      terminal: false,
-      counterDelta: null,
-      invalidatesSubscription: false,
-      nextAttemptAt: new Date(Date.now() + delay * 1000),
-    };
-  }
-
-  return {
-    status: 'failed',
-    outcome: 'failed',
-    terminal: true,
-    counterDelta: 'failed',
-    invalidatesSubscription: false,
-    nextAttemptAt: null,
-  };
 }
 
 function backoffSecondsFrom(nextAttemptAt: Date | null): number {
@@ -443,7 +409,7 @@ export async function findDueRetries(
     .limit(limit);
 }
 
-export async function findStalePending(
+export async function findStaleUnsettled(
   db: Db,
   limit: number
 ): Promise<Array<{ id: number; attempts: number }>> {
@@ -453,9 +419,9 @@ export async function findStalePending(
     .from(tables.delivery)
     .where(
       and(
-        eq(tables.delivery.status, 'pending'),
-        lt(tables.delivery.createdAt, cutoff),
-        isNull(tables.delivery.nextAttemptAt)
+        inArray(tables.delivery.status, UNSETTLED_STATUSES),
+        isNull(tables.delivery.nextAttemptAt),
+        sql`coalesce(${tables.delivery.leaseExpiresAt}, ${tables.delivery.createdAt}) < ${cutoff.toISOString()}::timestamp`
       )
     )
     .orderBy(asc(tables.delivery.id))

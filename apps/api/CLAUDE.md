@@ -47,6 +47,8 @@ Traces and logs come from `@buzzkit/observability` (`packages/observability`). W
 
 Integration over HTTP in the plain Node vitest pool (NEVER `@cloudflare/vitest-pool-workers`): requires `bun dev` running (port 8790) + local Postgres (`bun db:up` at repo root). `test/` mirrors `modules/` exactly (`test/v1/health/index.test.ts` ↔ `/v1/health`). Helpers in `test/utils/`.
 
+Pure modules with no Worker bindings (e.g. `api/deliveries/policy.ts` — the retry schedule and decision matrix) get unit tests under `test/api/...` mirroring `src/api/`; the `@buzzkit/api` alias in `vitest.config.mts` resolves them without the Worker runtime.
+
 Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `docs/architecture.md`; APNs delivery is only testable deployed. Queues run locally in `wrangler dev` — fan-out, targeting, retry accounting, and `no_credential` outcomes are fully tested locally.
 
 ## Code conventions

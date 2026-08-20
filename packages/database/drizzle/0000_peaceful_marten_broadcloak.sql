@@ -146,6 +146,7 @@ CREATE TABLE "delivery" (
 	"last_error_message" text,
 	"provider_message_id" text,
 	"next_attempt_at" timestamp,
+	"lease_expires_at" timestamp,
 	"first_attempted_at" timestamp,
 	"last_attempted_at" timestamp,
 	"sent_at" timestamp,

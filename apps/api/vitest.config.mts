@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+      '@buzzkit/api': path.resolve(import.meta.dirname, './src'),
       '@buzzkit/database': path.resolve(import.meta.dirname, '../../packages/database/src/index.ts'),
     },
   },

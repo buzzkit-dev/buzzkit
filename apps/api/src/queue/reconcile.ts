@@ -3,7 +3,7 @@ import {
   expireOverdueDeliveries,
   finalizeMessageIfComplete,
   findDueRetries,
-  findStalePending,
+  findStaleUnsettled,
   findUnfinalizedMessages,
 } from '@buzzkit/api/api/deliveries/index';
 import { STALLED_FANOUT_MINUTES } from '@buzzkit/api/api/deliveries/policy';
@@ -23,7 +23,7 @@ async function reconcileDeliveriesInner(t: Span): Promise<void> {
   const db = createDb();
 
   const due = await findDueRetries(db, SWEEP_LIMIT);
-  const stale = await findStalePending(db, SWEEP_LIMIT);
+  const stale = await findStaleUnsettled(db, SWEEP_LIMIT);
   await enqueueDeliveries(
     [...due, ...stale].map((row) => ({ deliveryId: row.id, attempt: row.attempts + 1 }))
   );
