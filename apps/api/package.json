@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
+    "./contract": {
+      "types": "./.types/modules/contract.d.ts",
+      "default": "./src/modules/contract.ts"
+    },
     "./*": {
       "types": "./.types/*.d.ts",
       "default": "./src/*.ts"

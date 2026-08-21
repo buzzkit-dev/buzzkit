@@ -16,11 +16,15 @@ Two layers, one codebase:
 ## Project Structure
 
 ```
-apps/api/           → @buzzkit/api       Cloudflare Worker API (Elysia + CloudflareAdapter)
-apps/web/           → @buzzkit/web       Platform dashboard (Vite + React Router 8 SSR on CF Workers, dev port 5180)
-packages/buzzkit/   → buzzkit            The framework itself — the main public package
-packages/cli/       → @buzzkit/cli       Pushes code-defined config to a buzzkit deployment
-packages/database/  → @buzzkit/database  Drizzle ORM, PostgreSQL schema, migrations
+apps/api/                → @buzzkit/api            Cloudflare Worker API (Elysia + CloudflareAdapter)
+apps/web/                → @buzzkit/web            Platform dashboard (Vite + React Router 8 SSR on CF Workers, dev port 5180)
+packages/buzzkit/        → buzzkit                 The framework itself — the main public package
+packages/cli/            → @buzzkit/cli            Pushes code-defined config to a buzzkit deployment
+packages/database/       → @buzzkit/database       Drizzle ORM, PostgreSQL schema, migrations
+packages/auth/           → @buzzkit/auth           BetterAuth configuration (email/password, bearer tokens)
+packages/eden/           → @buzzkit/eden           Typed Eden Treaty API client (envelope-unwrapping, inferred from the contract)
+packages/observability/  → @buzzkit/observability  Buffered logging (Axiom), OpenTelemetry tracing
+packages/ui/             → @buzzkit/ui             Design system: shadcn (Base UI style) + Tailwind v4 tokens, Central Icons
 ```
 
 **`buzzkit` is one package, not core + sdk.** The main package IS the framework (like `sst`): channel-agnostic primitives (connectors, workflows, campaigns, segments), the send client, and device token APIs all live in `packages/buzzkit`, organized by subpath exports (`buzzkit/channels`, `buzzkit/workflows`, …) as it grows — never split into separate npm packages for organization's sake. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
@@ -57,9 +61,9 @@ modules/v1/health/index.ts    → /v1/health
 
 Every route module registers directly in `modules/v1/index.ts` — route modules never `.use()` each other. Reusable domain logic lives in `apps/api/src/api/<resource>/index.ts`, not inline in route files.
 
-### API imports
+### API imports & the typed client
 
-`apps/api` imports itself via **package self-references** (`@buzzkit/api/modules/v1/index`), never path aliases — that keeps the contract type-consumable by other packages later (`bun run types:emit` regenerates `.types/`).
+`apps/api` imports itself via **package self-references** (`@buzzkit/api/modules/v1/index`), never path aliases — that keeps the contract (`@buzzkit/api/contract`, the v1 router without runtime adapters) type-consumable by other packages. `bun run types:emit` in `apps/api` regenerates `.types/` (d.ts, git-ignored) that consumers resolve; turbo runs it before `dev` / `build` / `check-types`, re-run it by hand after changing API response shapes mid-session. `@buzzkit/eden` wraps Eden Treaty over the contract and unwraps the response envelope, so the dashboard (`apps/web/app/lib/api.server.ts`) gets tRPC-style end-to-end types — entity types are derived from calls, never hand-written.
 
 ### Database
 
@@ -71,9 +75,9 @@ Schema files go in `packages/database/src/schema/`, exported from `src/schema/in
 - After changing wrangler bindings, run `bun run cf-typegen` to regenerate `worker-configuration.d.ts`
 - No `fs` module — no file system access in Workers
 
-### Dashboard / UI
+### Design system & dashboard
 
-The web app will adopt feedbase's design system conventions (shadcn + Tailwind v4 tokens in a `packages/ui`) when the dashboard is built — same look and feel. Until then, keep `apps/web` barebones.
+`packages/ui` is shadcn-owned source (`bunx shadcn add <name>` in `packages/ui`, then restyle to tokens), ported 1:1 from feedbase — same look and feel, non-negotiable. Never hardcode colors: use token utilities (`bg-bg-2`, `text-fg-3`, `bg-primary-4`; the brand is only ever the `primary-*` alias ramp). Icons come exclusively from `<Icon name='Icon…' />` (Central Icons, generated paths from string literals — never build a name dynamically), never lucide. `docs/design.md` is the source of truth for everything visual; every component belongs on the `/ui` preview route. Web routes follow the same file-based convention as the API (`app/routes/<segment>/index.tsx`, registered in `app/routes.ts`); `apps/web/CLAUDE.md` has the dashboard rules, `docs/dashboard.md` the route map, auth architecture, onboarding, and the phase plan.
 
 ## Documentation
 

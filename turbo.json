@@ -3,7 +3,7 @@
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@buzzkit/ui#generate:icons", "@buzzkit/api#types:emit"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["build/**", "dist/**"]
     },
@@ -11,11 +11,26 @@
       "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^check-types", "@buzzkit/ui#generate:icons", "@buzzkit/api#types:emit"]
     },
     "dev": {
+      "dependsOn": ["@buzzkit/ui#generate:icons", "@buzzkit/api#types:emit"],
       "cache": false,
       "persistent": true
+    },
+    "@buzzkit/ui#generate:icons": {
+      "inputs": [
+        "scripts/generate-icons.ts",
+        "../../apps/**/*.{ts,tsx,jsx,mdx}",
+        "../../packages/**/*.{ts,tsx,jsx,mdx}",
+        "!../../**/node_modules/**",
+        "!src/components/icon/paths.ts"
+      ],
+      "outputs": ["src/components/icon/paths.ts"]
+    },
+    "@buzzkit/api#types:emit": {
+      "inputs": ["src/**/*.ts", "tsconfig.json", "worker-configuration.d.ts"],
+      "outputs": [".types/**"]
     }
   }
 }

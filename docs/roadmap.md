@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: Phases 0–4 ✅ — the API milestone. Next: Phase 5, the platform dashboard.**
+**Status: Phases 0–4 ✅ (the API milestone). Phase 5 in progress: dashboard phase 1 (foundation + onboarding) is built and awaiting review; the dashboard's own phase plan lives in [dashboard.md](dashboard.md).**
 
 Deviations from the original plan, all deliberate:
 - **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.
@@ -152,18 +152,17 @@ After this phase the promise is real: sign up, upload APNs key, send push via on
 
 ## Phase 5 — Platform dashboard (`apps/web`)  🎯 **Milestone: the product**
 
-The product face, pulled forward: the API is complete enough to operate, so the dashboard comes before the SDK, campaigns, and workflows. Code stays the source of truth — the dashboard operates the account and *observes* the code-defined world.
+The product face, pulled forward: the API is complete enough to operate, so the dashboard comes before the SDK, campaigns, and workflows. Code stays the source of truth; the dashboard operates the account and *observes* the code-defined world. The detailed plan, route map and auth architecture are in [dashboard.md](dashboard.md).
 
-**Prerequisite (one day):** a typed API client inferred from the contract (Eden Treaty over `@buzzkit/api`, envelope-unwrapping — the same client the SDK ships in Phase 7). `apps/web` loaders use it; no hand-written fetch types.
+**Prerequisite ✅:** `@buzzkit/eden`, a typed client inferred from `@buzzkit/api/contract` (Eden Treaty, envelope-unwrapping; the same client the SDK wraps in Phase 7). `apps/web` loaders use it; no hand-written fetch types.
 
-**Build**
+**Built in dashboard phase 1 ✅ (awaiting review)**
 
-- Port the feedbase design system: `packages/ui` (shadcn + Tailwind v4 tokens, icon pipeline), same look and feel; wire `@buzzkit/eden`-style typed API access from loaders.
-- Auth pages (signup/login, **email verification on sign-up** via BetterAuth `requireEmailVerification` + the existing email lib), workspace creation & member management, invites.
-- **Onboarding flow = the product promise:** create workspace → upload APNs key (drag-drop `.p8`, validated live) → grab API key → send a test push to your registered device. Minutes, not hours.
-- Tenant management (list/create — mirrors the API), credential management per tenant, API key management (create/revoke, shown-once secrets).
-- Subscribers & devices browser; message log with per-delivery status and provider errors (the debugging surface).
-- Campaigns/segments/workflows views arrive with Phases 8–9; the first dashboard version ships without them.
+- `@buzzkit/ui`: the feedbase design system ported 1:1 (shadcn Base UI + Tailwind v4 tokens, Open Runde, Central Icons pipeline, `/ui` preview, `docs/design.md`).
+- Auth pages (signup/login/logout/profile), workspace creation (default tenant created by the API), the floating shell (switcher, pill nav, account menu, theme), overview with the channel card and a live four-step setup checklist, Settings → General.
+- **Onboarding = the product promise:** create workspace → pick a channel (push, email; SMS and web push marked soon) → pick a provider (APNs / FCM / Resend) → an illustrated step-by-step guide through the provider's own console that collects each credential field where it is produced → `POST /v1/credentials` validates live → connected state.
+
+**Next dashboard phases** (one at a time, each reviewed before the next starts): 2 Settings (channels, API keys, members & invites, tenants + tenant switcher, audit log) · 3 Subscribers & topics · 4 Messages (send composer, message list, deliveries + attempt ledger) · 5 Tenant settings & hardening (identity verification, kill-switches, danger zones, email verification on sign-up) · 6 read-only views for the code-defined world once Phases 8–9 land.
 
 **Done when:** a new user completes signup → key upload → test push entirely in the dashboard; everything the dashboard shows comes from the public API (no private backdoors — the framework test).
 

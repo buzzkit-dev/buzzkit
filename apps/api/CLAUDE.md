@@ -21,6 +21,7 @@ src/
 ├── providers/            Provider registry: one module per provider (validate + send), aggregated in index.ts
 ├── queue/                Queue consumer (fan-out pages + batched delivery pipeline: select → claim → send → settle) and the reconciliation cron
 └── modules/              File-based routes
+    ├── contract.ts       `api` — the v1 router without runtime adapters; `@buzzkit/api/contract` for Eden clients
     ├── index.ts          App: CloudflareAdapter + CORS + logger + error + OpenAPI + v1
     └── v1/
         ├── index.ts      V1 router: response guard + route modules (flat registration)
@@ -83,4 +84,5 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 | `bun dev` | Dev server on port 8790 (needs `bun db:up` at repo root + `.dev.vars`, see `.dev.vars.example`) |
 | `bun test` | Integration tests (dev server + Postgres must be running) |
 | `bun cf-typegen` | Regenerate worker-configuration.d.ts |
+| `bun types:emit` | Emit `.types/` declarations consumed by `@buzzkit/eden` and the dashboard (turbo runs it before dev/build/check-types) |
 | `bun deploy` | Deploy to Cloudflare |

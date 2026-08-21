@@ -1,0 +1,23 @@
+{
+  "name": "@buzzkit/eden",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@buzzkit/api": "workspace:*",
+    "@elysiajs/eden": "^1.4.9",
+    "elysia": "^1.4.29"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

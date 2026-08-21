@@ -1,0 +1,900 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@source "../components";
+@source "../hooks";
+@source "../lib";
+
+@font-face {
+  font-family: "OpenRunde";
+  src: url("./fonts/OpenRunde-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "OpenRunde";
+  src: url("./fonts/OpenRunde-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "OpenRunde";
+  src: url("./fonts/OpenRunde-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "OpenRunde";
+  src: url("./fonts/OpenRunde-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Light ───────────────────────────────────────────────────────────────── */
+:root {
+  --background: oklch(1 0 0);
+  --background-subtle: oklch(0.985 0 0);
+
+  /* Neutral surfaces: bg-1 (page) → bg-4 (most recessed) */
+  --bg-1: oklch(1 0 0);
+  --bg-2: oklch(0.973 0.001 286.38);
+  --bg-3: oklch(0.955 0.002 247.84);
+  --bg-4: oklch(0.928 0.003 264.54);
+
+  /* Foregrounds: fg-1 (faintest) → fg-4 (strongest).
+     fg-2 upward carries real text and clears 4.5:1 on bg-1 and bg-2 (5.01 /
+     4.64 and 7.67 / 7.10). fg-1 is decorative only — dividers, watermarks,
+     disabled glyphs — never body copy, labels or placeholders. */
+  --fg-1: oklch(0.764 0.004 271.36);
+  --fg-2: oklch(0.543 0.009 278.5);
+  --fg-3: oklch(0.443 0.008 277);
+  --fg-4: oklch(0.21 0.008 274.53);
+
+  /* Alpha surfaces/foregrounds — layer on any background */
+  --bg-a1: oklch(0 0 0 / 0.027);
+  --bg-a2: oklch(0 0 0 / 0.047);
+  --bg-a3: oklch(0 0 0 / 0.075);
+  --bg-a4: oklch(0 0 0 / 0.118);
+  --fg-a1: oklch(0 0 0 / 0.29);
+  --fg-a2: oklch(0 0 0 / 0.388);
+  --fg-a3: oklch(0 0 0 / 0.561);
+  --fg-a4: oklch(0.21 0.008 274.53 / 0.859);
+
+  /* Accent ramps: 1 (tint) → 4 (solid) */
+  --blue-1: oklch(0.98 0.015 218.05);
+  --blue-2: oklch(0.938 0.047 216.55);
+  --blue-3: oklch(0.828 0.122 222.04);
+  --blue-4: oklch(0.797 0.139 224.28);
+  --red-1: oklch(0.969 0.015 22.39);
+  --red-2: oklch(0.929 0.036 22.08);
+  --red-3: oklch(0.899 0.052 22.54);
+  --red-4: oklch(0.654 0.232 28.66);
+  --green-1: oklch(0.976 0.019 152.82);
+  --green-2: oklch(0.918 0.059 153.4);
+  --green-3: oklch(0.818 0.141 150.67);
+  --green-4: oklch(0.77 0.168 149.04);
+  --amber-1: oklch(0.981 0.021 85.94);
+  --amber-2: oklch(0.949 0.052 83.99);
+  --amber-3: oklch(0.869 0.13 81.47);
+  --amber-4: oklch(0.825 0.161 77.19);
+  --purple-1: oklch(0.971 0.015 306.41);
+  --purple-2: oklch(0.917 0.044 303.1);
+  --purple-3: oklch(0.802 0.107 302.02);
+  --purple-4: oklch(0.672 0.185 302.61);
+  --sky-1: oklch(0.963 0.017 264.49);
+  --sky-2: oklch(0.882 0.056 262.75);
+  --sky-3: oklch(0.722 0.139 261.77);
+  --sky-4: oklch(0.655 0.175 260.34);
+  --yellow-1: oklch(0.988 0.026 99.9);
+  --yellow-2: oklch(0.968 0.078 101.45);
+  --yellow-3: oklch(0.938 0.151 101.97);
+  --yellow-4: oklch(0.899 0.175 101.09);
+  --pink-1: oklch(0.972 0.019 338.71);
+  --pink-2: oklch(0.891 0.076 341.18);
+  --pink-3: oklch(0.755 0.157 342.69);
+  --pink-4: oklch(0.671 0.176 343.98);
+  --orange-1: oklch(0.976 0.014 57.59);
+  --orange-2: oklch(0.918 0.049 54.09);
+  --orange-3: oklch(0.812 0.122 53.84);
+  --orange-4: oklch(0.73 0.169 50.29);
+
+  /* Alpha accents */
+  --blue-a1: oklch(0.797 0.139 224.28 / 0.071);
+  --blue-a2: oklch(0.797 0.139 224.28 / 0.149);
+  --blue-a3: oklch(0.797 0.139 224.28 / 0.388);
+  --blue-a4: oklch(0.797 0.139 224.28);
+  --red-a1: oklch(0.654 0.232 28.66 / 0.071);
+  --red-a2: oklch(0.654 0.232 28.66 / 0.149);
+  --red-a3: oklch(0.654 0.232 28.66 / 0.388);
+  --red-a4: oklch(0.654 0.232 28.66);
+  --green-a1: oklch(0.77 0.168 149.04 / 0.071);
+  --green-a2: oklch(0.77 0.168 149.04 / 0.149);
+  --green-a3: oklch(0.77 0.168 149.04 / 0.388);
+  --green-a4: oklch(0.77 0.168 149.04);
+  --amber-a1: oklch(0.825 0.161 77.19 / 0.071);
+  --amber-a2: oklch(0.825 0.161 77.19 / 0.149);
+  --amber-a3: oklch(0.825 0.161 77.19 / 0.388);
+  --amber-a4: oklch(0.825 0.161 77.19);
+  --purple-a1: oklch(0.672 0.185 302.61 / 0.071);
+  --purple-a2: oklch(0.672 0.185 302.61 / 0.149);
+  --purple-a3: oklch(0.672 0.185 302.61 / 0.388);
+  --purple-a4: oklch(0.672 0.185 302.61);
+  --sky-a1: oklch(0.655 0.175 260.34 / 0.071);
+  --sky-a2: oklch(0.655 0.175 260.34 / 0.149);
+  --sky-a3: oklch(0.655 0.175 260.34 / 0.388);
+  --sky-a4: oklch(0.655 0.175 260.34);
+  --yellow-a1: oklch(0.899 0.175 101.09 / 0.071);
+  --yellow-a2: oklch(0.899 0.175 101.09 / 0.149);
+  --yellow-a3: oklch(0.899 0.175 101.09 / 0.388);
+  --yellow-a4: oklch(0.899 0.175 101.09);
+  --pink-a1: oklch(0.671 0.176 343.98 / 0.071);
+  --pink-a2: oklch(0.671 0.176 343.98 / 0.149);
+  --pink-a3: oklch(0.671 0.176 343.98 / 0.388);
+  --pink-a4: oklch(0.671 0.176 343.98);
+  --orange-a1: oklch(0.73 0.169 50.29 / 0.071);
+  --orange-a2: oklch(0.73 0.169 50.29 / 0.149);
+  --orange-a3: oklch(0.73 0.169 50.29 / 0.388);
+  --orange-a4: oklch(0.73 0.169 50.29);
+
+  /* Text on a tint-1 surface — the only step safe to read as text on its own
+     -1 tint. The -4 step is a *fill*: on its tint it lands at 1.7:1–2.4:1.
+     Each of these keeps its ramp's hue and rides maximum chroma while dropping
+     lightness until it clears APCA Lc 60, the threshold for non-body text like
+     chips. Vivid on purpose — the WCAG-4.5 alternative turns amber and orange
+     into mud. */
+  --purple-text: oklch(0.628 0.246 302.73);
+  --blue-text: oklch(0.605 0.115 225.1);
+  --sky-text: oklch(0.599 0.219 260.34);
+  --green-text: oklch(0.593 0.168 148.91);
+  --amber-text: oklch(0.621 0.13 76.67);
+  --orange-text: oklch(0.623 0.165 49.96);
+  --red-text: oklch(0.608 0.249 28.81);
+  --pink-text: oklch(0.623 0.238 343.8);
+  --yellow-text: oklch(0.628 0.131 101.17);
+
+  /* Control shadows — raised chrome. Kept here rather than inline in the
+     components so no component hardcodes a colour, and so dark mode can swap
+     the whole recipe (light leans on drop shadow, dark on an inner hairline). */
+  --control-shadow:
+    0 1px 1px oklch(0 0 0 / 0.1), 0 0 0 1px oklch(0 0 0 / 0.08), inset 0 1px 0 oklch(1 0 0 / 0.16);
+  --control-shadow-destructive:
+    0 1px 1px oklch(0 0 0 / 0.1), 0 0 0 1px oklch(0 0 0 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.2);
+  --control-shadow-elevated: 0 1px 1px oklch(0 0 0 / 0.08), 0 0 0 1px oklch(0 0 0 / 0.05);
+  --control-shadow-elevated-hover: 0 1px 1px oklch(0 0 0 / 0.12), 0 0 0 1px oklch(0 0 0 / 0.1);
+  --control-shadow-knob: 0 2px 2px oklch(0 0 0 / 0.1), 0 2px 3px oklch(0 0 0 / 0.1);
+  --control-shadow-dot: 0 1px 2px oklch(0 0 0 / 0.15);
+
+  /* Surface shadows — cards through sheets. Same deal as the control shadows:
+     in light the recipe ends in a dark hairline ring, in dark the ring flips
+     to an inner line of light so edges survive on a dark page. */
+  --surface-shadow-1: 0px 1px 1px oklch(0 0 0 / 0.078), 0px 0px 0px 1px oklch(0 0 0 / 0.051);
+  --surface-shadow-2: 0px 1px 3px oklch(0 0 0 / 0.09), 0px 0px 0px 1px oklch(0 0 0 / 0.031);
+  --surface-shadow-3:
+    0px 1px 3px oklch(0 0 0 / 0.051), 0px 6px 14px oklch(0 0 0 / 0.039), 0px 0px 0px 1px oklch(0 0 0 / 0.02);
+  --surface-shadow-4:
+    0px 3px 10px oklch(0 0 0 / 0.039), 0px 4px 14px oklch(0 0 0 / 0.039), 0px 0px 0px 1px oklch(0 0 0 / 0.024);
+
+  /* Primary — alias ramp for the brand color. Components reference primary-* only,
+     so swapping the brand is contained to this block. Currently NEUTRAL (black):
+     solid actions, checked states and focus rings render in fg/bg neutrals.
+     To move the brand onto a color, point these at that ramp (e.g. sky-*). */
+  --primary-1: var(--bg-2);
+  --primary-2: var(--bg-4);
+  --primary-3: var(--fg-2);
+  --primary-4: var(--fg-4);
+  --primary-a1: var(--bg-a1);
+  --primary-a2: var(--bg-a2);
+  --primary-a3: var(--bg-a3);
+  --primary-a4: var(--fg-a4);
+
+  /* Semantic (shadcn) mapping */
+  --foreground: var(--fg-4);
+  --card: var(--bg-1);
+  --card-foreground: var(--fg-4);
+  --popover: var(--bg-1);
+  --popover-foreground: var(--fg-4);
+  --primary: var(--primary-4);
+  --primary-foreground: var(--background);
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--fg-4);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--fg-2);
+  --accent: var(--bg-a2);
+  --accent-foreground: var(--fg-4);
+  --destructive: var(--red-4);
+  --destructive-foreground: oklch(1 0 0);
+  --border: var(--bg-3);
+  --input: var(--bg-2);
+  --ring: var(--primary-2);
+
+  /* Sidebar aliases (shadcn sidebar) — reference tokens only, so they flip
+     with the theme and need no .dark override. */
+  --sidebar: var(--background-subtle);
+  --sidebar-foreground: var(--fg-3);
+  --sidebar-primary: var(--primary-4);
+  --sidebar-primary-foreground: var(--background);
+  --sidebar-accent: var(--bg-a2);
+  --sidebar-accent-foreground: var(--fg-4);
+  --sidebar-border: var(--bg-3);
+  --sidebar-ring: var(--primary-2);
+}
+
+/* ── Dark ────────────────────────────────────────────────────────────────── */
+.dark {
+  --background: oklch(0.174 0.004 285.97);
+  --background-subtle: oklch(0.192 0.004 286.02);
+
+  --bg-1: oklch(0.197 0.004 286.03);
+  --bg-2: oklch(0.228 0.006 285.93);
+  --bg-3: oklch(0.257 0.006 286);
+  --bg-4: oklch(0.299 0.007 285.96);
+
+  --fg-1: oklch(0.54 0.008 286.14);
+  --fg-2: oklch(0.655 0.009 286.15);
+  --fg-3: oklch(0.787 0.007 286.24);
+  --fg-4: oklch(0.946 0.001 286.37);
+
+  --bg-a1: oklch(1 0 0 / 0.039);
+  --bg-a2: oklch(1 0 0 / 0.071);
+  --bg-a3: oklch(1 0 0 / 0.11);
+  --bg-a4: oklch(1 0 0 / 0.169);
+  --fg-a1: oklch(1 0 0 / 0.29);
+  --fg-a2: oklch(1 0 0 / 0.4);
+  --fg-a3: oklch(1 0 0 / 0.639);
+  --fg-a4: oklch(1 0 0 / 0.91);
+
+  --blue-1: oklch(0.25 0.041 219.39);
+  --blue-2: oklch(0.324 0.057 222.94);
+  --blue-3: oklch(0.582 0.11 226.88);
+  --blue-4: oklch(0.797 0.139 224.28);
+  --red-1: oklch(0.22 0.065 26.74);
+  --red-2: oklch(0.282 0.091 28.16);
+  --red-3: oklch(0.505 0.175 28.51);
+  --red-4: oklch(0.654 0.232 28.66);
+  --green-1: oklch(0.255 0.055 150.21);
+  --green-2: oklch(0.363 0.086 148.83);
+  --green-3: oklch(0.574 0.146 148.01);
+  --green-4: oklch(0.77 0.168 149.04);
+  --amber-1: oklch(0.263 0.05 77.14);
+  --amber-2: oklch(0.342 0.067 76.04);
+  --amber-3: oklch(0.612 0.128 73.71);
+  --amber-4: oklch(0.825 0.161 77.19);
+  --purple-1: oklch(0.202 0.077 300.92);
+  --purple-2: oklch(0.25 0.104 299.19);
+  --purple-3: oklch(0.475 0.242 293.21);
+  --purple-4: oklch(0.73 0.166 300.39);
+  --sky-1: oklch(0.205 0.067 261.53);
+  --sky-2: oklch(0.258 0.09 261.67);
+  --sky-3: oklch(0.47 0.196 261.51);
+  --sky-4: oklch(0.713 0.15 260.83);
+  --yellow-1: oklch(0.294 0.057 102.02);
+  --yellow-2: oklch(0.386 0.076 102.32);
+  --yellow-3: oklch(0.689 0.141 99.97);
+  --yellow-4: oklch(0.899 0.175 101.09);
+  --pink-1: oklch(0.22 0.084 345.31);
+  --pink-2: oklch(0.283 0.108 347.65);
+  --pink-3: oklch(0.522 0.203 347.86);
+  --pink-4: oklch(0.671 0.176 343.98);
+  --orange-1: oklch(0.239 0.054 49.19);
+  --orange-2: oklch(0.305 0.074 47.14);
+  --orange-3: oklch(0.591 0.164 45.01);
+  --orange-4: oklch(0.73 0.169 50.29);
+
+  --blue-a1: oklch(0.797 0.139 224.28 / 0.071);
+  --blue-a2: oklch(0.797 0.139 224.28 / 0.149);
+  --blue-a3: oklch(0.797 0.139 224.28 / 0.388);
+  --blue-a4: oklch(0.797 0.139 224.28);
+  --red-a1: oklch(0.654 0.232 28.66 / 0.071);
+  --red-a2: oklch(0.654 0.232 28.66 / 0.149);
+  --red-a3: oklch(0.654 0.232 28.66 / 0.388);
+  --red-a4: oklch(0.654 0.232 28.66);
+  --green-a1: oklch(0.77 0.168 149.04 / 0.071);
+  --green-a2: oklch(0.77 0.168 149.04 / 0.149);
+  --green-a3: oklch(0.77 0.168 149.04 / 0.388);
+  --green-a4: oklch(0.77 0.168 149.04);
+  --amber-a1: oklch(0.825 0.161 77.19 / 0.071);
+  --amber-a2: oklch(0.825 0.161 77.19 / 0.149);
+  --amber-a3: oklch(0.825 0.161 77.19 / 0.388);
+  --amber-a4: oklch(0.825 0.161 77.19);
+  --purple-a1: oklch(0.73 0.166 300.39 / 0.071);
+  --purple-a2: oklch(0.73 0.166 300.39 / 0.149);
+  --purple-a3: oklch(0.73 0.166 300.39 / 0.388);
+  --purple-a4: oklch(0.73 0.166 300.39);
+  --sky-a1: oklch(0.713 0.15 260.83 / 0.071);
+  --sky-a2: oklch(0.713 0.15 260.83 / 0.149);
+  --sky-a3: oklch(0.713 0.15 260.83 / 0.388);
+  --sky-a4: oklch(0.713 0.15 260.83);
+  --yellow-a1: oklch(0.899 0.175 101.09 / 0.071);
+  --yellow-a2: oklch(0.899 0.175 101.09 / 0.149);
+  --yellow-a3: oklch(0.899 0.175 101.09 / 0.388);
+  --yellow-a4: oklch(0.899 0.175 101.09);
+  --pink-a1: oklch(0.671 0.176 343.98 / 0.071);
+  --pink-a2: oklch(0.671 0.176 343.98 / 0.149);
+  --pink-a3: oklch(0.671 0.176 343.98 / 0.388);
+  --pink-a4: oklch(0.671 0.176 343.98);
+  --orange-a1: oklch(0.73 0.169 50.29 / 0.071);
+  --orange-a2: oklch(0.73 0.169 50.29 / 0.149);
+  --orange-a3: oklch(0.73 0.169 50.29 / 0.388);
+  --orange-a4: oklch(0.73 0.169 50.29);
+
+  /* On dark tints the -4 step already clears 4.5:1 (4.96–10.4), so the text
+     role is just the fill — no separate value, no shift to the tuned palette. */
+  --purple-text: var(--purple-4);
+  --blue-text: var(--blue-4);
+  --sky-text: var(--sky-4);
+  --green-text: var(--green-4);
+  --amber-text: var(--amber-4);
+  --orange-text: var(--orange-4);
+  --red-text: var(--red-4);
+  --pink-text: var(--pink-4);
+  --yellow-text: var(--yellow-4);
+
+  /* Elevated chrome inverts: a drop shadow reads as nothing on a dark page, so
+     the border becomes an inner hairline of light instead. */
+  --control-shadow-elevated: 0 1px 1px oklch(0 0 0 / 0.08), inset 0 0 0 1px oklch(1 0 0 / 0.1);
+  --control-shadow-elevated-hover: 0 1px 1px oklch(0 0 0 / 0.1), inset 0 0 0 1px oklch(1 0 0 / 0.2);
+
+  /* Surfaces invert the same way — without the light ring a card edge is
+     invisible against the page in a bright room. The ring is always bg-3:
+     one border color across cards, overlays, separators and dividers. */
+  --surface-shadow-1: 0px 1px 1px oklch(0 0 0 / 0.2), inset 0 0 0 1px var(--bg-3);
+  --surface-shadow-2: 0px 1px 3px oklch(0 0 0 / 0.25), inset 0 0 0 1px var(--bg-3);
+  --surface-shadow-3:
+    0px 1px 3px oklch(0 0 0 / 0.25), 0px 6px 14px oklch(0 0 0 / 0.25), inset 0 0 0 1px var(--bg-3);
+  --surface-shadow-4:
+    0px 3px 10px oklch(0 0 0 / 0.25), 0px 4px 14px oklch(0 0 0 / 0.25), inset 0 0 0 1px var(--bg-3);
+
+  /* Semantic overrides — popovers sit a step above cards in dark */
+  --popover: var(--bg-2);
+  --destructive-foreground: oklch(1 0 0);
+}
+
+/* ── Theme mapping ───────────────────────────────────────────────────────── */
+@theme inline {
+  --font-sans: "OpenRunde", "Open Runde", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-background-subtle: var(--background-subtle);
+  --color-foreground: var(--foreground);
+
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-bg-3: var(--bg-3);
+  --color-bg-4: var(--bg-4);
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+  --color-bg-a1: var(--bg-a1);
+  --color-bg-a2: var(--bg-a2);
+  --color-bg-a3: var(--bg-a3);
+  --color-bg-a4: var(--bg-a4);
+  --color-fg-a1: var(--fg-a1);
+  --color-fg-a2: var(--fg-a2);
+  --color-fg-a3: var(--fg-a3);
+  --color-fg-a4: var(--fg-a4);
+
+  --color-blue-1: var(--blue-1);
+  --color-blue-2: var(--blue-2);
+  --color-blue-3: var(--blue-3);
+  --color-blue-4: var(--blue-4);
+  --color-blue-a1: var(--blue-a1);
+  --color-blue-a2: var(--blue-a2);
+  --color-blue-a3: var(--blue-a3);
+  --color-blue-a4: var(--blue-a4);
+  --color-blue-text: var(--blue-text);
+  --color-red-1: var(--red-1);
+  --color-red-2: var(--red-2);
+  --color-red-3: var(--red-3);
+  --color-red-4: var(--red-4);
+  --color-red-a1: var(--red-a1);
+  --color-red-a2: var(--red-a2);
+  --color-red-a3: var(--red-a3);
+  --color-red-a4: var(--red-a4);
+  --color-red-text: var(--red-text);
+  --color-green-1: var(--green-1);
+  --color-green-2: var(--green-2);
+  --color-green-3: var(--green-3);
+  --color-green-4: var(--green-4);
+  --color-green-a1: var(--green-a1);
+  --color-green-a2: var(--green-a2);
+  --color-green-a3: var(--green-a3);
+  --color-green-a4: var(--green-a4);
+  --color-green-text: var(--green-text);
+  --color-amber-1: var(--amber-1);
+  --color-amber-2: var(--amber-2);
+  --color-amber-3: var(--amber-3);
+  --color-amber-4: var(--amber-4);
+  --color-amber-a1: var(--amber-a1);
+  --color-amber-a2: var(--amber-a2);
+  --color-amber-a3: var(--amber-a3);
+  --color-amber-a4: var(--amber-a4);
+  --color-amber-text: var(--amber-text);
+  --color-purple-1: var(--purple-1);
+  --color-purple-2: var(--purple-2);
+  --color-purple-3: var(--purple-3);
+  --color-purple-4: var(--purple-4);
+  --color-purple-a1: var(--purple-a1);
+  --color-purple-a2: var(--purple-a2);
+  --color-purple-a3: var(--purple-a3);
+  --color-purple-a4: var(--purple-a4);
+  --color-purple-text: var(--purple-text);
+  --color-sky-1: var(--sky-1);
+  --color-sky-2: var(--sky-2);
+  --color-sky-3: var(--sky-3);
+  --color-sky-4: var(--sky-4);
+  --color-sky-a1: var(--sky-a1);
+  --color-sky-a2: var(--sky-a2);
+  --color-sky-a3: var(--sky-a3);
+  --color-sky-a4: var(--sky-a4);
+  --color-sky-text: var(--sky-text);
+  --color-yellow-1: var(--yellow-1);
+  --color-yellow-2: var(--yellow-2);
+  --color-yellow-3: var(--yellow-3);
+  --color-yellow-4: var(--yellow-4);
+  --color-yellow-a1: var(--yellow-a1);
+  --color-yellow-a2: var(--yellow-a2);
+  --color-yellow-a3: var(--yellow-a3);
+  --color-yellow-a4: var(--yellow-a4);
+  --color-yellow-text: var(--yellow-text);
+  --color-pink-1: var(--pink-1);
+  --color-pink-2: var(--pink-2);
+  --color-pink-3: var(--pink-3);
+  --color-pink-4: var(--pink-4);
+  --color-pink-a1: var(--pink-a1);
+  --color-pink-a2: var(--pink-a2);
+  --color-pink-a3: var(--pink-a3);
+  --color-pink-a4: var(--pink-a4);
+  --color-pink-text: var(--pink-text);
+  --color-orange-1: var(--orange-1);
+  --color-orange-2: var(--orange-2);
+  --color-orange-3: var(--orange-3);
+  --color-orange-4: var(--orange-4);
+  --color-orange-a1: var(--orange-a1);
+  --color-orange-a2: var(--orange-a2);
+  --color-orange-a3: var(--orange-a3);
+  --color-orange-a4: var(--orange-a4);
+  --color-orange-text: var(--orange-text);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-1: var(--primary-1);
+  --color-primary-2: var(--primary-2);
+  --color-primary-3: var(--primary-3);
+  --color-primary-4: var(--primary-4);
+  --color-primary-a1: var(--primary-a1);
+  --color-primary-a2: var(--primary-a2);
+  --color-primary-a3: var(--primary-a3);
+  --color-primary-a4: var(--primary-a4);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Visitors numeric radius scale (alongside Tailwind defaults) */
+  --radius-1: 0.125rem;
+  --radius-2: 0.25rem;
+  --radius-3: 0.375rem;
+  --radius-4: 0.5rem;
+  --radius-5: 0.75rem;
+  --radius-6: 1rem;
+
+  /* xs sits at 13px — 12px reads too small next to our 14px sm */
+  --text-xs: 0.8125rem;
+
+  /* Tighter default leading across the scale — the stock Tailwind ratios
+     (1.43/1.5) read airy in a dense dashboard. Titles tighten further with
+     leading-tighter (1.15). */
+  --text-xs--line-height: 1.2;
+  --text-sm--line-height: 1.25;
+  --text-base--line-height: 1.35;
+
+  /* Visitors tightens tracking slightly across the board */
+  --tracking-tight: -0.0175em;
+  --leading-tighter: 1.15;
+
+  /* Soft layered shadows — raw values live in :root/.dark so the recipe can
+     flip per theme */
+  --shadow-1: var(--surface-shadow-1);
+  --shadow-2: var(--surface-shadow-2);
+  --shadow-3: var(--surface-shadow-3);
+  --shadow-4: var(--surface-shadow-4);
+  --shadow-control: var(--control-shadow);
+  --shadow-control-destructive: var(--control-shadow-destructive);
+  --shadow-control-elevated: var(--control-shadow-elevated);
+  --shadow-control-elevated-hover: var(--control-shadow-elevated-hover);
+  --shadow-control-knob: var(--control-shadow-knob);
+  --shadow-control-dot: var(--control-shadow-dot);
+  --shadow-xs: var(--surface-shadow-1);
+  --shadow-sm: var(--surface-shadow-2);
+  --shadow-md: var(--surface-shadow-3);
+  --shadow-lg: var(--surface-shadow-4);
+}
+
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── No native scrollbars, ever ───────────────────────────────────────────
+   Scrolling everywhere is signalled by scroll-edge fades (ScrollFade), never
+   by a native scrollbar — one rule instead of a scrollbar-hide chase across
+   every overflow container. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Scroll edge fades ─────────────────────────────────────────────────────
+   Registered so the fade can grow/shrink instead of snapping when an edge
+   becomes scrollable. Unregistered custom properties are not animatable. */
+@property --fade-t {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-b {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-l {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* Goes on the *scrolling* element, never on an overlay above it: a gradient
+   overlay has to guess the surface behind it, so on anything but the page
+   background it paints over the container's own edge (eating a card border).
+   Masking the content instead makes no assumption about what's underneath.
+   Each axis is one mask layer; `intersect` lets both apply at once. */
+@utility scroll-fade {
+  --fade-size: 1.5rem;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent,
+      oklch(0 0 0) var(--fade-t),
+      oklch(0 0 0) calc(100% - var(--fade-b)),
+      transparent
+    ),
+    linear-gradient(
+      to right,
+      transparent,
+      oklch(0 0 0) var(--fade-l),
+      oklch(0 0 0) calc(100% - var(--fade-r)),
+      transparent
+    );
+  mask-composite: intersect;
+  transition:
+    --fade-t 150ms ease,
+    --fade-b 150ms ease,
+    --fade-l 150ms ease,
+    --fade-r 150ms ease;
+
+  &[data-overflow-y-start] {
+    --fade-t: var(--fade-size);
+  }
+  &[data-overflow-y-end] {
+    --fade-b: var(--fade-size);
+  }
+  &[data-overflow-x-start] {
+    --fade-l: var(--fade-size);
+  }
+  &[data-overflow-x-end] {
+    --fade-r: var(--fade-size);
+  }
+}
+
+/* ── Superellipse corners (squircle) — progressive enhancement ─────────────
+   Also applied to ::before/::after so background layers (the press-scale
+   ::before pattern) keep the same corner shape as their element. */
+@layer utilities {
+  .corner-superellipse\/1\.125,
+  .corner-superellipse\/1\.125::before,
+  .corner-superellipse\/1\.125::after {
+    corner-shape: superellipse(1.125);
+  }
+  .corner-superellipse\/1\.25,
+  .corner-superellipse\/1\.25::before,
+  .corner-superellipse\/1\.25::after {
+    corner-shape: superellipse(1.25);
+  }
+  .corner-superellipse\/1\.5,
+  .corner-superellipse\/1\.5::before,
+  .corner-superellipse\/1\.5::after {
+    corner-shape: superellipse(1.5);
+  }
+  .corner-superellipse\/2,
+  .corner-superellipse\/2::before,
+  .corner-superellipse\/2::after {
+    corner-shape: superellipse(2);
+  }
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Body defaults to fg-3; headings/emphasis step up to fg-4 explicitly */
+  body {
+    background-color: var(--color-background);
+    color: var(--fg-3);
+    font-family: var(--font-sans);
+    letter-spacing: -0.02em;
+    cursor: default;
+  }
+
+  /* `cursor: default` on body keeps chrome on the arrow, but prose should read
+     as selectable — restore the I-beam on text, except inside interactive
+     elements where the pointer/arrow must win. */
+  :where(p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, code, pre, td, th):not(
+    :where(button, a, label, summary, [role="button"], [data-slot="button"]) *
+  ) {
+    cursor: text;
+  }
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+  textarea {
+    cursor: text;
+  }
+
+  /* Pressing a label should press its control. The label sits *after* the
+     control, and CSS can't select backwards, so match the shared parent and
+     reach back down to the control instead. */
+  :has(> label:active) > :is([data-slot="checkbox"], [data-slot="radio-group-item"]):not([data-disabled]) {
+    scale: 0.95;
+  }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────
+ * Every state change in this system also has a static cue (color, icon,
+ * position), so motion is pure enhancement and can be removed wholesale.
+ * Unlayered on purpose: it has to beat sonner's injected stylesheet too.
+ *
+ * Exempt: `.animate-spin`, because a spinner that stops spinning stops
+ * communicating progress — the one animation carrying meaning on its own. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: a user's OS-level
+       motion preference has to win over inline styles (sonner, the highlight
+       indicator) and third-party stylesheets — !important is the only lever. */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: see above */
+  }
+
+  /* Press feedback and the sliding indicators become instant rather than
+     absent — the state is still visible, it just doesn't travel. */
+  [data-slot="skeleton"] {
+    /* biome-ignore lint/complexity/noImportantStyles: same reason as above */
+    animation: none !important;
+  }
+}
+
+/* ── Toast (sonner) ───────────────────────────────────────────────────────
+ * These rules must live OUTSIDE any `@layer` so they beat sonner's
+ * runtime-injected stylesheet, which is unlayered and would otherwise win
+ * the cascade against our layered base rules.
+ * ────────────────────────────────────────────────────────────────────── */
+
+@keyframes fb-toast-shake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  25% {
+    translate: -2px 0;
+  }
+  50% {
+    translate: 2px 0;
+  }
+  75% {
+    translate: -1px 0;
+  }
+}
+@keyframes fb-toast-bump {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.015;
+  }
+}
+[data-sonner-toast].fb-toast-shake {
+  animation: fb-toast-shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+[data-sonner-toast].fb-toast-bump {
+  animation: fb-toast-bump 0.3s ease-out;
+}
+
+/* Compact single-line toast; loosens up when a description is present so the
+ * denser content doesn't feel cramped. */
+[data-sonner-toast][data-styled="true"].fb-toast {
+  /* Sonner sets border-radius from its own unlayered stylesheet, which beats
+   * the Tailwind rounded-* utility — restate it here. */
+  border-radius: var(--radius-3xl);
+  gap: 10px;
+  padding: 6px 14px;
+  min-height: 44px;
+}
+[data-sonner-toast][data-styled="true"].fb-toast:has([data-description]) {
+  padding: 14px;
+  gap: 10px;
+  min-height: 0;
+}
+/* With an action (any sibling after [data-content]) the button sits against
+ * the right edge — pad to match the vertical breathing room, not padding-x.
+ * For a 44px toast with a 24px action that's (44 - 24) / 2 = 10px. */
+[data-sonner-toast][data-styled="true"].fb-toast:has([data-content] + *) {
+  padding-right: 10px;
+}
+[data-sonner-toast][data-styled="true"].fb-toast:has([data-description]):has([data-content] + *) {
+  padding-right: 14px;
+}
+
+[data-sonner-toast].fb-toast [data-content] {
+  gap: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+[data-sonner-toaster] [data-sonner-toast].fb-toast [data-description] {
+  color: var(--fg-2);
+  margin-top: 8px;
+  line-height: 1.175;
+}
+
+/* Sonner's icon wrapper is sized for 16px icons with negative margins baked in.
+ * Size it to our 18px icons explicitly — `auto` collapses to 0×0 for loading
+ * toasts, whose loader sonner absolutely-positions (see below). */
+[data-sonner-toast].fb-toast [data-icon] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-sonner-toast].fb-toast [data-icon] > svg {
+  margin: 0;
+}
+/* The loader is absolutely centred *on purpose* — that's what lets the result
+ * icon cross-fade in the same spot. Never pull it into flow, or the two icons
+ * sit side by side. The explicit box above is what stops it collapsing. */
+[data-sonner-toast].fb-toast [data-icon] {
+  position: relative;
+}
+[data-sonner-toast].fb-toast .sonner-loader {
+  transition:
+    opacity 200ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-sonner-toast].fb-toast .sonner-loader[data-visible="false"] {
+  opacity: 0;
+  transform: scale(0.85) translate(-50%, -50%);
+}
+/* Trim line-box leading above cap height / below baseline so glyph edges line
+ * up with flex alignment: icon centers on a single-line title, and tops-aligns
+ * with the title's cap when a description is present. */
+[data-sonner-toaster] [data-sonner-toast].fb-toast [data-title],
+[data-sonner-toaster] [data-sonner-toast].fb-toast [data-description] {
+  text-box: trim-both cap alphabetic;
+}
+[data-sonner-toast].fb-toast:has([data-description]) [data-icon] {
+  align-self: flex-start;
+  margin-top: -2px;
+}
+
+/* The result icon scales up as the loader shrinks away underneath it. */
+@keyframes fb-toast-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+[data-sonner-toast][data-styled="true"].fb-toast [data-icon] > svg {
+  opacity: 1;
+  transform: none;
+  transform-origin: center;
+  animation: fb-toast-icon-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Selection — follows the surface ──────────────────────────────────────
+   ::selection reads the inherited --selection variable, so any tinted
+   surface re-colors selection for its whole subtree by overriding it via
+   the selection-* utilities. Translucent backgrounds keep the original
+   text color readable on every surface. The neutral default comes from the
+   surface alpha ramp (not the text ramp, whose alphas are opaque enough to
+   swallow the text): a dark tint on light surfaces, a light one on dark. */
+:root {
+  --selection: var(--bg-a4);
+}
+::selection {
+  background-color: var(--selection);
+}
+
+@utility selection-inverse {
+  --selection: color-mix(in oklch, var(--primary-foreground) 35%, transparent);
+}
+@utility selection-purple {
+  --selection: var(--purple-a3);
+}
+@utility selection-sky {
+  --selection: var(--sky-a3);
+}
+@utility selection-blue {
+  --selection: var(--blue-a3);
+}
+@utility selection-green {
+  --selection: var(--green-a3);
+}
+@utility selection-amber {
+  --selection: var(--amber-a3);
+}
+@utility selection-orange {
+  --selection: var(--orange-a3);
+}
+@utility selection-red {
+  --selection: var(--red-a3);
+}
+@utility selection-pink {
+  --selection: var(--pink-a3);
+}
+@utility selection-yellow {
+  --selection: var(--yellow-a3);
+}

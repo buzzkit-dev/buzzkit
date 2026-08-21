@@ -40,3 +40,6 @@ yarn-error.log*
 
 # Emitted API declaration types
 .types
+
+# Playwright MCP artifacts
+.playwright-mcp
