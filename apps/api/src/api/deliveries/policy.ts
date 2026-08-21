@@ -11,6 +11,7 @@ export const STALLED_FANOUT_MINUTES = 10;
 export const UNFINALIZED_GRACE_MINUTES = 5;
 export const RETRY_GRACE_SECONDS = 60;
 export const ATTEMPT_LEASE_SECONDS = 60;
+export const SEND_CONCURRENCY = 4;
 
 type ErrorPolicy = { retryable: boolean; invalidatesSubscription: boolean; overload: boolean };
 
@@ -25,6 +26,7 @@ export const ERROR_POLICY: Record<DeliveryErrorCode, ErrorPolicy> = {
   timeout: { retryable: true, invalidatesSubscription: false, overload: true },
   expired: { retryable: false, invalidatesSubscription: false, overload: false },
   no_credential: { retryable: false, invalidatesSubscription: false, overload: false },
+  unsubscribed: { retryable: false, invalidatesSubscription: false, overload: false },
   unsupported: { retryable: false, invalidatesSubscription: false, overload: false },
   unknown: { retryable: false, invalidatesSubscription: false, overload: false },
 };

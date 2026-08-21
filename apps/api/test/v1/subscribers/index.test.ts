@@ -90,6 +90,30 @@ describe('PUT /v1/subscribers/:externalId', () => {
     expect(eventsAfter.map((row) => row.event)).toEqual(['subscriber.created', 'subscriber.updated']);
   });
 
+  it('concurrent first identifies create exactly one subscriber and one created event', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `user_${uniq()}`;
+
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => identify(keyBearer, externalId, { plan: 'free' }))
+    );
+    expect(results.filter((r) => r.status === 201)).toHaveLength(1);
+    expect(results.filter((r) => r.status === 200)).toHaveLength(5);
+    expect(new Set(results.map((r) => r.body.data?.id)).size).toBe(1);
+
+    const rows = await db
+      .select({ id: tables.subscriber.id })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+    expect(rows).toHaveLength(1);
+
+    const events = await db
+      .select({ event: tables.event.event })
+      .from(tables.event)
+      .where(eq(tables.event.targetId, results[0]!.body.data!.id.replace(/^sub_/, '')));
+    expect(events.filter((row) => row.event === 'subscriber.created')).toHaveLength(1);
+  });
+
   it('email on identify creates an email subscription', async () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
@@ -273,5 +297,73 @@ describe('subscriber lifecycle & isolation', () => {
     const foreign = await setupWorkspace();
     const crossWorkspace = await api(`/v1/subscribers/${externalId}`, { headers: foreign.keyBearer });
     expect(crossWorkspace.status).toBe(404);
+  });
+});
+
+describe('cross-tenant and email-only updates', () => {
+  it('a subscriber cannot be deleted through another tenant', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const other = await createTenant(keyBearer);
+    const externalId = `user_${uniq()}`;
+    await identify(keyBearer, externalId, { plan: 'free' });
+
+    const foreign = await api(`/v1/subscribers/${externalId}`, {
+      method: 'DELETE',
+      headers: { ...keyBearer, 'buzzkit-tenant': other.slug },
+    });
+    expect(foreign.status).toBe(404);
+    expect((await api(`/v1/subscribers/${externalId}`, { headers: keyBearer })).status).toBe(200);
+  });
+
+  it('a PUT that only adds an email records subscription.created, and a repeat writes nothing', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `user_${uniq()}`;
+    const first = await identify(keyBearer, externalId, { plan: 'free' });
+    const sqid = first.body.data!.id.replace(/^sub_/, '');
+    const address = `${externalId}@acme.com`;
+
+    const withEmail = await api(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: JSON.stringify({ attributes: { plan: 'free' }, email: address }),
+    });
+    expect(withEmail.status).toBe(200);
+    const events = await db
+      .select({ event: tables.event.event })
+      .from(tables.event)
+      .where(
+        eq(
+          tables.event.tenantId,
+          (
+            await db
+              .select({ id: tables.subscriber.tenantId })
+              .from(tables.subscriber)
+              .where(eq(tables.subscriber.externalId, externalId))
+          )[0]!.id
+        )
+      );
+    expect(events.map((row) => row.event)).toContain('subscription.created');
+    expect(events.filter((row) => row.event === 'subscriber.updated')).toHaveLength(0);
+
+    const [before] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+    const repeat = await api(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: JSON.stringify({ attributes: { plan: 'free' }, email: address }),
+    });
+    expect(repeat.status).toBe(200);
+    const [after] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+    expect(after?.updatedAt.toISOString()).toBe(before?.updatedAt.toISOString());
+    const subscriberEvents = await db
+      .select({ event: tables.event.event })
+      .from(tables.event)
+      .where(eq(tables.event.targetId, sqid));
+    expect(subscriberEvents.map((row) => row.event)).toEqual(['subscriber.created']);
   });
 });

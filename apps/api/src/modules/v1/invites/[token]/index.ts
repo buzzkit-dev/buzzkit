@@ -1,8 +1,11 @@
-import { findInviteByToken, isInviteExpired, maskEmail } from '@buzzkit/api/api/invites/index';
+import {
+  findInviteByToken,
+  findInviteWorkspace,
+  isInviteExpired,
+  maskEmail,
+} from '@buzzkit/api/api/invites/index';
 import { database } from '@buzzkit/api/libs/database';
 import { Response } from '@buzzkit/api/libs/response';
-import { trace } from '@buzzkit/api/libs/telemetry';
-import { eq, tables } from '@buzzkit/database';
 import Elysia from 'elysia';
 
 export const invitePreview = new Elysia()
@@ -10,15 +13,7 @@ export const invitePreview = new Elysia()
   .guard({ detail: { tags: ['Invites'] } })
   .get('/invites/:token', async ({ db, params }) => {
     const invite = await findInviteByToken(db, params.token);
-
-    const [workspace] = await trace(
-      'invites.previewWorkspace',
-      async () =>
-        await db
-          .select({ name: tables.workspace.name, slug: tables.workspace.slug })
-          .from(tables.workspace)
-          .where(eq(tables.workspace.id, invite.workspaceId))
-    );
+    const workspace = await findInviteWorkspace(db, invite);
 
     return Response.success({
       workspace: { name: workspace?.name ?? 'Unknown', slug: workspace?.slug ?? null },

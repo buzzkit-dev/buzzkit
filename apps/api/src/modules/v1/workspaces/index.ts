@@ -3,15 +3,26 @@ import {
   createWorkspace,
   listWorkspacesForUser,
   SlugSchema,
+  serializeWorkspace,
   WorkspaceNameSchema,
 } from '@buzzkit/api/api/workspaces/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
+import { UrlSchema } from '@buzzkit/api/libs/schemas';
 import Elysia, { t } from 'elysia';
 
 export const workspaces = new Elysia()
   .use(auth)
   .guard({ detail: { tags: ['Workspaces'] } })
+  .get(
+    '/workspaces',
+    async ({ db, user }) => {
+      const workspaces = await listWorkspacesForUser(db, user.id);
+
+      return Response.list(workspaces, { entity: 'workspace' }).send();
+    },
+    { account: 'read' }
+  )
   .post(
     '/workspaces',
     async ({ body, db, set, user, event }) => {
@@ -26,7 +37,7 @@ export const workspaces = new Elysia()
         data: { name: body.name, slug: body.slug },
       });
 
-      return Response.success({ ...workspace, role: 'owner' }, { entity: 'workspace' })
+      return Response.success({ ...serializeWorkspace(workspace), role: 'owner' }, { entity: 'workspace' })
         .status(201)
         .send(set);
     },
@@ -35,16 +46,7 @@ export const workspaces = new Elysia()
       body: t.Object({
         name: WorkspaceNameSchema,
         slug: SlugSchema,
-        avatarUrl: t.Optional(t.String({ format: 'uri', maxLength: 2048 })),
+        avatarUrl: t.Optional(UrlSchema),
       }),
     }
-  )
-  .get(
-    '/workspaces',
-    async ({ db, user }) => {
-      const workspaces = await listWorkspacesForUser(db, user.id);
-
-      return Response.success(workspaces, { entity: 'workspace' }).send();
-    },
-    { account: 'read' }
   );

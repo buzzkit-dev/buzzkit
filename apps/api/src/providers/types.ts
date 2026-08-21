@@ -1,8 +1,9 @@
-import type { channel, credentialEnvironment, credentialProvider } from '@buzzkit/database';
+import type { channel, credentialEnvironment, provider } from '@buzzkit/database';
+import type { TokenMemo } from './shared/cache';
 
 export type ProviderChannel = (typeof channel.enumValues)[number];
 export type ProviderEnvironment = (typeof credentialEnvironment.enumValues)[number];
-export type ProviderName = (typeof credentialProvider.enumValues)[number];
+export type ProviderName = (typeof provider.enumValues)[number];
 
 export type DeliveryErrorCode =
   | 'invalid_endpoint'
@@ -15,6 +16,7 @@ export type DeliveryErrorCode =
   | 'timeout'
   | 'expired'
   | 'no_credential'
+  | 'unsubscribed'
   | 'unsupported'
   | 'unknown';
 
@@ -49,6 +51,7 @@ export type ProviderSendInput = {
   endpoint: string;
   payload: MessagePayload;
   expiresAt: Date | null;
+  tokens?: TokenMemo;
 };
 
 export type ProviderResponse = {

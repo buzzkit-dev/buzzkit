@@ -3,7 +3,7 @@ import { findMessage } from '@buzzkit/api/api/messages/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
 import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const messageDeliveries = new Elysia()
@@ -14,9 +14,9 @@ export const messageDeliveries = new Elysia()
     async ({ db, params, query, tenant }) => {
       const message = await findMessage(db, tenant.id, params.id);
       const limit = clampLimit(query.limit);
-      const afterId = resolveCursor(query.cursor, (id) => decodeEntityId('delivery', id));
+      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('delivery', id));
 
-      const rows = await listDeliveries(db, message.id, { limit, afterId, status: query.status });
+      const rows = await listDeliveries(db, message.id, { limit, beforeId, status: query.status });
       const page = toPage(rows, limit, (id) => encodeId('delivery', id));
 
       return Response.success(page.items.map(serializeDelivery), { entity: 'delivery' })
@@ -26,8 +26,7 @@ export const messageDeliveries = new Elysia()
     {
       tenant: 'messages:read',
       query: t.Object({
-        limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100 })),
-        cursor: t.Optional(t.String()),
+        ...PaginationQuerySchema.properties,
         status: t.Optional(t.Union(DELIVERY_STATUSES.map((status) => t.Literal(status)))),
       }),
     }

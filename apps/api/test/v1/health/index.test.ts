@@ -12,7 +12,7 @@ describe('GET /v1/health', () => {
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.error).toBeNull();
-    expect(body.metadata.timestamp).toBeTypeOf('number');
+    expect(body.metadata.timestamp).toBeTypeOf('string');
     expect(body.data?.status).toBe('ok');
     expect(body.data?.database.status).toBe('ok');
     expect(body.data?.database.latencyMs).toBeTypeOf('number');
@@ -26,8 +26,8 @@ describe('error envelope', () => {
     expect(status).toBe(404);
     expect(body.success).toBe(false);
     expect(body.data).toBeNull();
-    expect(body.error?.code).toBe('NOT_FOUND');
-    expect(body.metadata.timestamp).toBeTypeOf('number');
+    expect(body.error?.code).toBe('not_found');
+    expect(body.metadata.timestamp).toBeTypeOf('string');
   });
 
   it('wraps malformed JSON and unsupported methods in the envelope', async () => {
@@ -40,7 +40,7 @@ describe('error envelope', () => {
     expect(malformed.status).toBe(400);
     const body = (await malformed.json()) as { success: boolean; error: { code: string } };
     expect(body.success).toBe(false);
-    expect(['PARSE', 'VALIDATION', 'BAD_REQUEST']).toContain(body.error.code);
+    expect(['parse', 'validation', 'bad_request']).toContain(body.error.code);
 
     const unsupported = await api('/v1/health', { method: 'DELETE' });
     expect(unsupported.status).toBe(404);
@@ -58,6 +58,6 @@ describe('error envelope', () => {
     expect(status).toBe(400);
     expect(body.success).toBe(false);
     expect(body.data).toBeNull();
-    expect(body.error?.code).toBe('VALIDATION');
+    expect(body.error?.code).toBe('validation');
   });
 });

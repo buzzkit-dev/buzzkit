@@ -1,5 +1,5 @@
 import { randomString } from '@buzzkit/api/api/keys/index';
-import { BadRequestError, ConflictError, GoneError, NotFoundError } from '@buzzkit/api/libs/error';
+import { ConflictError, GoneError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
@@ -10,6 +10,18 @@ export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function inviteExpiry(): Date {
   return new Date(Date.now() + INVITE_TTL_MS);
+}
+
+export async function findInviteWorkspace(db: Db, invite: WorkspaceInvite) {
+  const [workspace] = await trace(
+    'invites.workspace',
+    async () =>
+      await db
+        .select({ name: tables.workspace.name, slug: tables.workspace.slug })
+        .from(tables.workspace)
+        .where(eq(tables.workspace.id, invite.workspaceId))
+  );
+  return workspace ?? null;
 }
 
 export function isInviteExpired(invite: WorkspaceInvite): boolean {
@@ -26,11 +38,11 @@ export function serializeInvite(invite: WorkspaceInvite) {
     id: invite.id,
     email: invite.email,
     role: invite.role,
-    token: invite.token,
     invitedByMemberId: invite.invitedByMemberId,
     expiresAt: invite.expiresAt,
     acceptedAt: invite.acceptedAt,
     createdAt: invite.createdAt,
+    updatedAt: invite.updatedAt,
   };
 }
 
@@ -43,12 +55,14 @@ export function inviteEmailContent(input: {
   expiresAt: Date;
   dashboardUrl: string;
 }): { subject: string; text: string } {
-  const inviter = input.inviterName ?? 'A teammate';
+  const clean = (value: string) => value.replace(/[\r\n\t]+/g, ' ').trim();
+  const inviter = clean(input.inviterName ?? 'A teammate');
+  const workspaceName = clean(input.workspaceName);
   const expires = input.expiresAt.toISOString().slice(0, 10);
   return {
-    subject: `${inviter} invited you to ${input.workspaceName} on buzzkit`,
+    subject: `${inviter} invited you to ${workspaceName} on buzzkit`,
     text: [
-      `${inviter} invited you to join the ${input.workspaceName} workspace on buzzkit as ${input.role}.`,
+      `${inviter} invited you to join the ${workspaceName} workspace on buzzkit as ${input.role}.`,
       '',
       'Accept the invite:',
       `${input.dashboardUrl}/invite/${input.token}`,
@@ -81,7 +95,7 @@ export async function findInvite(db: Db, workspaceId: number, inviteSqid: string
   const inviteId = decodeEntityId('invite', inviteSqid);
 
   if (!inviteId) {
-    throw new BadRequestError('Invalid invite identifier');
+    throw new NotFoundError('Invite not found');
   }
 
   const [invite] = await trace(

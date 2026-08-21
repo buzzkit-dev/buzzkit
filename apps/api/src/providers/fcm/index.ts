@@ -1,5 +1,5 @@
 import { cachedToken, evictToken } from '../shared/cache';
-import { providerFetch, retryAfterSeconds } from '../shared/http';
+import { classifyHttpStatus, providerFetch, retryAfterSeconds } from '../shared/http';
 import { signJwt } from '../shared/jwt';
 import type {
   DeliveryErrorCode,
@@ -34,6 +34,8 @@ export type FcmServiceAccount = {
   private_key: string;
 };
 
+const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+
 export function parseServiceAccount(input: unknown): FcmServiceAccount | null {
   const value = typeof input === 'string' ? safeJsonParse(input) : input;
   if (!value || typeof value !== 'object') return null;
@@ -46,6 +48,8 @@ export function parseServiceAccount(input: unknown): FcmServiceAccount | null {
   ) {
     return null;
   }
+
+  if (!PROJECT_ID_PATTERN.test(record.project_id)) return null;
 
   return {
     project_id: record.project_id,
@@ -62,13 +66,11 @@ function safeJsonParse(value: string): unknown {
   }
 }
 
-function classify(status: number, errorCode: string | null): DeliveryErrorCode {
+export function classify(status: number, errorCode: string | null): DeliveryErrorCode {
   if (errorCode && ERROR_CODES[errorCode]) return ERROR_CODES[errorCode]!;
   if (status === 404) return 'invalid_endpoint';
   if (status === 401 || status === 403) return 'invalid_credential';
-  if (status === 429) return 'rate_limited';
-  if (status >= 500) return 'provider_unavailable';
-  return 'unknown';
+  return classifyHttpStatus(status);
 }
 
 function tokenCacheKey(input: { credentialId: number; keyVersion: number }): string {
@@ -119,7 +121,12 @@ async function requestAccessToken(account: FcmServiceAccount): Promise<AccessTok
 
   return {
     ok: false,
-    code: result.response.status >= 500 ? 'provider_unavailable' : 'invalid_credential',
+    code:
+      result.response.status === 429
+        ? 'rate_limited'
+        : result.response.status >= 500
+          ? 'provider_unavailable'
+          : 'invalid_credential',
     reason: body.error_description ?? body.error ?? `token_endpoint_${result.response.status}`,
   };
 }
@@ -177,15 +184,20 @@ async function send(input: ProviderSendInput): Promise<ProviderSendResult> {
 
   let accessToken: string;
   try {
-    accessToken = await cachedToken(tokenCacheKey(input), 3600 - TOKEN_TTL_MARGIN_SECONDS, async () => {
-      const token = await requestAccessToken({
-        project_id: input.details.projectId ?? '',
-        client_email: input.details.clientEmail ?? '',
-        private_key: input.secret,
-      });
-      if (!token.ok) throw new TokenError(token.code, token.reason);
-      return token.accessToken;
-    });
+    accessToken = await cachedToken(
+      tokenCacheKey(input),
+      3600 - TOKEN_TTL_MARGIN_SECONDS,
+      async () => {
+        const token = await requestAccessToken({
+          project_id: input.details.projectId ?? '',
+          client_email: input.details.clientEmail ?? '',
+          private_key: input.secret,
+        });
+        if (!token.ok) throw new TokenError(token.code, token.reason);
+        return token.accessToken;
+      },
+      input.tokens
+    );
   } catch (error) {
     const tokenError = error instanceof TokenError ? error : new TokenError('unknown', String(error));
     return {
@@ -231,7 +243,7 @@ async function send(input: ProviderSendInput): Promise<ProviderSendResult> {
   }
 
   if (result.response.status === 401) {
-    await evictToken(tokenCacheKey(input));
+    await evictToken(tokenCacheKey(input), input.tokens);
   }
 
   const errorCode =

@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
       '@buzzkit/api': path.resolve(import.meta.dirname, './src'),
+      'cloudflare:workers': path.resolve(import.meta.dirname, './test/utils/cloudflareWorkersStub.ts'),
       '@buzzkit/database': path.resolve(import.meta.dirname, '../../packages/database/src/index.ts'),
     },
   },
@@ -16,5 +17,10 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false,
+    server: {
+      deps: {
+        inline: [/otel-cf-workers/, /@buzzkit\/observability/],
+      },
+    },
   },
 });

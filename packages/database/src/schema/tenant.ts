@@ -1,12 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, check, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigId, bigRef, createdAt, deletedAt, updatedAt } from './shared';
 import { workspace } from './workspace';
 
 export const tenant = pgTable(
   'tenant',
   {
-    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    workspaceId: integer('workspace_id')
+    id: bigId(),
+    workspaceId: bigRef('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
@@ -15,12 +16,9 @@ export const tenant = pgTable(
     identitySecret: text('identity_secret'),
     settings: jsonb('settings').notNull().default({}),
     metadata: jsonb('metadata').notNull().default({}),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at')
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-    deletedAt: timestamp('deleted_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: deletedAt(),
   },
   (table) => [
     uniqueIndex('tenant_workspace_slug_unique')
@@ -29,7 +27,9 @@ export const tenant = pgTable(
     uniqueIndex('tenant_workspace_default_unique')
       .on(table.workspaceId)
       .where(sql`${table.deletedAt} is null and ${table.isDefault} = true`),
-    index('tenant_workspace_idx').on(table.workspaceId),
+    index('tenant_workspace_idx').on(table.workspaceId, table.id),
+    check('tenant_settings_object', sql`jsonb_typeof(${table.settings}) = 'object'`),
+    check('tenant_metadata_object', sql`jsonb_typeof(${table.metadata}) = 'object'`),
   ]
 );
 

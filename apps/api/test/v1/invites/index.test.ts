@@ -231,29 +231,24 @@ describe('invite lifecycle', () => {
       method: 'POST',
       headers: ownerBearer,
     });
-    expect(malformed.status).toBe(400);
+    expect(malformed.status).toBe(404);
 
-    const pending = await api<Array<{ id: string }>>(`/v1/workspaces/${workspace.slug}/invites`, {
+    const pending = await api<{ items: Array<{ id: string }> }>(`/v1/workspaces/${workspace.slug}/invites`, {
       headers: ownerBearer,
     });
-    expect(pending.body.data?.some((i) => i.id === invite.body.data?.id)).toBe(false);
+    expect(pending.body.data?.items?.some((i) => i.id === invite.body.data?.id)).toBe(false);
   });
 
-  it('workspace API keys can invite (no inviting member recorded)', async () => {
+  it('workspace API keys cannot invite — invites are a session-only, dashboard action', async () => {
     const { workspace, keyBearer } = await setupWorkspace();
 
-    const { status, body } = await api<{ invitedByMemberId: string | null; token: string }>(
-      `/v1/workspaces/${workspace.slug}/invites`,
-      {
-        method: 'POST',
-        headers: keyBearer,
-        body: JSON.stringify({ email: `via-key-${uniq()}@buzzkit.dev` }),
-      }
-    );
+    const { status } = await api(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ email: `via-key-${uniq()}@buzzkit.dev` }),
+    });
 
-    expect(status).toBe(201);
-    expect(body.data?.invitedByMemberId).toBeNull();
-    expect(body.data?.token).toBeTruthy();
+    expect(status).toBe(403);
   });
 
   it('members cannot create or list invites', async () => {
@@ -277,13 +272,12 @@ describe('member management', () => {
     const { owner, workspace, ownerBearer } = await setupWorkspace();
     const member = await addMember(owner.token, workspace.slug, 'member');
 
-    const list = await api<Array<{ id: string; role: string; user: { email: string; name: string } }>>(
-      `/v1/workspaces/${workspace.slug}/members`,
-      { headers: ownerBearer }
-    );
+    const list = await api<{
+      items: Array<{ id: string; role: string; user: { email: string; name: string } }>;
+    }>(`/v1/workspaces/${workspace.slug}/members`, { headers: ownerBearer });
     expect(list.status).toBe(200);
-    expect(list.body.data).toHaveLength(2);
-    const row = list.body.data?.find((m) => m.id === member.memberId);
+    expect(list.body.data?.items).toHaveLength(2);
+    const row = list.body.data?.items?.find((m) => m.id === member.memberId);
     expect(row?.role).toBe('member');
     expect(row?.user.email).toBe(member.email);
 
@@ -292,7 +286,7 @@ describe('member management', () => {
       headers: ownerBearer,
       body: JSON.stringify({ role: 'admin' }),
     });
-    expect(malformed.status).toBe(400);
+    expect(malformed.status).toBe(404);
 
     const badRole = await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
       method: 'PATCH',
@@ -346,11 +340,11 @@ describe('member management', () => {
   it('the last owner can never be demoted or removed', async () => {
     const { workspace, ownerBearer } = await setupWorkspace();
 
-    const members = await api<Array<{ id: string; role: string }>>(
+    const members = await api<{ items: Array<{ id: string; role: string }> }>(
       `/v1/workspaces/${workspace.slug}/members`,
       { headers: ownerBearer }
     );
-    const ownerMember = members.body.data?.find((m) => m.role === 'owner');
+    const ownerMember = members.body.data?.items?.find((m) => m.role === 'owner');
     expect(ownerMember).toBeDefined();
 
     const demote = await api(`/v1/workspaces/${workspace.slug}/members/${ownerMember?.id}`, {
@@ -358,13 +352,13 @@ describe('member management', () => {
       headers: ownerBearer,
       body: JSON.stringify({ role: 'member' }),
     });
-    expect(demote.status).toBe(400);
+    expect(demote.status).toBe(409);
 
     const remove = await api(`/v1/workspaces/${workspace.slug}/members/${ownerMember?.id}`, {
       method: 'DELETE',
       headers: ownerBearer,
     });
-    expect(remove.status).toBe(400);
+    expect(remove.status).toBe(409);
   });
 
   it('with two owners, one can step down and be removed', async () => {
@@ -389,7 +383,7 @@ describe('member management', () => {
     expect(remove.status).toBe(200);
 
     const access = await api(`/v1/workspaces/${workspace.slug}`, { headers: second.bearer });
-    expect(access.status).toBe(403);
+    expect(access.status).toBe(404);
   });
 
   it('admins may remove members and other admins; members may remove nobody', async () => {
@@ -425,7 +419,7 @@ describe('member management', () => {
     expect(adminRemovesAdmin.status).toBe(200);
 
     const gone = await api(`/v1/workspaces/${workspace.slug}`, { headers: otherAdmin.bearer });
-    expect(gone.status).toBe(403);
+    expect(gone.status).toBe(404);
   });
 
   it('a removed member can be re-invited and rejoin', async () => {
@@ -449,5 +443,89 @@ describe('member management', () => {
       headers: member.bearer,
     });
     expect(accept.status).toBe(201);
+  });
+});
+
+describe('invite edges', () => {
+  it('revoking an invite returns it deleted, audits it, and refuses malformed, foreign, and member callers', async () => {
+    const { owner, workspace, ownerBearer } = await setupWorkspace();
+    const member = await addMember(owner.token, workspace.slug, 'member');
+    const created = await api<{ id: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: `rev-${uniq()}@acme.com` }),
+    });
+    const inviteId = created.body.data!.id;
+
+    expect(
+      (
+        await api(`/v1/workspaces/${workspace.slug}/invites/${inviteId}`, {
+          method: 'DELETE',
+          headers: member.bearer,
+        })
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await api(`/v1/workspaces/${workspace.slug}/invites/nope!`, {
+          method: 'DELETE',
+          headers: ownerBearer,
+        })
+      ).status
+    ).toBe(404);
+    const foreign = await setupWorkspace();
+    expect(
+      (
+        await api(`/v1/workspaces/${foreign.workspace.slug}/invites/${inviteId}`, {
+          method: 'DELETE',
+          headers: foreign.ownerBearer,
+        })
+      ).status
+    ).toBe(404);
+
+    const revoked = await api<{ id: string; deleted: boolean }>(
+      `/v1/workspaces/${workspace.slug}/invites/${inviteId}`,
+      {
+        method: 'DELETE',
+        headers: ownerBearer,
+      }
+    );
+    expect(revoked.status).toBe(200);
+    expect(revoked.body.data?.deleted).toBe(true);
+    const events = await api<{ items: Array<{ event: string; targetId: string }> }>(
+      `/v1/workspaces/${workspace.slug}/events?event=invite.revoked`,
+      { headers: ownerBearer }
+    );
+    expect(events.body.data?.items.some((item) => item.targetId === inviteId)).toBe(true);
+  });
+
+  it('accepting needs a session and a non-member; resending an unknown invite is 404', async () => {
+    const { owner, workspace, ownerBearer, keyBearer } = await setupWorkspace();
+    const existing = await addMember(owner.token, workspace.slug, 'member');
+    const invite = await api<{ id: string; token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: existing.email }),
+    });
+    expect(invite.status).toBe(409);
+
+    const fresh = await api<{ id: string; token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: `late-${uniq()}@acme.com` }),
+    });
+    expect((await api(`/v1/invites/${fresh.body.data?.token}/accept`, { method: 'POST' })).status).toBe(401);
+    expect(
+      (await api(`/v1/invites/${fresh.body.data?.token}/accept`, { method: 'POST', headers: keyBearer }))
+        .status
+    ).toBe(401);
+    expect(
+      (
+        await api(`/v1/workspaces/${workspace.slug}/invites/${fresh.body.data?.id}x/resend`, {
+          method: 'POST',
+          headers: ownerBearer,
+        })
+      ).status
+    ).toBe(404);
   });
 });

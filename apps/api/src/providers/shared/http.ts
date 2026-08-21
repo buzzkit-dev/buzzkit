@@ -1,4 +1,4 @@
-import type { ProviderResponse } from '../types';
+import type { DeliveryErrorCode, ProviderResponse } from '../types';
 
 export const PROVIDER_TIMEOUT_MS = 10_000;
 const MAX_CAPTURED_BODY_CHARS = 4096;
@@ -35,6 +35,12 @@ export async function providerFetch(url: string, init: RequestInit): Promise<Pro
   } finally {
     clearTimeout(timer);
   }
+}
+
+export function classifyHttpStatus(status: number): DeliveryErrorCode {
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'provider_unavailable';
+  return 'unknown';
 }
 
 function parseBody(text: string): unknown {

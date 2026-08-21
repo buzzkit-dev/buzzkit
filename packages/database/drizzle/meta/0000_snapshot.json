@@ -1,5 +1,5 @@
 {
-  "id": "d406b76e-84ef-49c9-851b-f9e450d9519f",
+  "id": "6e21ee0e-a791-4cc1-88d3-7d08270557a9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -52,13 +52,13 @@
         },
         "access_token_expires_at": {
           "name": "access_token_expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "refresh_token_expires_at": {
           "name": "refresh_token_expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -76,20 +76,36 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "account_user_idx": {
+          "name": "account_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "account_user_id_user_id_fk": {
           "name": "account_user_id_user_id_fk",
@@ -119,7 +135,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
@@ -131,14 +147,14 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -162,7 +178,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "session_user_idx": {
+          "name": "session_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "session_user_id_user_id_fk": {
           "name": "session_user_id_user_id_fk",
@@ -223,21 +255,21 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -280,26 +312,42 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "verification_identifier_idx": {
+          "name": "verification_identifier_idx",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -313,7 +361,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -323,14 +371,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -339,12 +387,11 @@
           "type": "channel",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'push'"
+          "notNull": true
         },
         "provider": {
           "name": "provider",
-          "type": "credential_provider",
+          "type": "provider",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
@@ -411,34 +458,34 @@
         },
         "validated_at": {
           "name": "validated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
       },
       "indexes": {
-        "credential_tenant_provider_env_unique": {
-          "name": "credential_tenant_provider_env_unique",
+        "credential_tenant_channel_provider_environment_unique": {
+          "name": "credential_tenant_channel_provider_environment_unique",
           "columns": [
             {
               "expression": "tenant_id",
@@ -470,21 +517,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "credential_tenant_idx": {
-          "name": "credential_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -501,7 +533,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "credential_details_object": {
+          "name": "credential_details_object",
+          "value": "jsonb_typeof(\"credential\".\"details\") = 'object'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.event": {
@@ -510,7 +547,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -520,20 +557,20 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "workspace_id": {
           "name": "workspace_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
@@ -558,13 +595,13 @@
         },
         "actor_member_id": {
           "name": "actor_member_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
         "actor_key_id": {
           "name": "actor_key_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
@@ -612,7 +649,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -654,11 +691,32 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
+          "with": {}
+        },
+        "event_created_brin": {
+          "name": "event_created_brin",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "brin",
           "with": {}
         }
       },
@@ -675,7 +733,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -685,14 +743,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "workspace_id": {
           "name": "workspace_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -718,45 +776,45 @@
         },
         "invited_by_member_id": {
           "name": "invited_by_member_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
         "accepted_at": {
           "name": "accepted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "accepted_member_id": {
           "name": "accepted_member_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -799,21 +857,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "workspace_invite_workspace_idx": {
-          "name": "workspace_invite_workspace_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -832,7 +875,7 @@
           "tableTo": "workspace_member",
           "columnsFrom": ["invited_by_member_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "workspace_invite_accepted_member_id_workspace_member_id_fk": {
@@ -841,7 +884,7 @@
           "tableTo": "workspace_member",
           "columnsFrom": ["accepted_member_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -857,7 +900,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -867,20 +910,20 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "workspace_id": {
           "name": "workspace_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
@@ -892,7 +935,8 @@
         },
         "kind": {
           "name": "kind",
-          "type": "text",
+          "type": "api_key_kind",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'workspace'"
@@ -929,19 +973,19 @@
         },
         "last_used_at": {
           "name": "last_used_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "revoked_at": {
           "name": "revoked_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -949,32 +993,32 @@
           "name": "created_by_user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
       },
       "indexes": {
-        "api_key_hash_unique": {
-          "name": "api_key_hash_unique",
+        "api_key_key_hash_unique": {
+          "name": "api_key_key_hash_unique",
           "columns": [
             {
               "expression": "key_hash",
@@ -1044,14 +1088,19 @@
           "tableTo": "user",
           "columnsFrom": ["created_by_user_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "api_key_kind_tenant": {
+          "name": "api_key_kind_tenant",
+          "value": "(\"api_key\".\"kind\" = 'workspace') = (\"api_key\".\"tenant_id\" is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.delivery": {
@@ -1060,7 +1109,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -1070,32 +1119,32 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "message_id": {
           "name": "message_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "subscriber_id": {
           "name": "subscriber_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "subscription_id": {
           "name": "subscription_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -1108,7 +1157,8 @@
         },
         "provider": {
           "name": "provider",
-          "type": "text",
+          "type": "provider",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -1147,50 +1197,50 @@
         },
         "next_attempt_at": {
           "name": "next_attempt_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "lease_expires_at": {
           "name": "lease_expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "first_attempted_at": {
           "name": "first_attempted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "last_attempted_at": {
           "name": "last_attempted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "sent_at": {
           "name": "sent_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "settled_at": {
           "name": "settled_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -1239,11 +1289,33 @@
           "method": "btree",
           "with": {}
         },
-        "delivery_tenant_idx": {
-          "name": "delivery_tenant_idx",
+        "delivery_due_idx": {
+          "name": "delivery_due_idx",
           "columns": [
             {
-              "expression": "tenant_id",
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"delivery\".\"status\" = 'retrying' and \"delivery\".\"next_attempt_at\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "delivery_message_status_idx": {
+          "name": "delivery_message_status_idx",
+          "columns": [
+            {
+              "expression": "message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1260,36 +1332,35 @@
           "method": "btree",
           "with": {}
         },
-        "delivery_due_idx": {
-          "name": "delivery_due_idx",
+        "delivery_stale_idx": {
+          "name": "delivery_stale_idx",
           "columns": [
             {
-              "expression": "next_attempt_at",
-              "isExpression": false,
+              "expression": "coalesce(\"lease_expires_at\", \"created_at\")",
               "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],
           "isUnique": false,
-          "where": "\"delivery\".\"status\" in ('pending', 'retrying')",
+          "where": "\"delivery\".\"status\" in ('pending', 'retrying') and \"delivery\".\"next_attempt_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "delivery_unsettled_idx": {
-          "name": "delivery_unsettled_idx",
+        "delivery_created_brin": {
+          "name": "delivery_created_brin",
           "columns": [
             {
-              "expression": "message_id",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": false,
-          "where": "\"delivery\".\"status\" in ('pending', 'retrying')",
           "concurrently": false,
-          "method": "btree",
+          "method": "brin",
           "with": {}
         }
       },
@@ -1300,7 +1371,7 @@
           "tableTo": "tenant",
           "columnsFrom": ["tenant_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "delivery_message_id_message_id_fk": {
@@ -1309,7 +1380,7 @@
           "tableTo": "message",
           "columnsFrom": ["message_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "delivery_subscriber_id_subscriber_id_fk": {
@@ -1318,7 +1389,7 @@
           "tableTo": "subscriber",
           "columnsFrom": ["subscriber_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "delivery_subscription_id_subscription_id_fk": {
@@ -1327,7 +1398,7 @@
           "tableTo": "subscription",
           "columnsFrom": ["subscription_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -1343,7 +1414,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -1353,20 +1424,20 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "delivery_id": {
           "name": "delivery_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -1378,7 +1449,8 @@
         },
         "provider": {
           "name": "provider",
-          "type": "text",
+          "type": "provider",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -1433,33 +1505,33 @@
         },
         "next_attempt_at": {
           "name": "next_attempt_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "started_at": {
           "name": "started_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
         "finished_at": {
           "name": "finished_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         }
       },
       "indexes": {
-        "delivery_attempt_unique": {
-          "name": "delivery_attempt_unique",
+        "delivery_attempt_delivery_attempt_unique": {
+          "name": "delivery_attempt_delivery_attempt_unique",
           "columns": [
             {
               "expression": "delivery_id",
@@ -1479,17 +1551,11 @@
           "method": "btree",
           "with": {}
         },
-        "delivery_attempt_tenant_idx": {
-          "name": "delivery_attempt_tenant_idx",
+        "delivery_attempt_created_brin": {
+          "name": "delivery_attempt_created_brin",
           "columns": [
             {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1497,7 +1563,7 @@
           ],
           "isUnique": false,
           "concurrently": false,
-          "method": "btree",
+          "method": "brin",
           "with": {}
         }
       },
@@ -1508,7 +1574,7 @@
           "tableTo": "tenant",
           "columnsFrom": ["tenant_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "delivery_attempt_delivery_id_delivery_id_fk": {
@@ -1517,7 +1583,7 @@
           "tableTo": "delivery",
           "columnsFrom": ["delivery_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -1533,7 +1599,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -1543,14 +1609,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -1564,6 +1630,12 @@
         "topic": {
           "name": "topic",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "topic_id": {
+          "name": "topic_id",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },
@@ -1581,6 +1653,12 @@
         },
         "idempotency_key": {
           "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_fingerprint": {
+          "name": "idempotency_fingerprint",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1637,53 +1715,53 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "fanout_cursor": {
           "name": "fanout_cursor",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
         "fanout_completed_at": {
           "name": "fanout_completed_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "completed_at": {
           "name": "completed_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
       },
       "indexes": {
-        "message_tenant_idempotency_unique": {
-          "name": "message_tenant_idempotency_unique",
+        "message_tenant_idempotency_key_unique": {
+          "name": "message_tenant_idempotency_key_unique",
           "columns": [
             {
               "expression": "tenant_id",
@@ -1736,7 +1814,7 @@
             }
           ],
           "isUnique": false,
-          "where": "\"message\".\"status\" = 'processing' and \"message\".\"fanout_completed_at\" is null",
+          "where": "\"message\".\"status\" in ('queued', 'processing') and \"message\".\"fanout_completed_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1781,14 +1859,32 @@
           "tableTo": "tenant",
           "columnsFrom": ["tenant_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "message_topic_id_topic_id_fk": {
+          "name": "message_topic_id_topic_id_fk",
+          "tableFrom": "message",
+          "tableTo": "topic",
+          "columnsFrom": ["topic_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "message_targets_object": {
+          "name": "message_targets_object",
+          "value": "jsonb_typeof(\"message\".\"targets\") = 'object'"
+        },
+        "message_payload_object": {
+          "name": "message_payload_object",
+          "value": "jsonb_typeof(\"message\".\"payload\") = 'object'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.subscriber": {
@@ -1797,7 +1893,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -1807,14 +1903,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -1833,34 +1929,34 @@
         },
         "identity_verified_at": {
           "name": "identity_verified_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
       },
       "indexes": {
-        "subscriber_tenant_external_unique": {
-          "name": "subscriber_tenant_external_unique",
+        "subscriber_tenant_external_id_unique": {
+          "name": "subscriber_tenant_external_id_unique",
           "columns": [
             {
               "expression": "tenant_id",
@@ -1889,6 +1985,12 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -1911,7 +2013,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "subscriber_attributes_object": {
+          "name": "subscriber_attributes_object",
+          "value": "jsonb_typeof(\"subscriber\".\"attributes\") = 'object'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.subscription": {
@@ -1920,7 +2027,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -1930,20 +2037,20 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "subscriber_id": {
           "name": "subscriber_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -1984,14 +2091,14 @@
         },
         "last_seen_at": {
           "name": "last_seen_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "invalidated_at": {
           "name": "invalidated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -2003,21 +2110,21 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -2056,21 +2163,6 @@
           "columns": [
             {
               "expression": "subscriber_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscription_tenant_idx": {
-          "name": "subscription_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2133,7 +2225,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "subscription_push_platform": {
+          "name": "subscription_push_platform",
+          "value": "\"subscription\".\"channel\" <> 'push' or \"subscription\".\"platform\" is not null"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.tenant": {
@@ -2142,7 +2239,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -2152,14 +2249,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "workspace_id": {
           "name": "workspace_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -2204,21 +2301,21 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -2270,6 +2367,12 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -2292,7 +2395,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "tenant_settings_object": {
+          "name": "tenant_settings_object",
+          "value": "jsonb_typeof(\"tenant\".\"settings\") = 'object'"
+        },
+        "tenant_metadata_object": {
+          "name": "tenant_metadata_object",
+          "value": "jsonb_typeof(\"tenant\".\"metadata\") = 'object'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.subscriber_preference": {
@@ -2301,7 +2413,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -2311,26 +2423,26 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "subscriber_id": {
           "name": "subscriber_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
         "topic_id": {
           "name": "topic_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -2339,8 +2451,7 @@
           "type": "channel",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'push'"
+          "notNull": true
         },
         "opted_in": {
           "name": "opted_in",
@@ -2350,22 +2461,22 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         }
       },
       "indexes": {
-        "subscriber_preference_unique": {
-          "name": "subscriber_preference_unique",
+        "subscriber_preference_subscriber_topic_channel_unique": {
+          "name": "subscriber_preference_subscriber_topic_channel_unique",
           "columns": [
             {
               "expression": "subscriber_id",
@@ -2387,36 +2498,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriber_preference_topic_idx": {
-          "name": "subscriber_preference_topic_idx",
-          "columns": [
-            {
-              "expression": "topic_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "subscriber_preference_tenant_idx": {
-          "name": "subscriber_preference_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2463,7 +2544,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -2473,14 +2554,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "tenant_id": {
           "name": "tenant_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -2518,21 +2599,21 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -2559,21 +2640,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "topic_tenant_idx": {
-          "name": "topic_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -2590,7 +2656,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "topic_channel_defaults_object": {
+          "name": "topic_channel_defaults_object",
+          "value": "jsonb_typeof(\"topic\".\"channel_defaults\") = 'object'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.workspace": {
@@ -2599,7 +2670,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -2609,7 +2680,7 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
@@ -2634,21 +2705,21 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -2684,7 +2755,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": true,
           "notNull": true,
           "identity": {
@@ -2694,14 +2765,14 @@
             "increment": "1",
             "startWith": "1",
             "minValue": "1",
-            "maxValue": "2147483647",
+            "maxValue": "9223372036854775807",
             "cache": "1",
             "cycle": false
           }
         },
         "workspace_id": {
           "name": "workspace_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -2721,21 +2792,21 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
         "deleted_at": {
           "name": "deleted_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -2812,11 +2883,6 @@
       "schema": "public",
       "values": ["production", "sandbox"]
     },
-    "public.credential_provider": {
-      "name": "credential_provider",
-      "schema": "public",
-      "values": ["apns", "fcm", "resend"]
-    },
     "public.credential_status": {
       "name": "credential_status",
       "schema": "public",
@@ -2826,6 +2892,11 @@
       "name": "event_actor_type",
       "schema": "public",
       "values": ["member", "user", "key", "system"]
+    },
+    "public.api_key_kind": {
+      "name": "api_key_kind",
+      "schema": "public",
+      "values": ["workspace", "tenant", "client"]
     },
     "public.delivery_attempt_outcome": {
       "name": "delivery_attempt_outcome",
@@ -2846,6 +2917,11 @@
       "name": "channel",
       "schema": "public",
       "values": ["push", "email"]
+    },
+    "public.provider": {
+      "name": "provider",
+      "schema": "public",
+      "values": ["apns", "fcm", "resend"]
     },
     "public.subscription_platform": {
       "name": "subscription_platform",

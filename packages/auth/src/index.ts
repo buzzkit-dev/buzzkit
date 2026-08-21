@@ -5,6 +5,7 @@ import { bearer, openAPI } from 'better-auth/plugins';
 interface Env {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
+  DASHBOARD_URL: string;
   ENVIRONMENT: string;
 }
 
@@ -27,12 +28,12 @@ export function createBetterAuthConfig(env: Env) {
   return {
     baseURL: env.BETTER_AUTH_URL,
     basePath: '/',
-    trustedOrigins: [env.BETTER_AUTH_URL],
+    trustedOrigins: [env.BETTER_AUTH_URL, env.DASHBOARD_URL],
     emailAndPassword: {
       enabled: true,
     },
     advanced: {
-      disableCSRFCheck: env.ENVIRONMENT !== 'production',
+      disableCSRFCheck: env.ENVIRONMENT === 'development',
     },
     secret: env.BETTER_AUTH_SECRET,
     plugins: [

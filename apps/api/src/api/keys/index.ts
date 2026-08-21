@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { deleteCache, readCache, writeCache } from '@buzzkit/api/libs/cache';
+import { sha256Hex } from '@buzzkit/api/libs/crypto';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -42,6 +43,12 @@ export function randomString(length: number): string {
   return chars.join('');
 }
 
+export function keyKindOf(token: string): ApiKeyKind | null {
+  return (
+    (Object.keys(KIND_PREFIXES) as ApiKeyKind[]).find((kind) => token.startsWith(KIND_PREFIXES[kind])) ?? null
+  );
+}
+
 const KIND_PREFIXES: Record<ApiKeyKind, string> = {
   workspace: WORKSPACE_KEY_PREFIX,
   tenant: TENANT_KEY_PREFIX,
@@ -58,10 +65,7 @@ export function stripApiKeyPrefix(token: string): string {
 }
 
 export async function hashApiKeySecret(secret: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stripApiKeyPrefix(secret)));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return sha256Hex(secret);
 }
 
 export function maskApiKey(key: ApiKey) {
@@ -70,7 +74,7 @@ export function maskApiKey(key: ApiKey) {
     name: key.name,
     kind: key.kind,
     tenantId: key.tenantId,
-    token: key.kind === 'client' ? key.token : undefined,
+    token: key.kind === 'client' ? key.token : null,
     prefix: key.prefix,
     last4: key.last4,
     scopes: key.scopes,
@@ -78,6 +82,7 @@ export function maskApiKey(key: ApiKey) {
     expiresAt: key.expiresAt,
     revokedAt: key.revokedAt,
     createdAt: key.createdAt,
+    updatedAt: key.updatedAt,
   };
 }
 
@@ -141,7 +146,7 @@ export async function findApiKey(db: Db, workspaceId: number, keySqid: string): 
   const keyId = decodeEntityId('key', keySqid);
 
   if (!keyId) {
-    throw new BadRequestError('Invalid key identifier');
+    throw new NotFoundError('Key not found');
   }
 
   const [key] = await trace(
@@ -192,24 +197,9 @@ const KEY_CACHE_TTL_SECONDS = 60;
 
 const keyCacheKey = (keyHash: string) => `apikey:${keyHash}`;
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
-
-function reviveDates<T>(value: T): T {
-  if (value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.map(reviveDates) as T;
-  const out: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    out[key] =
-      typeof entry === 'string' && key.endsWith('At') && ISO_DATE.test(entry)
-        ? new Date(entry)
-        : reviveDates(entry);
-  }
-  return out as T;
-}
-
 export async function findActiveApiKeyByHash(db: Db, keyHash: string): Promise<ResolvedApiKey | null> {
   const cached = await readCache<ResolvedApiKey>(env.AUTH_CACHE, keyCacheKey(keyHash));
-  if (cached) return reviveDates(cached);
+  if (cached) return cached;
 
   const [result] = await trace(
     'keys.findActiveByHash',
@@ -283,10 +273,4 @@ export async function touchApiKey(db: Db, key: ApiKey): Promise<void> {
     async () => await db.update(tables.apiKey).set({ lastUsedAt: now }).where(eq(tables.apiKey.id, key.id))
   );
   key.lastUsedAt = now;
-
-  const cached = await readCache<ResolvedApiKey>(env.AUTH_CACHE, keyCacheKey(key.keyHash));
-  if (cached) {
-    cached.key.lastUsedAt = now;
-    await writeCache(env.AUTH_CACHE, keyCacheKey(key.keyHash), cached, KEY_CACHE_TTL_SECONDS);
-  }
 }

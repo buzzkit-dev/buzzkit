@@ -16,7 +16,7 @@ A subscriber's preference list is always the full topic catalog with per-channel
 ```json
 [
   {
-    "topic": "running-reminders", "name": "Running reminders", "description": null,
+    "id": "tpc_…", "slug": "running-reminders", "name": "Running reminders", "description": null,
     "channels": {
       "push":  { "optedIn": true,  "isDefault": true },
       "email": { "optedIn": false, "isDefault": false }

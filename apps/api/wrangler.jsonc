@@ -61,6 +61,8 @@
         "queue": "buzzkit-deliveries",
         "max_batch_size": 100,
         "max_batch_timeout": 1,
+        // Each invocation holds ≤2 DB connections; 40 × 2 stays well inside Hyperdrive's pool
+        "max_concurrency": 40,
         // Delivery retries are scheduled in-code (persisted next_attempt_at +
         // delayed re-enqueue); this caps runaway redelivery of crashing jobs
         "max_retries": 8,

@@ -1,24 +1,25 @@
-import { env } from 'cloudflare:workers';
 import {
   applyMessageCounters,
   type CounterDelta,
   finalizeMessageIfComplete,
 } from '@buzzkit/api/api/deliveries/index';
 import {
-  type CredentialMemo,
   createCredentialMemo,
   type DeliveryQueueMessage,
+  enqueueDeliveries,
   fanoutPage,
-  processDelivery,
+  processDeliveryBatch,
 } from '@buzzkit/api/api/messages/index';
 import { createDb } from '@buzzkit/api/libs/database';
+import { describeError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { createTokenMemo } from '@buzzkit/api/providers/shared/cache';
 import type { Db } from '@buzzkit/database';
 
-const DELIVERY_CONCURRENCY = 6;
-
 const CRASH_RETRY_DELAY_SECONDS = 30;
+
+const QUEUE_DB_CONNECTIONS = 2;
 
 type QueueItem = Message<DeliveryQueueMessage>;
 
@@ -37,8 +38,7 @@ const isDeliver = (item: QueueItem): item is DeliverItem => item.body.type === '
 export async function handleDeliveryBatch(batch: MessageBatch<DeliveryQueueMessage>): Promise<void> {
   await trace('queue.deliveries.batch', { 'queue.batch_size': batch.messages.length }, async (t) => {
     const startedAt = Date.now();
-    const db = createDb();
-    const memo = createCredentialMemo();
+    const db = createDb({ max: QUEUE_DB_CONNECTIONS });
     const summary: Summary = {
       fanouts: 0,
       sent: 0,
@@ -59,13 +59,18 @@ export async function handleDeliveryBatch(batch: MessageBatch<DeliveryQueueMessa
       await processFanoutJob(db, item, summary);
     }
 
-    await runWithConcurrency(deliveries, DELIVERY_CONCURRENCY, (item) =>
-      processDeliverJob(db, item, memo, summary, counters)
-    );
+    if (deliveries.length > 0) {
+      await processDeliverJobs(db, deliveries, summary, counters);
+    }
 
     for (const [messageId, delta] of counters) {
-      await applyMessageCounters(db, messageId, delta);
-      await finalizeMessageIfComplete(db, messageId);
+      try {
+        await applyMessageCounters(db, messageId, delta);
+        await finalizeMessageIfComplete(db, messageId);
+      } catch (error) {
+        summary.errors += 1;
+        log.error('[Deliveries] Counter update failed', { messageId, error: describeError(error) });
+      }
     }
 
     for (const [key, value] of Object.entries(summary)) {
@@ -97,91 +102,61 @@ async function processFanoutJob(db: Db, item: FanoutItem, summary: Summary): Pro
       } catch (error) {
         summary.errors += 1;
         t.set('error', true);
-        log.error('[Deliveries] Fan-out failed', { body: item.body, error: describe(error) });
+        log.error('[Deliveries] Fan-out failed', { body: item.body, error: describeError(error) });
         item.retry({ delaySeconds: CRASH_RETRY_DELAY_SECONDS });
       }
     }
   );
 }
 
-async function processDeliverJob(
+async function processDeliverJobs(
   db: Db,
-  item: DeliverItem,
-  memo: CredentialMemo,
+  items: DeliverItem[],
   summary: Summary,
   counters: Counters
 ): Promise<void> {
-  await trace(
-    'queue.job.deliver',
-    {
-      'delivery.id': item.body.deliveryId,
-      'delivery.attempt': item.body.attempt,
-      'queue.message_id': item.id,
-      'queue.attempt': item.attempts,
-    },
-    async (t) => {
-      const startedAt = Date.now();
-      try {
-        const outcome = await processDelivery(db, item.body.deliveryId, item.body.attempt, memo);
-        const application = outcome?.application ?? null;
-        const result = !outcome
-          ? 'skipped'
-          : (application?.counterDelta ?? (application?.retryDelaySeconds ? 'retrying' : 'noop'));
+  const byDelivery = new Map(items.map((item) => [item.body.deliveryId, item]));
+  try {
+    const processed = await processDeliveryBatch(
+      db,
+      items.map((item) => item.body),
+      createCredentialMemo(),
+      createTokenMemo()
+    );
+    const retries = processed
+      .filter((entry) => entry.retryDelaySeconds !== null)
+      .map((entry) => ({
+        deliveryId: entry.job.deliveryId,
+        attempt: entry.job.attempt + 1,
+        delaySeconds: entry.retryDelaySeconds ?? undefined,
+      }));
+    await enqueueDeliveries(retries);
 
-        if (!outcome) {
-          summary.skipped += 1;
-        } else if (application?.counterDelta) {
-          summary[application.counterDelta] += 1;
-          bump(counters, outcome.messageId, application.counterDelta);
-        } else if (application?.retryDelaySeconds) {
-          summary.retrying += 1;
-          await env.DELIVERIES.send(
-            {
-              type: 'deliver',
-              deliveryId: item.body.deliveryId,
-              attempt: item.body.attempt + 1,
-            } satisfies DeliveryQueueMessage,
-            { delaySeconds: application.retryDelaySeconds }
-          );
-        }
-
-        t.set('delivery.outcome', result);
-        t.set('delivery.retry_in_seconds', application?.retryDelaySeconds ?? null);
-        log.info('[Deliveries] Processed', {
-          deliveryId: item.body.deliveryId,
-          attempt: item.body.attempt,
-          outcome: result,
-          retryInSeconds: application?.retryDelaySeconds ?? null,
-          latencyMs: Date.now() - startedAt,
-        });
-        item.ack();
-      } catch (error) {
-        summary.errors += 1;
-        t.set('error', true);
-        log.error('[Deliveries] Delivery failed', { body: item.body, error: describe(error) });
-        item.retry({ delaySeconds: CRASH_RETRY_DELAY_SECONDS });
+    for (const entry of processed) {
+      summary[entry.outcome] += 1;
+      if (
+        entry.messageId !== null &&
+        (entry.outcome === 'sent' || entry.outcome === 'failed' || entry.outcome === 'invalid')
+      ) {
+        bump(counters, entry.messageId, entry.outcome);
       }
+      log.debug('[Deliveries] Processed', {
+        deliveryId: entry.job.deliveryId,
+        attempt: entry.job.attempt,
+        outcome: entry.outcome,
+        retryInSeconds: entry.retryDelaySeconds,
+      });
+      byDelivery.get(entry.job.deliveryId)?.ack();
     }
-  );
+  } catch (error) {
+    summary.errors += items.length;
+    log.error('[Deliveries] Delivery batch failed', { count: items.length, error: describeError(error) });
+    for (const item of items) item.retry({ delaySeconds: CRASH_RETRY_DELAY_SECONDS });
+  }
 }
 
 function bump(counters: Counters, messageId: number, delta: CounterDelta): void {
   const current = counters.get(messageId) ?? { sent: 0, failed: 0, invalid: 0 };
   current[delta] += 1;
   counters.set(messageId, current);
-}
-
-async function runWithConcurrency<T>(items: T[], limit: number, task: (item: T) => Promise<void>) {
-  let index = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (index < items.length) {
-      const item = items[index++];
-      if (item) await task(item);
-    }
-  });
-  await Promise.all(workers);
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

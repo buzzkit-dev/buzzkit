@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import Sqids from 'sqids';
 
-const sqids = new Sqids({
-  minLength: 18,
-  alphabet: 'kdiEK9YyRrDlM4pnPXWQmL2wNZzeUxIqSHVvTGtjb0aJFuh3s618Bf5cCgAO7o',
-});
+const wrangler = JSON.parse(
+  readFileSync(path.resolve(import.meta.dirname, '../../wrangler.jsonc'), 'utf8').replace(/^\s*\/\/.*$/gm, '')
+) as { vars: { SQIDS_ALPHABET: string } };
+
+const sqids = new Sqids({ minLength: 18, alphabet: wrangler.vars.SQIDS_ALPHABET });
 
 export const encodeMessageId = (id: number) => `msg_${sqids.encode([id])}`;
 

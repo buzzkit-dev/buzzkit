@@ -4,7 +4,7 @@ import {
   softDeleteCredential,
 } from '@buzzkit/api/api/credentials/index';
 import { auth } from '@buzzkit/api/libs/auth';
-import { Response } from '@buzzkit/api/libs/response';
+import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
 export const credential = new Elysia()
@@ -33,7 +33,7 @@ export const credential = new Elysia()
         data: { provider: target.provider, environment: target.environment },
       });
 
-      return Response.success(serializeCredential(deleted), { entity: 'credential' }).send();
+      return Response.success(markDeleted(serializeCredential(deleted)), { entity: 'credential' }).send();
     },
     { tenant: 'credentials:write' }
   );

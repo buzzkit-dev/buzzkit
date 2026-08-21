@@ -80,7 +80,6 @@ export async function createTenant(headers: Record<string, string>, name = 'Cust
   return body.data;
 }
 
-/** Signs up a fresh user and joins them to the workspace via the invite flow. */
 export async function addMember(
   ownerToken: string,
   workspaceSlug: string,
@@ -103,7 +102,6 @@ export async function addMember(
     throw new Error(`invite accept failed: ${accepted.status}`);
   }
 
-  // Owners can't be invited directly — promote after joining
   if (role === 'owner') {
     const promote = await api(`/v1/workspaces/${workspaceSlug}/members/${accepted.body.data.id}`, {
       method: 'PATCH',

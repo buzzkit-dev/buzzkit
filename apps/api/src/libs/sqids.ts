@@ -94,7 +94,6 @@ function createDecoder(sqids: Sqids) {
 
 export const decodeSqid = createDecoder(s);
 
-export const encodeSubscriberSqid = (id: number): string => encodeId('subscriber', id);
 export const decodeSubscriberSqid = createDecoder(subscriberSqids);
 
 export function decodeEntityId(entity: IdEntity, id: string): number | undefined {

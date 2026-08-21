@@ -1,15 +1,8 @@
+import { serializeUser, updateProfile } from '@buzzkit/api/api/profile/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
-import { trace } from '@buzzkit/api/libs/telemetry';
-import { eq, tables } from '@buzzkit/database';
+import { NameSchema } from '@buzzkit/api/libs/schemas';
 import Elysia, { t } from 'elysia';
-
-const serializeUser = (user: { id: string; name: string; email: string; image: string | null }) => ({
-  id: user.id,
-  name: user.name,
-  email: user.email,
-  image: user.image,
-});
 
 export const profile = new Elysia()
   .use(auth)
@@ -24,25 +17,14 @@ export const profile = new Elysia()
   .patch(
     '/profile',
     async ({ body, db, user, event }) => {
-      const [updated] = await trace(
-        'profile.update',
-        async () =>
-          await db
-            .update(tables.auth.user)
-            .set({ name: body.name })
-            .where(eq(tables.auth.user.id, user.id))
-            .returning()
-      );
+      const updated = await updateProfile(db, user.id, body);
 
       await event({
         event: 'profile.updated',
-        data: { from: { name: user.name }, to: { name: body.name } },
+        data: { changes: ['name'], previousAttributes: { name: user.name } },
       });
 
-      return Response.success(serializeUser(updated!)).send();
+      return Response.success(serializeUser(updated)).send();
     },
-    {
-      account: 'write',
-      body: t.Object({ name: t.String({ minLength: 1, maxLength: 100 }) }),
-    }
+    { account: 'write', body: t.Object({ name: NameSchema }) }
   );

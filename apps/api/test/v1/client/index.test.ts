@@ -1,11 +1,9 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
+import { db, eq, tables } from '../../utils/db';
+import { fakeToken } from '../../utils/fixtures';
 import { createClientKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
-
-function fakeToken() {
-  return `tok-${uniq()}${'c'.repeat(48)}`;
-}
 
 async function setupClient() {
   const base = await setupWorkspace();
@@ -25,7 +23,8 @@ describe('client keys', () => {
       headers: ownerBearer,
       body: JSON.stringify({ name: 'bad', kind: 'client' }),
     });
-    expect(noTenant.status).toBe(404);
+    expect(noTenant.status).toBe(400);
+    expect(noTenant.body.error?.code).toBe('tenant_required');
 
     const withScopes = await api(`/v1/workspaces/${workspace.slug}/keys`, {
       method: 'POST',
@@ -34,10 +33,13 @@ describe('client keys', () => {
     });
     expect(withScopes.status).toBe(400);
 
-    const list = await api<Array<{ kind: string; token?: string }>>(`/v1/workspaces/${workspace.slug}/keys`, {
-      headers: ownerBearer,
-    });
-    const clientRow = list.body.data?.find((row) => row.kind === 'client');
+    const list = await api<{ items: Array<{ kind: string; token?: string }> }>(
+      `/v1/workspaces/${workspace.slug}/keys`,
+      {
+        headers: ownerBearer,
+      }
+    );
+    const clientRow = list.body.data?.items?.find((row) => row.kind === 'client');
     expect(clientRow?.token).toMatch(/^bk_pk_/);
   });
 
@@ -146,25 +148,28 @@ describe('client key boundaries', () => {
     const tenant = await createTenant(keyBearer);
     const otherClientKey = await createClientKey(owner.token, workspace.slug, tenant.slug);
     const token = fakeToken();
+    const externalId = `user_${uniq()}`;
 
-    await api('/v1/subscriptions', {
+    const registered = await api<{ id: string }>('/v1/subscriptions', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ externalId: `user_${uniq()}`, channel: 'push', platform: 'ios', token }),
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token }),
     });
 
-    const otherBearer = { Authorization: `Bearer ${otherClientKey.secret}` };
-    const mute = await api('/v1/client/subscriptions', {
+    const otherBearer = {
+      Authorization: `Bearer ${otherClientKey.secret}`,
+      'buzzkit-subscriber': externalId,
+    };
+    const mute = await api(`/v1/client/subscriptions/${registered.body.data?.id}`, {
       method: 'PATCH',
       headers: otherBearer,
-      body: JSON.stringify({ channel: 'push', platform: 'ios', token, enabled: false }),
+      body: JSON.stringify({ enabled: false }),
     });
     expect(mute.status).toBe(404);
 
-    const remove = await api('/v1/client/subscriptions', {
+    const remove = await api(`/v1/client/subscriptions/${registered.body.data?.id}`, {
       method: 'DELETE',
       headers: otherBearer,
-      body: JSON.stringify({ channel: 'push', platform: 'ios', token }),
     });
     expect(remove.status).toBe(404);
   });
@@ -203,17 +208,17 @@ describe('client registration flow', () => {
   it('404s on unknown subscriptions, subscribers, and topics', async () => {
     const { clientBearer, keyBearer } = await setupClient();
 
-    const unknownMute = await api('/v1/client/subscriptions', {
+    const ghost = { ...clientBearer, 'buzzkit-subscriber': `ghost_${uniq()}` };
+    const unknownMute = await api('/v1/client/subscriptions/sbn_000000000000000000', {
       method: 'PATCH',
-      headers: clientBearer,
-      body: JSON.stringify({ channel: 'push', platform: 'ios', token: fakeToken(), enabled: false }),
+      headers: ghost,
+      body: JSON.stringify({ enabled: false }),
     });
     expect(unknownMute.status).toBe(404);
 
-    const unknownDelete = await api('/v1/client/subscriptions', {
+    const unknownDelete = await api('/v1/client/subscriptions/sbn_000000000000000000', {
       method: 'DELETE',
-      headers: clientBearer,
-      body: JSON.stringify({ channel: 'push', platform: 'ios', token: fakeToken() }),
+      headers: ghost,
     });
     expect(unknownDelete.status).toBe(404);
 
@@ -274,20 +279,24 @@ describe('client registration flow', () => {
     expect(serverView.status).toBe(200);
     expect(serverView.body.data?.subscriptions).toHaveLength(1);
 
-    const muted = await api<{ enabled: boolean }>('/v1/client/subscriptions', {
+    const own = { ...clientBearer, 'buzzkit-subscriber': externalId };
+    const muted = await api<{ enabled: boolean }>(`/v1/client/subscriptions/${registered.body.data?.id}`, {
       method: 'PATCH',
-      headers: clientBearer,
-      body: JSON.stringify({ channel: 'push', platform: 'ios', token, enabled: false }),
+      headers: own,
+      body: JSON.stringify({ enabled: false }),
     });
     expect(muted.status).toBe(200);
     expect(muted.body.data?.enabled).toBe(false);
 
-    const unregistered = await api('/v1/client/subscriptions', {
-      method: 'DELETE',
-      headers: clientBearer,
-      body: JSON.stringify({ channel: 'push', platform: 'ios', token }),
-    });
+    const unregistered = await api<{ deleted: boolean }>(
+      `/v1/client/subscriptions/${registered.body.data?.id}`,
+      {
+        method: 'DELETE',
+        headers: own,
+      }
+    );
     expect(unregistered.status).toBe(200);
+    expect(unregistered.body.data?.deleted).toBe(true);
 
     const emptied = await api<{ subscriptions: unknown[] }>(`/v1/subscribers/${externalId}`, {
       headers: keyBearer,
@@ -313,20 +322,20 @@ describe('client registration flow', () => {
 
     const subscriberHeaders = { ...clientBearer, 'buzzkit-subscriber': externalId };
 
-    type Pref = { topic: string; channels: Record<string, { optedIn: boolean }> };
+    type Pref = { slug: string; channels: Record<string, { optedIn: boolean }> };
 
-    const before = await api<Pref[]>('/v1/client/preferences', { headers: subscriberHeaders });
+    const before = await api<{ items: Pref[] }>('/v1/client/preferences', { headers: subscriberHeaders });
     expect(before.status).toBe(200);
-    expect(before.body.data?.find((p) => p.topic === gym)?.channels.push.optedIn).toBe(true);
+    expect(before.body.data?.items.find((p) => p.slug === gym)?.channels.push.optedIn).toBe(true);
 
-    const patched = await api<Pref[]>('/v1/client/preferences', {
+    const patched = await api<{ items: Pref[] }>('/v1/client/preferences', {
       method: 'PATCH',
       headers: subscriberHeaders,
       body: JSON.stringify({ preferences: { [gym]: { push: false } } }),
     });
     expect(patched.status).toBe(200);
-    expect(patched.body.data?.find((p) => p.topic === gym)?.channels.push.optedIn).toBe(false);
-    expect(patched.body.data?.find((p) => p.topic === gym)?.channels.email.optedIn).toBe(true);
+    expect(patched.body.data?.items.find((p) => p.slug === gym)?.channels.push.optedIn).toBe(false);
+    expect(patched.body.data?.items.find((p) => p.slug === gym)?.channels.email.optedIn).toBe(true);
 
     const missingHeader = await api('/v1/client/preferences', { headers: clientBearer });
     expect(missingHeader.status).toBe(400);
@@ -356,10 +365,10 @@ describe('client registration flow', () => {
 
 describe('identity verification', () => {
   it('stamps subscribers verified when a valid hash is offered even without enforcement', async () => {
-    const { clientBearer, keyBearer } = await setupClient();
+    const { clientBearer, keyBearer, ownerBearer, workspace } = await setupClient();
 
-    const tenantDetail = await api<{ identitySecret: string }>('/v1/tenants/default', {
-      headers: keyBearer,
+    const tenantDetail = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: { ...ownerBearer, 'buzzkit-workspace': workspace.slug },
     });
     const identitySecret = tenantDetail.body.data?.identitySecret ?? '';
 
@@ -396,10 +405,10 @@ describe('identity verification', () => {
   });
 
   it('when enforced, requires a valid HMAC and blocks spoofing', async () => {
-    const { clientBearer, keyBearer, ownerBearer, workspace } = await setupClient();
+    const { clientBearer, ownerBearer, workspace } = await setupClient();
 
-    const tenantDetail = await api<{ identitySecret: string }>('/v1/tenants/default', {
-      headers: keyBearer,
+    const tenantDetail = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: { ...ownerBearer, 'buzzkit-workspace': workspace.slug },
     });
     const identitySecret = tenantDetail.body.data?.identitySecret ?? '';
     expect(identitySecret.length).toBeGreaterThan(0);
@@ -463,8 +472,11 @@ describe('identity verification', () => {
     const { clientBearer, keyBearer, ownerBearer, workspace } = await setupClient();
     const other = await setupWorkspace();
     const otherSecret =
-      (await api<{ identitySecret: string }>('/v1/tenants/default', { headers: other.keyBearer })).body.data
-        ?.identitySecret ?? '';
+      (
+        await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+          headers: { ...other.ownerBearer, 'buzzkit-workspace': other.workspace.slug },
+        })
+      ).body.data?.identitySecret ?? '';
 
     await api('/v1/tenants/default', {
       method: 'PATCH',
@@ -490,8 +502,10 @@ describe('identity verification', () => {
   });
 
   it('accepts uppercase hex hashes', async () => {
-    const { clientBearer, keyBearer } = await setupClient();
-    const tenantDetail = await api<{ identitySecret: string }>('/v1/tenants/default', { headers: keyBearer });
+    const { clientBearer, ownerBearer, workspace } = await setupClient();
+    const tenantDetail = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: { ...ownerBearer, 'buzzkit-workspace': workspace.slug },
+    });
     const externalId = `user_${uniq()}`;
     const upper = createHmac('sha256', tenantDetail.body.data?.identitySecret ?? '')
       .update(externalId)
@@ -523,5 +537,262 @@ describe('identity verification', () => {
     });
 
     expect(status).toBe(201);
+  });
+});
+
+describe('client surface hardening', () => {
+  it('the identity secret is never on the tenant object, only on the session-only secret endpoint', async () => {
+    const { keyBearer, ownerBearer, workspace } = await setupClient();
+    const sessionHeaders = { ...ownerBearer, 'buzzkit-workspace': workspace.slug };
+
+    const tenant = await api<Record<string, unknown>>('/v1/tenants/default', { headers: keyBearer });
+    expect(tenant.status).toBe(200);
+    expect(tenant.body.data).not.toHaveProperty('identitySecret');
+    const list = await api<{ items: Array<Record<string, unknown>> }>('/v1/tenants', { headers: keyBearer });
+    expect(list.body.data?.items.every((row) => !('identitySecret' in row))).toBe(true);
+
+    const viaKey = await api('/v1/tenants/default/identity-secret', { headers: keyBearer });
+    expect(viaKey.status).toBe(403);
+    const rotateViaKey = await api('/v1/tenants/default/identity-secret/rotate', {
+      method: 'POST',
+      headers: keyBearer,
+    });
+    expect(rotateViaKey.status).toBe(403);
+
+    const before = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: sessionHeaders,
+    });
+    expect(before.status).toBe(200);
+    expect(before.body.data?.identitySecret).toHaveLength(32);
+
+    const rotated = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret/rotate', {
+      method: 'POST',
+      headers: sessionHeaders,
+    });
+    expect(rotated.status).toBe(200);
+    expect(rotated.body.data?.identitySecret).not.toBe(before.body.data?.identitySecret);
+
+    const events = await api<{ items: Array<{ event: string }> }>(
+      `/v1/workspaces/${workspace.slug}/events?event=tenant.identity_secret_rotated`,
+      { headers: ownerBearer }
+    );
+    expect(events.body.data?.items.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a rotated secret invalidates hashes minted with the old one', async () => {
+    const { clientBearer, ownerBearer, workspace } = await setupClient();
+    const sessionHeaders = { ...ownerBearer, 'buzzkit-workspace': workspace.slug };
+    const before = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: sessionHeaders,
+    });
+    const externalId = `user_${uniq()}`;
+    const oldHash = createHmac('sha256', before.body.data!.identitySecret).update(externalId).digest('hex');
+
+    await api('/v1/tenants/default/identity-secret/rotate', { method: 'POST', headers: sessionHeaders });
+
+    const stale = await api('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId, identityHash: oldHash }),
+    });
+    expect(stale.status).toBe(401);
+  });
+
+  it("client mutations are bound to the caller's externalId — another user cannot mute or remove a subscription", async () => {
+    const { clientBearer } = await setupClient();
+    const owner = `owner_${uniq()}`;
+    const intruder = `intruder_${uniq()}`;
+    const token = fakeToken();
+
+    const registered = await api<{ id: string }>('/v1/client/subscriptions', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: owner, channel: 'push', platform: 'ios', token }),
+    });
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: intruder }),
+    });
+
+    const asIntruder = { ...clientBearer, 'buzzkit-subscriber': intruder };
+    const mute = await api(`/v1/client/subscriptions/${registered.body.data?.id}`, {
+      method: 'PATCH',
+      headers: asIntruder,
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect(mute.status).toBe(404);
+    const remove = await api(`/v1/client/subscriptions/${registered.body.data?.id}`, {
+      method: 'DELETE',
+      headers: asIntruder,
+    });
+    expect(remove.status).toBe(404);
+    const missingHeader = await api(`/v1/client/subscriptions/${registered.body.data?.id}`, {
+      method: 'PATCH',
+      headers: clientBearer,
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect(missingHeader.status).toBe(400);
+  });
+
+  it('an unverified client cannot move an endpoint to another subscriber; a verified one can', async () => {
+    const { clientBearer, keyBearer, ownerBearer, workspace } = await setupClient();
+    const victim = `victim_${uniq()}`;
+    const attacker = `attacker_${uniq()}`;
+    const token = fakeToken();
+    const address = `${victim}@acme.com`;
+
+    await api('/v1/client/subscriptions', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: victim, channel: 'push', platform: 'ios', token }),
+    });
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: victim, email: address }),
+    });
+
+    const hijackPush = await api('/v1/client/subscriptions', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: attacker, channel: 'push', platform: 'ios', token }),
+    });
+    expect(hijackPush.status).toBe(409);
+    const hijackEmail = await api('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: attacker, email: address }),
+    });
+    expect(hijackEmail.status).toBe(409);
+
+    const stillVictim = await api<{ subscriptions: Array<{ endpoint: string }> }>(
+      `/v1/subscribers/${victim}`,
+      {
+        headers: keyBearer,
+      }
+    );
+    expect(stillVictim.body.data?.subscriptions.map((s) => s.endpoint).sort()).toEqual(
+      [address, token].sort()
+    );
+
+    const secret = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: { ...ownerBearer, 'buzzkit-workspace': workspace.slug },
+    });
+    const newOwner = `newowner_${uniq()}`;
+    const hash = createHmac('sha256', secret.body.data!.identitySecret).update(newOwner).digest('hex');
+    const moved = await api<{ externalId: string }>('/v1/client/subscriptions', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({
+        externalId: newOwner,
+        identityHash: hash,
+        channel: 'push',
+        platform: 'ios',
+        token,
+      }),
+    });
+    expect(moved.status).toBe(200);
+    expect(moved.body.data?.externalId).toBe(newOwner);
+
+    const serverMove = await api<{ externalId: string }>('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId: victim, channel: 'push', platform: 'ios', token }),
+    });
+    expect(serverMove.status).toBe(200);
+    expect(serverMove.body.data?.externalId).toBe(victim);
+  });
+});
+
+describe('ledger attribution and identity throttling', () => {
+  it('client actions are recorded as the subscriber, with the externalId as the actor', async () => {
+    const { clientBearer, keyBearer, ownerBearer, workspace } = await setupClient();
+    const externalId = `user_${uniq()}`;
+    const gym = `gym-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: gym, name: 'Gym' }),
+    });
+
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId }),
+    });
+    const registered = await api<{ id: string }>('/v1/client/subscriptions', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token: fakeToken() }),
+    });
+    const own = { ...clientBearer, 'buzzkit-subscriber': externalId };
+    await api('/v1/client/preferences', {
+      method: 'PATCH',
+      headers: own,
+      body: JSON.stringify({ preferences: { [gym]: false } }),
+    });
+    await api(`/v1/client/subscriptions/${registered.body.data?.id}`, {
+      method: 'PATCH',
+      headers: own,
+      body: JSON.stringify({ enabled: false }),
+    });
+    await api(`/v1/client/subscriptions/${registered.body.data?.id}`, { method: 'DELETE', headers: own });
+
+    const events = await api<{ items: Array<{ event: string; actorType: string; actorDisplay: string }> }>(
+      `/v1/workspaces/${workspace.slug}/events?actorType=user&limit=100`,
+      { headers: ownerBearer }
+    );
+    const mine =
+      events.body.data?.items.filter((item) => item.actorDisplay === externalId).map((item) => item.event) ??
+      [];
+    for (const expected of [
+      'subscriber.created',
+      'subscription.created',
+      'preferences.updated',
+      'subscription.updated',
+      'subscription.removed',
+    ]) {
+      expect(mine, expected).toContain(expected);
+    }
+    expect(events.body.data?.items.every((item) => item.actorType === 'user')).toBe(true);
+  });
+
+  it('re-verification is throttled: a fresh proof within five minutes writes nothing', async () => {
+    const { clientBearer, ownerBearer, workspace } = await setupClient();
+    const secret = await api<{ identitySecret: string }>('/v1/tenants/default/identity-secret', {
+      headers: { ...ownerBearer, 'buzzkit-workspace': workspace.slug },
+    });
+    const externalId = `user_${uniq()}`;
+    const hash = createHmac('sha256', secret.body.data!.identitySecret).update(externalId).digest('hex');
+    const identifyVerified = () =>
+      api<{ identityVerifiedAt: string }>('/v1/client/identify', {
+        method: 'POST',
+        headers: clientBearer,
+        body: JSON.stringify({ externalId, identityHash: hash }),
+      });
+
+    const first = await identifyVerified();
+    expect(first.status).toBe(201);
+    const stale = new Date(Date.now() - 10 * 60 * 1000);
+    await db
+      .update(tables.subscriber)
+      .set({ identityVerifiedAt: stale, updatedAt: stale })
+      .where(eq(tables.subscriber.externalId, externalId));
+
+    const bumped = await identifyVerified();
+    expect(new Date(bumped.body.data?.identityVerifiedAt ?? 0).getTime()).toBeGreaterThan(stale.getTime());
+    const [afterBump] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+
+    const throttled = await identifyVerified();
+    expect(throttled.status).toBe(200);
+    const [afterThrottle] = await db
+      .select({ updatedAt: tables.subscriber.updatedAt })
+      .from(tables.subscriber)
+      .where(eq(tables.subscriber.externalId, externalId));
+    expect(afterThrottle?.updatedAt.toISOString()).toBe(afterBump?.updatedAt.toISOString());
   });
 });

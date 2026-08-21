@@ -1,8 +1,9 @@
 # Roadmap
 
-**Status: Phases 0–4 ✅ (Phase 4 built, awaiting review) — next: Phase 5 (real-device verification of APNs/FCM delivery; email sending via the provider registry).**
+**Status: Phases 0–4 ✅ — the API milestone. Next: Phase 5, the platform dashboard.**
 
 Deviations from the original plan, all deliberate:
+- **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.
 - Observability (OTel + Axiom via `@buzzkit/observability`) landed in Phase 4 instead of Phase 10 — one Worker reports as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler`.
 - Event/audit ledger shipped with Phase 2 (webhooks build on it). Tenant selection uses the `BuzzKit-Tenant` header (Stripe-Account pattern) instead of path params.
 - Phase 3 grew: topics + per-subscriber, per-channel preferences (the OneSignal gap); subscribers have **subscriptions** (push device / email address / later SMS) each with its own `enabled` mute; `/v1/client/*` with optional HMAC identity verification (valid proof always stamps `verified`); Resend as the first email credential; tenant `settings` JSONB; provider registry.
@@ -149,21 +150,40 @@ After this phase the promise is real: sign up, upload APNs key, send push via on
 
 ---
 
-## Phase 5 — FCM delivery (Android) + channel abstraction proven
+## Phase 5 — Platform dashboard (`apps/web`)  🎯 **Milestone: the product**
 
-Adding the second provider is the test that the delivery layer is actually generic.
+The product face, pulled forward: the API is complete enough to operate, so the dashboard comes before the SDK, campaigns, and workflows. Code stays the source of truth — the dashboard operates the account and *observes* the code-defined world.
+
+**Prerequisite (one day):** a typed API client inferred from the contract (Eden Treaty over `@buzzkit/api`, envelope-unwrapping — the same client the SDK ships in Phase 7). `apps/web` loaders use it; no hand-written fetch types.
 
 **Build**
 
-- FCM HTTP v1 provider: OAuth2 access token from service-account JWT (RS256 via WebCrypto), cached in KV (~55 min); FCM message mapping (notification + data, android config); error mapping (`UNREGISTERED` → invalidate token, `QUOTA_EXCEEDED`/5xx → retry).
-- Whatever the second provider forces us to bend in the `PushProvider` interface gets fixed **in the interface**, not with special cases — this frozen interface is the template every future channel connector (email, SMS, web push) follows.
-- Send API targets both platforms transparently: one message fans out to a subscriber's iOS and Android devices, each via its provider.
+- Port the feedbase design system: `packages/ui` (shadcn + Tailwind v4 tokens, icon pipeline), same look and feel; wire `@buzzkit/eden`-style typed API access from loaders.
+- Auth pages (signup/login, **email verification on sign-up** via BetterAuth `requireEmailVerification` + the existing email lib), workspace creation & member management, invites.
+- **Onboarding flow = the product promise:** create workspace → upload APNs key (drag-drop `.p8`, validated live) → grab API key → send a test push to your registered device. Minutes, not hours.
+- Tenant management (list/create — mirrors the API), credential management per tenant, API key management (create/revoke, shown-once secrets).
+- Subscribers & devices browser; message log with per-delivery status and provider errors (the debugging surface).
+- Campaigns/segments/workflows views arrive with Phases 8–9; the first dashboard version ships without them.
 
-**Done when:** one `POST /v1/messages` reaches an iPhone and an Android device; provider interface has no `if (apns)` leaks; docs/api updated.
+**Done when:** a new user completes signup → key upload → test push entirely in the dashboard; everything the dashboard shows comes from the public API (no private backdoors — the framework test).
 
 ---
 
-## Phase 6 — `buzzkit` SDK: the developer experience
+## Phase 6 — Real-device verification + email channel
+
+What is left of the original "second provider" phase: the FCM provider, the registry, and per-platform routing shipped with Phase 4; this phase proves them on real devices and adds the second *channel*.
+
+**Build**
+
+- First deployment: Cloudflare account (Hyperdrive, `AUTH_CACHE` + `PROVIDER_CACHE` KV, `buzzkit-deliveries` + DLQ, cron), real APNs `.p8` and FCM service account, a test app registering both tokens; `scripts/smoke` sends one message and polls the attempt ledger. Verify `invalid_endpoint` → subscription invalidation and `Retry-After` handling against real providers.
+- Email through the same fan-out: `channel: 'email'` payload shape (`subject`, `html`/`text`, per-tenant `from`), `resend.send` via the registry, `delivered`/`bounced` written from Resend webhooks (the funnel counters already reserve them).
+- Whatever the second channel forces us to bend in the provider interface gets fixed **in the interface**, not with special cases.
+
+**Done when:** one `POST /v1/messages` reaches an iPhone and an Android device from a deployed Worker; an email message reaches an inbox with `delivered` confirmed; provider interface has no `if (apns)` leaks; docs/api updated.
+
+---
+
+## Phase 7 — `buzzkit` SDK: the developer experience
 
 The framework's public face. This is where "feels like a framework, not a platform" gets earned.
 
@@ -180,7 +200,7 @@ The framework's public face. This is where "feels like a framework, not a platfo
   await tenant.send({ to: [...], … });
   ```
 
-- Subpath organization inside the one package: `buzzkit` (client + send), `buzzkit/config` (definition primitives for Phase 7), later `buzzkit/channels`, `buzzkit/workflows`.
+- Subpath organization inside the one package: `buzzkit` (client + send), `buzzkit/config` (definition primitives for Phase 8), later `buzzkit/channels`, `buzzkit/workflows`.
 - Devices/subscribers namespaces; typed errors; retry/backoff on the client for transient failures.
 - Docs: quickstart (native iOS/Android snippets for token registration → SDK on the backend), `docs/api/` complete for everything shipped.
 
@@ -190,7 +210,7 @@ The framework's public face. This is where "feels like a framework, not a platfo
 
 ---
 
-## Phase 7 — Code-first campaigns & segments + `@buzzkit/cli`
+## Phase 8 — Code-first campaigns & segments + `@buzzkit/cli`
 
 Config as code, pushed like a deploy. The sst/Alchemy moment.
 
@@ -222,7 +242,7 @@ Config as code, pushed like a deploy. The sst/Alchemy moment.
 
 ---
 
-## Phase 8 — Workflow engine
+## Phase 9 — Workflow engine
 
 The deep end: multi-step, long-running, conditional engagement logic — fully code-defined, channel-generic.
 
@@ -257,23 +277,6 @@ The deep end: multi-step, long-running, conditional engagement logic — fully c
 
 ---
 
-## Phase 9 — Platform dashboard (`apps/web`)
-
-The product face. Code stays the source of truth — the dashboard operates the account and *observes* the code-defined world.
-
-**Build**
-
-- Port the feedbase design system: `packages/ui` (shadcn + Tailwind v4 tokens, icon pipeline), same look and feel; wire `@buzzkit/eden`-style typed API access from loaders.
-- Auth pages (signup/login), workspace creation & member management, invites.
-- **Onboarding flow = the product promise:** create workspace → upload APNs key (drag-drop `.p8`, validated live) → grab API key → send a test push to your registered device. Minutes, not hours.
-- Tenant management (list/create — mirrors the API), credential management per tenant, API key management (create/revoke, shown-once secrets).
-- Subscribers & devices browser; message log with per-delivery status and provider errors (the debugging surface).
-- Campaigns/segments/workflows: **read-only views** of deployed versions + run history, with "deployed via CLI vX" framing baked into the UI.
-
-**Done when:** a new user completes signup → key upload → test push entirely in the dashboard; everything the dashboard shows comes from the public API (no private backdoors — the framework test).
-
----
-
 ## Phase 10 — Production hardening
 
 Everything the hosted version needs to take real traffic, all of it useful to self-hosters too.
@@ -281,10 +284,13 @@ Everything the hosted version needs to take real traffic, all of it useful to se
 **Build**
 
 - **Webhooks:** delivery events (`message.completed`, `device.invalidated`, `workflow.run.completed`) to customer endpoints — queue-backed with signed payloads, retries, reconciliation cron (feedbase webhook pattern).
-- Quotas & rate limits per workspace/tenant (hosted free tier needs ceilings); usage counters.
+- Quotas & rate limits per workspace/tenant (hosted free tier needs ceilings); usage counters; an app-level KV/DO-backed limiter for `/v1/auth/*` and `/v1/client/*` (WAF rules are the deployment requirement until then).
+- Credential re-encryption sweep: re-seal every credential under the current master-key version so old versions can be retired.
 - Observability: ✅ OTel tracing + Axiom logging landed in Phase 4 (`@buzzkit/observability`: api/queue/scheduler services, drizzle + better-auth spans, per-invocation logs). Remaining: delivery metrics dashboards, queue-depth visibility, alerting on provider error spikes.
-- Retention: expire `delivery_attempt.request/response` and `message.payload` after a configurable window (Svix retains payloads 90 days; Stripe events 30 days) — the ledger rows stay, the bodies go.
-- Queue scale-out: shard `buzzkit-deliveries` across N queues (Cloudflare's documented answer to the 5,000 msg/s per-queue cap) once a single tenant needs more than ~300k deliveries/minute.
+- Retention: expire `delivery_attempt.request/response` and `message.payload` after a configurable window (Svix retains payloads 90 days; Stripe events 30 days) — the ledger rows stay, the bodies go. Before enabling it, move attempt bodies into a 1:1 `delivery_attempt_body` side table partitioned by `created_at` so retention is a partition drop, not an UPDATE storm on a hot append-only table; `bigint` ids + BRIN on `created_at` (already in place) make the id cut-off for a date cheap. Deliberately **not** partitioning the ledgers themselves: partition keys would have to join every unique index the idempotency guards rely on.
+- Queue scale-out: shard `buzzkit-deliveries` across N queues (Cloudflare's documented answer to the 5,000 msg/s per-queue cap) once a single tenant needs more than ~300k deliveries/minute; split fan-out into K independent id-range chains per message at the same time (today one message fans out as one serial chain of 500-row pages).
+- Opt-out-default topics at scale: drive fan-out from a `(topic_id, channel, subscriber_id) where opted_in` preference index instead of the tenant's subscription range.
+- Cache the workspace-key → default-tenant resolution (today one indexed read per data-plane request for workspace keys and sessions).
 - Idempotency: accept `Idempotency-Key` as a header (Stripe/Svix/Resend convention) in addition to the body field, and reject reuse with a different payload.
 - Analytics API + dashboard cards: sends, delivery rate, failures by reason, token churn.
 - Audit log for control-plane actions (key created, credential replaced, member added).
@@ -313,7 +319,7 @@ Ship the framework to the world; the hosted product becomes deployment #1.
 ## Explicitly later (not in these phases)
 
 - Additional channels as connectors: SMS (Twilio/Vonage — a pricing wedge: OneSignal meters sending, we ride the customer's provider), **in-app messaging** (a pull channel: SDK fetches `/v1/client/messages`; OneSignal caps this at one active message), **Live Activities** (APNs push-to-start/update tokens — fits the subscription model as a token variant), web push, WhatsApp.
-- **Routing rules** — segment→provider, geo rules ("US users via Resend, rest via Mailgun"), percentage traffic splits. These are LOGIC, so they live in the code-defined layer (Phase 7 versioned specs, like segments/campaigns — also what makes them AI-writable), never in tenant settings and never in a channel table. Until then: one credential per channel = the provider.
+- **Routing rules** — segment→provider, geo rules ("US users via Resend, rest via Mailgun"), percentage traffic splits. These are LOGIC, so they live in the code-defined layer (Phase 8 versioned specs, like segments/campaigns — also what makes them AI-writable), never in tenant settings and never in a channel table. Until then: one credential per channel = the provider.
 - Newsletter-platform integrations — email subscriptions + topics already form newsletter infrastructure.
 - Native device SDKs (Swift/Kotlin/Expo packages) beyond documented REST registration — revisit after Milestone feedback.
 - Billing for the hosted version.

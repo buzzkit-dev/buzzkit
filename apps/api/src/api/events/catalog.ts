@@ -21,6 +21,7 @@ export const EVENT_CATALOG = {
   'tenant.created': { webhook: true },
   'tenant.updated': { webhook: true },
   'tenant.deleted': { webhook: true },
+  'tenant.identity_secret_rotated': { webhook: true },
 
   'credential.created': { webhook: true },
   'credential.validated': { webhook: true },

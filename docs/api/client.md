@@ -10,13 +10,13 @@
 
 `{ externalId, channel: "push", platform, token, identityHash? }` — register/refresh the push subscription. Same idempotent semantics as the server-side endpoint. Call on every app launch after obtaining the token.
 
-## PATCH /v1/client/subscriptions
+## PATCH /v1/client/subscriptions/:id
 
-`{ channel, platform?, token?|address?, enabled }` — the in-app "notifications on this device" toggle: mutes ONE subscription, everything else keeps receiving.
+Headers: `BuzzKit-Subscriber: <externalId>` (+ `BuzzKit-Identity: <hash>` when enforcement is on). Body `{ enabled }`. Mutes or unmutes the caller's own subscription (the id comes back from the registration call); a subscription bound to anyone else is a 404, never a hint.
 
-## DELETE /v1/client/subscriptions
+## DELETE /v1/client/subscriptions/:id
 
-`{ channel, platform?, token?|address? }` — unregister on logout.
+Same headers; unregisters the caller's own subscription and returns it with `deleted: true`.
 
 ## GET / PATCH /v1/client/preferences
 
@@ -24,7 +24,9 @@ Headers: `BuzzKit-Subscriber: <externalId>` (+ `BuzzKit-Identity: <hash>` when e
 
 ## Identity verification (recommended for production)
 
-A public key alone lets any caller claim any `externalId`. Your backend computes `identityHash = HMAC-SHA256(externalId, identitySecret)` (hex; the secret is on the tenant object, server-side only — never ship it in the app) and hands it to the app at login.
+A public key alone lets any caller claim any `externalId`. Your backend computes `identityHash = HMAC-SHA256(externalId, identitySecret)` (hex; fetch the secret once from the session-only `GET /v1/tenants/:slug/identity-secret`, keep it server-side — never ship it in the app; rotate it with `POST …/identity-secret/rotate`, which invalidates every outstanding hash) and hands it to the app at login.
 
 - **Always allowed**: a valid hash on any client call stamps the subscriber `verified` (`identityVerifiedAt`) — visible on every subscriber read, so anonymous and verified users coexist and you can see which is which. An invalid hash is always a 401, enforced or not.
 - **Enforced** (`PATCH /v1/tenants/:slug { "settings": { "identity": { "requireVerification": true } } }`): every client call must carry a valid hash. A stolen hash only ever impersonates the one user it was minted for. Verified with constant-time comparison.
+
+**Endpoint ownership without verification.** With verification off, any caller can claim any `externalId` — that is inherent to an unverified public key (OneSignal has the same trade-off). What the API still refuses from an *unverified* client call is moving an endpoint that already belongs to another subscriber: re-registering someone else's push token or email under a new `externalId` is a 409, and PATCH/DELETE only act on the caller's own binding. A call carrying a valid `identityHash` may move the endpoint (the user proved who they are), and server-side routes (secret keys) always can. New endpoints bind freely, so an attacker can still register their own device under a victim's id while verification is off — enable verification before you send anything sensitive.

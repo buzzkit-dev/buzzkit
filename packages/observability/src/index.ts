@@ -161,8 +161,6 @@ export function createLogger(options: { fallbackService: string }) {
   };
 }
 
-export type Logger = ReturnType<typeof createLogger>;
-
 function emit(entry: LogEntry, env: ObservabilityEnv | undefined): void {
   if (env?.ENVIRONMENT === 'development') {
     const { _time, level, message, 'service.name': service, trace_id, span_id, ...fields } = entry;

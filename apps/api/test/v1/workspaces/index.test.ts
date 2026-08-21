@@ -60,15 +60,18 @@ describe('POST /v1/workspaces', () => {
     const mine = await createWorkspace(user.token);
     await setupWorkspace();
 
-    const { status, body } = await api<Array<{ id: string; slug: string; role: string }>>('/v1/workspaces', {
-      headers: user.bearer,
-    });
+    const { status, body } = await api<{ items: Array<{ id: string; slug: string; role: string }> }>(
+      '/v1/workspaces',
+      {
+        headers: user.bearer,
+      }
+    );
 
     expect(status).toBe(200);
-    expect(body.data).toHaveLength(1);
-    expect(body.data?.[0]?.slug).toBe(mine.slug);
-    expect(body.data?.[0]?.role).toBe('owner');
-    expect(body.data?.[0]?.id).toMatch(/^ws_/);
+    expect(body.data?.items).toHaveLength(1);
+    expect(body.data?.items[0]?.slug).toBe(mine.slug);
+    expect(body.data?.items[0]?.role).toBe('owner');
+    expect(body.data?.items[0]?.id).toMatch(/^ws_/);
   });
 
   it('validates name and slug shape at creation', async () => {

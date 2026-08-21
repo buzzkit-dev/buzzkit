@@ -8,39 +8,12 @@ import {
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
 import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const messages = new Elysia()
   .use(auth)
   .guard({ detail: { tags: ['Messages'] } })
-  .post(
-    '/messages',
-    async ({ body, db, set, tenant, event }) => {
-      const { message, created } = await createMessage(db, tenant, body);
-
-      if (created) {
-        await event({
-          event: 'message.created',
-          tenantId: tenant.id,
-          target: { type: 'message', id: message.id },
-          data: { channel: message.channel, topic: message.topic, targets: message.targets },
-        });
-        await enqueueFanout(message.id);
-      }
-
-      return Response.success(serializeMessage(message), {
-        entity: 'message',
-        ignoreTransform: ['payload', 'targets'],
-      })
-        .status(created ? 202 : 200)
-        .send(set);
-    },
-    {
-      tenant: 'messages:send',
-      body: CreateMessageSchema,
-    }
-  )
   .get(
     '/messages',
     async ({ db, query, tenant }) => {
@@ -60,8 +33,42 @@ export const messages = new Elysia()
     {
       tenant: 'messages:read',
       query: t.Object({
-        limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100 })),
-        cursor: t.Optional(t.String()),
+        ...PaginationQuerySchema.properties,
       }),
+    }
+  )
+  .post(
+    '/messages',
+    async ({ body, db, headers, set, tenant, event }) => {
+      const { message, created } = await createMessage(db, tenant, {
+        ...body,
+        idempotencyKey: headers['idempotency-key'] ?? body.idempotencyKey,
+      });
+
+      if (created) {
+        await event({
+          event: 'message.created',
+          tenantId: tenant.id,
+          target: { type: 'message', id: message.id },
+          data: {
+            channel: message.channel,
+            topic: message.topic,
+            recipients: (message.targets as { to?: string[] }).to?.length ?? null,
+          },
+        });
+        await enqueueFanout(message.id);
+      }
+
+      return Response.success(serializeMessage(message), {
+        entity: 'message',
+        ignoreTransform: ['payload', 'targets'],
+      })
+        .status(202)
+        .headers(created ? {} : { 'idempotent-replayed': 'true' })
+        .send(set);
+    },
+    {
+      tenant: 'messages:send',
+      body: CreateMessageSchema,
     }
   );

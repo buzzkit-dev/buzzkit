@@ -6,9 +6,6 @@ import { clientSubscriptions } from './client/subscriptions';
 import { credentials } from './credentials';
 import { credential } from './credentials/[id]';
 import { credentialValidate } from './credentials/[id]/validate';
-import { credentialsApns } from './credentials/apns';
-import { credentialsFcm } from './credentials/fcm';
-import { credentialsResend } from './credentials/resend';
 import { delivery } from './deliveries/[id]';
 import { deliveryAttempts } from './deliveries/[id]/attempts';
 import { health } from './health';
@@ -26,18 +23,20 @@ import { subscriptions } from './subscriptions';
 import { subscription } from './subscriptions/[id]';
 import { tenants } from './tenants';
 import { tenant } from './tenants/[tenantSlug]';
+import { tenantIdentitySecret } from './tenants/[tenantSlug]/identity-secret';
+import { tenantIdentitySecretRotate } from './tenants/[tenantSlug]/identity-secret/rotate';
 import { topics } from './topics';
 import { topic } from './topics/[topicSlug]';
 import { workspaces } from './workspaces';
-import { workspace } from './workspaces/[slug]';
-import { events } from './workspaces/[slug]/events';
-import { invites } from './workspaces/[slug]/invites';
-import { invite } from './workspaces/[slug]/invites/[id]';
-import { inviteResend } from './workspaces/[slug]/invites/[id]/resend';
-import { keys } from './workspaces/[slug]/keys';
-import { key } from './workspaces/[slug]/keys/[id]';
-import { members } from './workspaces/[slug]/members';
-import { member } from './workspaces/[slug]/members/[id]';
+import { workspace } from './workspaces/[workspaceSlug]';
+import { events } from './workspaces/[workspaceSlug]/events';
+import { invites } from './workspaces/[workspaceSlug]/invites';
+import { invite } from './workspaces/[workspaceSlug]/invites/[id]';
+import { inviteResend } from './workspaces/[workspaceSlug]/invites/[id]/resend';
+import { keys } from './workspaces/[workspaceSlug]/keys';
+import { key } from './workspaces/[workspaceSlug]/keys/[id]';
+import { members } from './workspaces/[workspaceSlug]/members';
+import { member } from './workspaces/[workspaceSlug]/members/[id]';
 
 export const v1 = new Elysia({ prefix: '/v1' })
   .use(response)
@@ -106,21 +105,17 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(tenant)
   /*
+   * /v1/tenants/:tenantSlug/identity-secret
+   */
+  .use(tenantIdentitySecret)
+  /*
+   * /v1/tenants/:tenantSlug/identity-secret/rotate
+   */
+  .use(tenantIdentitySecretRotate)
+  /*
    * /v1/credentials
    */
   .use(credentials)
-  /*
-   * /v1/credentials/apns
-   */
-  .use(credentialsApns)
-  /*
-   * /v1/credentials/fcm
-   */
-  .use(credentialsFcm)
-  /*
-   * /v1/credentials/resend
-   */
-  .use(credentialsResend)
   /*
    * /v1/credentials/:id
    */

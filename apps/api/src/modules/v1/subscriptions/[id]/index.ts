@@ -1,23 +1,35 @@
 import {
   findSubscription,
   serializeSubscription,
-  setSubscriptionEnabled,
   softDeleteSubscription,
+  updateSubscriptionEnabled,
 } from '@buzzkit/api/api/subscribers/index';
 import { auth } from '@buzzkit/api/libs/auth';
-import { Response } from '@buzzkit/api/libs/response';
+import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import Elysia, { t } from 'elysia';
 
 export const subscription = new Elysia()
   .use(auth)
   .guard({ detail: { tags: ['Subscriptions'] } })
+  .get(
+    '/subscriptions/:id',
+    async ({ db, params, tenant }) => {
+      const target = await findSubscription(db, tenant.id, params.id);
+
+      return Response.success(
+        { ...serializeSubscription(target), subscriberId: encodeId('subscriber', target.subscriberId) },
+        { entity: 'subscription' }
+      ).send();
+    },
+    { tenant: 'subscriptions:read' }
+  )
   .patch(
     '/subscriptions/:id',
     async ({ body, db, params, tenant, event }) => {
       const target = await findSubscription(db, tenant.id, params.id);
 
-      const updated = await setSubscriptionEnabled(db, target.id, body.enabled);
+      const updated = await updateSubscriptionEnabled(db, target.id, body.enabled);
 
       await event({
         event: 'subscription.updated',
@@ -51,7 +63,10 @@ export const subscription = new Elysia()
       });
 
       return Response.success(
-        { ...serializeSubscription(deleted), subscriberId: encodeId('subscriber', deleted.subscriberId) },
+        markDeleted({
+          ...serializeSubscription(deleted),
+          subscriberId: encodeId('subscriber', deleted.subscriberId),
+        }),
         { entity: 'subscription' }
       ).send();
     },

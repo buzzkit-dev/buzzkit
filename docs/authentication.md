@@ -5,7 +5,7 @@
 | Credential | Prefix | Obtained | Powers |
 |---|---|---|---|
 | **Session** (bearer token) | — | BetterAuth (`/v1/auth/*`, email + password) | Dashboard use: everything the user's workspace role allows, plus account routes and key management |
-| **Workspace API key** | `bk_ws_` | Dashboard → `/v1/workspaces/:slug/keys` | **The one key you store.** Server-side: any granted scope across ALL tenants of its workspace, tenant addressed per request — this is the key the product promise runs on |
+| **Workspace API key** | `bk_ws_` | Dashboard → `/v1/workspaces/:workspaceSlug/keys` | **The one key you store.** Server-side: any granted scope across ALL tenants of its workspace, tenant addressed per request — this is the key the product promise runs on |
 | **Tenant API key** | `bk_tn_` | Same, with `kind: "tenant"` + tenant slug | *Optional* — the restricted-key analog (Stripe `rk_`): locked to one tenant's data plane, for handing a customer or semi-trusted subsystem direct access with a one-tenant blast radius. Never required; rejected on all workspace-context routes |
 | **Client key** | `bk_pk_` | Same, with `kind: "client"` + tenant (no scopes) | Embed-safe, ships in the app binary: `/v1/client/*` only — identify, device register/unregister, own preferences. Optional per-tenant HMAC identity verification stops externalId spoofing |
 
@@ -13,7 +13,7 @@ Secrets are stored as SHA-256 hashes (of the post-prefix portion) and shown exac
 
 ## Addressing
 
-- `/v1/workspaces/:slug/*` — the workspace slug is in the path.
+- `/v1/workspaces/:workspaceSlug/*` — the workspace slug is in the path.
 - Slug-less routes (`/v1/tenants*`, `/v1/credentials*`, all future data-plane routes) — an API key implies its own workspace; dashboard sessions pass `buzzkit-workspace: <slug>` instead.
 - **Tenant selection (data plane)** — the Stripe-Account pattern, and the PRIMARY multi-tenant flow: a platform stores exactly one workspace key and passes `buzzkit-tenant: <slug>` per request (Stripe platforms do the identical thing — one platform secret key + `Stripe-Account: acct_…`; Stripe issues no per-connected-account keys). The **default tenant** is used when the header is absent — the simple case needs no tenant awareness at all. Tenant keys, when used, imply their tenant and need no header.
 - A key used against a slug or tenant it doesn't belong to is a 403 — always.
@@ -27,9 +27,9 @@ Every route declares exactly one scope; the scope's context decides authenticati
 - **tenant context** (data plane: `credentials:*`, `subscribers:*`, `subscriptions:*`, `topics:*`, `messages:*`) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
 - **client context** (`/v1/client/*`) — client keys ONLY (secret keys and sessions are refused); the key implies workspace + tenant. Subscriber identity comes from the request (`externalId` in bodies, `BuzzKit-Subscriber` header on preferences), optionally proven by `identityHash` / `BuzzKit-Identity` (HMAC-SHA256 of the externalId with the tenant's identity secret) when the tenant enforces verification.
 
-Role bundles: `member` → read scopes + members:read; `admin` → + workspace:write, members:write, invites:*, tenants:write, keys:*; `owner` → + workspace:delete.
+Role bundles: `member` → read scopes + members:read; `admin` → + workspace:write, members:write, invites:*, tenants:write, tenants:secrets, keys:*; `owner` → + workspace:delete.
 
-**Session-only scopes:** `keys:read` / `keys:write` — an API key can never mint, list, or revoke keys, even with a `*` grant. A leaked key must never escalate.
+**Session-only scopes:** `keys:*`, `invites:*`, `members:write`, `workspace:delete`, `tenants:secrets` — an API key can never mint keys, invite or promote people, delete the workspace, or read the client identity secret, even with a `*` grant, and none of these can be granted to a key at creation (400). A leaked key must never escalate: with these session-only, the worst a stolen `*` key can do is operate the data plane it was issued for, and revocation ends that. Everything a key *can* do is something the dashboard also does through the same scopes.
 
 ## Invariants (enforced by `test/v1/auth/index.test.ts` — the isolation matrix)
 
@@ -37,5 +37,5 @@ Role bundles: `member` → read scopes + members:read; `admin` → + workspace:w
 2. Tenant keys never satisfy workspace-context scopes.
 3. Keys never manage keys.
 3b. Ownership is owner-only: granting or revoking the `owner` role requires owner-level authority, so `members:write` alone can never escalate.
-4. Cross-workspace addressing fails closed (403), invalid/revoked/expired credentials fail closed (401).
-5. Sessions are cached in KV for 5 minutes (`AUTH_CACHE`) and purged on sign-out; resolved API keys are cached for 60 seconds (bounded by the key's own expiry) and purged on revoke and on tenant/workspace deletion — revocation is immediate in-region, with KV propagation bounding worst-case global staleness at ~60s.
+4. Cross-workspace addressing fails closed — 403 for a key addressing a foreign workspace, **404 for a session that is not a member** (a non-member learns nothing, not even that the slug exists) — and invalid/revoked/expired credentials fail closed (401). A key's kind is bound to its prefix: a `bk_pk_` secret presented as `bk_ws_…` is 401, never re-interpreted.
+5. Sessions are cached in KV for 5 minutes (`AUTH_CACHE`, keyed by the SHA-256 of the token, bounded by the session's own expiry) and purged on sign-out; resolved API keys are cached for 60 seconds (bounded by the key's own expiry) and purged on revoke and on tenant/workspace deletion — revocation is immediate in-region, with KV propagation bounding worst-case global staleness at ~60s.

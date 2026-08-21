@@ -1,6 +1,6 @@
 import {
+  ClientIdentitySchema,
   EmailAddressSchema,
-  ExternalIdSchema,
   registerSubscription,
   serializeSubscriber,
   upsertSubscriber,
@@ -23,13 +23,28 @@ export const clientIdentify = new Elysia()
         verifiedNow: verified,
       });
 
-      if (body.email) {
-        await registerSubscription(db, tenant.id, {
-          subscriber,
-          externalId: subscriber.externalId,
-          channel: 'email',
-          platform: null,
-          endpoint: body.email,
+      const registered = body.email
+        ? await registerSubscription(db, tenant.id, {
+            subscriber,
+            externalId: subscriber.externalId,
+            channel: 'email',
+            platform: null,
+            endpoint: body.email,
+            rebind: verified,
+          })
+        : null;
+
+      if (registered?.subscriptionCreated) {
+        await clientEvent(subscriber.externalId)({
+          event: 'subscription.created',
+          tenantId: tenant.id,
+          target: { type: 'subscription', id: registered.subscription.id },
+          data: {
+            externalId: subscriber.externalId,
+            channel: 'email',
+            platform: null,
+            subscriberCreated: created,
+          },
         });
       }
 
@@ -54,10 +69,6 @@ export const clientIdentify = new Elysia()
     },
     {
       client: true,
-      body: t.Object({
-        externalId: ExternalIdSchema,
-        email: t.Optional(EmailAddressSchema),
-        identityHash: t.Optional(t.String({ maxLength: 128 })),
-      }),
+      body: t.Composite([ClientIdentitySchema, t.Object({ email: t.Optional(EmailAddressSchema) })]),
     }
   );

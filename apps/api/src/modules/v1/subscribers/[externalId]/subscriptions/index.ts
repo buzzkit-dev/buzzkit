@@ -18,7 +18,7 @@ export const subscriberSubscriptions = new Elysia()
       const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
       const rows = await listSubscriptions(db, subscriber.id);
 
-      return Response.success(
+      return Response.list(
         rows.map(serializeSubscription).map((subscription) => ({
           ...subscription,
           subscriberId: encodeId('subscriber', subscription.subscriberId),

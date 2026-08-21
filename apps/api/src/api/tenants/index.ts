@@ -1,27 +1,28 @@
 import { purgeApiKeyCacheForTenant, randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
+import { NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, asc, type Db, eq, gt, isNull, tables } from '@buzzkit/database';
+import { assertJsonSize } from '@buzzkit/api/utils/json';
+import { and, type Db, desc, eq, isNull, lt, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Tenant = typeof tables.tenant.$inferSelect;
 
-export const TenantSlugSchema = t.String({
-  minLength: 1,
-  maxLength: 64,
-  pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
-  description: 'Lowercase letters, numbers and single hyphens. Stable identifier — pick carefully.',
-});
+export const TenantSlugSchema = SlugSchema;
 
-export const TenantNameSchema = t.String({ minLength: 1, maxLength: 100 });
+export const TenantNameSchema = NameSchema;
 
 export const TenantMetadataSchema = t.Record(t.String(), t.Any(), {
   description: 'Free-form data, e.g. your own customer id',
 });
 
-export const TenantSettingsSchema = t.Record(t.String(), t.Any(), {
-  description: 'Structured tenant settings — validated against the settings catalog',
-});
+export const TenantSettingsSchema = t.Object(
+  {},
+  {
+    additionalProperties: true,
+    description: 'Structured tenant settings — validated against the settings catalog',
+  }
+);
 
 const SETTINGS_CATALOG: Record<string, Record<string, 'boolean'>> = {
   identity: { requireVerification: 'boolean' },
@@ -108,6 +109,32 @@ export function mergeTenantSettings(current: unknown, patch: TenantSettingsPatch
   };
 }
 
+export const MAX_TENANT_METADATA_BYTES = 16 * 1024;
+
+export function assertTenantMetadataSize(metadata: Record<string, unknown> | undefined): void {
+  assertJsonSize(metadata, MAX_TENANT_METADATA_BYTES, 'metadata must serialize to 16KB or less', {
+    code: 'metadata_too_large',
+    param: 'metadata',
+  });
+}
+
+export function serializeIdentitySecret(tenant: Tenant) {
+  return { id: tenant.id, identitySecret: tenant.identitySecret, updatedAt: tenant.updatedAt };
+}
+
+export async function rotateTenantIdentitySecret(db: Db, tenant: Tenant): Promise<Tenant> {
+  const [rotated] = await trace(
+    'tenants.rotateIdentitySecret',
+    async () =>
+      await db
+        .update(tables.tenant)
+        .set({ identitySecret: randomString(32) })
+        .where(eq(tables.tenant.id, tenant.id))
+        .returning()
+  );
+  return rotated!;
+}
+
 export function serializeTenant(tenant: Tenant) {
   return {
     id: tenant.id,
@@ -115,7 +142,6 @@ export function serializeTenant(tenant: Tenant) {
     slug: tenant.slug,
     isDefault: tenant.isDefault,
     metadata: tenant.metadata,
-    identitySecret: tenant.identitySecret,
     settings: resolveTenantSettings(tenant.settings),
     createdAt: tenant.createdAt,
     updatedAt: tenant.updatedAt,
@@ -124,7 +150,7 @@ export function serializeTenant(tenant: Tenant) {
 
 export async function assertTenantSlugAvailable(db: Db, workspaceId: number, slug: string): Promise<void> {
   const [existing] = await trace(
-    'tenants.getBySlug',
+    'tenants.findBySlug',
     async () =>
       await db
         .select({ id: tables.tenant.id })
@@ -139,7 +165,7 @@ export async function assertTenantSlugAvailable(db: Db, workspaceId: number, slu
   );
 
   if (existing) {
-    throw new ConflictError('A tenant with this slug already exists');
+    throw new ConflictError('A tenant with this slug already exists', { code: 'slug_taken', param: 'slug' });
   }
 }
 
@@ -169,7 +195,7 @@ export async function createTenant(
 export async function listTenants(
   db: Db,
   workspaceId: number,
-  options: { limit: number; afterId?: number }
+  options: { limit: number; beforeId?: number }
 ): Promise<Tenant[]> {
   return await trace(
     'tenants.list',
@@ -181,10 +207,10 @@ export async function listTenants(
           and(
             eq(tables.tenant.workspaceId, workspaceId),
             isNull(tables.tenant.deletedAt),
-            options.afterId ? gt(tables.tenant.id, options.afterId) : undefined
+            options.beforeId ? lt(tables.tenant.id, options.beforeId) : undefined
           )
         )
-        .orderBy(asc(tables.tenant.id))
+        .orderBy(desc(tables.tenant.id))
         .limit(options.limit + 1)
   );
 }
@@ -206,7 +232,7 @@ export async function findTenantBySlug(db: Db, workspaceId: number, slug: string
   );
 
   if (!tenant) {
-    throw new NotFoundError('Tenant not found');
+    throw new NotFoundError('Tenant not found', { code: 'tenant_not_found' });
   }
 
   return tenant;
@@ -222,7 +248,18 @@ export async function updateTenant(
     settings?: TenantSettingsPatch;
   }
 ): Promise<Tenant> {
-  const values: Record<string, unknown> = { ...patch };
+  assertTenantMetadataSize(patch.metadata);
+  if (patch.slug !== undefined && patch.slug !== tenant.slug && tenant.isDefault) {
+    throw new ConflictError('The default tenant keeps its slug', {
+      code: 'default_tenant_immutable',
+      param: 'slug',
+    });
+  }
+  const values: Partial<typeof tables.tenant.$inferInsert> = {
+    name: patch.name,
+    slug: patch.slug,
+    metadata: patch.metadata,
+  };
   if (patch.settings) {
     values.settings = mergeTenantSettings(tenant.settings, patch.settings);
     if (patch.settings.identity?.requireVerification && !tenant.identitySecret) {
@@ -234,13 +271,14 @@ export async function updateTenant(
     'tenants.update',
     async () => await db.update(tables.tenant).set(values).where(eq(tables.tenant.id, tenant.id)).returning()
   );
+  await purgeApiKeyCacheForTenant(db, tenant.id);
 
   return updated!;
 }
 
 export async function softDeleteTenant(db: Db, tenant: Tenant): Promise<Tenant> {
   if (tenant.isDefault) {
-    throw new BadRequestError('The default tenant cannot be deleted');
+    throw new ConflictError('The default tenant cannot be deleted', { code: 'default_tenant_immutable' });
   }
 
   const deleted = await trace('tenants.softDelete', async () =>

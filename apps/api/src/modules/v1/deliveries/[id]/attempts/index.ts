@@ -12,7 +12,7 @@ export const deliveryAttempts = new Elysia()
       const delivery = await findDelivery(db, tenant.id, params.id);
       const attempts = await listAttempts(db, delivery.id);
 
-      return Response.success(attempts.map(serializeAttempt), {
+      return Response.list(attempts.map(serializeAttempt), {
         ignoreTransform: ['request', 'response'],
       }).send();
     },

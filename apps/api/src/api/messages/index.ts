@@ -1,15 +1,17 @@
 import { env } from 'cloudflare:workers';
 import { decryptCredentialSecret } from '@buzzkit/api/api/credentials/index';
 import {
-  type AttemptApplication,
-  applyAttemptResult,
-  claimDeliveryAttempt,
+  type AttemptOutcome,
+  applyAttemptResults,
+  claimDeliveryAttempts,
   type Delivery,
+  type DeliveryJob,
   failDeliveriesImmediately,
   finalizeMessageIfComplete,
-  systemEvent,
 } from '@buzzkit/api/api/deliveries/index';
-import { ExternalIdSchema } from '@buzzkit/api/api/subscribers/index';
+import { SEND_CONCURRENCY, STALLED_FANOUT_MINUTES } from '@buzzkit/api/api/deliveries/policy';
+import { recordSystemEvents } from '@buzzkit/api/api/events/index';
+import { ExternalIdSchema, type Subscriber, type Subscription } from '@buzzkit/api/api/subscribers/index';
 import { resolveTenantSettings, type Tenant } from '@buzzkit/api/api/tenants/index';
 import {
   CHANNELS,
@@ -17,8 +19,11 @@ import {
   findTopicBySlug,
   type Topic,
   TopicSlugSchema,
+  topicDefault,
 } from '@buzzkit/api/api/topics/index';
-import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
+import { sha256Hex } from '@buzzkit/api/libs/crypto';
+import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
+import { ChannelSchema, EnvironmentSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import {
@@ -28,6 +33,8 @@ import {
   type ProviderName,
   PUSH_PROVIDER_BY_PLATFORM,
 } from '@buzzkit/api/providers/index';
+import type { TokenMemo } from '@buzzkit/api/providers/shared/cache';
+import { assertJsonSize, stableStringify } from '@buzzkit/api/utils/json';
 import { and, asc, type Db, desc, eq, gt, inArray, isNull, lt, ne, sql, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
@@ -36,6 +43,7 @@ export type Message = typeof tables.message.$inferSelect;
 export type MessageTargets = { to?: string[]; topic?: string };
 
 export const MAX_DIRECT_TARGETS = 1000;
+export const MAX_PAYLOAD_BYTES = 8 * 1024;
 export const FANOUT_PAGE_SIZE = 500;
 export const QUEUE_BATCH_SIZE = 100;
 export const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
@@ -51,13 +59,13 @@ export const MessagePayloadSchema = t.Object({
   subtitle: t.Optional(t.String({ maxLength: 500 })),
   badge: t.Optional(t.Integer({ minimum: 0 })),
   sound: t.Optional(t.String({ maxLength: 100 })),
-  imageUrl: t.Optional(t.String({ format: 'uri', maxLength: 2048 })),
+  imageUrl: t.Optional(UrlSchema),
   data: t.Optional(t.Record(t.String(), t.Any())),
   collapseId: t.Optional(t.String({ maxLength: 64 })),
   priority: t.Optional(t.Union([t.Literal('high'), t.Literal('normal')])),
   apns: t.Optional(
     t.Object({
-      environment: t.Optional(t.Union([t.Literal('production'), t.Literal('sandbox')])),
+      environment: t.Optional(EnvironmentSchema),
       payload: t.Optional(t.Record(t.String(), t.Any())),
     })
   ),
@@ -75,7 +83,7 @@ export const CreateMessageSchema = t.Composite([
       t.Union([ExternalIdSchema, t.Array(ExternalIdSchema, { minItems: 1, maxItems: MAX_DIRECT_TARGETS })])
     ),
     topic: t.Optional(TopicSlugSchema),
-    channel: t.Optional(t.Union([t.Literal('push'), t.Literal('email')])),
+    channel: t.Optional(ChannelSchema),
     ttlSeconds: t.Optional(t.Integer({ minimum: 60, maximum: MAX_TTL_SECONDS })),
     idempotencyKey: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
   }),
@@ -102,6 +110,7 @@ export function serializeMessage(message: Message) {
     idempotencyKey: message.idempotencyKey,
     expiresAt: message.expiresAt,
     createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
     completedAt: message.completedAt,
   };
 }
@@ -131,32 +140,52 @@ export async function createMessage(
 ): Promise<{ message: Message; created: boolean }> {
   const channel: Channel = input.channel ?? 'push';
   if (!CHANNELS.includes(channel)) {
-    throw new BadRequestError(`Unknown channel '${channel}'`);
+    throw new BadRequestError(`Unknown channel '${channel}'`, { code: 'channel_unknown', param: 'channel' });
   }
   if (channel !== 'push') {
-    throw new BadRequestError(`Sending on the '${channel}' channel is not supported yet`);
+    throw new BadRequestError(`Sending on the '${channel}' channel is not supported yet`, {
+      code: 'channel_unsupported',
+      param: 'channel',
+    });
   }
 
   const settings = resolveTenantSettings(tenant.settings);
   if (!settings.channels[channel].enabled) {
-    throw new BadRequestError(`The '${channel}' channel is disabled for this tenant`);
+    throw new BadRequestError(`The '${channel}' channel is disabled for this tenant`, {
+      code: 'channel_disabled',
+      param: 'channel',
+    });
   }
 
   const to =
     input.to === undefined ? undefined : Array.isArray(input.to) ? [...new Set(input.to)] : [input.to];
   if (!to && !input.topic) {
-    throw new BadRequestError('Provide `to` (external ids) and/or `topic`');
+    throw new BadRequestError('Provide `to` (external ids) and/or `topic`', {
+      code: 'targets_missing',
+      param: 'to',
+    });
   }
 
   if (input.title === undefined && input.body === undefined && input.data === undefined) {
-    throw new BadRequestError('Provide at least a title, body, or data');
+    throw new BadRequestError('Provide at least a title, body, or data', {
+      code: 'payload_missing',
+      param: 'body',
+    });
   }
 
-  if (input.topic) {
-    await findTopicBySlug(db, tenant.id, input.topic);
-  }
+  const topic = input.topic ? await findTopicBySlug(db, tenant.id, input.topic) : null;
 
   const targets: MessageTargets = { ...(to ? { to } : {}), ...(input.topic ? { topic: input.topic } : {}) };
+  const payload = payloadFromInput(input as Record<string, unknown>);
+  assertJsonSize(payload, MAX_PAYLOAD_BYTES, 'payload must serialize to 8KB or less', {
+    code: 'payload_too_large',
+    param: 'data',
+  });
+  const fingerprint = input.idempotencyKey
+    ? await sha256Hex(
+        stableStringify({ targets, channel, ttlSeconds: input.ttlSeconds ?? DEFAULT_TTL_SECONDS, payload })
+      )
+    : null;
   const ttlSeconds = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
   const [message] = await trace(
@@ -167,10 +196,12 @@ export async function createMessage(
         .values({
           tenantId: tenant.id,
           channel,
-          topic: input.topic ?? null,
+          topic: topic?.slug ?? null,
+          topicId: topic?.id ?? null,
           targets,
-          payload: payloadFromInput(input as Record<string, unknown>),
+          payload,
           idempotencyKey: input.idempotencyKey ?? null,
+          idempotencyFingerprint: fingerprint,
           expiresAt: new Date(Date.now() + ttlSeconds * 1000),
         })
         .onConflictDoNothing({
@@ -197,18 +228,35 @@ export async function createMessage(
         )
   );
 
-  return { message: existing!, created: false };
+  if (!existing) {
+    throw new ConflictError('This idempotency key is being processed by another request', {
+      code: 'idempotency_key_in_use',
+      param: 'idempotencyKey',
+    });
+  }
+
+  if (existing.idempotencyFingerprint !== fingerprint) {
+    throw new ConflictError('This idempotency key was already used with a different request', {
+      code: 'idempotency_key_reused',
+      param: 'idempotencyKey',
+    });
+  }
+
+  return { message: existing, created: false };
 }
 
 export async function enqueueFanout(messageId: number, afterId = 0): Promise<void> {
   await env.DELIVERIES.send({ type: 'fanout', messageId, afterId } satisfies DeliveryQueueMessage);
 }
 
-export async function enqueueDeliveries(jobs: Array<{ deliveryId: number; attempt: number }>): Promise<void> {
+export async function enqueueDeliveries(jobs: Array<DeliveryJob & { delaySeconds?: number }>): Promise<void> {
   for (let i = 0; i < jobs.length; i += QUEUE_BATCH_SIZE) {
     const batch = jobs.slice(i, i + QUEUE_BATCH_SIZE);
     await env.DELIVERIES.sendBatch(
-      batch.map((job) => ({ body: { type: 'deliver', ...job } satisfies DeliveryQueueMessage }))
+      batch.map(({ delaySeconds, ...job }) => ({
+        body: { type: 'deliver', ...job } satisfies DeliveryQueueMessage,
+        ...(delaySeconds ? { delaySeconds } : {}),
+      }))
     );
   }
 }
@@ -240,7 +288,7 @@ export async function findMessage(db: Db, tenantId: number, messageSqid: string)
   const messageId = decodeEntityId('message', messageSqid);
 
   if (!messageId) {
-    throw new BadRequestError('Invalid message identifier');
+    throw new NotFoundError('Message not found');
   }
 
   const [message] = await trace(
@@ -265,22 +313,18 @@ export async function findMessage(db: Db, tenantId: number, messageSqid: string)
   return message;
 }
 
-function topicChannelDefault(topic: Topic, channel: Channel): boolean {
-  const overrides = topic.channelDefaults as Partial<Record<Channel, boolean>>;
-  return overrides[channel] ?? topic.defaultOptedIn;
-}
-
 async function resolveTargetPage(
   db: Db,
   message: Message,
   topic: Topic | null,
   afterId: number
-): Promise<Array<{ subscriptionId: number; subscriberId: number; platform: 'ios' | 'android' | null }>> {
+): Promise<Array<{ subscriptionId: number; subscriberId: number; platform: Subscription['platform'] }>> {
   const targets = message.targets as MessageTargets;
   const channel = message.channel as Channel;
 
   const conditions = [
     eq(tables.subscription.tenantId, message.tenantId),
+    eq(tables.subscriber.tenantId, message.tenantId),
     eq(tables.subscription.channel, channel),
     eq(tables.subscription.enabled, true),
     eq(tables.subscription.status, 'active'),
@@ -304,7 +348,7 @@ async function resolveTargetPage(
     .$dynamic();
 
   if (topic) {
-    const channelDefault = topicChannelDefault(topic, channel);
+    const channelDefault = topicDefault(topic, channel);
     query = query.leftJoin(
       tables.subscriberPreference,
       and(
@@ -364,20 +408,21 @@ async function fanoutPageInner(db: Db, messageId: number, afterId: number): Prom
   }
 
   const targets = message.targets as MessageTargets;
-  const topic = targets.topic
-    ? ((
-        await db
-          .select()
-          .from(tables.topic)
-          .where(
-            and(
-              eq(tables.topic.tenantId, message.tenantId),
-              eq(tables.topic.slug, targets.topic),
-              isNull(tables.topic.deletedAt)
+  const topic =
+    targets.topic && message.topicId
+      ? ((
+          await db
+            .select()
+            .from(tables.topic)
+            .where(
+              and(
+                eq(tables.topic.id, message.topicId),
+                eq(tables.topic.tenantId, message.tenantId),
+                isNull(tables.topic.deletedAt)
+              )
             )
-          )
-      )[0] ?? null)
-    : null;
+        )[0] ?? null)
+      : null;
 
   if (targets.topic && !topic) {
     await completeFanout(db, message.id);
@@ -472,12 +517,12 @@ async function resolveCredential(
   const memoized = memo?.get(memoKey);
   if (memoized) return memoized;
 
-  const pending = loadCredential(db, tenantId, provider, preferredEnvironment);
+  const pending = findCredentialForProvider(db, tenantId, provider, preferredEnvironment);
   memo?.set(memoKey, pending);
   return pending;
 }
 
-async function loadCredential(
+async function findCredentialForProvider(
   db: Db,
   tenantId: number,
   provider: ProviderName,
@@ -507,113 +552,260 @@ async function loadCredential(
   };
 }
 
-export type DeliveryProcessingResult = {
-  messageId: number;
-  application: AttemptApplication | null;
+export type ProcessedDelivery = {
+  job: DeliveryJob;
+  messageId: number | null;
+  outcome: 'skipped' | 'sent' | 'retrying' | 'failed' | 'invalid';
+  retryDelaySeconds: number | null;
 };
 
-export async function processDelivery(
-  db: Db,
-  deliveryId: number,
-  expectedAttempt: number,
-  memo?: CredentialMemo
-): Promise<DeliveryProcessingResult | null> {
-  return await trace('deliveries.process', async (t) => {
-    t.set('delivery.id', deliveryId);
-    t.set('delivery.attempt', expectedAttempt);
-    return processDeliveryInner(db, deliveryId, expectedAttempt, memo);
-  });
-}
+type ProcessableRow = {
+  delivery: Pick<
+    Delivery,
+    'id' | 'tenantId' | 'messageId' | 'subscriberId' | 'subscriptionId' | 'status' | 'attempts' | 'provider'
+  >;
+  message: Pick<Message, 'id' | 'payload' | 'expiresAt'>;
+  subscription: Pick<Subscription, 'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel'>;
+  subscriber: Pick<Subscriber, 'externalId' | 'deletedAt'>;
+};
 
-async function processDeliveryInner(
-  db: Db,
-  deliveryId: number,
-  expectedAttempt: number,
-  memo?: CredentialMemo
-): Promise<DeliveryProcessingResult | null> {
-  const [row] = await db
+async function listDeliveriesForProcessing(db: Db, ids: number[]): Promise<ProcessableRow[]> {
+  if (ids.length === 0) return [];
+  return await db
     .select({
-      delivery: tables.delivery,
-      message: tables.message,
-      subscription: tables.subscription,
-      subscriber: tables.subscriber,
+      delivery: {
+        id: tables.delivery.id,
+        tenantId: tables.delivery.tenantId,
+        messageId: tables.delivery.messageId,
+        subscriberId: tables.delivery.subscriberId,
+        subscriptionId: tables.delivery.subscriptionId,
+        status: tables.delivery.status,
+        attempts: tables.delivery.attempts,
+        provider: tables.delivery.provider,
+      },
+      message: {
+        id: tables.message.id,
+        payload: tables.message.payload,
+        expiresAt: tables.message.expiresAt,
+      },
+      subscription: {
+        id: tables.subscription.id,
+        endpoint: tables.subscription.endpoint,
+        enabled: tables.subscription.enabled,
+        status: tables.subscription.status,
+        deletedAt: tables.subscription.deletedAt,
+        channel: tables.subscription.channel,
+      },
+      subscriber: { externalId: tables.subscriber.externalId, deletedAt: tables.subscriber.deletedAt },
     })
     .from(tables.delivery)
     .innerJoin(tables.message, eq(tables.message.id, tables.delivery.messageId))
     .innerJoin(tables.subscription, eq(tables.subscription.id, tables.delivery.subscriptionId))
     .innerJoin(tables.subscriber, eq(tables.subscriber.id, tables.delivery.subscriberId))
-    .where(eq(tables.delivery.id, deliveryId));
-
-  if (!row) return null;
-  const { delivery, message, subscription, subscriber } = row;
-
-  if (delivery.status !== 'pending' && delivery.status !== 'retrying') return null;
-  if (delivery.attempts + 1 !== expectedAttempt) return null;
-
-  if (message.expiresAt && message.expiresAt.getTime() < Date.now()) {
-    await failDeliveriesImmediately(db, [delivery.id], 'expired', 'Message expired before delivery');
-    return {
-      messageId: message.id,
-      application: { counterDelta: 'failed', retryDelaySeconds: null, invalidatedSubscriptionId: null },
-    };
-  }
-
-  const startedAt = new Date();
-  const claimed = await claimDeliveryAttempt(db, delivery.id, expectedAttempt, startedAt);
-  if (!claimed) return null;
-
-  const provider = delivery.provider as ProviderName;
-  const payload = message.payload as MessagePayload;
-
-  const credential = await resolveCredential(
-    db,
-    delivery.tenantId,
-    provider,
-    payload.apns?.environment ?? 'production',
-    memo
-  );
-
-  const result = credential
-    ? await trace(`deliver.${provider}`, async () =>
-        PROVIDERS[provider].send({
-          credentialId: credential.id,
-          keyVersion: credential.keyVersion,
-          secret: credential.secret,
-          details: credential.details,
-          environment: credential.environment,
-          endpoint: subscription.endpoint,
-          payload,
-          expiresAt: message.expiresAt,
-        })
-      )
-    : ({
-        ok: false,
-        code: 'no_credential',
-        reason: 'No credential configured for this provider',
-        request: null,
-        response: null,
-        latencyMs: 0,
-      } as const);
-
-  const application = await applyAttemptResult(db, { delivery, provider, startedAt }, result);
-
-  if (application?.invalidatedSubscriptionId) {
-    await systemEvent(
-      db,
-      delivery.tenantId
-    )({
-      event: 'subscription.invalidated',
-      tenantId: delivery.tenantId,
-      target: { type: 'subscription', id: subscription.id },
-      data: {
-        externalId: subscriber.externalId,
-        channel: subscription.channel,
-        reason: result.ok ? null : result.reason,
-      },
-    });
-  }
-
-  return { messageId: message.id, application };
+    .where(inArray(tables.delivery.id, ids));
 }
 
-export type { Delivery };
+export async function processDeliveryBatch(
+  db: Db,
+  jobs: DeliveryJob[],
+  memo: CredentialMemo,
+  tokens: TokenMemo
+): Promise<ProcessedDelivery[]> {
+  return await trace('deliveries.processBatch', { 'deliveries.count': jobs.length }, async (t) => {
+    const rows = new Map(
+      (
+        await listDeliveriesForProcessing(
+          db,
+          jobs.map((job) => job.deliveryId)
+        )
+      ).map((row) => [row.delivery.id, row])
+    );
+    const processed: ProcessedDelivery[] = [];
+    const unsubscribed: ProcessableRow[] = [];
+    const expired: ProcessableRow[] = [];
+    const candidates: Array<{ job: DeliveryJob; row: ProcessableRow }> = [];
+    const now = Date.now();
+
+    for (const job of jobs) {
+      const row = rows.get(job.deliveryId);
+      if (
+        !row ||
+        (row.delivery.status !== 'pending' && row.delivery.status !== 'retrying') ||
+        row.delivery.attempts + 1 !== job.attempt
+      ) {
+        processed.push({
+          job,
+          messageId: row?.message.id ?? null,
+          outcome: 'skipped',
+          retryDelaySeconds: null,
+        });
+        continue;
+      }
+      if (
+        !row.subscription.enabled ||
+        row.subscription.status !== 'active' ||
+        row.subscription.deletedAt ||
+        row.subscriber.deletedAt
+      ) {
+        unsubscribed.push(row);
+        processed.push({ job, messageId: row.message.id, outcome: 'failed', retryDelaySeconds: null });
+        continue;
+      }
+      if (row.message.expiresAt.getTime() < now) {
+        expired.push(row);
+        processed.push({ job, messageId: row.message.id, outcome: 'failed', retryDelaySeconds: null });
+        continue;
+      }
+      candidates.push({ job, row });
+    }
+
+    await failDeliveriesImmediately(
+      db,
+      unsubscribed.map((row) => row.delivery.id),
+      'unsubscribed',
+      'Subscription is muted, removed, or invalid'
+    );
+    await failDeliveriesImmediately(
+      db,
+      expired.map((row) => row.delivery.id),
+      'expired',
+      'Message expired before delivery'
+    );
+
+    const startedAt = new Date();
+    const claimed = await claimDeliveryAttempts(
+      db,
+      candidates.map(({ job }) => job),
+      startedAt
+    );
+    const sending = candidates.filter(({ job }) => claimed.has(job.deliveryId));
+    for (const { job, row } of candidates) {
+      if (!claimed.has(job.deliveryId)) {
+        processed.push({ job, messageId: row.message.id, outcome: 'skipped', retryDelaySeconds: null });
+      }
+    }
+
+    const outcomes: AttemptOutcome[] = [];
+    await runWithConcurrency(sending, SEND_CONCURRENCY, async ({ job, row }) => {
+      const provider = row.delivery.provider;
+      const payload = row.message.payload as MessagePayload;
+      const credential = await resolveCredential(
+        db,
+        row.delivery.tenantId,
+        provider,
+        payload.apns?.environment ?? 'production',
+        memo
+      );
+      const result = credential
+        ? await trace(`deliver.${provider}`, async () =>
+            PROVIDERS[provider].send({
+              credentialId: credential.id,
+              keyVersion: credential.keyVersion,
+              secret: credential.secret,
+              details: credential.details,
+              environment: credential.environment,
+              endpoint: row.subscription.endpoint,
+              payload,
+              expiresAt: row.message.expiresAt,
+              tokens,
+            })
+          )
+        : ({
+            ok: false,
+            code: 'no_credential',
+            reason: 'No credential configured for this provider',
+            request: null,
+            response: null,
+            latencyMs: 0,
+          } as const);
+      outcomes.push({
+        deliveryId: row.delivery.id,
+        tenantId: row.delivery.tenantId,
+        messageId: row.message.id,
+        subscriptionId: row.subscription.id,
+        attempt: job.attempt,
+        provider,
+        startedAt,
+        result,
+      });
+    });
+
+    const applications = await applyAttemptResults(db, outcomes);
+    const applied = new Map(applications.map((application) => [application.deliveryId, application]));
+
+    for (const outcome of outcomes) {
+      const application = applied.get(outcome.deliveryId);
+      const job = { deliveryId: outcome.deliveryId, attempt: outcome.attempt };
+      if (!application) {
+        processed.push({ job, messageId: outcome.messageId, outcome: 'skipped', retryDelaySeconds: null });
+        continue;
+      }
+      processed.push({
+        job,
+        messageId: outcome.messageId,
+        outcome:
+          application.counterDelta ?? (application.retryDelaySeconds !== null ? 'retrying' : 'skipped'),
+        retryDelaySeconds: application.retryDelaySeconds,
+      });
+    }
+
+    await recordSystemEvents(
+      db,
+      applications
+        .filter((application) => application.invalidatedSubscription)
+        .map((application) => {
+          const row = rows.get(application.deliveryId)!;
+          const outcome = outcomes.find((candidate) => candidate.deliveryId === application.deliveryId)!;
+          return {
+            event: 'subscription.invalidated' as const,
+            tenantId: row.delivery.tenantId,
+            target: { type: 'subscription', id: row.subscription.id },
+            data: {
+              externalId: row.subscriber.externalId,
+              channel: row.subscription.channel,
+              reason: outcome.result.ok ? null : outcome.result.reason,
+            },
+          };
+        })
+    );
+
+    for (const outcome of ['sent', 'retrying', 'failed', 'invalid', 'skipped'] as const) {
+      t.set(`deliveries.${outcome}`, processed.filter((entry) => entry.outcome === outcome).length);
+    }
+    return processed;
+  });
+}
+
+export async function listStalledFanouts(
+  db: Db,
+  limit: number
+): Promise<Array<{ id: number; cursor: number }>> {
+  const cutoff = new Date(Date.now() - STALLED_FANOUT_MINUTES * 60 * 1000);
+  return await db
+    .select({ id: tables.message.id, cursor: tables.message.fanoutCursor })
+    .from(tables.message)
+    .where(
+      and(
+        inArray(tables.message.status, ['queued', 'processing']),
+        isNull(tables.message.fanoutCompletedAt),
+        lt(tables.message.updatedAt, cutoff)
+      )
+    )
+    .orderBy(asc(tables.message.updatedAt))
+    .limit(limit);
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const item = items[index++];
+      if (item) await task(item);
+    }
+  });
+  await Promise.all(workers);
+}

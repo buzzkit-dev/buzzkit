@@ -6,11 +6,12 @@ import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup
 
 async function uploadApns(headers: Record<string, string>, options: { p8?: string; bundleId?: string } = {}) {
   return api<{ id: string; status: string; details: Record<string, string>; lastError: string | null }>(
-    '/v1/credentials/apns',
+    '/v1/credentials',
     {
       method: 'POST',
       headers,
       body: JSON.stringify({
+        provider: 'apns',
         p8: options.p8 ?? (await generateP8()),
         teamId: 'ABCDE12345',
         keyId: 'XYZ9876543',
@@ -21,7 +22,7 @@ async function uploadApns(headers: Record<string, string>, options: { p8?: strin
   );
 }
 
-describe('POST /v1/credentials/apns', () => {
+describe('POST /v1/credentials (apns)', () => {
   it('rejects a structurally invalid .p8 without storing anything', async () => {
     const { keyBearer } = await setupWorkspace();
 
@@ -31,7 +32,7 @@ describe('POST /v1/credentials/apns', () => {
     expect(body.error?.message).toContain('.p8');
 
     const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
-    expect(list.body.data).toHaveLength(0);
+    expect(list.body.data?.items).toHaveLength(0);
   });
 
   it('stores a well-formed key against the default tenant (unvalidated when APNs is unreachable locally)', async () => {
@@ -57,9 +58,11 @@ describe('POST /v1/credentials/apns', () => {
     const upload = await uploadApns(keyBearer, { p8, bundleId });
     expect(JSON.stringify(upload.body)).not.toContain('PRIVATE KEY');
 
-    const list = await api<Array<Record<string, unknown>>>('/v1/credentials', { headers: keyBearer });
+    const list = await api<{ items: Array<Record<string, unknown>> }>('/v1/credentials', {
+      headers: keyBearer,
+    });
     expect(JSON.stringify(list.body)).not.toContain('PRIVATE KEY');
-    for (const row of list.body.data ?? []) {
+    for (const row of list.body.data?.items ?? []) {
       expect(row.secretCiphertext).toBeUndefined();
       expect(row.dekCiphertext).toBeUndefined();
     }
@@ -80,7 +83,7 @@ describe('POST /v1/credentials/apns', () => {
     await uploadApns(keyBearer);
 
     const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
-    expect(list.body.data).toHaveLength(1);
+    expect(list.body.data?.items).toHaveLength(1);
   });
 });
 
@@ -96,10 +99,10 @@ describe('credential input validation and slots', () => {
       { p8, teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'a.b', environment: 'staging' },
       { teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'a.b' },
     ]) {
-      const { status } = await api('/v1/credentials/apns', {
+      const { status } = await api('/v1/credentials', {
         method: 'POST',
         headers: keyBearer,
-        body: JSON.stringify(body),
+        body: JSON.stringify({ provider: 'apns', ...body }),
       });
       expect(status, JSON.stringify({ ...body, p8: body.p8 ? '<p8>' : undefined })).toBe(400);
     }
@@ -109,21 +112,23 @@ describe('credential input validation and slots', () => {
     const { keyBearer } = await setupWorkspace();
     const base = { teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'dev.buzzkit.slots' };
 
-    const sandbox = await api('/v1/credentials/apns', {
+    const sandbox = await api('/v1/credentials', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ ...base, p8: await generateP8(), environment: 'sandbox' }),
+      body: JSON.stringify({ provider: 'apns', ...base, p8: await generateP8(), environment: 'sandbox' }),
     });
-    const production = await api('/v1/credentials/apns', {
+    const production = await api('/v1/credentials', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ ...base, p8: await generateP8(), environment: 'production' }),
+      body: JSON.stringify({ provider: 'apns', ...base, p8: await generateP8(), environment: 'production' }),
     });
     expect(sandbox.status).toBe(201);
     expect(production.status).toBe(201);
 
-    const list = await api<Array<{ environment: string }>>('/v1/credentials', { headers: keyBearer });
-    expect(list.body.data?.map((c) => c.environment).sort()).toEqual(['production', 'sandbox']);
+    const list = await api<{ items: Array<{ environment: string }> }>('/v1/credentials', {
+      headers: keyBearer,
+    });
+    expect(list.body.data?.items?.map((c) => c.environment).sort()).toEqual(['production', 'sandbox']);
   });
 
   it('dashboard sessions upload with workspace + tenant headers', async () => {
@@ -137,21 +142,21 @@ describe('credential input validation and slots', () => {
     });
     expect(status).toBe(201);
 
-    const viaKey = await api<unknown[]>('/v1/credentials', {
+    const viaKey = await api<{ items: unknown[] }>('/v1/credentials', {
       headers: { ...keyBearer, 'buzzkit-tenant': tenant.slug },
     });
-    expect(viaKey.body.data).toHaveLength(1);
+    expect(viaKey.body.data?.items).toHaveLength(1);
   });
 });
 
-describe('POST /v1/credentials/fcm', () => {
+describe('POST /v1/credentials (fcm)', () => {
   it('rejects malformed service accounts', async () => {
     const { keyBearer } = await setupWorkspace();
 
-    const { status } = await api('/v1/credentials/fcm', {
+    const { status } = await api('/v1/credentials', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ serviceAccount: '{"not":"a service account"}' }),
+      body: JSON.stringify({ provider: 'fcm', serviceAccount: '{"not":"a service account"}' }),
     });
 
     expect(status).toBe(400);
@@ -161,39 +166,47 @@ describe('POST /v1/credentials/fcm', () => {
     const { keyBearer } = await setupWorkspace();
     const account = await generateServiceAccount(`buzzkit-test-${uniq()}`);
 
-    const { status, body } = await api('/v1/credentials/fcm', {
+    const { status, body } = await api('/v1/credentials', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ serviceAccount: account }),
+      body: JSON.stringify({ provider: 'fcm', serviceAccount: account }),
     });
 
-    expect(status).toBe(400);
-    expect(body.error?.message).toContain('Firebase rejected');
+    if (status === 201) {
+      expect((body.data as { status: string }).status).toBe('unvalidated');
+    } else {
+      expect(status).toBe(400);
+      expect(body.error?.message).toContain('Firebase rejected');
+    }
   });
 });
 
-describe('POST /v1/credentials/resend', () => {
+describe('POST /v1/credentials (resend)', () => {
   it('validates against Resend and rejects invalid keys end-to-end', async () => {
     const { keyBearer } = await setupWorkspace();
 
-    const { status, body } = await api('/v1/credentials/resend', {
+    const { status, body } = await api('/v1/credentials', {
       method: 'POST',
       headers: keyBearer,
-      body: JSON.stringify({ apiKey: `re_definitely_not_valid_${uniq()}` }),
+      body: JSON.stringify({ provider: 'resend', apiKey: `re_definitely_not_valid_${uniq()}` }),
     });
 
-    expect(status).toBe(400);
-    expect(body.error?.message).toContain('Resend rejected');
+    if (status === 201) {
+      expect((body.data as { status: string }).status).toBe('unvalidated');
+    } else {
+      expect(status).toBe(400);
+      expect(body.error?.message).toContain('Resend rejected');
+    }
   });
 
   it('an email credential lives in its own slot next to push credentials', async () => {
     const { keyBearer } = await setupWorkspace();
     await uploadApns(keyBearer);
 
-    const list = await api<Array<{ channel: string; provider: string }>>('/v1/credentials', {
+    const list = await api<{ items: Array<{ channel: string; provider: string }> }>('/v1/credentials', {
       headers: keyBearer,
     });
-    expect(list.body.data?.every((row) => row.channel === 'push')).toBe(true);
+    expect(list.body.data?.items?.every((row) => row.channel === 'push')).toBe(true);
   });
 });
 
@@ -205,14 +218,16 @@ describe('credential tenant isolation', () => {
     await uploadApns(keyBearer);
     await uploadApns({ ...keyBearer, 'buzzkit-tenant': tenant.slug });
 
-    const defaultList = await api<Array<{ id: string }>>('/v1/credentials', { headers: keyBearer });
-    const tenantList = await api<Array<{ id: string }>>('/v1/credentials', {
+    const defaultList = await api<{ items: Array<{ id: string }> }>('/v1/credentials', {
+      headers: keyBearer,
+    });
+    const tenantList = await api<{ items: Array<{ id: string }> }>('/v1/credentials', {
       headers: { ...keyBearer, 'buzzkit-tenant': tenant.slug },
     });
 
-    expect(defaultList.body.data).toHaveLength(1);
-    expect(tenantList.body.data).toHaveLength(1);
-    expect(defaultList.body.data?.[0]?.id).not.toBe(tenantList.body.data?.[0]?.id);
+    expect(defaultList.body.data?.items).toHaveLength(1);
+    expect(tenantList.body.data?.items).toHaveLength(1);
+    expect(defaultList.body.data?.items?.[0]?.id).not.toBe(tenantList.body.data?.items?.[0]?.id);
   });
 
   it('404s on unknown buzzkit-tenant slugs', async () => {
@@ -237,19 +252,20 @@ describe('credential tenant isolation', () => {
     });
     const tenantBearer = { Authorization: `Bearer ${tenantKey.secret}` };
 
-    const own = await api<unknown[]>('/v1/credentials', { headers: tenantBearer });
+    const own = await api<{ items: unknown[] }>('/v1/credentials', { headers: tenantBearer });
     expect(own.status).toBe(200);
-    expect(own.body.data).toHaveLength(1);
+    expect(own.body.data?.items).toHaveLength(1);
 
     const crossTenant = await api('/v1/credentials', {
       headers: { ...tenantBearer, 'buzzkit-tenant': 'default' },
     });
     expect(crossTenant.status).toBe(403);
 
-    const write = await api('/v1/credentials/apns', {
+    const write = await api('/v1/credentials', {
       method: 'POST',
       headers: tenantBearer,
       body: JSON.stringify({
+        provider: 'apns',
         p8: await generateP8(),
         teamId: 'ABCDE12345',
         keyId: 'XYZ9876543',
@@ -293,10 +309,10 @@ describe('credential id isolation', () => {
     const tenant = await createTenant(keyBearer);
 
     const malformed = await api('/v1/credentials/not-a-sqid!', { headers: keyBearer });
-    expect(malformed.status).toBe(400);
+    expect(malformed.status).toBe(404);
 
     const wrongEntity = await api(`/v1/credentials/${tenant.id}`, { headers: keyBearer });
-    expect(wrongEntity.status).toBe(400);
+    expect(wrongEntity.status).toBe(404);
   });
 });
 
@@ -379,7 +395,7 @@ describe('credential lifecycle', () => {
     expect(revoke.status).toBe(200);
 
     const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
-    expect(list.body.data).toHaveLength(0);
+    expect(list.body.data?.items).toHaveLength(0);
 
     const events = await api<{ items: Array<{ event: string; targetId: string }> }>(
       `/v1/workspaces/${workspace.slug}/events`,

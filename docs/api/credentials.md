@@ -2,31 +2,15 @@
 
 Provider credentials (APNs keys, FCM service accounts) — per tenant, encrypted at rest, validated on upload. Tenant-context routes: a tenant key implies its tenant; workspace keys and sessions select one with `buzzkit-tenant: <slug>` (the default tenant when absent). Scopes: `credentials:read` / `credentials:write`.
 
-## POST /v1/credentials/apns
+## POST /v1/credentials
 
-```json
-{ "p8": "-----BEGIN PRIVATE KEY-----…", "teamId": "ABCDE12345", "keyId": "XYZ9876543", "bundleId": "com.acme.app", "environment": "production" }
-```
+One endpoint, discriminated by `provider` (Stripe's `type` pattern) — the registry maps provider → channel, validates the upload with a real provider call, and replaces the live slot for (tenant, channel, provider, environment):
 
-Validation on upload: the key is used to sign a real provider token and prove it against APNs (a request for an impossible device token — `BadDeviceToken` back means the credential works, nothing is delivered). Structurally invalid or provider-rejected keys are a 400 and nothing is stored. If APNs is unreachable (local dev on macOS), the credential stores as `unvalidated` — re-run with `POST /v1/credentials/:id/validate`.
+- `{ "provider": "apns", "p8", "teamId", "keyId", "bundleId", "environment"?: "production" | "sandbox" }` — push via APNs token auth.
+- `{ "provider": "fcm", "serviceAccount": <JSON string or object> }` — push via FCM HTTP v1 (`project_id`, `client_email`, `private_key` required; `invalid_service_account` otherwise).
+- `{ "provider": "resend", "apiKey" }` — email via Resend.
 
-Uploading again for the same (provider, environment) **replaces** the credential — one live credential per slot. → 201 `{ id: "crd_…", provider, environment, details, status, validatedAt, lastError, … }` — the secret never appears in any response.
-
-## POST /v1/credentials/fcm
-
-```json
-{ "serviceAccount": { "project_id": "…", "client_email": "…", "private_key": "…" } }
-```
-
-Accepts the JSON object or its string form. Validated by requesting a real OAuth2 access token from Google. Environment is always `production`.
-
-## POST /v1/credentials/resend
-
-```json
-{ "apiKey": "re_…" }
-```
-
-The first email-channel credential — buzzkit doesn't compete with providers; it wraps them (the SST model). Validated with a real call against the Resend API. One live credential per (tenant, channel, provider, environment) means a tenant can hold APNs + FCM + Resend side by side.
+Returns 201 with the masked credential (`status` is `active`, `unvalidated` when the provider could not be reached, or the request is a 400 when the provider rejected the key). `tenant: credentials:write`.
 
 ## GET /v1/credentials — list the tenant's credentials (masked)
 ## GET /v1/credentials/:id — retrieve one (masked)

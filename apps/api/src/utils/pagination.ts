@@ -1,7 +1,13 @@
 import { BadRequestError } from '@buzzkit/api/libs/error';
+import { t } from 'elysia';
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
+
+export const PaginationQuerySchema = t.Object({
+  limit: t.Optional(t.Numeric({ minimum: 1, maximum: MAX_PAGE_SIZE })),
+  cursor: t.Optional(t.String()),
+});
 
 export type Page<T> = {
   items: T[];
@@ -21,7 +27,7 @@ export function resolveCursor(
 
   const id = decode(cursor);
   if (!id) {
-    throw new BadRequestError('Invalid cursor');
+    throw new BadRequestError('Invalid cursor', { code: 'invalid_cursor', param: 'cursor' });
   }
 
   return id;

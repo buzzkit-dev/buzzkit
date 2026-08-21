@@ -1,5 +1,5 @@
 import { createEventLogger } from '@buzzkit/api/api/events/index';
-import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
+import { NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import type { DeliveryErrorCode, ProviderName, ProviderSendResult } from '@buzzkit/api/providers/index';
@@ -7,12 +7,14 @@ import {
   and,
   asc,
   type Db,
+  desc,
   eq,
   inArray,
   isNotNull,
   isNull,
   lt,
   lte,
+  ne,
   notExists,
   sql,
   tables,
@@ -55,6 +57,7 @@ export function serializeDelivery(delivery: Delivery) {
     sentAt: delivery.sentAt,
     settledAt: delivery.settledAt,
     createdAt: delivery.createdAt,
+    updatedAt: delivery.updatedAt,
   };
 }
 
@@ -82,7 +85,7 @@ export async function findDelivery(db: Db, tenantId: number, deliverySqid: strin
   const deliveryId = decodeEntityId('delivery', deliverySqid);
 
   if (!deliveryId) {
-    throw new BadRequestError('Invalid delivery identifier');
+    throw new NotFoundError('Delivery not found');
   }
 
   const [delivery] = await trace(
@@ -104,7 +107,7 @@ export async function findDelivery(db: Db, tenantId: number, deliverySqid: strin
 export async function listDeliveries(
   db: Db,
   messageId: number,
-  options: { limit: number; afterId?: number; status?: DeliveryStatus }
+  options: { limit: number; beforeId?: number; status?: DeliveryStatus }
 ): Promise<Delivery[]> {
   return await trace(
     'deliveries.list',
@@ -115,11 +118,11 @@ export async function listDeliveries(
         .where(
           and(
             eq(tables.delivery.messageId, messageId),
-            options.afterId ? sql`${tables.delivery.id} > ${options.afterId}` : undefined,
+            options.beforeId ? lt(tables.delivery.id, options.beforeId) : undefined,
             options.status ? eq(tables.delivery.status, options.status) : undefined
           )
         )
-        .orderBy(asc(tables.delivery.id))
+        .orderBy(desc(tables.delivery.id))
         .limit(options.limit + 1)
   );
 }
@@ -136,129 +139,164 @@ export async function listAttempts(db: Db, deliveryId: number): Promise<Delivery
   );
 }
 
-export type AttemptContext = {
-  delivery: Delivery;
+export type DeliveryJob = { deliveryId: number; attempt: number };
+
+export type AttemptOutcome = {
+  deliveryId: number;
+  tenantId: number;
+  messageId: number;
+  subscriptionId: number;
+  attempt: number;
   provider: ProviderName;
   startedAt: Date;
+  result: ProviderSendResult;
 };
 
 export type AttemptApplication = {
+  deliveryId: number;
+  messageId: number;
+  subscriptionId: number;
   counterDelta: CounterDelta | null;
   retryDelaySeconds: number | null;
-  invalidatedSubscriptionId: number | null;
+  invalidatedSubscription: boolean;
 };
 
-export async function claimDeliveryAttempt(
+const asId = (value: unknown): number => Number(value);
+
+export async function claimDeliveryAttempts(
   db: Db,
-  deliveryId: number,
-  expectedAttempt: number,
+  jobs: DeliveryJob[],
   now = new Date()
-): Promise<Delivery | null> {
-  const [claimed] = await db
-    .update(tables.delivery)
-    .set({ leaseExpiresAt: new Date(now.getTime() + ATTEMPT_LEASE_SECONDS * 1000), nextAttemptAt: null })
-    .where(
-      and(
-        eq(tables.delivery.id, deliveryId),
-        inArray(tables.delivery.status, UNSETTLED_STATUSES),
-        eq(tables.delivery.attempts, expectedAttempt - 1),
-        sql`(${tables.delivery.leaseExpiresAt} is null or ${tables.delivery.leaseExpiresAt} < ${now.toISOString()}::timestamp)`
-      )
-    )
-    .returning();
-  return claimed ?? null;
+): Promise<Set<number>> {
+  if (jobs.length === 0) return new Set();
+  const lease = new Date(now.getTime() + ATTEMPT_LEASE_SECONDS * 1000).toISOString();
+  const values = sql.join(
+    jobs.map((job) => sql`(${job.deliveryId}::bigint, ${job.attempt}::int)`),
+    sql`, `
+  );
+  const rows = await db.execute(sql`
+    update ${tables.delivery} as d
+    set lease_expires_at = ${lease}::timestamptz, next_attempt_at = null, updated_at = now()
+    from (values ${values}) as v(id, attempt)
+    where d.id = v.id
+      and d.status in ('pending', 'retrying')
+      and d.attempts = v.attempt - 1
+      and (d.lease_expires_at is null or d.lease_expires_at < ${now.toISOString()}::timestamptz)
+    returning d.id
+  `);
+  return new Set([...rows].map((row) => asId(row.id)));
 }
 
-export async function applyAttemptResult(
-  db: Db,
-  context: AttemptContext,
-  result: ProviderSendResult
-): Promise<AttemptApplication | null> {
-  return await trace('deliveries.applyAttempt', async (t) => {
-    t.set('delivery.id', context.delivery.id);
-    t.set('delivery.ok', result.ok);
-    if (!result.ok) t.set('delivery.errorCode', result.code);
-    return applyAttemptResultInner(db, context, result);
-  });
+export async function applyAttemptResults(db: Db, outcomes: AttemptOutcome[]): Promise<AttemptApplication[]> {
+  if (outcomes.length === 0) return [];
+  return await trace('deliveries.applyAttempts', { 'deliveries.count': outcomes.length }, async () =>
+    applyAttemptResultsInner(db, outcomes)
+  );
 }
 
-async function applyAttemptResultInner(
-  db: Db,
-  context: AttemptContext,
-  result: ProviderSendResult
-): Promise<AttemptApplication | null> {
-  const { delivery, provider, startedAt } = context;
-  const attempt = delivery.attempts + 1;
+async function applyAttemptResultsInner(db: Db, outcomes: AttemptOutcome[]): Promise<AttemptApplication[]> {
   const finishedAt = new Date();
-
-  const decision = decide(attempt, result);
+  const decided = outcomes.map((outcome) => ({
+    outcome,
+    decision: decide(outcome.attempt, outcome.result, finishedAt),
+  }));
 
   return await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(tables.deliveryAttempt)
-      .values({
-        tenantId: delivery.tenantId,
-        deliveryId: delivery.id,
-        attempt,
-        provider,
-        outcome: decision.outcome,
-        errorCode: result.ok ? null : result.code,
-        providerReason: result.ok ? null : result.reason,
-        providerStatus: result.response?.status ?? null,
-        providerMessageId: result.ok ? result.providerMessageId : null,
-        request: result.request ?? null,
-        response: result.response ?? null,
-        latencyMs: result.latencyMs,
-        nextAttemptAt: decision.nextAttemptAt,
-        startedAt,
-        finishedAt,
-      })
+      .values(
+        decided.map(({ outcome, decision }) => ({
+          tenantId: outcome.tenantId,
+          deliveryId: outcome.deliveryId,
+          attempt: outcome.attempt,
+          provider: outcome.provider,
+          outcome: decision.outcome,
+          errorCode: outcome.result.ok ? null : outcome.result.code,
+          providerReason: outcome.result.ok ? null : outcome.result.reason,
+          providerStatus: outcome.result.response?.status ?? null,
+          providerMessageId: outcome.result.ok ? outcome.result.providerMessageId : null,
+          request: outcome.result.request ?? null,
+          response: outcome.result.response ?? null,
+          latencyMs: outcome.result.latencyMs,
+          nextAttemptAt: decision.nextAttemptAt,
+          startedAt: outcome.startedAt,
+          finishedAt,
+        }))
+      )
       .onConflictDoNothing({ target: [tables.deliveryAttempt.deliveryId, tables.deliveryAttempt.attempt] })
-      .returning({ id: tables.deliveryAttempt.id });
+      .returning({ deliveryId: tables.deliveryAttempt.deliveryId });
+    const recorded = new Set(inserted.map((row) => row.deliveryId));
+    const settling = decided.filter(({ outcome }) => recorded.has(outcome.deliveryId));
+    if (settling.length === 0) return [];
 
-    if (inserted.length === 0) return null;
+    const updateValues = sql.join(
+      settling.map(
+        ({ outcome, decision }) => sql`(
+          ${outcome.deliveryId}::bigint,
+          ${decision.status}::delivery_status,
+          ${outcome.attempt}::int,
+          ${outcome.result.ok ? null : outcome.result.code}::text,
+          ${outcome.result.ok ? null : outcome.result.reason}::text,
+          ${outcome.result.ok ? outcome.result.providerMessageId : null}::text,
+          ${decision.nextAttemptAt?.toISOString() ?? null}::timestamptz,
+          ${outcome.startedAt.toISOString()}::timestamptz,
+          ${decision.terminal}::boolean
+        )`
+      ),
+      sql`, `
+    );
+    const updated = await tx.execute(sql`
+      update ${tables.delivery} as d
+      set status = v.status,
+          attempts = v.attempt,
+          last_error_code = v.error_code,
+          last_error_message = v.error_message,
+          provider_message_id = coalesce(v.provider_message_id, d.provider_message_id),
+          next_attempt_at = v.next_attempt_at,
+          lease_expires_at = null,
+          first_attempted_at = coalesce(d.first_attempted_at, v.started_at),
+          last_attempted_at = v.started_at,
+          sent_at = case when v.status = 'sent' then ${finishedAt.toISOString()}::timestamptz else d.sent_at end,
+          settled_at = case when v.terminal then ${finishedAt.toISOString()}::timestamptz else null end,
+          updated_at = now()
+      from (values ${updateValues}) as v(id, status, attempt, error_code, error_message, provider_message_id, next_attempt_at, started_at, terminal)
+      where d.id = v.id and d.status in ('pending', 'retrying')
+      returning d.id
+    `);
+    const applied = new Set([...updated].map((row) => asId(row.id)));
 
-    const [updated] = await tx
-      .update(tables.delivery)
-      .set({
-        status: decision.status,
-        attempts: attempt,
-        lastErrorCode: result.ok ? null : result.code,
-        lastErrorMessage: result.ok ? null : result.reason,
-        providerMessageId: result.ok ? result.providerMessageId : delivery.providerMessageId,
-        nextAttemptAt: decision.nextAttemptAt,
-        leaseExpiresAt: null,
-        firstAttemptedAt: delivery.firstAttemptedAt ?? startedAt,
-        lastAttemptedAt: startedAt,
-        sentAt: decision.status === 'sent' ? finishedAt : delivery.sentAt,
-        settledAt: decision.terminal ? finishedAt : null,
-      })
-      .where(and(eq(tables.delivery.id, delivery.id), inArray(tables.delivery.status, UNSETTLED_STATUSES)))
-      .returning({ id: tables.delivery.id });
-
-    if (!updated) return null;
-
-    let invalidatedSubscriptionId: number | null = null;
-    if (decision.invalidatesSubscription) {
-      const [subscription] = await tx
-        .update(tables.subscription)
-        .set({
-          status: 'invalid',
-          invalidatedAt: finishedAt,
-          invalidationReason: result.ok ? null : result.reason,
-        })
-        .where(
-          and(eq(tables.subscription.id, delivery.subscriptionId), eq(tables.subscription.status, 'active'))
-        )
-        .returning({ id: tables.subscription.id });
-      invalidatedSubscriptionId = subscription?.id ?? null;
+    const invalidating = settling.filter(
+      ({ outcome, decision }) => decision.invalidatesSubscription && applied.has(outcome.deliveryId)
+    );
+    const invalidated = new Set<number>();
+    if (invalidating.length > 0) {
+      const invalidateValues = sql.join(
+        invalidating.map(
+          ({ outcome }) =>
+            sql`(${outcome.subscriptionId}::bigint, ${outcome.result.ok ? null : outcome.result.reason}::text)`
+        ),
+        sql`, `
+      );
+      const rows = await tx.execute(sql`
+        update ${tables.subscription} as s
+        set status = 'invalid', invalidated_at = now(), invalidation_reason = v.reason, updated_at = now()
+        from (values ${invalidateValues}) as v(id, reason)
+        where s.id = v.id and s.status = 'active'
+        returning s.id
+      `);
+      for (const row of rows) invalidated.add(asId(row.id));
     }
 
-    return {
-      counterDelta: decision.counterDelta,
-      retryDelaySeconds: decision.status === 'retrying' ? backoffSecondsFrom(decision.nextAttemptAt) : null,
-      invalidatedSubscriptionId,
-    };
+    return settling
+      .filter(({ outcome }) => applied.has(outcome.deliveryId))
+      .map(({ outcome, decision }) => ({
+        deliveryId: outcome.deliveryId,
+        messageId: outcome.messageId,
+        subscriptionId: outcome.subscriptionId,
+        counterDelta: decision.counterDelta,
+        retryDelaySeconds: decision.status === 'retrying' ? backoffSecondsFrom(decision.nextAttemptAt) : null,
+        invalidatedSubscription: invalidated.has(outcome.subscriptionId),
+      }));
   });
 }
 
@@ -278,9 +316,7 @@ export async function failDeliveriesImmediately(
   const updated = await db
     .update(tables.delivery)
     .set({ status: 'failed', lastErrorCode: code, lastErrorMessage: reason, settledAt: now })
-    .where(
-      and(inArray(tables.delivery.id, deliveryIds), inArray(tables.delivery.status, ['pending', 'retrying']))
-    )
+    .where(and(inArray(tables.delivery.id, deliveryIds), inArray(tables.delivery.status, UNSETTLED_STATUSES)))
     .returning({ id: tables.delivery.id });
   return updated.length;
 }
@@ -359,7 +395,7 @@ export async function finalizeMessageIfComplete(db: Db, messageId: number): Prom
   return true;
 }
 
-export async function findUnfinalizedMessages(db: Db, limit: number): Promise<Array<{ id: number }>> {
+export async function listUnfinalizedMessages(db: Db, limit: number): Promise<Array<{ id: number }>> {
   const cutoff = new Date(Date.now() - UNFINALIZED_GRACE_MINUTES * 60 * 1000);
   return await db
     .select({ id: tables.message.id })
@@ -396,7 +432,7 @@ export function systemEvent(db: Db, tenantId: number) {
   };
 }
 
-export async function findDueRetries(
+export async function listDueRetries(
   db: Db,
   limit: number
 ): Promise<Array<{ id: number; attempts: number }>> {
@@ -409,7 +445,7 @@ export async function findDueRetries(
     .limit(limit);
 }
 
-export async function findStaleUnsettled(
+export async function listStaleUnsettled(
   db: Db,
   limit: number
 ): Promise<Array<{ id: number; attempts: number }>> {
@@ -421,10 +457,10 @@ export async function findStaleUnsettled(
       and(
         inArray(tables.delivery.status, UNSETTLED_STATUSES),
         isNull(tables.delivery.nextAttemptAt),
-        sql`coalesce(${tables.delivery.leaseExpiresAt}, ${tables.delivery.createdAt}) < ${cutoff.toISOString()}::timestamp`
+        sql`coalesce(${tables.delivery.leaseExpiresAt}, ${tables.delivery.createdAt}) < ${cutoff.toISOString()}::timestamptz`
       )
     )
-    .orderBy(asc(tables.delivery.id))
+    .orderBy(sql`coalesce(${tables.delivery.leaseExpiresAt}, ${tables.delivery.createdAt})`)
     .limit(limit);
 }
 
@@ -434,7 +470,13 @@ export async function expireOverdueDeliveries(db: Db, limit: number): Promise<Ma
     .select({ id: tables.delivery.id, messageId: tables.delivery.messageId })
     .from(tables.delivery)
     .innerJoin(tables.message, eq(tables.message.id, tables.delivery.messageId))
-    .where(and(inArray(tables.delivery.status, ['pending', 'retrying']), lt(tables.message.expiresAt, now)))
+    .where(
+      and(
+        inArray(tables.delivery.status, UNSETTLED_STATUSES),
+        ne(tables.message.status, 'completed'),
+        lt(tables.message.expiresAt, now)
+      )
+    )
     .limit(limit);
 
   const failed = await failDeliveriesImmediately(

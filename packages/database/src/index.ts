@@ -24,9 +24,12 @@ export const tables = {
   ...messageTables,
 };
 
-export const createDrizzle = (url: string) => {
+export type DrizzleOptions = { max?: number };
+
+export const createDrizzle = (url: string, options: DrizzleOptions = {}) => {
   const client = postgres(url, {
-    max: 5,
+    max: options.max ?? 5,
+    connect_timeout: 10,
     fetch_types: false,
     connection: {
       TimeZone: 'UTC',
@@ -41,9 +44,10 @@ export type Db = ReturnType<typeof createDrizzle>;
 export * from 'drizzle-orm';
 export { drizzle } from 'drizzle-orm/postgres-js';
 export { default as postgres } from 'postgres';
-export { credentialEnvironment, credentialProvider, credentialStatus } from './schema/credential';
+export { credentialEnvironment, credentialStatus } from './schema/credential';
 export { eventActorType } from './schema/event';
+export { apiKeyKind } from './schema/key';
 export { deliveryAttemptOutcome, deliveryStatus, messageStatus } from './schema/message';
-export { channel } from './schema/shared';
+export { channel, provider } from './schema/shared';
 export { subscriptionPlatform, subscriptionStatus } from './schema/subscriber';
 export { workspaceMemberRole } from './schema/workspace';

@@ -1,8 +1,7 @@
-import { acceptInvite, findInviteByToken } from '@buzzkit/api/api/invites/index';
+import { acceptInvite, findInviteByToken, findInviteWorkspace } from '@buzzkit/api/api/invites/index';
+import { serializeMember } from '@buzzkit/api/api/members/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
-import { trace } from '@buzzkit/api/libs/telemetry';
-import { eq, tables } from '@buzzkit/database';
 import Elysia from 'elysia';
 
 export const inviteAccept = new Elysia()
@@ -15,14 +14,7 @@ export const inviteAccept = new Elysia()
 
       const { member } = await acceptInvite(db, invite, { id: user.id, email: user.email });
 
-      const [workspace] = await trace(
-        'invites.acceptedWorkspace',
-        async () =>
-          await db
-            .select({ slug: tables.workspace.slug, name: tables.workspace.name })
-            .from(tables.workspace)
-            .where(eq(tables.workspace.id, invite.workspaceId))
-      );
+      const workspace = await findInviteWorkspace(db, invite);
 
       await event({
         event: 'invite.accepted',
@@ -31,7 +23,7 @@ export const inviteAccept = new Elysia()
         data: { role: invite.role },
       });
 
-      return Response.success({ ...member, workspace: workspace ?? null }, { entity: 'member' })
+      return Response.success({ ...serializeMember(member), workspace }, { entity: 'member' })
         .status(201)
         .send(set);
     },

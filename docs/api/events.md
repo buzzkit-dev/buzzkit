@@ -4,9 +4,9 @@ One `event` table is the ledger for the workspace audit log and — later — we
 
 **The rule (non-negotiable):** every mutation endpoint records exactly one event via the context-bound `event()` function (actor + request metadata attached by the auth layer) — always `await`ed, so the ledger row is durable before the response. Never recorded: reads, auth denials, per-request key usage. New event names MUST be added to `EVENT_CATALOG` — `event()` calls are type-checked against it.
 
-## GET /v1/workspaces/:slug/events
+## GET /v1/workspaces/:workspaceSlug/events
 
-Scope `events:read` (admin sessions, or keys granted it). Keyset-paginated newest-first; filters: `?event=tenant.created`, `?actorType=member|user|key|system`.
+Scope `events:read` (admin sessions, or keys granted it). Keyset-paginated newest-first (`{ items, hasMore, nextCursor }`, cursors are `evt_…` ids); filters: `?event=tenant.created`, `?actorType=member|user|key|system`. Each event: `id`, `event`, `tenantId` (null for account/workspace-level events), `actorType`, `actorDisplay`, `actorMemberId` / `actorKeyId` (whichever applies), `targetType`, `targetId` (prefixed id), `data`, `requestId`, `ip`, `userAgent`, `createdAt`. Internal ids (workspace, BetterAuth user) are never exposed.
 
 ```json
 {

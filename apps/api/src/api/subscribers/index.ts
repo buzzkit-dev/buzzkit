@@ -1,8 +1,10 @@
-import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
+import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
+import { ChannelSchema, EmailSchema, IdentityHashSchema, PlatformSchema } from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { deepEqual } from '@buzzkit/api/utils/equality';
-import { and, asc, type Db, eq, getTableColumns, gt, isNull, sql, tables } from '@buzzkit/database';
+import { assertJsonSize } from '@buzzkit/api/utils/json';
+import { and, asc, type Db, desc, eq, getTableColumns, isNull, lt, sql, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Subscriber = typeof tables.subscriber.$inferSelect;
@@ -11,51 +13,53 @@ export type SubscriptionChannel = Subscription['channel'];
 
 export const ExternalIdSchema = t.String({ minLength: 1, maxLength: 256 });
 
-export const PushTokenSchema = t.String({ minLength: 8, maxLength: 4096 });
+export const PushTokenSchema = t.String({ minLength: 8, maxLength: 1024 });
 
-export const EmailAddressSchema = t.String({ format: 'email', maxLength: 254 });
+export const EmailAddressSchema = EmailSchema;
 
 export const AttributesSchema = t.Record(t.String(), t.Any());
+
+export const ClientIdentitySchema = t.Object({
+  externalId: ExternalIdSchema,
+  identityHash: t.Optional(IdentityHashSchema),
+});
 
 export const MAX_ATTRIBUTES_BYTES = 64 * 1024;
 
 export function assertAttributesSize(attributes: Record<string, unknown> | undefined): void {
-  if (attributes === undefined) return;
-  if (new TextEncoder().encode(JSON.stringify(attributes)).byteLength > MAX_ATTRIBUTES_BYTES) {
-    throw new BadRequestError('attributes must serialize to 64KB or less');
-  }
+  assertJsonSize(attributes, MAX_ATTRIBUTES_BYTES, 'attributes must serialize to 64KB or less', {
+    code: 'attributes_too_large',
+    param: 'attributes',
+  });
 }
 
 export const SubscriptionInputSchema = t.Object({
-  channel: t.Optional(t.Union([t.Literal('push'), t.Literal('email')])),
-  platform: t.Optional(t.Union([t.Literal('ios'), t.Literal('android')])),
+  channel: t.Optional(ChannelSchema),
+  platform: t.Optional(PlatformSchema),
   token: t.Optional(PushTokenSchema),
   address: t.Optional(EmailAddressSchema),
 });
 
-export type SubscriptionInput = {
-  channel?: 'push' | 'email';
-  platform?: 'ios' | 'android';
-  token?: string;
-  address?: string;
-};
+export type SubscriptionInput = typeof SubscriptionInputSchema.static;
 
 export function resolveSubscriptionInput(input: SubscriptionInput): {
   channel: SubscriptionChannel;
-  platform: 'ios' | 'android' | null;
+  platform: Subscription['platform'];
   endpoint: string;
 } {
   const channel = input.channel ?? (input.token ? 'push' : input.address ? 'email' : 'push');
 
   if (channel === 'push') {
     if (!input.token || !input.platform) {
-      throw new BadRequestError('Push subscriptions require platform and token');
+      throw new BadRequestError('Push subscriptions require platform and token', {
+        param: input.platform ? 'token' : 'platform',
+      });
     }
     return { channel, platform: input.platform, endpoint: input.token };
   }
 
   if (!input.address) {
-    throw new BadRequestError('Email subscriptions require address');
+    throw new BadRequestError('Email subscriptions require address', { param: 'address' });
   }
   return { channel, platform: null, endpoint: input.address };
 }
@@ -83,6 +87,7 @@ export function serializeSubscription(subscription: Subscription) {
     status: subscription.status,
     lastSeenAt: subscription.lastSeenAt,
     createdAt: subscription.createdAt,
+    updatedAt: subscription.updatedAt,
   };
 }
 
@@ -194,7 +199,7 @@ export async function findSubscriberByExternalId(
 export async function listSubscribers(
   db: Db,
   tenantId: number,
-  options: { limit: number; afterId?: number }
+  options: { limit: number; beforeId?: number }
 ): Promise<Subscriber[]> {
   return await trace(
     'subscribers.list',
@@ -206,10 +211,10 @@ export async function listSubscribers(
           and(
             eq(tables.subscriber.tenantId, tenantId),
             isNull(tables.subscriber.deletedAt),
-            options.afterId ? gt(tables.subscriber.id, options.afterId) : undefined
+            options.beforeId ? lt(tables.subscriber.id, options.beforeId) : undefined
           )
         )
-        .orderBy(asc(tables.subscriber.id))
+        .orderBy(desc(tables.subscriber.id))
         .limit(options.limit + 1)
   );
 }
@@ -238,7 +243,7 @@ export async function softDeleteSubscriber(db: Db, subscriber: Subscriber): Prom
 function isSubscriptionCurrent(
   existing: Subscription,
   subscriberId: number,
-  platform: 'ios' | 'android' | null,
+  platform: Subscription['platform'],
   now: Date
 ): boolean {
   return (
@@ -275,10 +280,11 @@ export async function registerSubscription(
   input: {
     externalId: string;
     channel: SubscriptionChannel;
-    platform: 'ios' | 'android' | null;
+    platform: Subscription['platform'];
     endpoint: string;
     verifiedNow?: boolean;
     subscriber?: Subscriber;
+    rebind?: boolean;
   }
 ): Promise<{
   subscription: Subscription;
@@ -297,6 +303,16 @@ export async function registerSubscription(
     if (existing && isSubscriptionCurrent(existing, subscriber.id, input.platform, now)) {
       t.set('subscription.written', false);
       return { subscription: existing, subscriptionCreated: false, subscriberCreated, subscriber };
+    }
+
+    if (existing && existing.subscriberId !== subscriber.id && input.rebind === false) {
+      throw new ConflictError(
+        'This endpoint belongs to another subscriber; a verified identity is required to move it',
+        {
+          code: 'endpoint_owned',
+          param: 'endpoint',
+        }
+      );
     }
 
     const [row] = await db
@@ -330,6 +346,20 @@ export async function registerSubscription(
   });
 }
 
+export async function findSubscriptionOwnedBy(
+  db: Db,
+  tenantId: number,
+  externalId: string,
+  subscriptionSqid: string
+): Promise<Subscription> {
+  const subscriber = await findSubscriberByExternalId(db, tenantId, externalId);
+  const subscription = await findSubscription(db, tenantId, subscriptionSqid);
+  if (subscription.subscriberId !== subscriber.id) {
+    throw new NotFoundError('Subscription not found');
+  }
+  return subscription;
+}
+
 export async function listSubscriptions(db: Db, subscriberId: number): Promise<Subscription[]> {
   return await trace(
     'subscriptions.list',
@@ -350,7 +380,7 @@ export async function findSubscription(
   const subscriptionId = decodeEntityId('subscription', subscriptionSqid);
 
   if (!subscriptionId) {
-    throw new BadRequestError('Invalid subscription identifier');
+    throw new NotFoundError('Subscription not found');
   }
 
   const [subscription] = await trace(
@@ -404,7 +434,7 @@ export async function findSubscriptionByEndpoint(
   return subscription;
 }
 
-export async function setSubscriptionEnabled(
+export async function updateSubscriptionEnabled(
   db: Db,
   subscriptionId: number,
   enabled: boolean

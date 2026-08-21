@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
+import { fakeToken } from '../../utils/fixtures';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
-
-function fakeToken() {
-  return `tok-${uniq()}${'a'.repeat(48)}`;
-}
 
 type SubscriptionBody = {
   id: string;
@@ -269,10 +266,10 @@ describe('subscription ids, listing, and ledger', () => {
       headers: keyBearer,
       body: JSON.stringify({ enabled: false }),
     });
-    expect(malformed.status).toBe(400);
+    expect(malformed.status).toBe(404);
 
     const wrongEntity = await api(`/v1/subscriptions/${tenant.id}`, { method: 'DELETE', headers: keyBearer });
-    expect(wrongEntity.status).toBe(400);
+    expect(wrongEntity.status).toBe(404);
 
     const badBody = await api('/v1/subscriptions/nope!', {
       method: 'PATCH',
@@ -299,13 +296,13 @@ describe('subscription ids, listing, and ledger', () => {
     });
     expect(reenabled.body.data?.enabled).toBe(true);
 
-    const list = await api<Array<{ id: string; enabled: boolean }>>(
+    const list = await api<{ items: Array<{ id: string; enabled: boolean }> }>(
       `/v1/subscribers/${externalId}/subscriptions`,
       { headers: keyBearer }
     );
     expect(list.status).toBe(200);
-    expect(list.body.data).toHaveLength(1);
-    expect(list.body.data?.[0]).toMatchObject({ id: registered.body.data?.id, enabled: true });
+    expect(list.body.data?.items).toHaveLength(1);
+    expect(list.body.data?.items?.[0]).toMatchObject({ id: registered.body.data?.id, enabled: true });
   });
 
   it('an email endpoint moves between subscribers like a push token', async () => {
@@ -380,3 +377,80 @@ describe('DELETE /v1/subscriptions/:id', () => {
     expect(del.status).toBe(404);
   });
 });
+
+describe('reactivation and input shapes', () => {
+  it('an invalidated subscription is skipped by fan-out until it re-registers, which reactivates it', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const token = fakeToken();
+    const externalId = `user_${uniq()}`;
+    const registered = await register(keyBearer, { token, externalId });
+    const subscriptionId = registered.body.data!.id;
+    const [row] = await db
+      .select({ id: tables.subscription.id })
+      .from(tables.subscription)
+      .where(eq(tables.subscription.endpoint, token));
+    await db
+      .update(tables.subscription)
+      .set({ status: 'invalid', invalidatedAt: new Date(), invalidationReason: 'Unregistered' })
+      .where(eq(tables.subscription.id, row!.id));
+
+    const quiet = await api<{ id: string }>('/v1/messages', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ to: externalId, title: 'Hi' }),
+    });
+    const quietDone = await waitFor(async () => {
+      const { body } = await api<{ status: string; counts: { total: number } }>(
+        `/v1/messages/${quiet.body.data?.id}`,
+        { headers: keyBearer }
+      );
+      return body.data?.status === 'completed' ? body.data : null;
+    });
+    expect(quietDone.counts.total).toBe(0);
+
+    const again = await register(keyBearer, { token, externalId });
+    expect(again.status).toBe(200);
+    expect(again.body.data?.id).toBe(subscriptionId);
+    expect(again.body.data?.status).toBe('active');
+    const [reactivated] = await db
+      .select({ invalidatedAt: tables.subscription.invalidatedAt })
+      .from(tables.subscription)
+      .where(eq(tables.subscription.id, row!.id));
+    expect(reactivated?.invalidatedAt).toBeNull();
+
+    const loud = await api<{ id: string }>('/v1/messages', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ to: externalId, title: 'Hi' }),
+    });
+    const loudDone = await waitFor(async () => {
+      const { body } = await api<{ status: string; counts: { total: number } }>(
+        `/v1/messages/${loud.body.data?.id}`,
+        { headers: keyBearer }
+      );
+      return body.data?.status === 'completed' ? body.data : null;
+    });
+    expect(loudDone.counts.total).toBe(1);
+  });
+
+  it('an email subscription without an address is a 400 naming the field', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const { status, body } = await api('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId: `user_${uniq()}`, channel: 'email' }),
+    });
+    expect(status).toBe(400);
+    expect(body.error?.param).toBe('address');
+  });
+});
+
+async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 20_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = await probe();
+    if (value !== null) return value;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error('timed out waiting for condition');
+}

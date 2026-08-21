@@ -1,20 +1,26 @@
 import { purgeApiKeyCacheForWorkspace, randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
+import { NameSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
 import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
-import { t } from 'elysia';
 
 export type Workspace = typeof tables.workspace.$inferSelect;
 
-export const SlugSchema = t.String({
-  minLength: 3,
-  maxLength: 48,
-  pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
-  description: 'Lowercase letters, numbers and single hyphens',
-});
+export { SlugSchema } from '@buzzkit/api/libs/schemas';
 
-export const WorkspaceNameSchema = t.String({ minLength: 1, maxLength: 100 });
+export const WorkspaceNameSchema = NameSchema;
+
+export function serializeWorkspace(workspace: Workspace) {
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    slug: workspace.slug,
+    avatarUrl: workspace.avatarUrl,
+    createdAt: workspace.createdAt,
+    updatedAt: workspace.updatedAt,
+  };
+}
 
 export async function assertSlugAvailable(db: Db, slug: string): Promise<void> {
   if (RESERVED_SLUGS.has(slug)) {
@@ -22,7 +28,7 @@ export async function assertSlugAvailable(db: Db, slug: string): Promise<void> {
   }
 
   const [existing] = await trace(
-    'workspaces.getBySlug',
+    'workspaces.findBySlug',
     async () =>
       await db
         .select({ id: tables.workspace.id })
@@ -81,7 +87,7 @@ export async function listWorkspacesForUser(db: Db, userId: string) {
         .orderBy(desc(tables.workspace.createdAt))
   );
 
-  return rows.map(({ workspace, role }) => ({ ...workspace, role }));
+  return rows.map(({ workspace, role }) => ({ ...serializeWorkspace(workspace), role }));
 }
 
 export async function updateWorkspace(
@@ -92,8 +98,13 @@ export async function updateWorkspace(
   const [updated] = await trace(
     'workspaces.update',
     async () =>
-      await db.update(tables.workspace).set(patch).where(eq(tables.workspace.id, workspaceId)).returning()
+      await db
+        .update(tables.workspace)
+        .set({ name: patch.name, slug: patch.slug, avatarUrl: patch.avatarUrl })
+        .where(eq(tables.workspace.id, workspaceId))
+        .returning()
   );
+  await purgeApiKeyCacheForWorkspace(db, workspaceId);
 
   return updated!;
 }

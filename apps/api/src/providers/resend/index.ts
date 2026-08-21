@@ -1,4 +1,4 @@
-import { providerFetch } from '../shared/http';
+import { classifyHttpStatus, providerFetch } from '../shared/http';
 import type {
   DeliveryErrorCode,
   ProviderDefinition,
@@ -10,11 +10,9 @@ import type {
 
 const API_URL = 'https://api.resend.com';
 
-function classify(status: number): DeliveryErrorCode {
+export function classify(status: number): DeliveryErrorCode {
   if (status === 401 || status === 403) return 'invalid_credential';
-  if (status === 429) return 'rate_limited';
-  if (status >= 500) return 'provider_unavailable';
-  return 'unknown';
+  return classifyHttpStatus(status);
 }
 
 async function validate({ secret }: ProviderValidationInput): Promise<ProviderValidationResult> {

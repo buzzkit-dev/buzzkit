@@ -82,7 +82,7 @@ describe('/v1/tenants (workspace API key)', () => {
 
     const { status, body } = await api('/v1/tenants/default', { method: 'DELETE', headers: keyBearer });
 
-    expect(status).toBe(400);
+    expect(status).toBe(409);
     expect(body.error?.message).toContain('default tenant');
   });
 
@@ -183,10 +183,10 @@ describe('/v1/tenants (workspace API key)', () => {
       headers: keyBearer,
       body: JSON.stringify({ slug: `renamed-${uniq()}` }),
     });
-    expect(rename.status).toBe(400);
+    expect(rename.status).toBe(409);
 
     const empty = await api('/v1/tenants/default', { method: 'PATCH', headers: keyBearer, body: '{}' });
-    expect(empty.status).toBe(400);
+    expect(empty.status).toBe(200);
 
     const slug = `cust-${uniq()}`;
     await api('/v1/tenants', {
@@ -305,5 +305,49 @@ describe('/v1/tenants (workspace API key)', () => {
     };
 
     expect(() => scan(body.data, 'data')).not.toThrow();
+  });
+
+  it('caps tenant metadata at 16KB', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const tooBig = await api('/v1/tenants', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ name: 'Big', slug: `big-${uniq()}`, metadata: { blob: 'x'.repeat(17 * 1024) } }),
+    });
+    expect(tooBig.status).toBe(400);
+
+    const tenant = await createTenant(keyBearer);
+    const patchTooBig = await api(`/v1/tenants/${tenant.slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ metadata: { blob: 'x'.repeat(17 * 1024) } }),
+    });
+    expect(patchTooBig.status).toBe(400);
+  });
+});
+
+describe('settings validation matrix', () => {
+  it('rejects every malformed settings shape and leaves settings untouched', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const before = await api<{ settings: unknown }>('/v1/tenants/default', { headers: keyBearer });
+    for (const settings of [
+      { identity: true },
+      { identity: { foo: true } },
+      { identity: { requireVerification: 'yes' } },
+      { channels: [] },
+      { channels: { push: true } },
+      { channels: { push: { enabled: 1 } } },
+      { unknown: {} },
+    ]) {
+      const { status, body } = await api('/v1/tenants/default', {
+        method: 'PATCH',
+        headers: keyBearer,
+        body: JSON.stringify({ settings }),
+      });
+      expect(status, JSON.stringify(settings)).toBe(400);
+      expect(['bad_request', 'validation'], JSON.stringify(settings)).toContain(body.error?.code);
+    }
+    const after = await api<{ settings: unknown }>('/v1/tenants/default', { headers: keyBearer });
+    expect(after.body.data?.settings).toEqual(before.body.data?.settings);
   });
 });

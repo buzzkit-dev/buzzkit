@@ -1,5 +1,6 @@
+import { describeError } from '@buzzkit/api/libs/error';
 import { cachedToken, evictToken } from '../shared/cache';
-import { providerFetch, retryAfterSeconds } from '../shared/http';
+import { classifyHttpStatus, providerFetch, retryAfterSeconds } from '../shared/http';
 import { signJwt } from '../shared/jwt';
 import type {
   DeliveryErrorCode,
@@ -46,12 +47,10 @@ const REASON_CODES: Record<string, DeliveryErrorCode> = {
   Shutdown: 'provider_unavailable',
 };
 
-function classify(status: number, reason: string | null): DeliveryErrorCode {
+export function classify(status: number, reason: string | null): DeliveryErrorCode {
   if (status === 410) return 'invalid_endpoint';
   if (reason && REASON_CODES[reason]) return REASON_CODES[reason]!;
-  if (status === 429) return 'rate_limited';
-  if (status >= 500) return 'provider_unavailable';
-  return 'unknown';
+  return classifyHttpStatus(status);
 }
 
 function jwtCacheKey(input: { credentialId: number; keyVersion: number }): string {
@@ -144,23 +143,34 @@ async function validate({
 }
 
 async function send(input: ProviderSendInput): Promise<ProviderSendResult> {
+  const first = await attempt(input);
+  if (first.ok || first.code !== 'invalid_credential' || first.reason !== 'ExpiredProviderToken')
+    return first;
+  return attempt(input);
+}
+
+async function attempt(input: ProviderSendInput): Promise<ProviderSendResult> {
   const startedAt = Date.now();
   const request = buildApnsPayload(input.payload);
 
   let jwt: string;
   try {
-    jwt = await cachedToken(jwtCacheKey(input), JWT_TTL_SECONDS, () =>
-      createApnsJwt({
-        p8: input.secret,
-        teamId: input.details.teamId ?? '',
-        keyId: input.details.keyId ?? '',
-      })
+    jwt = await cachedToken(
+      jwtCacheKey(input),
+      JWT_TTL_SECONDS,
+      () =>
+        createApnsJwt({
+          p8: input.secret,
+          teamId: input.details.teamId ?? '',
+          keyId: input.details.keyId ?? '',
+        }),
+      input.tokens
     );
   } catch (error) {
     return {
       ok: false,
       code: 'invalid_credential',
-      reason: error instanceof Error ? error.message : String(error),
+      reason: describeError(error),
       request,
       response: null,
       latencyMs: Date.now() - startedAt,
@@ -202,7 +212,7 @@ async function send(input: ProviderSendInput): Promise<ProviderSendResult> {
 
   const reason = (result.captured.body as { reason?: string } | null)?.reason ?? null;
   if (reason === 'ExpiredProviderToken') {
-    await evictToken(jwtCacheKey(input));
+    await evictToken(jwtCacheKey(input), input.tokens);
   }
 
   return {

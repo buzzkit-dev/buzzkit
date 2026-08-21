@@ -4,12 +4,12 @@ Subscribers are YOUR users, addressed everywhere by YOUR id (`externalId`) — b
 
 ## Subscribers — scopes `subscribers:read` / `subscribers:write`
 
-- `PUT /v1/subscribers/:externalId` — identify/upsert: `{ attributes?, email? }` → 201 on create, 200 after. `attributes` is free-form JSONB (tag data; segments filter on it in Phase 7), replaced wholesale when present, capped at 64KB serialized. `email` is sugar that upserts an email subscription.
-- `GET /v1/subscribers` — keyset-paginated list.
+- `PUT /v1/subscribers/:externalId` — identify/upsert: `{ attributes?, email? }` → 201 on create, 200 after. `attributes` is free-form JSONB (object-typed, enforced in the DB) (tag data; segments filter on it in Phase 8), replaced wholesale when present, capped at 64KB serialized. `email` is sugar that upserts an email subscription.
+- `GET /v1/subscribers` — keyset-paginated list, newest first. `externalId` in paths must be URL-encoded (emails, slashes, spaces all work).
 - `GET /v1/subscribers/:externalId` — with embedded subscriptions; includes `verified` / `identityVerifiedAt` (see [client.md](client.md)).
 - `DELETE /v1/subscribers/:externalId` — soft-deletes the subscriber and all their subscriptions.
 - `GET|PATCH /v1/subscribers/:externalId/preferences` — see [topics.md](topics.md).
-- `GET /v1/subscribers/:externalId/subscriptions`
+- `GET /v1/subscribers/:externalId/subscriptions` — list object of the subscriber's subscriptions.
 
 Subscriber ids (`sub_…`) are 32-char sqids (the most exposed id class).
 

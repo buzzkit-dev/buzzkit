@@ -12,8 +12,7 @@ import {
   updateTenant,
 } from '@buzzkit/api/api/tenants/index';
 import { auth } from '@buzzkit/api/libs/auth';
-import { BadRequestError } from '@buzzkit/api/libs/error';
-import { Response } from '@buzzkit/api/libs/response';
+import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';
 
 export const tenant = new Elysia()
@@ -31,25 +30,22 @@ export const tenant = new Elysia()
   .patch(
     '/tenants/:tenantSlug',
     async ({ body, db, params, workspace, event }) => {
-      if (
-        body.name === undefined &&
-        body.slug === undefined &&
-        body.metadata === undefined &&
-        body.settings === undefined
-      ) {
-        throw new BadRequestError('Nothing to update');
-      }
-
       if (body.settings !== undefined) {
         assertValidTenantSettings(body.settings);
       }
 
       const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
 
+      if (
+        body.name === undefined &&
+        body.slug === undefined &&
+        body.metadata === undefined &&
+        body.settings === undefined
+      ) {
+        return Response.success(serializeTenant(tenant), { entity: 'tenant' }).send();
+      }
+
       if (body.slug !== undefined && body.slug !== tenant.slug) {
-        if (tenant.isDefault) {
-          throw new BadRequestError('The default tenant keeps its slug');
-        }
         await assertTenantSlugAvailable(db, workspace.id, body.slug);
       }
 
@@ -88,7 +84,7 @@ export const tenant = new Elysia()
         data: { name: tenant.name, slug: tenant.slug },
       });
 
-      return Response.success(serializeTenant(deleted), { entity: 'tenant' }).send();
+      return Response.success(markDeleted(serializeTenant(deleted)), { entity: 'tenant' }).send();
     },
     { scope: 'tenants:write' }
   );

@@ -9,3 +9,8 @@ OTEL_EXPORTER_OTLP_ENDPOINT=
 AXIOM_API_TOKEN=
 AXIOM_LOGS_DATASET=
 AXIOM_TRACES_DATASET=
+
+# Optional: master-key rotation. Versioned keys as JSON, current version selects the key used for new credentials;
+# older versions stay readable. Without these, CREDENTIAL_MASTER_KEY is version 1.
+CREDENTIAL_MASTER_KEYS=
+CREDENTIAL_MASTER_KEY_VERSION=

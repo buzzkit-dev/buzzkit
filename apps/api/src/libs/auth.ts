@@ -6,17 +6,22 @@ import {
   hashApiKeySecret,
   isApiKeyToken,
   isClientKeyToken,
+  keyKindOf,
   touchApiKey,
 } from '@buzzkit/api/api/keys/index';
+import type { WorkspaceMember } from '@buzzkit/api/api/members/index';
 import { findTenantBySlug, type Tenant } from '@buzzkit/api/api/tenants/index';
+import type { Workspace } from '@buzzkit/api/api/workspaces/index';
 import { createBetterAuth } from '@buzzkit/auth';
 import { and, type Db, eq, type InferSelectModel, isNull, tables } from '@buzzkit/database';
 import { instrumentBetterAuth } from '@kubiks/otel-better-auth';
 import Elysia from 'elysia';
 import { deleteCache, readCache, writeCache } from './cache';
+import { sha256Hex } from './crypto';
 import { createDb, database } from './database';
 import {
   BadRequestError,
+  describeError,
   ForbiddenError,
   MissingPermissionError,
   NotFoundError,
@@ -26,7 +31,7 @@ import { log } from './logger';
 import {
   ROLE_SCOPES,
   requireScope,
-  type SCOPES,
+  type SCOPE_CATALOG,
   type Scope,
   SESSION_ONLY_SCOPES,
   SESSION_SCOPES,
@@ -35,8 +40,6 @@ import { setAuthSpanAttributes, trace } from './telemetry';
 
 type User = InferSelectModel<typeof tables.auth.user>;
 type Session = InferSelectModel<typeof tables.auth.session>;
-type Workspace = InferSelectModel<typeof tables.workspace>;
-type WorkspaceMember = InferSelectModel<typeof tables.workspaceMember>;
 
 type CachedSession = {
   user: User;
@@ -45,21 +48,20 @@ type CachedSession = {
 
 const SESSION_CACHE_TTL = 300;
 
-const sessionCacheKey = (token: string) => `session:${token.slice(-16)}`;
+const sessionCacheKey = async (token: string) => `session:${await sha256Hex(token)}`;
 
 export const authClient = (db?: Db) => {
   const auth = createBetterAuth({ db: db ?? createDb(), env, schema: tables.auth });
   return instrumentBetterAuth(auth as unknown as Parameters<typeof instrumentBetterAuth>[0]) as typeof auth;
 };
 
-function getAuthLogContext(request: Request) {
+function describeAuthRequest(request: Request) {
   const url = new URL(request.url);
   return {
     method: request.method,
     path: url.pathname,
     host: url.host,
     origin: request.headers.get('origin'),
-    referer: request.headers.get('referer'),
     hasCookie: request.headers.has('cookie'),
     hasAuthorization: request.headers.has('authorization'),
     userAgent: request.headers.get('user-agent'),
@@ -72,44 +74,47 @@ const userMiddleware = (request: Request, db: Db) =>
 
     if (!authHeader) {
       t.set('auth.error', 'missing_header');
-      throw new UnauthorizedError('Missing authentication header');
+      throw new UnauthorizedError('Missing authentication header', { code: 'missing_authorization' });
     }
 
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    const cacheKey = sessionCacheKey(token);
+    const cacheKey = await sessionCacheKey(token);
 
     const cached = await t.trace(
-      'auth.getCachedSession',
+      'auth.cachedSession',
       async () => await readCache<CachedSession>(env.AUTH_CACHE, cacheKey)
     );
 
-    if (cached) {
+    if (cached && new Date(cached.session.expiresAt).getTime() > Date.now()) {
       t.set('cache.hit', true);
       return cached;
     }
 
     t.set('cache.hit', false);
 
-    const session = await t.trace('auth.getSession', async () =>
+    const session = await t.trace('auth.session', async () =>
       authClient(db).api.getSession({ headers: { Authorization: authHeader } })
     );
 
     if (!session) {
       t.set('auth.error', 'invalid_session');
-      throw new UnauthorizedError('Invalid authentication session');
+      throw new UnauthorizedError('Invalid authentication session', { code: 'invalid_session' });
     }
 
     const result = { user: session.user, session: session.session };
 
-    await t.trace('auth.cacheSession', async () =>
-      writeCache(env.AUTH_CACHE, cacheKey, result, SESSION_CACHE_TTL)
-    );
+    const secondsUntilExpiry = Math.floor((new Date(result.session.expiresAt).getTime() - Date.now()) / 1000);
+    if (secondsUntilExpiry >= 60) {
+      await t.trace('auth.cacheSession', async () =>
+        writeCache(env.AUTH_CACHE, cacheKey, result, Math.min(SESSION_CACHE_TTL, secondsUntilExpiry))
+      );
+    }
 
     return result;
   });
 
 function resolveWorkspaceSlug(request: Request, params: Record<string, string>): string | null {
-  return params.slug ?? request.headers.get('buzzkit-workspace');
+  return params.workspaceSlug ?? request.headers.get('buzzkit-workspace');
 }
 
 const workspaceMiddleware = (request: Request, params: Record<string, string>, db: Db) =>
@@ -120,12 +125,14 @@ const workspaceMiddleware = (request: Request, params: Record<string, string>, d
 
     if (!slug) {
       t.set('auth.error', 'missing_workspace_slug');
-      throw new BadRequestError('Missing workspace identifier (path slug or buzzkit-workspace header)');
+      throw new BadRequestError('Missing workspace identifier (path slug or buzzkit-workspace header)', {
+        code: 'workspace_missing',
+      });
     }
 
     t.set('workspace.slug', slug);
 
-    const [result] = await t.trace('auth.getMembership', async () =>
+    const [result] = await t.trace('auth.membership', async () =>
       db
         .select({
           workspace: tables.workspace,
@@ -150,7 +157,7 @@ const workspaceMiddleware = (request: Request, params: Record<string, string>, d
 
     if (!result.membership) {
       t.set('auth.error', 'not_a_member');
-      throw new ForbiddenError('You are not a member of this workspace');
+      throw new NotFoundError('Workspace not found');
     }
 
     const scopes: readonly string[] = ROLE_SCOPES[result.membership.role];
@@ -180,22 +187,22 @@ const apiKeyMiddleware = (request: Request, params: Record<string, string>, db: 
     const secret = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
     const keyHash = await hashApiKeySecret(secret);
 
-    const result = await t.trace('auth.getApiKey', async () => findActiveApiKeyByHash(db, keyHash));
+    const result = await t.trace('auth.apiKey', async () => findActiveApiKeyByHash(db, keyHash));
 
-    if (!result) {
+    if (!result || keyKindOf(secret) !== result.key.kind) {
       t.set('auth.error', 'invalid_api_key');
-      throw new UnauthorizedError('Invalid API key');
+      throw new UnauthorizedError('Invalid API key', { code: 'invalid_api_key' });
     }
 
     if (result.key.expiresAt && result.key.expiresAt.getTime() <= Date.now()) {
       t.set('auth.error', 'api_key_expired');
-      throw new UnauthorizedError('API key expired');
+      throw new UnauthorizedError('API key expired', { code: 'api_key_expired' });
     }
 
     const slug = resolveWorkspaceSlug(request, params);
     if (slug && result.workspace.slug !== slug) {
       t.set('auth.error', 'api_key_wrong_workspace');
-      throw new ForbiddenError('This API key belongs to a different workspace');
+      throw new ForbiddenError('This API key belongs to a different workspace', { code: 'wrong_workspace' });
     }
 
     await t.trace('auth.touchApiKey', async () => touchApiKey(db, result.key));
@@ -220,7 +227,7 @@ const apiKeyMiddleware = (request: Request, params: Record<string, string>, db: 
   });
 
 export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
-  const authLogContext = getAuthLogContext(request);
+  const authLogContext = describeAuthRequest(request);
 
   try {
     const response = await authClient().handler(request);
@@ -228,7 +235,7 @@ export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
     if (response.ok && new URL(request.url).pathname.endsWith('/sign-out')) {
       const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       if (token) {
-        await deleteCache(env.AUTH_CACHE, [sessionCacheKey(token)]);
+        await deleteCache(env.AUTH_CACHE, [await sessionCacheKey(token)]);
       }
     }
 
@@ -250,18 +257,18 @@ export const authHandler = new Elysia().mount('/v1/auth', async (request) => {
   } catch (error) {
     log.error('[Auth] Handler threw', {
       ...authLogContext,
-      error: error instanceof Error ? error.message : String(error),
+      error: describeError(error),
     });
     throw error;
   }
 });
 
 type WorkspaceScope = {
-  [K in Scope]: (typeof SCOPES)[K] extends 'workspace' ? K : never;
+  [K in Scope]: (typeof SCOPE_CATALOG)[K]['context'] extends 'workspace' ? K : never;
 }[Scope];
 
 type TenantScope = {
-  [K in Scope]: (typeof SCOPES)[K] extends 'tenant' ? K : never;
+  [K in Scope]: (typeof SCOPE_CATALOG)[K]['context'] extends 'tenant' ? K : never;
 }[Scope];
 
 type AccountAction = 'read' | 'write';
@@ -310,6 +317,10 @@ export const auth = new Elysia({ name: 'auth/service' })
         const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
         const isApiKey = isApiKeyToken(token);
 
+        if (isApiKey && SESSION_ONLY_SCOPES.has(required)) {
+          throw new MissingPermissionError(`The '${required}' scope requires a user session`);
+        }
+
         const base = isApiKey
           ? await apiKeyMiddleware(request, (params ?? {}) as Record<string, string>, db)
           : await workspaceMiddleware(request, (params ?? {}) as Record<string, string>, db);
@@ -319,7 +330,7 @@ export const auth = new Elysia({ name: 'auth/service' })
         let tenant: Tenant;
         if ('keyTenant' in base && base.keyTenant) {
           if (requestedSlug && requestedSlug !== base.keyTenant.slug) {
-            throw new ForbiddenError('This API key belongs to a different tenant');
+            throw new ForbiddenError('This API key belongs to a different tenant', { code: 'wrong_tenant' });
           }
           tenant = base.keyTenant;
         } else {
@@ -340,7 +351,9 @@ export const auth = new Elysia({ name: 'auth/service' })
         const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
 
         if (!isClientKeyToken(token)) {
-          throw new UnauthorizedError('Client endpoints require a client key (bk_pk_…)');
+          throw new UnauthorizedError('Client endpoints require a client key (bk_pk_…)', {
+            code: 'client_key_required',
+          });
         }
 
         return await trace('auth.clientMiddleware', async (t) => {
@@ -349,13 +362,15 @@ export const auth = new Elysia({ name: 'auth/service' })
 
           if (result?.key.kind !== 'client' || !result.tenant) {
             t.set('auth.error', 'invalid_client_key');
-            throw new UnauthorizedError('Invalid client key');
+            throw new UnauthorizedError('Invalid client key', { code: 'invalid_api_key' });
           }
 
           const requestedTenant = request.headers.get('buzzkit-tenant');
           if (requestedTenant && requestedTenant !== result.tenant.slug) {
             t.set('auth.error', 'client_key_wrong_tenant');
-            throw new ForbiddenError('This client key belongs to a different tenant');
+            throw new ForbiddenError('This client key belongs to a different tenant', {
+              code: 'wrong_tenant',
+            });
           }
 
           await touchApiKey(db, result.key);

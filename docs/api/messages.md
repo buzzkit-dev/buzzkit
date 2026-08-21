@@ -19,7 +19,7 @@ The send API — the product promise. One call targets subscribers by your ids o
 - **Channel**: `channel` defaults to `push` (email sending arrives with the next phase → 400 for now). A channel disabled in tenant settings is a 400.
 - **Content**: at least one of `title`, `body`, `data`. Optional `subtitle`, `badge`, `sound`, `imageUrl`, `collapseId`, `priority` (`high` default | `normal`), and raw escape hatches `apns.payload` / `fcm.android` / `fcm.payload`. `apns.environment` picks sandbox vs production credentials (default production; falls back to whichever exists).
 - **Expiry**: `ttlSeconds` (60s … 28 days, default 24h) → `expiresAt`. Passed to APNs (`apns-expiration`) and FCM (`android.ttl`); deliveries still pending at expiry are failed with `expired` — stale pushes never go out.
-- **Idempotency**: `idempotencyKey` is unique per tenant — a replay returns the original message with 200 and sends nothing.
+- **Idempotency**: send an `Idempotency-Key` header (or the `idempotencyKey` body field) — unique per tenant, never expires. A replay of the same request returns the original message with `202` + `Idempotent-Replayed: true` and sends nothing; the same key with a different request is a `409 idempotency_key_reused`.
 
 Returns the message (`msg_…`) immediately with `status: "queued"`; delivery is asynchronous.
 
@@ -45,7 +45,7 @@ POST /v1/messages ──► queue: fanout(page) ──► deliveries (one per re
 - **Fan-out pages chain themselves** (500 subscriptions per job, cursor persisted on the message) — a million-subscriber topic is 2000 small jobs, resumable from the cursor if anything dies.
 - **Retries are durable**: the next attempt is written to the row (`nextAttemptAt`) *and* scheduled on the queue with a delay; if the queue ever loses it, the reconciliation cron re-enqueues it. The schedule is explicit (Svix-style, tuned for push TTLs): retries at `5s, 30s, 2m, 10m, 30m, 1h, 2h` after the first attempt (8 attempts, ~3h45m total), each with ±20% jitter; provider `Retry-After` is honoured, and `rate_limited`/`timeout` carry a 60s floor so an overloaded provider is never hammered.
 - **Exactly one provider call per attempt**: before calling the provider, the worker claims the attempt with an atomic lease (`UPDATE … WHERE attempts = n−1 AND lease expired`, 60s); a duplicate job — queue redelivery, or the cron racing the delayed retry — loses the claim and is skipped, so a duplicate can neither double-send nor double-count. Attempts are additionally unique per (delivery, attempt). A worker that dies mid-attempt leaves an expired lease, which the cron re-drives after 10 minutes.
-- **Idempotent creation under concurrency**: `POST` with an `idempotencyKey` is insert-first (`ON CONFLICT DO NOTHING` on the per-tenant unique index) — five simultaneous identical requests create one message; the first gets `202`, the rest `200` with the same object.
+- **Idempotent creation under concurrency**: `POST` with an `idempotencyKey` is insert-first (`ON CONFLICT DO NOTHING` on the per-tenant unique index) — five simultaneous identical requests create one message and all five get `202` with the same object (four carry `Idempotent-Replayed: true`). The request fingerprint is stored with the key, so a reused key with a different payload can never silently drop a send.
 - **Counters are batched**: the consumer aggregates outcomes per message per batch (one update per message per 100 deliveries, no hot-row contention) and completion is checked once fan-out has finished.
 - **Dead-letter queue** (`buzzkit-deliveries-dlq`) catches jobs that crash repeatedly — application-level exhaustion is always recorded in the DB, the DLQ only exists for bugs.
 
@@ -59,6 +59,7 @@ Providers classify their native reasons into a shared taxonomy; **policy lives i
 | `rate_limited`, `provider_unavailable`, `transport`, `timeout` | yes | `retrying` with backoff |
 | `invalid_credential`, `payload_invalid`, `payload_too_large`, `unknown` | no | `failed` |
 | `no_credential`, `expired`, `unsupported` | no | `failed` immediately |
+| `unsubscribed` | no | `failed` immediately — the subscription was muted, removed, or invalidated between fan-out and this attempt; checked at attempt time so a retry hours later never reaches a user who opted out |
 
 ## Delivery statuses (Twilio/SendGrid-aligned)
 

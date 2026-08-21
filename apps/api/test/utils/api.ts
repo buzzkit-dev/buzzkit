@@ -3,8 +3,8 @@ export const BASE_URL = process.env.API_URL ?? 'http://localhost:8790';
 export type Envelope<T = unknown> = {
   success: boolean;
   data: T | null;
-  error: { code: string; message: string; details?: unknown } | null;
-  metadata: { timestamp: number };
+  error: { code: string; message: string; param?: string; details?: unknown } | null;
+  metadata: { timestamp: string; requestId?: string };
 };
 
 export async function api<T = unknown>(
@@ -19,5 +19,5 @@ export async function api<T = unknown>(
     },
   });
   const body = (await response.json()) as Envelope<T>;
-  return { status: response.status, body };
+  return { status: response.status, headers: response.headers, body };
 }

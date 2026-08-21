@@ -1,6 +1,7 @@
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
+import { NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, asc, channel, type Db, eq, inArray, isNull, tables } from '@buzzkit/database';
+import { and, asc, channel, type Db, eq, inArray, isNull, sql, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Topic = typeof tables.topic.$inferSelect;
@@ -10,13 +11,9 @@ export type Channel = (typeof CHANNELS)[number];
 
 export const ChannelDefaultsSchema = t.Record(t.String(), t.Any());
 
-export const TopicSlugSchema = t.String({
-  minLength: 1,
-  maxLength: 64,
-  pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
-});
+export const TopicSlugSchema = SlugSchema;
 
-export const TopicNameSchema = t.String({ minLength: 1, maxLength: 100 });
+export const TopicNameSchema = NameSchema;
 
 export function serializeTopic(topic: Topic) {
   return {
@@ -46,14 +43,14 @@ export function assertValidChannelDefaults(channelDefaults: unknown): void {
   }
 }
 
-function topicDefault(topic: Topic, channel: Channel): boolean {
+export function topicDefault(topic: Topic, channel: Channel): boolean {
   const overrides = topic.channelDefaults as Partial<Record<Channel, boolean>>;
   return overrides[channel] ?? topic.defaultOptedIn;
 }
 
 export async function assertTopicSlugAvailable(db: Db, tenantId: number, slug: string): Promise<void> {
   const [existing] = await trace(
-    'topics.getBySlug',
+    'topics.findBySlug',
     async () =>
       await db
         .select({ id: tables.topic.id })
@@ -150,7 +147,18 @@ export async function updateTopic(
 ): Promise<Topic> {
   const [updated] = await trace(
     'topics.update',
-    async () => await db.update(tables.topic).set(patch).where(eq(tables.topic.id, topicId)).returning()
+    async () =>
+      await db
+        .update(tables.topic)
+        .set({
+          slug: patch.slug,
+          name: patch.name,
+          description: patch.description,
+          defaultOptedIn: patch.defaultOptedIn,
+          channelDefaults: patch.channelDefaults,
+        })
+        .where(eq(tables.topic.id, topicId))
+        .returning()
   );
 
   return updated!;
@@ -176,7 +184,8 @@ export type ChannelPreference = {
 };
 
 export type SubscriberPreference = {
-  topic: string;
+  id: number;
+  slug: string;
   name: string;
   description: string | null;
   channels: Record<Channel, ChannelPreference>;
@@ -187,15 +196,15 @@ export type PreferenceChanges = Record<string, boolean | Partial<Record<string, 
 export const PreferenceChangesSchema = t.Record(
   t.String(),
   t.Union([t.Boolean(), t.Partial(t.Object({ push: t.Boolean(), email: t.Boolean() }))]),
-  { minProperties: 1 }
+  { minProperties: 1, maxProperties: 100 }
 );
 
-export async function getPreferences(
+export async function listPreferences(
   db: Db,
   tenantId: number,
   subscriberId: number
 ): Promise<SubscriberPreference[]> {
-  return await trace('preferences.get', async () => {
+  return await trace('preferences.list', async () => {
     const rows = await db
       .select({
         topic: tables.topic,
@@ -222,7 +231,8 @@ export async function getPreferences(
     }
 
     return [...byTopic.values()].map(({ topic, overrides }) => ({
-      topic: topic.slug,
+      id: topic.id,
+      slug: topic.slug,
       name: topic.name,
       description: topic.description,
       channels: Object.fromEntries(
@@ -238,7 +248,7 @@ export async function getPreferences(
   });
 }
 
-export async function setPreferences(
+export async function updatePreferences(
   db: Db,
   tenantId: number,
   subscriberId: number,
@@ -272,7 +282,7 @@ export async function setPreferences(
     perChannel.set(slug, channelMap);
   }
 
-  return await trace('preferences.set', async () => {
+  return await trace('preferences.update', async () => {
     const topics = await db
       .select()
       .from(tables.topic)
@@ -291,27 +301,27 @@ export async function setPreferences(
       }
     }
 
-    await db.transaction(async (tx) => {
-      for (const [slug, channelMap] of perChannel) {
-        const topic = bySlug.get(slug);
-        if (!topic) continue;
+    const rows = [...perChannel].flatMap(([slug, channelMap]) =>
+      [...channelMap].map(([channel, optedIn]) => ({
+        tenantId,
+        subscriberId,
+        topicId: bySlug.get(slug)!.id,
+        channel,
+        optedIn,
+      }))
+    );
+    await db
+      .insert(tables.subscriberPreference)
+      .values(rows)
+      .onConflictDoUpdate({
+        target: [
+          tables.subscriberPreference.subscriberId,
+          tables.subscriberPreference.topicId,
+          tables.subscriberPreference.channel,
+        ],
+        set: { optedIn: sql`excluded.opted_in` },
+      });
 
-        for (const [channel, optedIn] of channelMap) {
-          await tx
-            .insert(tables.subscriberPreference)
-            .values({ tenantId, subscriberId, topicId: topic.id, channel, optedIn })
-            .onConflictDoUpdate({
-              target: [
-                tables.subscriberPreference.subscriberId,
-                tables.subscriberPreference.topicId,
-                tables.subscriberPreference.channel,
-              ],
-              set: { optedIn },
-            });
-        }
-      }
-    });
-
-    return getPreferences(db, tenantId, subscriberId);
+    return listPreferences(db, tenantId, subscriberId);
   });
 }

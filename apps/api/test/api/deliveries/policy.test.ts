@@ -134,6 +134,7 @@ describe('decision matrix', () => {
       'payload_too_large',
       'expired',
       'no_credential',
+      'unsubscribed',
       'unsupported',
       'unknown',
     ];
@@ -164,6 +165,7 @@ describe('decision matrix', () => {
       'timeout',
       'transport',
       'unknown',
+      'unsubscribed',
       'unsupported',
     ]);
   });

@@ -32,14 +32,16 @@ export function setAuthSpanAttributes(auth: AuthAttributes): void {
 }
 
 export const telemetry = new Elysia({ name: 'telemetry' })
-  .onRequest(({ request }) => {
+  .onRequest(({ request, set }) => {
+    const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
+    set.headers['request-id'] = requestId;
+
     const span = getActiveSpan();
     if (!span) return;
 
     span.setAttribute('http.method', request.method);
     span.setAttribute('url.path', new URL(request.url).pathname);
-    const ray = request.headers.get('cf-ray');
-    if (ray) span.setAttribute('request.id', ray);
+    span.setAttribute('request.id', requestId);
   })
   .onAfterHandle({ as: 'global' }, ({ route, set }) => {
     const span = getActiveSpan();

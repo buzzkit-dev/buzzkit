@@ -24,8 +24,8 @@ describe('/v1/topics', () => {
     expect(created.body.data?.defaultOptedIn).toBe(true);
     const slug = created.body.data?.slug;
 
-    const list = await api<Array<{ slug: string }>>('/v1/topics', { headers: keyBearer });
-    expect(list.body.data?.some((topic) => topic.slug === slug)).toBe(true);
+    const list = await api<{ items: Array<{ slug: string }> }>('/v1/topics', { headers: keyBearer });
+    expect(list.body.data?.items?.some((topic) => topic.slug === slug)).toBe(true);
 
     const patched = await api<{ name: string; defaultOptedIn: boolean }>(`/v1/topics/${slug}`, {
       method: 'PATCH',
@@ -58,7 +58,7 @@ describe('/v1/topics', () => {
     expect(conflict.status).toBe(409);
 
     const empty = await api(`/v1/topics/${slug}`, { method: 'PATCH', headers: keyBearer, body: '{}' });
-    expect(empty.status).toBe(400);
+    expect(empty.status).toBe(200);
 
     const newSlug = `gym-renamed-${uniq()}`;
     const renamed = await api(`/v1/topics/${slug}`, {
@@ -96,10 +96,10 @@ describe('/v1/topics', () => {
 
     await api(`/v1/topics/${slug}`, { method: 'DELETE', headers: keyBearer });
 
-    const prefs = await api<Array<{ topic: string }>>(`/v1/subscribers/${externalId}/preferences`, {
+    const prefs = await api<{ items: Array<{ slug: string }> }>(`/v1/subscribers/${externalId}/preferences`, {
       headers: keyBearer,
     });
-    expect(prefs.body.data?.some((p) => p.topic === slug)).toBe(false);
+    expect(prefs.body.data?.items?.some((p) => p.slug === slug)).toBe(false);
 
     const events = await api<{ items: Array<{ event: string }> }>(`/v1/workspaces/${workspace.slug}/events`, {
       headers: ownerBearer,
@@ -127,13 +127,13 @@ describe('/v1/topics', () => {
 });
 
 type PreferenceRow = {
-  topic: string;
+  slug: string;
   channels: Record<string, { optedIn: boolean; isDefault: boolean }>;
 };
 
 async function getPrefs(headers: Record<string, string>, externalId: string) {
   const { body } = await api<PreferenceRow[]>(`/v1/subscribers/${externalId}/preferences`, { headers });
-  return new Map(body.data?.map((p) => [p.topic, p]));
+  return new Map(body.data?.items.map((p) => [p.slug, p]));
 }
 
 describe('preferences', () => {
@@ -157,7 +157,7 @@ describe('preferences', () => {
       headers: keyBearer,
       body: JSON.stringify({ preferences: { [gym]: false, [marketing]: true } }),
     });
-    const patchedBy = new Map(patched.body.data?.map((p) => [p.topic, p]));
+    const patchedBy = new Map(patched.body.data?.items.map((p) => [p.slug, p]));
     expect(patchedBy.get(gym)?.channels.push).toMatchObject({ optedIn: false, isDefault: false });
     expect(patchedBy.get(gym)?.channels.email).toMatchObject({ optedIn: false, isDefault: false });
     expect(patchedBy.get(marketing)?.channels.push).toMatchObject({ optedIn: true, isDefault: false });
@@ -282,10 +282,13 @@ describe('preferences', () => {
     const externalId = `user_${uniq()}`;
     await api(`/v1/subscribers/${externalId}`, { method: 'PUT', headers: keyBearer, body: '{}' });
 
-    const preferences = await api<Array<{ topic: string }>>(`/v1/subscribers/${externalId}/preferences`, {
-      headers: keyBearer,
-    });
-    expect(preferences.body.data?.some((p) => p.topic === foreignSlug)).toBe(false);
+    const preferences = await api<{ items: Array<{ slug: string }> }>(
+      `/v1/subscribers/${externalId}/preferences`,
+      {
+        headers: keyBearer,
+      }
+    );
+    expect(preferences.body.data?.items?.some((p) => p.slug === foreignSlug)).toBe(false);
 
     const patch = await api(`/v1/subscribers/${externalId}/preferences`, {
       method: 'PATCH',
@@ -293,5 +296,69 @@ describe('preferences', () => {
       body: JSON.stringify({ preferences: { [foreignSlug]: true } }),
     });
     expect(patch.status).toBe(404);
+  });
+});
+
+describe('cross-tenant isolation', () => {
+  it('topic reads, updates, and deletes across tenants are 404 and leave the topic intact', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const other = await createTenant(keyBearer);
+    const slug = `iso-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug, name: 'Iso' }),
+    });
+    const foreign = { ...keyBearer, 'buzzkit-tenant': other.slug };
+
+    expect((await api(`/v1/topics/${slug}`, { headers: foreign })).status).toBe(404);
+    expect(
+      (
+        await api(`/v1/topics/${slug}`, {
+          method: 'PATCH',
+          headers: foreign,
+          body: JSON.stringify({ name: 'X' }),
+        })
+      ).status
+    ).toBe(404);
+    expect((await api(`/v1/topics/${slug}`, { method: 'DELETE', headers: foreign })).status).toBe(404);
+
+    const still = await api<{ name: string }>(`/v1/topics/${slug}`, { headers: keyBearer });
+    expect(still.status).toBe(200);
+    expect(still.body.data?.name).toBe('Iso');
+  });
+
+  it('rejects unknown channel defaults and empty channel maps, accepts a null description', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const slug = `val-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug, name: 'Val' }),
+    });
+
+    const badChannel = await api(`/v1/topics/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ channelDefaults: { fax: true } }),
+    });
+    expect(badChannel.status).toBe(400);
+
+    const nulled = await api<{ description: string | null }>(`/v1/topics/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ description: null }),
+    });
+    expect(nulled.status).toBe(200);
+    expect(nulled.body.data?.description).toBeNull();
+
+    const externalId = `user_${uniq()}`;
+    await api(`/v1/subscribers/${externalId}`, { method: 'PUT', headers: keyBearer, body: '{}' });
+    const emptyMap = await api(`/v1/subscribers/${externalId}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [slug]: {} } }),
+    });
+    expect(emptyMap.status).toBe(400);
   });
 });

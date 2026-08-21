@@ -1,9 +1,11 @@
 import type { ApiKey } from '@buzzkit/api/api/keys/index';
+import { describeError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
-import { decodeSqid, encodeBareId, ID_PREFIXES, s, TARGET_ENTITIES } from '@buzzkit/api/libs/sqids';
+import { decodeSqid, encodeBareId, encodeId, ID_PREFIXES, TARGET_ENTITIES } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { deepEqual } from '@buzzkit/api/utils/equality';
 import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
-import { and, type Db, desc, eq, lt, tables } from '@buzzkit/database';
+import { and, type Db, desc, eq, inArray, lt, tables } from '@buzzkit/database';
 import type { EventName } from './catalog';
 
 export { EVENT_CATALOG, type EventName, isPublicEvent, PUBLIC_EVENTS } from './catalog';
@@ -15,7 +17,7 @@ type ActorUser = { id: string; email: string };
 export type Actor =
   | { type: 'member'; user: ActorUser; memberId?: number }
   | { type: 'key'; apiKey: ApiKey }
-  | { type: 'user'; subscriber: { id?: number; display: string } }
+  | { type: 'user'; subscriber: { display: string } }
   | { type: 'system' };
 
 export type EventEntry = {
@@ -41,14 +43,7 @@ export function diffForEvent<T extends Record<string, unknown>>(
 
     const a = before[key];
     const b = after[key];
-    const same =
-      a instanceof Date || b instanceof Date
-        ? (a instanceof Date ? a.getTime() : a) === (b instanceof Date ? b.getTime() : b)
-        : typeof a === 'object' || typeof b === 'object'
-          ? JSON.stringify(a) === JSON.stringify(b)
-          : a === b;
-
-    if (!same) {
+    if (!deepEqual(a instanceof Date ? a.getTime() : a, b instanceof Date ? b.getTime() : b)) {
       changes.push(key);
       previous[key] = a;
     }
@@ -116,23 +111,72 @@ export function createEventLogger(
     } catch (error) {
       log.error('[Events] Failed to write event', {
         event: entry.event,
-        error: error instanceof Error ? error.message : String(error),
+        error: describeError(error),
       });
     }
   };
 }
 
-function serializeEventRows(rows: EventRow[]): (EventRow & { targetId: string | null })[] {
-  return rows.map((row) => {
-    const entity = row.targetType ? TARGET_ENTITIES[row.targetType] : undefined;
-    return {
-      ...row,
-      targetId:
-        row.targetId && entity && !row.targetId.includes('_')
-          ? `${ID_PREFIXES[entity]}_${row.targetId}`
-          : row.targetId,
-    };
-  });
+export async function recordSystemEvents(
+  db: Db,
+  entries: Array<EventEntry & { tenantId: number }>
+): Promise<void> {
+  if (entries.length === 0) return;
+  const tenantIds = [...new Set(entries.map((entry) => entry.tenantId))];
+  const tenants = await db
+    .select({ id: tables.tenant.id, workspaceId: tables.tenant.workspaceId })
+    .from(tables.tenant)
+    .where(inArray(tables.tenant.id, tenantIds));
+  const workspaceOf = new Map(tenants.map((tenant) => [tenant.id, tenant.workspaceId]));
+
+  try {
+    await trace('event.writeMany', { 'events.count': entries.length }, async () =>
+      db.insert(tables.event).values(
+        entries.map((entry) => ({
+          workspaceId: workspaceOf.get(entry.tenantId) ?? null,
+          tenantId: entry.tenantId,
+          event: entry.event,
+          ...actorColumns({ type: 'system' }),
+          targetType: entry.target?.type,
+          targetId:
+            entry.target !== undefined
+              ? typeof entry.target.id === 'number'
+                ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
+                : entry.target.id
+              : undefined,
+          data: entry.data,
+        }))
+      )
+    );
+  } catch (error) {
+    log.error('[Events] Failed to write events', {
+      count: entries.length,
+      error: describeError(error),
+    });
+  }
+}
+
+export function serializeEvent(row: EventRow) {
+  const entity = row.targetType ? TARGET_ENTITIES[row.targetType] : undefined;
+  return {
+    id: row.id,
+    event: row.event,
+    tenantId: row.tenantId,
+    actorType: row.actorType,
+    actorDisplay: row.actorDisplay,
+    actorMemberId: row.actorMemberId,
+    actorKeyId: row.actorKeyId,
+    targetType: row.targetType,
+    targetId:
+      row.targetId && entity && !row.targetId.includes('_')
+        ? `${ID_PREFIXES[entity]}_${row.targetId}`
+        : row.targetId,
+    data: row.data,
+    requestId: row.requestId,
+    ip: row.ip,
+    userAgent: row.userAgent,
+    createdAt: row.createdAt,
+  };
 }
 
 export async function listEvents(
@@ -166,5 +210,5 @@ export async function listEvents(
         .limit(limit + 1)
   );
 
-  return toPage(serializeEventRows(rows), limit, (id) => s.encode([id]));
+  return toPage(rows.map(serializeEvent), limit, (id) => encodeId('event', id));
 }

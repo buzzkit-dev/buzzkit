@@ -11,8 +11,7 @@ import {
   updateTopic,
 } from '@buzzkit/api/api/topics/index';
 import { auth } from '@buzzkit/api/libs/auth';
-import { BadRequestError } from '@buzzkit/api/libs/error';
-import { Response } from '@buzzkit/api/libs/response';
+import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';
 
 export const topic = new Elysia()
@@ -30,6 +29,10 @@ export const topic = new Elysia()
   .patch(
     '/topics/:topicSlug',
     async ({ body, db, params, tenant, event }) => {
+      assertValidChannelDefaults(body.channelDefaults);
+
+      const topic = await findTopicBySlug(db, tenant.id, params.topicSlug);
+
       if (
         body.slug === undefined &&
         body.name === undefined &&
@@ -37,12 +40,8 @@ export const topic = new Elysia()
         body.defaultOptedIn === undefined &&
         body.channelDefaults === undefined
       ) {
-        throw new BadRequestError('Nothing to update');
+        return Response.success(serializeTopic(topic), { entity: 'topic' }).send();
       }
-
-      assertValidChannelDefaults(body.channelDefaults);
-
-      const topic = await findTopicBySlug(db, tenant.id, params.topicSlug);
 
       if (body.slug !== undefined && body.slug !== topic.slug) {
         await assertTopicSlugAvailable(db, tenant.id, body.slug);
@@ -84,7 +83,7 @@ export const topic = new Elysia()
         data: { slug: topic.slug, name: topic.name },
       });
 
-      return Response.success(serializeTopic(deleted), { entity: 'topic' }).send();
+      return Response.success(markDeleted(serializeTopic(deleted)), { entity: 'topic' }).send();
     },
     { tenant: 'topics:write' }
   );

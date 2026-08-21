@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
-import { channel } from './shared';
+import { check, index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigId, bigRef, channel, createdAt, deletedAt, provider, timestamptz, updatedAt } from './shared';
 import { subscriber, subscription } from './subscriber';
 import { tenant } from './tenant';
+import { topic } from './topic';
 
 export const messageStatus = pgEnum('message_status', ['queued', 'processing', 'completed']);
 
@@ -26,15 +27,17 @@ export const deliveryAttemptOutcome = pgEnum('delivery_attempt_outcome', [
 export const message = pgTable(
   'message',
   {
-    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    tenantId: integer('tenant_id')
+    id: bigId(),
+    tenantId: bigRef('tenant_id')
       .notNull()
-      .references(() => tenant.id, { onDelete: 'cascade' }),
+      .references(() => tenant.id, { onDelete: 'restrict' }),
     channel: channel('channel').notNull(),
     topic: text('topic'),
+    topicId: bigRef('topic_id').references(() => topic.id, { onDelete: 'restrict' }),
     targets: jsonb('targets').notNull(),
     payload: jsonb('payload').notNull(),
     idempotencyKey: text('idempotency_key'),
+    idempotencyFingerprint: text('idempotency_fingerprint'),
     status: messageStatus('status').notNull().default('queued'),
     total: integer('total').notNull().default(0),
     sent: integer('sent').notNull().default(0),
@@ -42,90 +45,89 @@ export const message = pgTable(
     bounced: integer('bounced').notNull().default(0),
     failed: integer('failed').notNull().default(0),
     invalid: integer('invalid').notNull().default(0),
-    expiresAt: timestamp('expires_at'),
-    fanoutCursor: integer('fanout_cursor').notNull().default(0),
-    fanoutCompletedAt: timestamp('fanout_completed_at'),
-    completedAt: timestamp('completed_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at')
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-    deletedAt: timestamp('deleted_at'),
+    expiresAt: timestamptz('expires_at').notNull(),
+    fanoutCursor: bigRef('fanout_cursor').notNull().default(0),
+    fanoutCompletedAt: timestamptz('fanout_completed_at'),
+    completedAt: timestamptz('completed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: deletedAt(),
   },
   (table) => [
-    uniqueIndex('message_tenant_idempotency_unique')
+    uniqueIndex('message_tenant_idempotency_key_unique')
       .on(table.tenantId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} is not null and ${table.deletedAt} is null`),
     index('message_tenant_idx').on(table.tenantId, table.id),
     index('message_processing_idx')
       .on(table.updatedAt)
-      .where(sql`${table.status} = 'processing' and ${table.fanoutCompletedAt} is null`),
+      .where(sql`${table.status} in ('queued', 'processing') and ${table.fanoutCompletedAt} is null`),
     index('message_expiry_idx').on(table.expiresAt).where(sql`${table.status} <> 'completed'`),
     index('message_unfinalized_idx')
       .on(table.updatedAt)
       .where(sql`${table.status} = 'processing' and ${table.fanoutCompletedAt} is not null`),
+    check('message_targets_object', sql`jsonb_typeof(${table.targets}) = 'object'`),
+    check('message_payload_object', sql`jsonb_typeof(${table.payload}) = 'object'`),
   ]
 );
 
 export const delivery = pgTable(
   'delivery',
   {
-    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    tenantId: integer('tenant_id')
+    id: bigId(),
+    tenantId: bigRef('tenant_id')
       .notNull()
-      .references(() => tenant.id, { onDelete: 'cascade' }),
-    messageId: integer('message_id')
+      .references(() => tenant.id, { onDelete: 'restrict' }),
+    messageId: bigRef('message_id')
       .notNull()
-      .references(() => message.id, { onDelete: 'cascade' }),
-    subscriberId: integer('subscriber_id')
+      .references(() => message.id, { onDelete: 'restrict' }),
+    subscriberId: bigRef('subscriber_id')
       .notNull()
-      .references(() => subscriber.id, { onDelete: 'cascade' }),
-    subscriptionId: integer('subscription_id')
+      .references(() => subscriber.id, { onDelete: 'restrict' }),
+    subscriptionId: bigRef('subscription_id')
       .notNull()
-      .references(() => subscription.id, { onDelete: 'cascade' }),
+      .references(() => subscription.id, { onDelete: 'restrict' }),
     channel: channel('channel').notNull(),
-    provider: text('provider').notNull(),
+    provider: provider('provider').notNull(),
     status: deliveryStatus('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     lastErrorCode: text('last_error_code'),
     lastErrorMessage: text('last_error_message'),
     providerMessageId: text('provider_message_id'),
-    nextAttemptAt: timestamp('next_attempt_at'),
-    leaseExpiresAt: timestamp('lease_expires_at'),
-    firstAttemptedAt: timestamp('first_attempted_at'),
-    lastAttemptedAt: timestamp('last_attempted_at'),
-    sentAt: timestamp('sent_at'),
-    settledAt: timestamp('settled_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at')
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
+    nextAttemptAt: timestamptz('next_attempt_at'),
+    leaseExpiresAt: timestamptz('lease_expires_at'),
+    firstAttemptedAt: timestamptz('first_attempted_at'),
+    lastAttemptedAt: timestamptz('last_attempted_at'),
+    sentAt: timestamptz('sent_at'),
+    settledAt: timestamptz('settled_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
   (table) => [
     uniqueIndex('delivery_message_subscription_unique').on(table.messageId, table.subscriptionId),
     index('delivery_message_idx').on(table.messageId, table.id),
-    index('delivery_tenant_idx').on(table.tenantId, table.id),
-    index('delivery_due_idx').on(table.nextAttemptAt).where(sql`${table.status} in ('pending', 'retrying')`),
-    index('delivery_unsettled_idx')
-      .on(table.messageId)
-      .where(sql`${table.status} in ('pending', 'retrying')`),
+    index('delivery_due_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'retrying' and ${table.nextAttemptAt} is not null`),
+    index('delivery_message_status_idx').on(table.messageId, table.status, table.id),
+    index('delivery_stale_idx')
+      .on(sql`coalesce(${table.leaseExpiresAt}, ${table.createdAt})`)
+      .where(sql`${table.status} in ('pending', 'retrying') and ${table.nextAttemptAt} is null`),
+    index('delivery_created_brin').using('brin', table.createdAt),
   ]
 );
 
 export const deliveryAttempt = pgTable(
   'delivery_attempt',
   {
-    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    tenantId: integer('tenant_id')
+    id: bigId(),
+    tenantId: bigRef('tenant_id')
       .notNull()
-      .references(() => tenant.id, { onDelete: 'cascade' }),
-    deliveryId: integer('delivery_id')
+      .references(() => tenant.id, { onDelete: 'restrict' }),
+    deliveryId: bigRef('delivery_id')
       .notNull()
-      .references(() => delivery.id, { onDelete: 'cascade' }),
+      .references(() => delivery.id, { onDelete: 'restrict' }),
     attempt: integer('attempt').notNull(),
-    provider: text('provider').notNull(),
+    provider: provider('provider').notNull(),
     outcome: deliveryAttemptOutcome('outcome').notNull(),
     errorCode: text('error_code'),
     providerReason: text('provider_reason'),
@@ -134,14 +136,14 @@ export const deliveryAttempt = pgTable(
     request: jsonb('request'),
     response: jsonb('response'),
     latencyMs: integer('latency_ms'),
-    nextAttemptAt: timestamp('next_attempt_at'),
-    startedAt: timestamp('started_at').notNull(),
-    finishedAt: timestamp('finished_at').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    nextAttemptAt: timestamptz('next_attempt_at'),
+    startedAt: timestamptz('started_at').notNull(),
+    finishedAt: timestamptz('finished_at').notNull(),
+    createdAt: createdAt(),
   },
   (table) => [
-    uniqueIndex('delivery_attempt_unique').on(table.deliveryId, table.attempt),
-    index('delivery_attempt_tenant_idx').on(table.tenantId, table.id),
+    uniqueIndex('delivery_attempt_delivery_attempt_unique').on(table.deliveryId, table.attempt),
+    index('delivery_attempt_created_brin').using('brin', table.createdAt),
   ]
 );
 

@@ -1,25 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
-import { addMember, createKey, createTenant, setupWorkspace, signUpUser, uniq } from '../../utils/setup';
+import {
+  addMember,
+  createClientKey,
+  createKey,
+  createTenant,
+  setupWorkspace,
+  signUpUser,
+  uniq,
+} from '../../utils/setup';
 
-/**
- * The isolation matrix — multi-tenancy is the core primitive, and these tests
- * are its permanent enforcement. Every phase adds rows here.
- */
 describe('isolation: workspaces', () => {
   it('a non-member session cannot read or touch a foreign workspace', async () => {
     const { workspace } = await setupWorkspace();
     const stranger = await signUpUser('Stranger');
 
     const read = await api(`/v1/workspaces/${workspace.slug}`, { headers: stranger.bearer });
-    expect(read.status).toBe(403);
+    expect(read.status).toBe(404);
 
     const patch = await api(`/v1/workspaces/${workspace.slug}`, {
       method: 'PATCH',
       headers: stranger.bearer,
       body: JSON.stringify({ name: 'Hijacked' }),
     });
-    expect(patch.status).toBe(403);
+    expect(patch.status).toBe(404);
   });
 
   it("a workspace key cannot address another workspace's routes", async () => {
@@ -39,7 +43,7 @@ describe('isolation: workspaces', () => {
       headers: { ...stranger.bearer, 'buzzkit-workspace': workspace.slug },
     });
 
-    expect(status).toBe(403);
+    expect(status).toBe(404);
   });
 
   it('a session without buzzkit-workspace on a slug-less route is a 400, not a leak', async () => {
@@ -120,7 +124,7 @@ describe('isolation: API keys', () => {
       body: JSON.stringify({ name: 'Nope', slug: `cust-${uniq()}` }),
     });
     expect(createDenied.status).toBe(403);
-    expect(createDenied.body.error?.code).toBe('MISSING_PERMISSION');
+    expect(createDenied.body.error?.code).toBe('missing_permission');
 
     const wildcard = await createKey(owner.token, workspace.slug, { scopes: ['tenants:*'] });
     const wildcardBearer = { Authorization: `Bearer ${wildcard.secret}` };
@@ -317,8 +321,6 @@ describe('role scope matrix', () => {
       expect(asOwner.status, `owner: ${attempt.name}`).toBe(attempt.owner);
     }
 
-    // workspace:delete is owner-only — checked last so the matrix above runs
-    // against an intact workspace
     const adminDelete = await api(`/v1/workspaces/${workspace.slug}`, {
       method: 'DELETE',
       headers: admin.bearer,
@@ -337,11 +339,11 @@ describe('role scope matrix', () => {
     const admin = await addMember(owner.token, workspace.slug, 'admin');
     const member = await addMember(owner.token, workspace.slug, 'member');
 
-    const ownerMembers = await api<Array<{ id: string; role: string }>>(
+    const ownerMembers = await api<{ items: Array<{ id: string; role: string }> }>(
       `/v1/workspaces/${workspace.slug}/members`,
       { headers: ownerBearer }
     );
-    const ownerMember = ownerMembers.body.data?.find((m) => m.role === 'owner');
+    const ownerMember = ownerMembers.body.data?.items?.find((m) => m.role === 'owner');
 
     // Admin escalating a member (or themselves) to owner
     const escalate = await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
@@ -441,11 +443,11 @@ describe('key lifecycle details', () => {
 
     await api('/v1/tenants', { headers: keyBearer });
 
-    const list = await api<Array<{ id: string; lastUsedAt: string | null }>>(
+    const list = await api<{ items: Array<{ id: string; lastUsedAt: string | null }> }>(
       `/v1/workspaces/${workspace.slug}/keys`,
       { headers: ownerBearer }
     );
-    expect(list.body.data?.find((k) => k.id === key.id)?.lastUsedAt).toBeTruthy();
+    expect(list.body.data?.items?.find((k) => k.id === key.id)?.lastUsedAt).toBeTruthy();
   });
 
   it('a wildcard tenant key cannot change tenant settings or read the identity secret', async () => {
@@ -482,8 +484,8 @@ describe('key lifecycle details', () => {
     const viaKey = await api('/v1/subscribers', { headers: keyBearer });
     expect(viaKey.status).toBe(401);
 
-    const listed = await api<Array<{ slug: string }>>('/v1/workspaces', { headers: ownerBearer });
-    expect(listed.body.data?.some((w) => w.slug === workspace.slug)).toBe(false);
+    const listed = await api<{ items: Array<{ slug: string }> }>('/v1/workspaces', { headers: ownerBearer });
+    expect(listed.body.data?.items?.some((w) => w.slug === workspace.slug)).toBe(false);
   });
 });
 
@@ -511,10 +513,10 @@ describe('data-plane role scopes', () => {
     const memberTopicRead = await api('/v1/topics', { headers: { ...member.bearer, ...ws } });
     expect(memberTopicRead.status).toBe(200);
 
-    const memberCredential = await api('/v1/credentials/resend', {
+    const memberCredential = await api('/v1/credentials', {
       method: 'POST',
       headers: { ...member.bearer, ...ws },
-      body: JSON.stringify({ apiKey: 're_nope' }),
+      body: JSON.stringify({ provider: 'resend', apiKey: 're_nope' }),
     });
     expect(memberCredential.status).toBe(403);
 
@@ -562,13 +564,93 @@ describe('id handling', () => {
     const { keyBearer, workspace, ownerBearer } = await setupWorkspace();
     const tenant = await createTenant(keyBearer);
 
-    // A tenant id can never resolve at a members endpoint
     const { status } = await api(`/v1/workspaces/${workspace.slug}/members/${tenant.id}`, {
       method: 'PATCH',
       headers: ownerBearer,
       body: JSON.stringify({ role: 'admin' }),
     });
 
-    expect(status).toBe(400);
+    expect(status).toBe(404);
+  });
+});
+
+describe('isolation: a leaked key can never escalate', () => {
+  it('workspace keys, even with *, cannot invite, change members, or delete the workspace', async () => {
+    const { keyBearer, workspace, owner, ownerBearer } = await setupWorkspace();
+
+    const invite = await api(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ email: `evil-${uniq()}@attacker.example`, role: 'admin' }),
+    });
+    expect(invite.status).toBe(403);
+    expect((await api(`/v1/workspaces/${workspace.slug}/invites`, { headers: keyBearer })).status).toBe(403);
+
+    const members = await api<{ items: Array<{ id: string }> }>(`/v1/workspaces/${workspace.slug}/members`, {
+      headers: ownerBearer,
+    });
+    const promote = await api(
+      `/v1/workspaces/${workspace.slug}/members/${members.body.data?.items?.[0]?.id}`,
+      {
+        method: 'PATCH',
+        headers: keyBearer,
+        body: JSON.stringify({ role: 'admin' }),
+      }
+    );
+    expect(promote.status).toBe(403);
+
+    const destroy = await api(`/v1/workspaces/${workspace.slug}`, { method: 'DELETE', headers: keyBearer });
+    expect(destroy.status).toBe(403);
+
+    for (const scope of [
+      'invites:write',
+      'members:write',
+      'workspace:delete',
+      'tenants:secrets',
+      'keys:write',
+    ]) {
+      const mint = await api(`/v1/workspaces/${workspace.slug}/keys`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${owner.token}` },
+        body: JSON.stringify({ name: `k-${uniq()}`, scopes: [scope] }),
+      });
+      expect(mint.status, scope).toBe(400);
+    }
+  });
+
+  it("a key secret presented under another kind's prefix is rejected", async () => {
+    const { owner, workspace, keyBearer } = await setupWorkspace();
+    const clientKey = await createClientKey(owner.token, workspace.slug, 'default');
+    const secret = clientKey.secret.replace(/^bk_pk_/, 'bk_ws_');
+
+    const asWorkspaceKey = await api('/v1/tenants', { headers: { Authorization: `Bearer ${secret}` } });
+    expect(asWorkspaceKey.status).toBe(401);
+
+    const workspaceSecret = keyBearer.Authorization.replace('Bearer ', '').replace(/^bk_ws_/, 'bk_pk_');
+    const asClientKey = await api('/v1/client/identify', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${workspaceSecret}` },
+      body: JSON.stringify({ externalId: 'x' }),
+    });
+    expect(asClientKey.status).toBe(401);
+  });
+
+  it('invite tokens are returned only to the inviting session, never in lists', async () => {
+    const { ownerBearer, workspace } = await setupWorkspace();
+    const created = await api<{ token?: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: `new-${uniq()}@acme.com` }),
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data?.token).toBeTruthy();
+
+    const list = await api<{ items: Array<Record<string, unknown>> }>(
+      `/v1/workspaces/${workspace.slug}/invites`,
+      {
+        headers: ownerBearer,
+      }
+    );
+    expect(list.body.data?.items?.every((row) => !('token' in row))).toBe(true);
   });
 });

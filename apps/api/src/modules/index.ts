@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { authHandler } from '@buzzkit/api/libs/auth';
 import { error } from '@buzzkit/api/libs/error';
 import { logger } from '@buzzkit/api/libs/logger';
@@ -11,7 +12,7 @@ import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 export const app = new Elysia({
   adapter: CloudflareAdapter,
 })
-  .use(cors())
+  .use(cors({ origin: [env.DASHBOARD_URL], credentials: true }))
   .use(logger)
   .use(telemetry)
   .use(error)

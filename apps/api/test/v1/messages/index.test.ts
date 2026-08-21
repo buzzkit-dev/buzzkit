@@ -2,8 +2,8 @@ import { and } from '@buzzkit/database';
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
+import { fakeToken, TRANSIENT_CODES, TRANSIENT_STATUS, uploadSandboxApns } from '../../utils/fixtures';
 import { encodeMessageId } from '../../utils/ids';
-import { generateP8 } from '../../utils/providerKeys';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 type Counts = {
@@ -57,10 +57,6 @@ const zeroCounts = (total: number, overrides: Partial<Counts> = {}): Counts => (
   ...overrides,
 });
 
-function token() {
-  return `tok-${uniq()}${'d'.repeat(48)}`;
-}
-
 async function subscribe(
   headers: Record<string, string>,
   externalId: string,
@@ -69,7 +65,7 @@ async function subscribe(
   const { body } = await api<{ id: string }>('/v1/subscriptions', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ externalId, channel: 'push', platform, token: token() }),
+    body: JSON.stringify({ externalId, channel: 'push', platform, token: fakeToken('d') }),
   });
   return body.data?.id ?? '';
 }
@@ -102,20 +98,6 @@ async function awaitCompletion(headers: Record<string, string>, id: string) {
 async function deliveries(headers: Record<string, string>, id: string, query = '') {
   const { body } = await api<{ items: DeliveryBody[] }>(`/v1/messages/${id}/deliveries${query}`, { headers });
   return body.data?.items ?? [];
-}
-
-async function uploadSandboxApns(headers: Record<string, string>) {
-  await api('/v1/credentials/apns', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      p8: await generateP8(),
-      teamId: 'ABCDE12345',
-      keyId: 'XYZ9876543',
-      bundleId: 'dev.buzzkit.phase4',
-      environment: 'sandbox',
-    }),
-  });
 }
 
 async function deliveryRowIdFor(externalId: string): Promise<number> {
@@ -152,6 +134,14 @@ describe('POST /v1/messages — validation', () => {
     expect((await send(keyBearer, { to: 'user_1', ttlSeconds: 10 })).status).toBe(400);
   });
 
+  it('caps the payload at 8KB', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const tooBig = await send(keyBearer, { to: 'u', data: { blob: 'x'.repeat(9 * 1024) } });
+    expect(tooBig.status).toBe(400);
+    const fits = await send(keyBearer, { to: 'u', data: { blob: 'x'.repeat(4 * 1024) } });
+    expect(fits.status).toBe(202);
+  });
+
   it('refuses sends on a disabled channel', async () => {
     const { keyBearer } = await setupWorkspace();
 
@@ -166,25 +156,40 @@ describe('POST /v1/messages — validation', () => {
     expect(body.error?.message).toContain('disabled');
   });
 
-  it('is idempotent per tenant on idempotencyKey and sets an expiry', async () => {
+  it('is idempotent per tenant: replays return the original with 202 + Idempotent-Replayed, mismatches are 409', async () => {
     const { keyBearer } = await setupWorkspace();
     const idempotencyKey = `idem-${uniq()}`;
 
     const first = await send(keyBearer, { to: 'user_1', idempotencyKey, ttlSeconds: 3600 });
     expect(first.status).toBe(202);
+    expect(first.headers.get('idempotent-replayed')).toBeNull();
     expect(first.body.data?.id).toMatch(/^msg_/);
     const expiresIn = new Date(first.body.data?.expiresAt ?? 0).getTime() - Date.now();
     expect(expiresIn).toBeGreaterThan(3500_000);
     expect(expiresIn).toBeLessThanOrEqual(3600_000);
 
-    const replay = await send(keyBearer, { to: 'user_1', idempotencyKey });
-    expect(replay.status).toBe(200);
+    const replay = await send(keyBearer, { to: 'user_1', idempotencyKey, ttlSeconds: 3600 });
+    expect(replay.status).toBe(202);
+    expect(replay.headers.get('idempotent-replayed')).toBe('true');
     expect(replay.body.data?.id).toBe(first.body.data?.id);
+
+    const viaHeader = await api<MessageBody>('/v1/messages', {
+      method: 'POST',
+      headers: { ...keyBearer, 'idempotency-key': idempotencyKey },
+      body: JSON.stringify({ title: 'Hello', body: 'World', to: 'user_1', ttlSeconds: 3600 }),
+    });
+    expect(viaHeader.status).toBe(202);
+    expect(viaHeader.body.data?.id).toBe(first.body.data?.id);
+
+    const mismatch = await send(keyBearer, { to: 'user_2', idempotencyKey, ttlSeconds: 3600 });
+    expect(mismatch.status).toBe(409);
+    expect(mismatch.body.error?.code).toBe('idempotency_key_reused');
+    expect(mismatch.body.error?.param).toBe('idempotencyKey');
 
     const otherTenant = await createTenant(keyBearer);
     const elsewhere = await send(
       { ...keyBearer, 'buzzkit-tenant': otherTenant.slug },
-      { to: 'user_1', idempotencyKey }
+      { to: 'user_1', idempotencyKey, ttlSeconds: 3600 }
     );
     expect(elsewhere.status).toBe(202);
     expect(elsewhere.body.data?.id).not.toBe(first.body.data?.id);
@@ -339,7 +344,7 @@ describe('fan-out and targeting', () => {
         subscriberId: row.id,
         channel: 'push' as const,
         platform: 'ios' as const,
-        endpoint: token(),
+        endpoint: fakeToken('d'),
       }))
     );
     const topic = `bulk-${uniq()}`;
@@ -385,23 +390,24 @@ describe('delivery outcomes and the attempt ledger', () => {
       return row && row.attempts >= 1 ? row : null;
     });
 
-    expect(attempted.status).toBe('retrying');
-    expect(['transport', 'timeout', 'provider_unavailable']).toContain(attempted.lastErrorCode);
+    expect(attempted.status).toBe(TRANSIENT_STATUS);
+    expect(TRANSIENT_CODES).toContain(attempted.lastErrorCode);
     const scheduledIn =
       new Date(attempted.nextAttemptAt ?? 0).getTime() - new Date(attempted.lastAttemptedAt ?? 0).getTime();
+    const scheduleCeiling = attempted.lastErrorCode === 'timeout' ? 72_000 : 6_000;
     expect(scheduledIn).toBeGreaterThanOrEqual(4_000);
-    expect(scheduledIn).toBeLessThanOrEqual(20_000);
+    expect(scheduledIn).toBeLessThanOrEqual(scheduleCeiling + 15_000);
     expect(attempted.settledAt).toBeNull();
 
     const single = await api<DeliveryBody>(`/v1/deliveries/${attempted.id}`, { headers: keyBearer });
     expect(single.status).toBe(200);
     expect(single.body.data?.id).toBe(attempted.id);
 
-    const attempts = await api<AttemptBody[]>(`/v1/deliveries/${attempted.id}/attempts`, {
+    const attempts = await api<{ items: AttemptBody[] }>(`/v1/deliveries/${attempted.id}/attempts`, {
       headers: keyBearer,
     });
-    expect(attempts.body.data).toHaveLength(1);
-    const [first] = attempts.body.data ?? [];
+    expect(attempts.body.data?.items).toHaveLength(1);
+    const [first] = attempts.body.data?.items ?? [];
     expect(first?.attempt).toBe(1);
     expect(first?.outcome).toBe('retry');
     expect(first?.errorCode).toBe(attempted.lastErrorCode);
@@ -532,7 +538,7 @@ describe('GET /v1/messages, deliveries', () => {
       headers: { ...keyBearer, 'buzzkit-tenant': other.slug },
     });
     expect(crossTenantDelivery.status).toBe(404);
-    expect((await api('/v1/deliveries/nope!', { headers: keyBearer })).status).toBe(400);
+    expect((await api('/v1/deliveries/nope!', { headers: keyBearer })).status).toBe(404);
     expect(
       (
         await api(`/v1/messages/${a.body.data?.id}`, {
@@ -632,13 +638,14 @@ describe('scheduling, queueing and retries', () => {
     const { keyBearer } = await setupWorkspace();
     const idempotencyKey = `race-${uniq()}`;
 
+    const to = `u_${uniq()}`;
     const results = await Promise.all(
-      Array.from({ length: 5 }, () => send(keyBearer, { to: `u_${uniq()}`, idempotencyKey }))
+      Array.from({ length: 5 }, () => send(keyBearer, { to, idempotencyKey }))
     );
     const ids = new Set(results.map((r) => r.body.data?.id));
     expect(ids.size).toBe(1);
-    expect(results.every((r) => r.status === 202 || r.status === 200)).toBe(true);
-    expect(results.filter((r) => r.status === 202)).toHaveLength(1);
+    expect(results.every((r) => r.status === 202)).toBe(true);
+    expect(results.filter((r) => r.headers.get('idempotent-replayed') === 'true')).toHaveLength(4);
   });
 
   it('deduplicates `to` and skips invalid or deleted subscriptions', async () => {
@@ -679,7 +686,7 @@ describe('scheduling, queueing and retries', () => {
     const androidRow = rows.find((d) => d.subscriptionId === android)!;
     expect(androidRow.status).toBe('failed');
     expect(androidRow.lastErrorCode).toBe('no_credential');
-    expect(iosRow.status).toBe('retrying');
+    expect(iosRow.status).toBe(TRANSIENT_STATUS);
 
     const { body } = await api<MessageBody>(`/v1/messages/${messageId}`, { headers: keyBearer });
     expect(body.data?.status).toBe('processing');
@@ -719,7 +726,7 @@ describe('scheduling, queueing and retries', () => {
 
     const settled = await deliveryRow(deliveryId);
     expect(settled.attempts).toBe(2);
-    expect(settled.status).toBe('retrying');
+    expect(settled.status).toBe(TRANSIENT_STATUS);
     expect(settled.leaseExpiresAt).toBeNull();
     expect(settled.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
     expect((await attemptsOf(deliveryId)).map((a) => a.attempt)).toEqual([2]);
@@ -747,7 +754,7 @@ describe('scheduling, queueing and retries', () => {
     expect(failed.attempts).toBe(8);
     expect(failed.settledAt).not.toBeNull();
     expect(failed.nextAttemptAt).toBeNull();
-    expect(['transport', 'timeout', 'provider_unavailable']).toContain(failed.lastErrorCode);
+    expect(TRANSIENT_CODES).toContain(failed.lastErrorCode);
     expect((await attemptsOf(deliveryId)).map((a) => a.outcome)).toEqual(['failed']);
 
     const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
@@ -787,8 +794,8 @@ describe('scheduling, queueing and retries', () => {
       const row = await deliveryRow(crashedId);
       return row.attempts >= 3 ? row : null;
     });
-    expect(lostRow.status).toBe('retrying');
-    expect(crashedRow.status).toBe('retrying');
+    expect(lostRow.status).toBe(TRANSIENT_STATUS);
+    expect(crashedRow.status).toBe(TRANSIENT_STATUS);
     expect(crashedRow.leaseExpiresAt).toBeNull();
     await sleep(1_000);
     expect((await deliveryRow(freshId)).attempts).toBe(0);
@@ -877,5 +884,306 @@ describe('scheduling, queueing and retries', () => {
         .from(tables.delivery)
         .where(and(eq(tables.delivery.messageId, messageId), eq(tables.delivery.status, 'retrying')))
     ).toHaveLength(1);
+  });
+});
+
+describe('attempt-time guards and sweep bounds', () => {
+  it('respects an active lease: a duplicate job for a claimed attempt is skipped', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const messageId = await seedMessage(tenantId, [user]);
+    const deliveryId = await seedDelivery(messageId, user, {
+      status: 'retrying',
+      attempts: 1,
+      nextAttemptAt: new Date(Date.now() - 120_000),
+      leaseExpiresAt: new Date(Date.now() + 30_000),
+    });
+
+    await triggerReconciliation();
+    await sleep(2_000);
+
+    const row = await deliveryRow(deliveryId);
+    expect(row.attempts).toBe(1);
+    expect(await attemptsOf(deliveryId)).toHaveLength(0);
+    expect(row.leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('fails a delivery as unsubscribed when the subscription was muted or removed after fan-out, without calling the provider', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const muted = `muted_${uniq()}`;
+    const removed = `removed_${uniq()}`;
+    const mutedSub = await subscribe(keyBearer, muted);
+    const removedSub = await subscribe(keyBearer, removed);
+    const { tenantId } = await subscriptionFor(muted);
+    const messageId = await seedMessage(tenantId, [muted, removed]);
+    const mutedId = await seedDelivery(messageId, muted, {
+      status: 'retrying',
+      attempts: 1,
+      nextAttemptAt: new Date(Date.now() - 120_000),
+    });
+    const removedId = await seedDelivery(messageId, removed, {
+      status: 'retrying',
+      attempts: 1,
+      nextAttemptAt: new Date(Date.now() - 120_000),
+    });
+    await api(`/v1/subscriptions/${mutedSub}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ enabled: false }),
+    });
+    await api(`/v1/subscriptions/${removedSub}`, { method: 'DELETE', headers: keyBearer });
+
+    await triggerReconciliation();
+
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(2, { failed: 2 }));
+    for (const id of [mutedId, removedId]) {
+      const row = await deliveryRow(id);
+      expect(row.status).toBe('failed');
+      expect(row.lastErrorCode).toBe('unsubscribed');
+      expect(row.attempts).toBe(1);
+      expect(await attemptsOf(id)).toHaveLength(0);
+    }
+  });
+
+  it('duplicate fan-out jobs for the same page create one set of deliveries and exact counts', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const users = [`a_${uniq()}`, `b_${uniq()}`, `c_${uniq()}`];
+    for (const user of users) await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(users[0]!);
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    const messageId = await seedMessage(tenantId, users, {
+      total: 0,
+      fanoutCompletedAt: null,
+      createdAt: stale,
+      updatedAt: stale,
+    });
+
+    await Promise.all([triggerReconciliation(), triggerReconciliation(), triggerReconciliation()]);
+
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(3, { failed: 3 }));
+    expect(await deliveries(keyBearer, encodeMessageId(messageId))).toHaveLength(3);
+  });
+
+  it('completes with zero deliveries when the topic vanished before fan-out', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    const messageId = await seedMessage(tenantId, [], {
+      targets: { topic: 'ghost' },
+      topic: 'ghost',
+      total: 0,
+      fanoutCompletedAt: null,
+      createdAt: stale,
+      updatedAt: stale,
+    });
+
+    await triggerReconciliation();
+
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(0));
+  });
+
+  it('sweeps are bounded: a backlog larger than one sweep drains across runs without loss', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const tenantSlug = (await createTenant(keyBearer)).slug;
+    const [tenant] = await db
+      .select({ id: tables.tenant.id })
+      .from(tables.tenant)
+      .where(eq(tables.tenant.slug, tenantSlug));
+    const backlog = 1100;
+    const subscribers = await db
+      .insert(tables.subscriber)
+      .values(
+        Array.from({ length: backlog }, (_, i) => ({
+          tenantId: tenant!.id,
+          externalId: `sweep_${uniq()}_${i}`,
+        }))
+      )
+      .returning({ id: tables.subscriber.id });
+    const subscriptions = await db
+      .insert(tables.subscription)
+      .values(
+        subscribers.map((row) => ({
+          tenantId: tenant!.id,
+          subscriberId: row.id,
+          channel: 'push' as const,
+          platform: 'ios' as const,
+          endpoint: fakeToken('d'),
+        }))
+      )
+      .returning({ id: tables.subscription.id, subscriberId: tables.subscription.subscriberId });
+    const messageId = await seedMessage(tenant!.id, [], { total: backlog });
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    await db.insert(tables.delivery).values(
+      subscriptions.map((row) => ({
+        tenantId: tenant!.id,
+        messageId,
+        subscriberId: row.subscriberId,
+        subscriptionId: row.id,
+        channel: 'push' as const,
+        provider: 'apns',
+        status: 'pending' as const,
+        createdAt: stale,
+      }))
+    );
+    const settledCount = async () =>
+      (
+        await db
+          .select({ id: tables.delivery.id })
+          .from(tables.delivery)
+          .where(and(eq(tables.delivery.messageId, messageId), eq(tables.delivery.status, 'failed')))
+      ).length;
+
+    await triggerReconciliation();
+    await waitFor(async () => ((await settledCount()) >= 1000 ? true : null), 60_000);
+    await sleep(2_000);
+    expect(await settledCount()).toBe(1000);
+
+    await triggerReconciliation();
+    await waitFor(async () => ((await settledCount()) >= backlog ? true : null), 60_000);
+    const done = await awaitCompletion(
+      { ...keyBearer, 'buzzkit-tenant': tenantSlug },
+      encodeMessageId(messageId)
+    );
+    expect(done.counts).toEqual(zeroCounts(backlog, { failed: backlog }));
+  });
+});
+
+describe('isolation, pagination, and delivery-time credential state', () => {
+  it('deliveries, attempts, and messages are invisible across tenants and 404 on malformed ids', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const other = await createTenant(keyBearer);
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const sent = await send(keyBearer, { to: user });
+    const messageId = sent.body.data?.id ?? '';
+    await awaitCompletion(keyBearer, messageId);
+    const [row] = await deliveries(keyBearer, messageId);
+    const foreign = { ...keyBearer, 'buzzkit-tenant': other.slug };
+
+    expect((await api(`/v1/messages/${messageId}/deliveries`, { headers: foreign })).status).toBe(404);
+    expect((await api(`/v1/deliveries/${row?.id}/attempts`, { headers: foreign })).status).toBe(404);
+    expect((await api('/v1/messages/nope!', { headers: keyBearer })).status).toBe(404);
+    expect((await api('/v1/deliveries/nope!/attempts', { headers: keyBearer })).status).toBe(404);
+  });
+
+  it('validates list parameters and pages deliveries with opaque cursors', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const other = await createTenant(keyBearer);
+    expect((await api('/v1/messages?cursor=nope!', { headers: keyBearer })).status).toBe(400);
+    expect((await api('/v1/messages?limit=0', { headers: keyBearer })).status).toBe(400);
+    expect((await api(`/v1/messages?cursor=${other.id}`, { headers: keyBearer })).status).toBe(400);
+
+    const users = [`a_${uniq()}`, `b_${uniq()}`, `c_${uniq()}`];
+    for (const user of users) await subscribe(keyBearer, user);
+    const sent = await send(keyBearer, { to: users });
+    const messageId = sent.body.data?.id ?? '';
+    await awaitCompletion(keyBearer, messageId);
+
+    const page1 = await api<{ items: DeliveryBody[]; hasMore: boolean; nextCursor: string | null }>(
+      `/v1/messages/${messageId}/deliveries?limit=2`,
+      { headers: keyBearer }
+    );
+    expect(page1.body.data?.items).toHaveLength(2);
+    expect(page1.body.data?.hasMore).toBe(true);
+    expect(page1.body.data?.nextCursor).toMatch(/^dlv_/);
+    const page2 = await api<{ items: DeliveryBody[]; hasMore: boolean }>(
+      `/v1/messages/${messageId}/deliveries?limit=2&cursor=${page1.body.data?.nextCursor}`,
+      { headers: keyBearer }
+    );
+    expect(page2.body.data?.items).toHaveLength(1);
+    expect(page2.body.data?.hasMore).toBe(false);
+    const ids = [...(page1.body.data?.items ?? []), ...(page2.body.data?.items ?? [])].map((d) => d.id);
+    expect(new Set(ids).size).toBe(3);
+
+    const elsewhere = await send({ ...keyBearer, 'buzzkit-tenant': other.slug }, { to: 'x' });
+    const mine = await api<{ items: MessageBody[] }>('/v1/messages?limit=100', { headers: keyBearer });
+    expect(mine.body.data?.items.some((m) => m.id === elsewhere.body.data?.id)).toBe(false);
+  });
+
+  it('a credential revoked between fan-out and delivery fails the attempt as no_credential with an empty request', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const credential = await uploadSandboxApns(keyBearer);
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { tenantId } = await subscriptionFor(user);
+    const messageId = await seedMessage(tenantId, [user]);
+    const deliveryId = await seedDelivery(messageId, user, {
+      status: 'pending',
+      createdAt: new Date(Date.now() - 11 * 60 * 1000),
+    });
+    await api(`/v1/credentials/${credential.id}`, { method: 'DELETE', headers: keyBearer });
+
+    await triggerReconciliation();
+
+    const failed = await waitFor(async () => {
+      const row = await deliveryRow(deliveryId);
+      return row.status === 'failed' ? row : null;
+    });
+    expect(failed.lastErrorCode).toBe('no_credential');
+    const ledger = await db
+      .select({ outcome: tables.deliveryAttempt.outcome, request: tables.deliveryAttempt.request })
+      .from(tables.deliveryAttempt)
+      .where(eq(tables.deliveryAttempt.deliveryId, deliveryId));
+    expect(ledger).toEqual([{ outcome: 'failed', request: null }]);
+    const done = await awaitCompletion(keyBearer, encodeMessageId(messageId));
+    expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
+  });
+
+  it('falls back to the only configured environment when the send names none', async () => {
+    const { keyBearer } = await setupWorkspace();
+    await uploadSandboxApns(keyBearer);
+    const user = `user_${uniq()}`;
+    await subscribe(keyBearer, user);
+
+    const sent = await send(keyBearer, { to: user });
+    const attempted = await waitFor(async () => {
+      const [row] = await deliveries(keyBearer, sent.body.data?.id ?? '');
+      return row && row.attempts >= 1 ? row : null;
+    });
+    expect(attempted.lastErrorCode).not.toBe('no_credential');
+    const attempts = await api<{ items: AttemptBody[] }>(`/v1/deliveries/${attempted.id}/attempts`, {
+      headers: keyBearer,
+    });
+    expect(attempts.body.data?.items[0]?.request).not.toBeNull();
+  });
+
+  it('fan-out honours per-channel topic defaults', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const topic = `quiet-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({
+        slug: topic,
+        name: 'Quiet',
+        defaultOptedIn: true,
+        channelDefaults: { push: false },
+      }),
+    });
+    const undecided = `undecided_${uniq()}`;
+    const explicit = `explicit_${uniq()}`;
+    await subscribe(keyBearer, undecided);
+    const explicitSub = await subscribe(keyBearer, explicit);
+    await api(`/v1/subscribers/${explicit}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [topic]: { push: true } } }),
+    });
+
+    const sent = await send(keyBearer, { topic });
+    const done = await awaitCompletion(keyBearer, sent.body.data?.id ?? '');
+    expect(done.counts.total).toBe(1);
+    expect((await deliveries(keyBearer, sent.body.data?.id ?? '')).map((d) => d.subscriptionId)).toEqual([
+      explicitSub,
+    ]);
   });
 });

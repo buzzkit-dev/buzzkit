@@ -15,6 +15,15 @@ import Elysia, { t } from 'elysia';
 export const topics = new Elysia()
   .use(auth)
   .guard({ detail: { tags: ['Topics'] } })
+  .get(
+    '/topics',
+    async ({ db, tenant }) => {
+      const rows = await listTopics(db, tenant.id);
+
+      return Response.list(rows.map(serializeTopic), { entity: 'topic' }).send();
+    },
+    { tenant: 'topics:read' }
+  )
   .post(
     '/topics',
     async ({ body, db, set, tenant, event }) => {
@@ -42,13 +51,4 @@ export const topics = new Elysia()
         channelDefaults: t.Optional(ChannelDefaultsSchema),
       }),
     }
-  )
-  .get(
-    '/topics',
-    async ({ db, tenant }) => {
-      const rows = await listTopics(db, tenant.id);
-
-      return Response.success(rows.map(serializeTopic), { entity: 'topic' }).send();
-    },
-    { tenant: 'topics:read' }
   );

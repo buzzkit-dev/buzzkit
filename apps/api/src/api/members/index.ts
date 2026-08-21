@@ -1,15 +1,19 @@
-import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
+import { ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, count, type Db, eq, isNull, ne, tables } from '@buzzkit/database';
 
 export type WorkspaceMember = typeof tables.workspaceMember.$inferSelect;
 
+export function serializeMember(member: WorkspaceMember) {
+  return { id: member.id, role: member.role, createdAt: member.createdAt, updatedAt: member.updatedAt };
+}
+
 export async function findMember(db: Db, workspaceId: number, memberSqid: string): Promise<WorkspaceMember> {
   const memberId = decodeEntityId('member', memberSqid);
 
   if (!memberId) {
-    throw new BadRequestError('Invalid member identifier');
+    throw new NotFoundError('Member not found');
   }
 
   const [member] = await trace(
@@ -52,8 +56,22 @@ export async function assertNotLastOwner(db: Db, workspaceId: number, memberId: 
   );
 
   if (!owners || owners.count === 0) {
-    throw new BadRequestError('A workspace must have at least one owner');
+    throw new ConflictError('A workspace must have at least one owner', { code: 'last_owner' });
   }
+}
+
+export async function findMemberWithUser(db: Db, workspaceId: number, memberSqid: string) {
+  const member = await findMember(db, workspaceId, memberSqid);
+  const [user] = await db
+    .select({
+      id: tables.auth.user.id,
+      name: tables.auth.user.name,
+      email: tables.auth.user.email,
+      image: tables.auth.user.image,
+    })
+    .from(tables.auth.user)
+    .where(eq(tables.auth.user.id, member.userId));
+  return { ...serializeMember(member), user: user! };
 }
 
 export async function listMembers(db: Db, workspaceId: number) {
@@ -65,6 +83,7 @@ export async function listMembers(db: Db, workspaceId: number) {
           id: tables.workspaceMember.id,
           role: tables.workspaceMember.role,
           createdAt: tables.workspaceMember.createdAt,
+          updatedAt: tables.workspaceMember.updatedAt,
           user: {
             id: tables.auth.user.id,
             name: tables.auth.user.name,

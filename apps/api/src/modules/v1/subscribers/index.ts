@@ -2,7 +2,7 @@ import { listSubscribers, serializeSubscriber } from '@buzzkit/api/api/subscribe
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
 import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const subscribers = new Elysia()
@@ -12,9 +12,9 @@ export const subscribers = new Elysia()
     '/subscribers',
     async ({ db, query, tenant }) => {
       const limit = clampLimit(query.limit);
-      const afterId = resolveCursor(query.cursor, (id) => decodeEntityId('subscriber', id));
+      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('subscriber', id));
 
-      const rows = await listSubscribers(db, tenant.id, { limit, afterId });
+      const rows = await listSubscribers(db, tenant.id, { limit, beforeId });
       const page = toPage(rows, limit, (id) => encodeId('subscriber', id));
 
       return Response.success(
@@ -30,8 +30,7 @@ export const subscribers = new Elysia()
     {
       tenant: 'subscribers:read',
       query: t.Object({
-        limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100 })),
-        cursor: t.Optional(t.String()),
+        ...PaginationQuerySchema.properties,
       }),
     }
   );

@@ -1,9 +1,12 @@
 import { type SealedSecret, sealSecret, unsealSecret } from '@buzzkit/api/libs/crypto';
-import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
+import { BadRequestError, describeError, NotFoundError } from '@buzzkit/api/libs/error';
+import { EnvironmentSchema } from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { parseServiceAccount } from '@buzzkit/api/providers/fcm/index';
 import { PROVIDERS } from '@buzzkit/api/providers/index';
 import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
+import { t } from 'elysia';
 
 export type Credential = typeof tables.credential.$inferSelect;
 export type CredentialProvider = Credential['provider'];
@@ -27,6 +30,63 @@ type ValidationOutcome = {
   status: 'active' | 'unvalidated';
   lastError: string | null;
 };
+
+export const CredentialUploadSchema = t.Union([
+  t.Object({
+    provider: t.Literal('apns'),
+    p8: t.String({ minLength: 1, maxLength: 10_000 }),
+    teamId: t.String({ minLength: 10, maxLength: 10 }),
+    keyId: t.String({ minLength: 10, maxLength: 10 }),
+    bundleId: t.String({ minLength: 1, maxLength: 255 }),
+    environment: t.Optional(EnvironmentSchema),
+  }),
+  t.Object({
+    provider: t.Literal('fcm'),
+    serviceAccount: t.Union([t.String({ minLength: 1, maxLength: 20_000 }), t.Record(t.String(), t.Any())]),
+  }),
+  t.Object({
+    provider: t.Literal('resend'),
+    apiKey: t.String({ minLength: 1, maxLength: 256 }),
+  }),
+]);
+
+export type CredentialUploadInput = typeof CredentialUploadSchema.static;
+
+export type CredentialUpload = {
+  provider: CredentialProvider;
+  environment: CredentialEnvironment;
+  secret: string;
+  details: Record<string, string>;
+};
+
+export function resolveCredentialUpload(input: CredentialUploadInput): CredentialUpload {
+  switch (input.provider) {
+    case 'apns':
+      return {
+        provider: 'apns',
+        environment: input.environment ?? 'production',
+        secret: input.p8,
+        details: { teamId: input.teamId, keyId: input.keyId, bundleId: input.bundleId },
+      };
+    case 'fcm': {
+      const account = parseServiceAccount(input.serviceAccount);
+      if (!account) {
+        throw new BadRequestError(
+          'serviceAccount must be a Firebase service-account JSON with project_id, client_email, and private_key',
+          { code: 'invalid_service_account', param: 'serviceAccount' }
+        );
+      }
+      return {
+        provider: 'fcm',
+        environment: 'production',
+        secret: account.private_key,
+        details: { projectId: account.project_id, clientEmail: account.client_email },
+      };
+    }
+    case 'resend':
+      return { provider: 'resend', environment: 'production', secret: input.apiKey, details: {} };
+  }
+}
 
 export async function validateCredentialUpload(
   provider: CredentialProvider,
@@ -131,7 +191,7 @@ export async function findCredential(db: Db, tenantId: number, credentialSqid: s
   const credentialId = decodeEntityId('credential', credentialSqid);
 
   if (!credentialId) {
-    throw new BadRequestError('Invalid credential identifier');
+    throw new NotFoundError('Credential not found');
   }
 
   const [credential] = await trace(
@@ -182,7 +242,7 @@ export async function revalidateCredential(db: Db, credential: Credential): Prom
       .update(tables.credential)
       .set({
         status: 'invalid',
-        lastError: error instanceof Error ? error.message : String(error),
+        lastError: describeError(error),
       })
       .where(eq(tables.credential.id, credential.id))
       .returning();

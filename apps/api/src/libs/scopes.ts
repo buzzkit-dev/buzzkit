@@ -12,19 +12,20 @@ export const SCOPE_CATALOG = {
 
   'workspace:read': { context: 'workspace', role: 'member', key: true },
   'workspace:write': { context: 'workspace', role: 'admin', key: true },
-  'workspace:delete': { context: 'workspace', role: 'owner', key: true },
+  'workspace:delete': { context: 'workspace', role: 'owner', key: false },
 
   'members:read': { context: 'workspace', role: 'member', key: true },
-  'members:write': { context: 'workspace', role: 'admin', key: true },
+  'members:write': { context: 'workspace', role: 'admin', key: false },
 
-  'invites:read': { context: 'workspace', role: 'admin', key: true },
-  'invites:write': { context: 'workspace', role: 'admin', key: true },
+  'invites:read': { context: 'workspace', role: 'admin', key: false },
+  'invites:write': { context: 'workspace', role: 'admin', key: false },
 
   'keys:read': { context: 'workspace', role: 'member', key: false },
   'keys:write': { context: 'workspace', role: 'admin', key: false },
 
   'tenants:read': { context: 'workspace', role: 'member', key: true },
   'tenants:write': { context: 'workspace', role: 'admin', key: true },
+  'tenants:secrets': { context: 'workspace', role: 'admin', key: false },
 
   'events:read': { context: 'workspace', role: 'admin', key: true },
 
@@ -46,13 +47,7 @@ export const SCOPE_CATALOG = {
 
 export type Scope = keyof typeof SCOPE_CATALOG;
 
-export type ScopeContext = ScopeDefinition['context'];
-
 export type AuthRole = 'owner' | 'admin' | 'member';
-
-export const SCOPES: { [K in Scope]: (typeof SCOPE_CATALOG)[K]['context'] } = Object.fromEntries(
-  (Object.keys(SCOPE_CATALOG) as Scope[]).map((scope) => [scope, SCOPE_CATALOG[scope].context])
-) as { [K in Scope]: (typeof SCOPE_CATALOG)[K]['context'] };
 
 const ALL_SCOPES = Object.keys(SCOPE_CATALOG) as Scope[];
 const WORKSPACE_SCOPES = ALL_SCOPES.filter((scope) => SCOPE_CATALOG[scope].context === 'workspace');
@@ -116,10 +111,16 @@ export function assertValidKeyScopes(scopes: readonly string[], kind: 'workspace
 
     if (scope.endsWith(':*')) {
       if (resources.has(scope.slice(0, -2))) continue;
-      throw new BadRequestError(`Scope '${scope}' cannot be granted to a ${kind} API key`);
+      throw new BadRequestError(`Scope '${scope}' cannot be granted to a ${kind} API key`, {
+        code: 'invalid_scope',
+        param: 'scopes',
+      });
     }
 
     if (grantable.includes(scope)) continue;
-    throw new BadRequestError(`Scope '${scope}' cannot be granted to a ${kind} API key`);
+    throw new BadRequestError(`Scope '${scope}' cannot be granted to a ${kind} API key`, {
+      code: 'invalid_scope',
+      param: 'scopes',
+    });
   }
 }

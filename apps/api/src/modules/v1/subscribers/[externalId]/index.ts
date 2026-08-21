@@ -11,18 +11,33 @@ import {
   upsertSubscriber,
 } from '@buzzkit/api/api/subscribers/index';
 import { auth } from '@buzzkit/api/libs/auth';
-import { Response } from '@buzzkit/api/libs/response';
+import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import Elysia, { t } from 'elysia';
-
-const withSubscriberId = <T extends { id: number }>(item: T) => ({
-  ...item,
-  id: encodeId('subscriber', item.id),
-});
 
 export const subscriber = new Elysia()
   .use(auth)
   .guard({ detail: { tags: ['Subscribers'] } })
+  .get(
+    '/subscribers/:externalId',
+    async ({ db, params, tenant }) => {
+      const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
+      const subscriptions = await listSubscriptions(db, subscriber.id);
+
+      return Response.success(
+        {
+          ...serializeSubscriber(subscriber),
+          subscriptions: subscriptions.map(serializeSubscription).map((subscription) => ({
+            ...subscription,
+            id: encodeId('subscription', subscription.id),
+            subscriberId: encodeId('subscriber', subscription.subscriberId),
+          })),
+        },
+        { entity: 'subscriber', ignoreTransform: ['attributes'] }
+      ).send();
+    },
+    { tenant: 'subscribers:read', params: t.Object({ externalId: ExternalIdSchema }) }
+  )
   .put(
     '/subscribers/:externalId',
     async ({ body, db, params, set, tenant, event }) => {
@@ -40,7 +55,21 @@ export const subscriber = new Elysia()
           })
         : null;
 
-      if (created || changed || registered?.subscriptionCreated) {
+      if (registered?.subscriptionCreated) {
+        await event({
+          event: 'subscription.created',
+          tenantId: tenant.id,
+          target: { type: 'subscription', id: registered.subscription.id },
+          data: {
+            externalId: subscriber.externalId,
+            channel: 'email',
+            platform: null,
+            subscriberCreated: created,
+          },
+        });
+      }
+
+      if (created || changed) {
         await event({
           event: created ? 'subscriber.created' : 'subscriber.updated',
           tenantId: tenant.id,
@@ -49,7 +78,8 @@ export const subscriber = new Elysia()
         });
       }
 
-      return Response.success(withSubscriberId(serializeSubscriber(subscriber)), {
+      return Response.success(serializeSubscriber(subscriber), {
+        entity: 'subscriber',
         ignoreTransform: ['attributes'],
       })
         .status(created ? 201 : 200)
@@ -66,26 +96,6 @@ export const subscriber = new Elysia()
       ),
     }
   )
-  .get(
-    '/subscribers/:externalId',
-    async ({ db, params, tenant }) => {
-      const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
-      const subscriptions = await listSubscriptions(db, subscriber.id);
-
-      return Response.success(
-        {
-          ...withSubscriberId(serializeSubscriber(subscriber)),
-          subscriptions: subscriptions.map(serializeSubscription).map((subscription) => ({
-            ...subscription,
-            id: encodeId('subscription', subscription.id),
-            subscriberId: encodeId('subscriber', subscription.subscriberId),
-          })),
-        },
-        { ignoreTransform: ['attributes'] }
-      ).send();
-    },
-    { tenant: 'subscribers:read', params: t.Object({ externalId: ExternalIdSchema }) }
-  )
   .delete(
     '/subscribers/:externalId',
     async ({ db, params, tenant, event }) => {
@@ -100,7 +110,8 @@ export const subscriber = new Elysia()
         data: { externalId: subscriber.externalId },
       });
 
-      return Response.success(withSubscriberId(serializeSubscriber(deleted)), {
+      return Response.success(markDeleted(serializeSubscriber(deleted)), {
+        entity: 'subscriber',
         ignoreTransform: ['attributes'],
       }).send();
     },
