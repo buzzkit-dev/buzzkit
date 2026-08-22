@@ -4,6 +4,8 @@ export const channel = pgEnum('channel', ['push', 'email']);
 
 export const provider = pgEnum('provider', ['apns', 'fcm', 'resend']);
 
+export const environment = pgEnum('environment', ['production', 'sandbox']);
+
 export const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
 export const createdAt = () => timestamptz('created_at').notNull().defaultNow();

@@ -49,7 +49,7 @@ Traces and logs come from `@buzzkit/observability` (`packages/observability`). W
 
 ## Testing
 
-Integration over HTTP in the plain Node vitest pool (NEVER `@cloudflare/vitest-pool-workers`): requires `bun dev` running (port 8790) + local Postgres (`bun db:up` at repo root). `test/` mirrors `modules/` exactly (`test/v1/health/index.test.ts` ↔ `/v1/health`). Helpers in `test/utils/`.
+Integration over HTTP in the plain Node vitest pool (NEVER `@cloudflare/vitest-pool-workers`). `bun test` boots its **own** API on port 8791 (`scripts/test.ts`: separate `--persist-to` state, separate inspector port), waits for `/v1/health`, runs vitest with `API_URL`, and stops it — never point tests at the dev server on 8790 and never kill a dev server you did not start. `bun test:only <files>` runs vitest alone against an already-running 8791 instance. Needs local Postgres (`bun db:up` at repo root). `test/` mirrors `modules/` exactly (`test/v1/health/index.test.ts` ↔ `/v1/health`). Helpers in `test/utils/`.
 
 Pure modules get unit tests mirroring `src/` (`test/api/...`, `test/libs/...`, `test/providers/...`, `test/utils/...`, `test/packages/...`); the `@buzzkit/api` alias plus the `cloudflare:workers` stub in `vitest.config.mts` resolve them without the Worker runtime. Shared integration helpers live in `test/utils/` (`setup.ts` for accounts/keys/tenants, `fixtures.ts` for tokens, APNs uploads and the `APNS_REACHABLE` gate that flips APNs expectations between local `retrying` and deployed `failed`, `db.ts` for direct reads, `ids.ts` for sqids built from `wrangler.jsonc`).
 
@@ -58,6 +58,8 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 ## Code conventions
 
 **Domain files (`src/api/<resource>/index.ts`)** are ordered: types → constants → validation schemas → serializers → queries → mutations.
+
+**No single-use constants.** A value gets a name only when it is reused or is a tunable policy number (`api/deliveries/policy.ts`, page sizes, TTLs). A string, regex, URL, or list used once is written inline where it is used — never `const SOMETHING = '…'` three lines above its only use.
 
 **RULE #1 — NO comments in code. Anywhere. Ever.** Names and structure carry the meaning; behavior, invariants, and mechanics are documented in `docs/`. The only permitted exceptions: functional directives (`biome-ignore`, `@ts-expect-error`), the `/* /v1/... */` route table in `modules/v1/index.ts`, and config commentary in `wrangler.jsonc`.
 
@@ -82,7 +84,8 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 | Command | Description |
 |---|---|
 | `bun dev` | Dev server on port 8790 (needs `bun db:up` at repo root + `.dev.vars`, see `.dev.vars.example`) |
-| `bun test` | Integration tests (dev server + Postgres must be running) |
+| `bun test` | Boots a test API on 8791, runs the full suite, stops it (Postgres must be running) |
+| `bun test:only` | vitest only, against an already-running test API on 8791 |
 | `bun cf-typegen` | Regenerate worker-configuration.d.ts |
 | `bun types:emit` | Emit `.types/` declarations consumed by `@buzzkit/eden` and the dashboard (turbo runs it before dev/build/check-types) |
 | `bun deploy` | Deploy to Cloudflare |

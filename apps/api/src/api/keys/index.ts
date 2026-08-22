@@ -13,14 +13,8 @@ export const WORKSPACE_KEY_PREFIX = 'bk_ws_';
 export const TENANT_KEY_PREFIX = 'bk_tn_';
 export const CLIENT_KEY_PREFIX = 'bk_pk_';
 
-const SECRET_KEY_PREFIXES = [WORKSPACE_KEY_PREFIX, TENANT_KEY_PREFIX] as const;
-const ALL_KEY_PREFIXES = [WORKSPACE_KEY_PREFIX, TENANT_KEY_PREFIX, CLIENT_KEY_PREFIX] as const;
-
-const SECRET_LENGTH = 40;
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
 export function isApiKeyToken(token: string): boolean {
-  return SECRET_KEY_PREFIXES.some((prefix) => token.startsWith(prefix));
+  return [WORKSPACE_KEY_PREFIX, TENANT_KEY_PREFIX].some((prefix) => token.startsWith(prefix));
 }
 
 export function isClientKeyToken(token: string): boolean {
@@ -34,7 +28,7 @@ export function randomString(length: number): string {
     const bytes = crypto.getRandomValues(new Uint8Array(length * 2));
     for (const byte of bytes) {
       if (byte < 248) {
-        chars.push(ALPHABET[byte % 62] as string);
+        chars.push('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[byte % 62] as string);
         if (chars.length === length) break;
       }
     }
@@ -56,11 +50,13 @@ const KIND_PREFIXES: Record<ApiKeyKind, string> = {
 };
 
 export function generateApiKeySecret(kind: ApiKeyKind): string {
-  return `${KIND_PREFIXES[kind]}${randomString(SECRET_LENGTH)}`;
+  return `${KIND_PREFIXES[kind]}${randomString(40)}`;
 }
 
 export function stripApiKeyPrefix(token: string): string {
-  const prefix = ALL_KEY_PREFIXES.find((p) => token.startsWith(p));
+  const prefix = [WORKSPACE_KEY_PREFIX, TENANT_KEY_PREFIX, CLIENT_KEY_PREFIX].find((p) =>
+    token.startsWith(p)
+  );
   return prefix ? token.slice(prefix.length) : token;
 }
 

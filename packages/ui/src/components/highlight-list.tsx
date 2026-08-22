@@ -27,7 +27,11 @@ const PRESS_SCALE = '0.985';
  */
 function useAnimatedIndicator<T extends HTMLElement>(
   rootRef: React.RefObject<T | null>,
-  { attribute = 'data-highlighted', press = true }: { attribute?: string; press?: boolean } = {}
+  {
+    attribute = 'data-highlighted',
+    press = true,
+    pressScale = PRESS_SCALE,
+  }: { attribute?: string; press?: boolean; pressScale?: string } = {}
 ): React.RefObject<HTMLDivElement | null> {
   const indicatorRef = React.useRef<HTMLDivElement>(null);
 
@@ -122,7 +126,7 @@ function useAnimatedIndicator<T extends HTMLElement>(
       if (!(event.target instanceof Element)) return;
       const item = event.target.closest<HTMLElement>(selector);
       if (!item || !root.contains(item)) return;
-      indicator.style.setProperty('--hl-press-scale', PRESS_SCALE);
+      indicator.style.setProperty('--hl-press-scale', pressScale);
       const doc = root.ownerDocument ?? document;
       doc.addEventListener('pointerup', release, true);
       doc.addEventListener('pointercancel', release, true);
@@ -141,7 +145,7 @@ function useAnimatedIndicator<T extends HTMLElement>(
       release();
       activeEl?.removeAttribute('data-indicator-here');
     };
-  }, [rootRef, attribute, press]);
+  }, [rootRef, attribute, press, pressScale]);
 
   return indicatorRef;
 }

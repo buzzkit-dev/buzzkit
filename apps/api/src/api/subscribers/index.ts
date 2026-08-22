@@ -1,5 +1,11 @@
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
-import { ChannelSchema, EmailSchema, IdentityHashSchema, PlatformSchema } from '@buzzkit/api/libs/schemas';
+import {
+  ChannelSchema,
+  EmailSchema,
+  EnvironmentSchema,
+  IdentityHashSchema,
+  PlatformSchema,
+} from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { deepEqual } from '@buzzkit/api/utils/equality';
@@ -36,6 +42,7 @@ export function assertAttributesSize(attributes: Record<string, unknown> | undef
 export const SubscriptionInputSchema = t.Object({
   channel: t.Optional(ChannelSchema),
   platform: t.Optional(PlatformSchema),
+  environment: t.Optional(EnvironmentSchema),
   token: t.Optional(PushTokenSchema),
   address: t.Optional(EmailAddressSchema),
 });
@@ -45,6 +52,7 @@ export type SubscriptionInput = typeof SubscriptionInputSchema.static;
 export function resolveSubscriptionInput(input: SubscriptionInput): {
   channel: SubscriptionChannel;
   platform: Subscription['platform'];
+  environment: Subscription['environment'];
   endpoint: string;
 } {
   const channel = input.channel ?? (input.token ? 'push' : input.address ? 'email' : 'push');
@@ -55,13 +63,18 @@ export function resolveSubscriptionInput(input: SubscriptionInput): {
         param: input.platform ? 'token' : 'platform',
       });
     }
-    return { channel, platform: input.platform, endpoint: input.token };
+    return {
+      channel,
+      platform: input.platform,
+      environment: input.environment ?? 'production',
+      endpoint: input.token,
+    };
   }
 
   if (!input.address) {
     throw new BadRequestError('Email subscriptions require address', { param: 'address' });
   }
-  return { channel, platform: null, endpoint: input.address };
+  return { channel, platform: null, environment: 'production', endpoint: input.address };
 }
 
 export function serializeSubscriber(subscriber: Subscriber) {
@@ -82,6 +95,7 @@ export function serializeSubscription(subscription: Subscription) {
     subscriberId: subscription.subscriberId,
     channel: subscription.channel,
     platform: subscription.platform,
+    environment: subscription.environment,
     endpoint: subscription.endpoint,
     enabled: subscription.enabled,
     status: subscription.status,
@@ -244,11 +258,13 @@ function isSubscriptionCurrent(
   existing: Subscription,
   subscriberId: number,
   platform: Subscription['platform'],
+  environment: Subscription['environment'],
   now: Date
 ): boolean {
   return (
     existing.subscriberId === subscriberId &&
     existing.platform === platform &&
+    existing.environment === environment &&
     existing.status === 'active' &&
     now.getTime() - existing.lastSeenAt.getTime() < SUBSCRIPTION_TOUCH_THROTTLE_MS
   );
@@ -281,6 +297,7 @@ export async function registerSubscription(
     externalId: string;
     channel: SubscriptionChannel;
     platform: Subscription['platform'];
+    environment?: Subscription['environment'];
     endpoint: string;
     verifiedNow?: boolean;
     subscriber?: Subscriber;
@@ -300,7 +317,10 @@ export async function registerSubscription(
     const now = new Date();
     const existing = await findExistingSubscription(db, tenantId, input.channel, input.endpoint);
 
-    if (existing && isSubscriptionCurrent(existing, subscriber.id, input.platform, now)) {
+    if (
+      existing &&
+      isSubscriptionCurrent(existing, subscriber.id, input.platform, input.environment ?? 'production', now)
+    ) {
       t.set('subscription.written', false);
       return { subscription: existing, subscriptionCreated: false, subscriberCreated, subscriber };
     }
@@ -322,6 +342,7 @@ export async function registerSubscription(
         subscriberId: subscriber.id,
         channel: input.channel,
         platform: input.platform,
+        environment: input.environment ?? 'production',
         endpoint: input.endpoint,
         lastSeenAt: now,
       })
@@ -331,6 +352,7 @@ export async function registerSubscription(
         set: {
           subscriberId: subscriber.id,
           platform: input.platform,
+          environment: input.environment ?? 'production',
           status: 'active',
           invalidatedAt: null,
           invalidationReason: null,

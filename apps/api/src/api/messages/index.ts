@@ -23,7 +23,7 @@ import {
 } from '@buzzkit/api/api/topics/index';
 import { sha256Hex } from '@buzzkit/api/libs/crypto';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
-import { ChannelSchema, EnvironmentSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
+import { ChannelSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import {
@@ -65,7 +65,6 @@ export const MessagePayloadSchema = t.Object({
   priority: t.Optional(t.Union([t.Literal('high'), t.Literal('normal')])),
   apns: t.Optional(
     t.Object({
-      environment: t.Optional(EnvironmentSchema),
       payload: t.Optional(t.Record(t.String(), t.Any())),
     })
   ),
@@ -510,14 +509,14 @@ async function resolveCredential(
   db: Db,
   tenantId: number,
   provider: ProviderName,
-  preferredEnvironment: ProviderEnvironment,
+  environment: ProviderEnvironment,
   memo?: CredentialMemo
 ): Promise<ResolvedCredential | null> {
-  const memoKey = `${tenantId}:${provider}:${preferredEnvironment}`;
+  const memoKey = `${tenantId}:${provider}:${environment}`;
   const memoized = memo?.get(memoKey);
   if (memoized) return memoized;
 
-  const pending = findCredentialForProvider(db, tenantId, provider, preferredEnvironment);
+  const pending = findCredentialForProvider(db, tenantId, provider, environment);
   memo?.set(memoKey, pending);
   return pending;
 }
@@ -540,7 +539,7 @@ async function findCredentialForProvider(
       )
     );
 
-  const credential = rows.find((row) => row.environment === preferredEnvironment) ?? rows[0];
+  const credential = rows.find((row) => row.environment === preferredEnvironment);
   if (!credential) return null;
 
   return {
@@ -565,7 +564,10 @@ type ProcessableRow = {
     'id' | 'tenantId' | 'messageId' | 'subscriberId' | 'subscriptionId' | 'status' | 'attempts' | 'provider'
   >;
   message: Pick<Message, 'id' | 'payload' | 'expiresAt'>;
-  subscription: Pick<Subscription, 'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel'>;
+  subscription: Pick<
+    Subscription,
+    'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel' | 'environment'
+  >;
   subscriber: Pick<Subscriber, 'externalId' | 'deletedAt'>;
 };
 
@@ -595,6 +597,7 @@ async function listDeliveriesForProcessing(db: Db, ids: number[]): Promise<Proce
         status: tables.subscription.status,
         deletedAt: tables.subscription.deletedAt,
         channel: tables.subscription.channel,
+        environment: tables.subscription.environment,
       },
       subscriber: { externalId: tables.subscriber.externalId, deletedAt: tables.subscriber.deletedAt },
     })
@@ -693,7 +696,7 @@ export async function processDeliveryBatch(
         db,
         row.delivery.tenantId,
         provider,
-        payload.apns?.environment ?? 'production',
+        row.subscription.environment,
         memo
       );
       const result = credential
@@ -713,7 +716,7 @@ export async function processDeliveryBatch(
         : ({
             ok: false,
             code: 'no_credential',
-            reason: 'No credential configured for this provider',
+            reason: `No ${row.subscription.environment} credential configured for ${provider}`,
             request: null,
             response: null,
             latencyMs: 0,

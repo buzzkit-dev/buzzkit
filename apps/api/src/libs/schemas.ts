@@ -1,7 +1,7 @@
 import {
   apiKeyKind,
   channel,
-  credentialEnvironment,
+  environment,
   eventActorType,
   subscriptionPlatform,
   workspaceMemberRole,
@@ -19,7 +19,7 @@ export const ChannelSchema = literalUnion(channel.enumValues);
 
 export const PlatformSchema = literalUnion(subscriptionPlatform.enumValues);
 
-export const EnvironmentSchema = literalUnion(credentialEnvironment.enumValues);
+export const EnvironmentSchema = literalUnion(environment.enumValues);
 
 export const MemberRoleSchema = literalUnion(workspaceMemberRole.enumValues);
 
@@ -27,9 +27,7 @@ export const ActorTypeSchema = literalUnion(eventActorType.enumValues);
 
 export const KeyKindSchema = literalUnion(apiKeyKind.enumValues);
 
-export const SLUG_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*$';
-
-export const SlugSchema = t.String({ pattern: SLUG_PATTERN, minLength: 3, maxLength: 48 });
+export const SlugSchema = t.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', minLength: 3, maxLength: 48 });
 
 export const NameSchema = t.String({ minLength: 1, maxLength: 100 });
 

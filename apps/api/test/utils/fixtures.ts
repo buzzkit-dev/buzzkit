@@ -28,5 +28,6 @@ export async function uploadSandboxApns(headers: Record<string, string>, bundleI
     }),
   });
   if (status !== 201) throw new Error(`apns upload failed: ${status} ${JSON.stringify(body)}`);
-  return body.data as { id: string; status: string };
+  const { items } = body.data as { items: Array<{ id: string; status: string; environment: string }> };
+  return items.find((item) => item.environment === 'sandbox') ?? items[0]!;
 }

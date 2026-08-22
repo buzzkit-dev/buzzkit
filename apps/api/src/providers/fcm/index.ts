@@ -11,8 +11,6 @@ import type {
 } from '../types';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
-const FCM_API = 'https://fcm.googleapis.com/v1/projects';
 const TOKEN_TTL_MARGIN_SECONDS = 300;
 
 const ERROR_CODES: Record<string, DeliveryErrorCode> = {
@@ -34,8 +32,6 @@ export type FcmServiceAccount = {
   private_key: string;
 };
 
-const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
-
 export function parseServiceAccount(input: unknown): FcmServiceAccount | null {
   const value = typeof input === 'string' ? safeJsonParse(input) : input;
   if (!value || typeof value !== 'object') return null;
@@ -49,7 +45,7 @@ export function parseServiceAccount(input: unknown): FcmServiceAccount | null {
     return null;
   }
 
-  if (!PROJECT_ID_PATTERN.test(record.project_id)) return null;
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(record.project_id)) return null;
 
   return {
     project_id: record.project_id,
@@ -88,7 +84,13 @@ async function requestAccessToken(account: FcmServiceAccount): Promise<AccessTok
     assertion = await signJwt({
       algorithm: 'RS256',
       privateKeyPem: account.private_key,
-      claims: { iss: account.client_email, scope: FCM_SCOPE, aud: TOKEN_URL, iat: now, exp: now + 3600 },
+      claims: {
+        iss: account.client_email,
+        scope: 'https://www.googleapis.com/auth/firebase.messaging',
+        aud: TOKEN_URL,
+        iat: now,
+        exp: now + 3600,
+      },
     });
   } catch {
     return {
@@ -210,11 +212,14 @@ async function send(input: ProviderSendInput): Promise<ProviderSendResult> {
     };
   }
 
-  const result = await providerFetch(`${FCM_API}/${input.details.projectId}/messages:send`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-    body: JSON.stringify(request),
-  });
+  const result = await providerFetch(
+    `${'https://fcm.googleapis.com/v1/projects'}/${input.details.projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify(request),
+    }
+  );
 
   if (!result.ok) {
     return {

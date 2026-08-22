@@ -6,11 +6,15 @@ Provider credentials (APNs keys, FCM service accounts) — per tenant, encrypted
 
 One endpoint, discriminated by `provider` (Stripe's `type` pattern) — the registry maps provider → channel, validates the upload with a real provider call, and replaces the live slot for (tenant, channel, provider, environment):
 
-- `{ "provider": "apns", "p8", "teamId", "keyId", "bundleId", "environment"?: "production" | "sandbox" }` — push via APNs token auth.
+- `{ "provider": "apns", "p8", "teamId", "keyId", "bundleId", "environment"? }` — push via APNs token auth. **Omit `environment` and we detect it**: the key is probed against both APNs hosts and one credential is created per environment it is valid for (Apple's portal can scope a key to Sandbox, Production, or both — since February 2025 Apple recommends environment-specific keys; the detection makes either choice work without a selector). Pass `environment` to fill exactly one slot. The response is a list of the created credentials.
 - `{ "provider": "fcm", "serviceAccount": <JSON string or object> }` — push via FCM HTTP v1 (`project_id`, `client_email`, `private_key` required; `invalid_service_account` otherwise).
 - `{ "provider": "resend", "apiKey" }` — email via Resend.
 
-Returns 201 with the masked credential (`status` is `active`, `unvalidated` when the provider could not be reached, or the request is a 400 when the provider rejected the key). `tenant: credentials:write`.
+Returns 201 with the masked credentials (`status` is `active`, `unvalidated` when the provider could not be reached, or the request is a 400 `credential_rejected` when the provider rejected the key — for APNs that includes a key that is valid for neither environment, a swapped Team/Key ID, or a topic-specific key for another bundle). `tenant: credentials:write`.
+
+**Recommended onboarding copy:** *Create one key in the Apple Developer portal: Keys → + → Apple Push Notifications service (APNs) → Environment: Sandbox & Production → Key Restriction: Team Scoped (All Topics). Download the `.p8` and paste it here with your Team ID, Key ID and bundle ID. If your team keeps separate Sandbox and Production keys, add each one — we detect which is which.* The dashboard shows the detected environments next to the key and nudges towards covering both; the API never rejects a single-environment key.
+
+**Which slot a send uses is decided by the device, not the sender.** A push subscription carries `environment` (`production` by default; the app sends `sandbox` for debug builds), and delivery picks the credential for that environment. A device whose environment has no credential fails as `no_credential` naming the environment. `BadEnvironmentKeyInToken` (a key in the wrong slot) is a terminal `invalid_credential`.
 
 ## GET /v1/credentials — list the tenant's credentials (masked)
 ## GET /v1/credentials/:id — retrieve one (masked)

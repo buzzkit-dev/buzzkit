@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { bigId, bigRef, channel, createdAt, deletedAt, timestamptz, updatedAt } from './shared';
+import { bigId, bigRef, channel, createdAt, deletedAt, environment, timestamptz, updatedAt } from './shared';
 import { tenant } from './tenant';
 
 export const subscriptionPlatform = pgEnum('subscription_platform', ['ios', 'android']);
@@ -41,6 +41,7 @@ export const subscription = pgTable(
       .references(() => subscriber.id, { onDelete: 'cascade' }),
     channel: channel('channel').notNull(),
     platform: subscriptionPlatform('platform'),
+    environment: environment('environment').notNull().default('production'),
     endpoint: text('endpoint').notNull(),
     enabled: boolean('enabled').notNull().default(true),
     status: subscriptionStatus('status').notNull().default('active'),

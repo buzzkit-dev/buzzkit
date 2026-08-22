@@ -8,7 +8,7 @@
 
 ## POST /v1/client/subscriptions
 
-`{ externalId, channel: "push", platform, token, identityHash? }` — register/refresh the push subscription. Same idempotent semantics as the server-side endpoint. Call on every app launch after obtaining the token.
+`{ externalId, channel: "push", platform, token, environment?, identityHash? }` (`environment: "sandbox"` from debug builds) — register/refresh the push subscription. Same idempotent semantics as the server-side endpoint. Call on every app launch after obtaining the token.
 
 ## PATCH /v1/client/subscriptions/:id
 

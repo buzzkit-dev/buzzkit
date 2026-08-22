@@ -64,12 +64,6 @@ const LEVEL_COLORS: Record<Level, string> = {
   error: '\x1b[31m',
 };
 
-const COLOR_RESET = '\x1b[0m';
-
-const AXIOM_LOGS_URL = 'https://api.axiom.co/v1/datasets';
-
-const AXIOM_TRACES_URL = 'https://api.axiom.co/v1/traces';
-
 function normalizeAttribute(value: AttributeValue): string | number | boolean | undefined {
   if (value === null || value === undefined) return undefined;
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
@@ -167,7 +161,7 @@ function emit(entry: LogEntry, env: ObservabilityEnv | undefined): void {
     const suffix = Object.keys(fields).length > 0 ? ` ${JSON.stringify(fields)}` : '';
     // biome-ignore lint/suspicious/noConsole: console is the development log sink
     console[level](
-      `${LEVEL_COLORS[level]}[${service}] ${level.toUpperCase()}${COLOR_RESET} ${message}${suffix}`
+      `${LEVEL_COLORS[level]}[${service}] ${level.toUpperCase()}${'\x1b[0m'} ${message}${suffix}`
     );
     return;
   }
@@ -193,7 +187,7 @@ async function flush(env: ObservabilityEnv): Promise<void> {
   const rawFetch = globalThis.fetch.bind(globalThis);
   await context.with(ROOT_CONTEXT, async () => {
     try {
-      await rawFetch(`${AXIOM_LOGS_URL}/${env.AXIOM_LOGS_DATASET}/ingest`, {
+      await rawFetch(`${'https://api.axiom.co/v1/datasets'}/${env.AXIOM_LOGS_DATASET}/ingest`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${env.AXIOM_API_TOKEN}`,
@@ -238,7 +232,7 @@ function traceSink(env: ObservabilityEnv): TraceSink {
   if (env.AXIOM_API_TOKEN && env.AXIOM_TRACES_DATASET) {
     return {
       exporter: {
-        url: AXIOM_TRACES_URL,
+        url: 'https://api.axiom.co/v1/traces',
         headers: {
           Authorization: `Bearer ${env.AXIOM_API_TOKEN}`,
           'X-Axiom-Dataset': env.AXIOM_TRACES_DATASET,

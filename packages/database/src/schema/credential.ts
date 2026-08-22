@@ -1,9 +1,18 @@
 import { sql } from 'drizzle-orm';
 import { check, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { bigId, bigRef, channel, createdAt, deletedAt, provider, timestamptz, updatedAt } from './shared';
+import {
+  bigId,
+  bigRef,
+  channel,
+  createdAt,
+  deletedAt,
+  environment,
+  provider,
+  timestamptz,
+  updatedAt,
+} from './shared';
 import { tenant } from './tenant';
 
-export const credentialEnvironment = pgEnum('credential_environment', ['production', 'sandbox']);
 export const credentialStatus = pgEnum('credential_status', ['unvalidated', 'active', 'invalid']);
 
 export const credential = pgTable(
@@ -15,7 +24,7 @@ export const credential = pgTable(
       .references(() => tenant.id, { onDelete: 'cascade' }),
     channel: channel('channel').notNull(),
     provider: provider('provider').notNull(),
-    environment: credentialEnvironment('environment').notNull().default('production'),
+    environment: environment('environment').notNull().default('production'),
     secretCiphertext: text('secret_ciphertext').notNull(),
     secretIv: text('secret_iv').notNull(),
     dekCiphertext: text('dek_ciphertext').notNull(),

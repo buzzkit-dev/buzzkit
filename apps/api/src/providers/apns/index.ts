@@ -18,8 +18,6 @@ const HOSTS: Record<ProviderEnvironment, string> = {
 };
 
 const JWT_TTL_SECONDS = 50 * 60;
-const PROBE_DEVICE_TOKEN = '0'.repeat(64);
-
 const REASON_CODES: Record<string, DeliveryErrorCode> = {
   BadDeviceToken: 'invalid_endpoint',
   Unregistered: 'invalid_endpoint',
@@ -28,6 +26,7 @@ const REASON_CODES: Record<string, DeliveryErrorCode> = {
   InvalidProviderToken: 'invalid_credential',
   MissingProviderToken: 'invalid_credential',
   ExpiredProviderToken: 'invalid_credential',
+  BadEnvironmentKeyInToken: 'invalid_credential',
   BadCertificate: 'invalid_credential',
   BadCertificateEnvironment: 'invalid_credential',
   TopicDisallowed: 'invalid_credential',
@@ -120,7 +119,7 @@ async function validate({
     };
   }
 
-  const result = await providerFetch(`${HOSTS[environment]}/3/device/${PROBE_DEVICE_TOKEN}`, {
+  const result = await providerFetch(`${HOSTS[environment]}/3/device/${'0'.repeat(64)}`, {
     method: 'POST',
     headers: buildHeaders({ jwt, bundleId: details.bundleId ?? '', priority: 10, expiresAt: null }),
     body: JSON.stringify({ aps: {} }),

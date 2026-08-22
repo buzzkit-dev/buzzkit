@@ -28,3 +28,5 @@ Idempotent by (tenant, channel, endpoint): re-registering refreshes `lastSeenAt`
 - `DELETE /v1/subscriptions/:id` — soft delete; the endpoint can re-register fresh.
 
 `status: active | invalid` — Phase 4's delivery feedback (APNs 410 / FCM UNREGISTERED) flips push subscriptions to `invalid` automatically.
+
+Push subscriptions carry `environment` (`production` default, `sandbox` for debug builds — the app knows its own build via `aps-environment`); it selects the APNs credential slot at delivery time. Re-registering with a different environment is a change and is written.

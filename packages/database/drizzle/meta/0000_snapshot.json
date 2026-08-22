@@ -1,5 +1,5 @@
 {
-  "id": "6e21ee0e-a791-4cc1-88d3-7d08270557a9",
+  "id": "59831e40-5ad3-43c1-b90e-4cfc3a2e8559",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -398,7 +398,7 @@
         },
         "environment": {
           "name": "environment",
-          "type": "credential_environment",
+          "type": "environment",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
@@ -2068,6 +2068,14 @@
           "primaryKey": false,
           "notNull": false
         },
+        "environment": {
+          "name": "environment",
+          "type": "environment",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'production'"
+        },
         "endpoint": {
           "name": "endpoint",
           "type": "text",
@@ -2878,11 +2886,6 @@
     }
   },
   "enums": {
-    "public.credential_environment": {
-      "name": "credential_environment",
-      "schema": "public",
-      "values": ["production", "sandbox"]
-    },
     "public.credential_status": {
       "name": "credential_status",
       "schema": "public",
@@ -2917,6 +2920,11 @@
       "name": "channel",
       "schema": "public",
       "values": ["push", "email"]
+    },
+    "public.environment": {
+      "name": "environment",
+      "schema": "public",
+      "values": ["production", "sandbox"]
     },
     "public.provider": {
       "name": "provider",

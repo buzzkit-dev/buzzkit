@@ -59,10 +59,8 @@ const POSTGRES_ERRORS: Record<string, { code: ErrorCode; message: string }> = {
   '08006': { code: 'unavailable', message: 'Service temporarily unavailable' },
 };
 
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
 export function isPostgresErrorCode(value: string): boolean {
-  return SQLSTATE.test(value);
+  return /^[0-9A-Z]{5}$/.test(value);
 }
 
 export function postgresErrorInfo(sqlState: string): { code: ErrorCode; message: string } {

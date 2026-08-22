@@ -5,7 +5,7 @@ import { generateP8 } from '../../utils/providerKeys';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 async function uploadApns(headers: Record<string, string>, bundleId: string) {
-  const response = await api<{ id: string }>('/v1/credentials', {
+  const response = await api<{ items: Array<{ id: string }> }>('/v1/credentials', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -17,10 +17,11 @@ async function uploadApns(headers: Record<string, string>, bundleId: string) {
       environment: 'sandbox',
     }),
   });
-  if (response.status !== 201 || !response.body.data) {
+  const created = response.body.data?.items[0];
+  if (response.status !== 201 || !created) {
     throw new Error(`upload failed: ${response.status}`);
   }
-  return response.body.data;
+  return created;
 }
 
 async function storedRow(bundleId: string) {

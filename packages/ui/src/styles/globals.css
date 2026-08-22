@@ -359,7 +359,6 @@
 /* ── Theme mapping ───────────────────────────────────────────────────────── */
 @theme inline {
   --font-sans: "OpenRunde", "Open Runde", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
 
   --color-background: var(--background);
   --color-background-subtle: var(--background-subtle);

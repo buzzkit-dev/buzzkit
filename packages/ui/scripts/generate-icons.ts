@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { CentralIcon } from '@central-icons-react/all';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CUSTOM_ICON_PATHS } from '../src/components/icon/custom';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const SCAN_ROOTS = ['apps', 'packages'].map((d) => resolve(ROOT, d));
@@ -68,6 +69,8 @@ const STROKE_OVERRIDES: Record<string, string> = {
 };
 
 function renderIconPath(name: string, radius: string): string {
+  const custom = CUSTOM_ICON_PATHS[name];
+  if (custom) return custom;
   const filled = name.endsWith('Filled');
   const centralName = filled ? name.slice(0, -'Filled'.length) : name;
   const html = renderToStaticMarkup(

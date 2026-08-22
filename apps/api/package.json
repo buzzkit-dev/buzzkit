@@ -16,11 +16,12 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev --test-scheduled --local --ip 0.0.0.0 --persist-to=../../.wrangler/state --port 8790",
     "start": "wrangler dev --test-scheduled",
-    "test": "vitest",
+    "test": "bun scripts/test.ts",
     "cf-typegen": "wrangler types",
     "check-types": "bun run cf-typegen && tsc --noEmit",
     "types:emit": "rm -rf .types && tsc --noEmit false --emitDeclarationOnly --declaration --rootDir src --outDir .types",
-    "jaeger": "docker run -d --name buzzkit-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest"
+    "jaeger": "docker run -d --name buzzkit-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest",
+    "test:only": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

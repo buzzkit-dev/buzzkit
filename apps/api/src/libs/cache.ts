@@ -1,15 +1,15 @@
 import { describeError } from './error';
 import { log } from './logger';
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
-
 function reviveDates<T>(value: T): T {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(reviveDates) as T;
   const out: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
     out[key] =
-      typeof entry === 'string' && key.endsWith('At') && ISO_DATE.test(entry)
+      typeof entry === 'string' &&
+      key.endsWith('At') &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(entry)
         ? new Date(entry)
         : reviveDates(entry);
   }

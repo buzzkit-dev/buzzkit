@@ -1,4 +1,4 @@
-export const BASE_URL = process.env.API_URL ?? 'http://localhost:8790';
+export const BASE_URL = process.env.API_URL ?? 'http://localhost:8791';
 
 export type Envelope<T = unknown> = {
   success: boolean;

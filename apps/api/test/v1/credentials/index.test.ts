@@ -4,22 +4,28 @@ import { db, sql, tables } from '../../utils/db';
 import { generateP8, generateServiceAccount } from '../../utils/providerKeys';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
+type CredentialBody = {
+  id: string;
+  status: string;
+  environment: string;
+  details: Record<string, string>;
+  lastError: string | null;
+};
+
 async function uploadApns(headers: Record<string, string>, options: { p8?: string; bundleId?: string } = {}) {
-  return api<{ id: string; status: string; details: Record<string, string>; lastError: string | null }>(
-    '/v1/credentials',
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        provider: 'apns',
-        p8: options.p8 ?? (await generateP8()),
-        teamId: 'ABCDE12345',
-        keyId: 'XYZ9876543',
-        bundleId: options.bundleId ?? 'dev.buzzkit.testapp',
-        environment: 'sandbox',
-      }),
-    }
-  );
+  const { status, body } = await api<{ items: CredentialBody[] }>('/v1/credentials', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      provider: 'apns',
+      p8: options.p8 ?? (await generateP8()),
+      teamId: 'ABCDE12345',
+      keyId: 'XYZ9876543',
+      bundleId: options.bundleId ?? 'dev.buzzkit.testapp',
+      environment: 'sandbox',
+    }),
+  });
+  return { status, body: { ...body, data: body.data?.items[0] ?? null } };
 }
 
 describe('POST /v1/credentials (apns)', () => {
@@ -173,7 +179,7 @@ describe('POST /v1/credentials (fcm)', () => {
     });
 
     if (status === 201) {
-      expect((body.data as { status: string }).status).toBe('unvalidated');
+      expect((body.data as { items: Array<{ status: string }> }).items[0]?.status).toBe('unvalidated');
     } else {
       expect(status).toBe(400);
       expect(body.error?.message).toContain('Firebase rejected');
@@ -192,7 +198,7 @@ describe('POST /v1/credentials (resend)', () => {
     });
 
     if (status === 201) {
-      expect((body.data as { status: string }).status).toBe('unvalidated');
+      expect((body.data as { items: Array<{ status: string }> }).items[0]?.status).toBe('unvalidated');
     } else {
       expect(status).toBe(400);
       expect(body.error?.message).toContain('Resend rejected');
@@ -405,5 +411,37 @@ describe('credential lifecycle', () => {
     expect(names).toContain('credential.created');
     expect(names).toContain('credential.validated');
     expect(names).toContain('credential.revoked');
+  });
+});
+
+describe('environment detection', () => {
+  it('detects the environments a key is valid for and creates one slot per environment', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const { status, body } = await api<{ items: CredentialBody[] }>('/v1/credentials', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({
+        provider: 'apns',
+        p8: await generateP8(),
+        teamId: 'ABCDE12345',
+        keyId: 'XYZ9876543',
+        bundleId: 'dev.buzzkit.detect',
+      }),
+    });
+    expect(status).toBe(201);
+    const environments = body.data?.items.map((item) => item.environment).sort();
+    expect(environments).toEqual(['production', 'sandbox']);
+    for (const item of body.data?.items ?? []) expect(['active', 'unvalidated']).toContain(item.status);
+
+    const list = await api<{ items: CredentialBody[] }>('/v1/credentials', { headers: keyBearer });
+    expect(list.body.data?.items.map((item) => item.environment).sort()).toEqual(['production', 'sandbox']);
+  });
+
+  it('an explicit environment creates exactly that slot', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const { body } = await uploadApns(keyBearer);
+    expect(body.data?.environment).toBe('sandbox');
+    const list = await api<{ items: CredentialBody[] }>('/v1/credentials', { headers: keyBearer });
+    expect(list.body.data?.items).toHaveLength(1);
   });
 });

@@ -60,12 +60,13 @@ const zeroCounts = (total: number, overrides: Partial<Counts> = {}): Counts => (
 async function subscribe(
   headers: Record<string, string>,
   externalId: string,
-  platform: 'ios' | 'android' = 'ios'
+  platform: 'ios' | 'android' = 'ios',
+  environment: 'production' | 'sandbox' = 'sandbox'
 ) {
   const { body } = await api<{ id: string }>('/v1/subscriptions', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ externalId, channel: 'push', platform, token: fakeToken('d') }),
+    body: JSON.stringify({ externalId, channel: 'push', platform, environment, token: fakeToken('d') }),
   });
   return body.data?.id ?? '';
 }
@@ -381,7 +382,6 @@ describe('delivery outcomes and the attempt ledger', () => {
 
     const sent = await send(keyBearer, {
       to: user,
-      apns: { environment: 'sandbox' },
       data: { deepLink: 'app://x' },
     });
 
@@ -456,7 +456,7 @@ describe('delivery outcomes and the attempt ledger', () => {
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
 
-    const sent = await send(keyBearer, { to: user, apns: { environment: 'sandbox' } });
+    const sent = await send(keyBearer, { to: user });
     const messageId = sent.body.data?.id ?? '';
     await waitFor(async () => {
       const [row] = await deliveries(keyBearer, messageId);
@@ -675,7 +675,7 @@ describe('scheduling, queueing and retries', () => {
     const ios = await subscribe(keyBearer, user, 'ios');
     const android = await subscribe(keyBearer, user, 'android');
 
-    const sent = await send(keyBearer, { to: user, apns: { environment: 'sandbox' } });
+    const sent = await send(keyBearer, { to: user });
     const messageId = sent.body.data?.id ?? '';
     const rows = await waitFor(async () => {
       const list = await deliveries(keyBearer, messageId);
@@ -1138,22 +1138,18 @@ describe('isolation, pagination, and delivery-time credential state', () => {
     expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
   });
 
-  it('falls back to the only configured environment when the send names none', async () => {
+  it('a device registered for production never uses a sandbox key — the delivery fails as no_credential naming the environment', async () => {
     const { keyBearer } = await setupWorkspace();
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
-    await subscribe(keyBearer, user);
+    await subscribe(keyBearer, user, 'ios', 'production');
 
     const sent = await send(keyBearer, { to: user });
-    const attempted = await waitFor(async () => {
-      const [row] = await deliveries(keyBearer, sent.body.data?.id ?? '');
-      return row && row.attempts >= 1 ? row : null;
-    });
-    expect(attempted.lastErrorCode).not.toBe('no_credential');
-    const attempts = await api<{ items: AttemptBody[] }>(`/v1/deliveries/${attempted.id}/attempts`, {
-      headers: keyBearer,
-    });
-    expect(attempts.body.data?.items[0]?.request).not.toBeNull();
+    const done = await awaitCompletion(keyBearer, sent.body.data?.id ?? '');
+    expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
+    const [row] = await deliveries(keyBearer, sent.body.data?.id ?? '');
+    expect(row?.lastErrorCode).toBe('no_credential');
+    expect(row?.lastErrorMessage).toContain('production');
   });
 
   it('fan-out honours per-channel topic defaults', async () => {

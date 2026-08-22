@@ -7,6 +7,14 @@ interface Env {
   BETTER_AUTH_SECRET: string;
   DASHBOARD_URL: string;
   ENVIRONMENT: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+}
+
+export function githubAuthEnabled(
+  env: Pick<Env, 'ENVIRONMENT' | 'GITHUB_CLIENT_ID' | 'GITHUB_CLIENT_SECRET'>
+): boolean {
+  return Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
 }
 
 export const createBetterAuth = ({
@@ -28,11 +36,20 @@ export function createBetterAuthConfig(env: Env) {
   return {
     baseURL: env.BETTER_AUTH_URL,
     basePath: '/',
-    trustedOrigins: [env.BETTER_AUTH_URL, env.DASHBOARD_URL],
+    trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin, env.DASHBOARD_URL],
     emailAndPassword: {
       enabled: true,
     },
+    socialProviders: githubAuthEnabled(env)
+      ? {
+          github: {
+            clientId: env.GITHUB_CLIENT_ID as string,
+            clientSecret: env.GITHUB_CLIENT_SECRET as string,
+          },
+        }
+      : {},
     advanced: {
+      cookiePrefix: 'buzzkit',
       disableCSRFCheck: env.ENVIRONMENT === 'development',
     },
     secret: env.BETTER_AUTH_SECRET,

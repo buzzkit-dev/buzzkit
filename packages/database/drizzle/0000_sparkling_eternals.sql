@@ -1,4 +1,3 @@
-CREATE TYPE "public"."credential_environment" AS ENUM('production', 'sandbox');--> statement-breakpoint
 CREATE TYPE "public"."credential_status" AS ENUM('unvalidated', 'active', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."event_actor_type" AS ENUM('member', 'user', 'key', 'system');--> statement-breakpoint
 CREATE TYPE "public"."api_key_kind" AS ENUM('workspace', 'tenant', 'client');--> statement-breakpoint
@@ -6,6 +5,7 @@ CREATE TYPE "public"."delivery_attempt_outcome" AS ENUM('sent', 'retry', 'failed
 CREATE TYPE "public"."delivery_status" AS ENUM('pending', 'retrying', 'sent', 'delivered', 'bounced', 'failed', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."message_status" AS ENUM('queued', 'processing', 'completed');--> statement-breakpoint
 CREATE TYPE "public"."channel" AS ENUM('push', 'email');--> statement-breakpoint
+CREATE TYPE "public"."environment" AS ENUM('production', 'sandbox');--> statement-breakpoint
 CREATE TYPE "public"."provider" AS ENUM('apns', 'fcm', 'resend');--> statement-breakpoint
 CREATE TYPE "public"."subscription_platform" AS ENUM('ios', 'android');--> statement-breakpoint
 CREATE TYPE "public"."subscription_status" AS ENUM('active', 'invalid');--> statement-breakpoint
@@ -64,7 +64,7 @@ CREATE TABLE "credential" (
 	"tenant_id" bigint NOT NULL,
 	"channel" "channel" NOT NULL,
 	"provider" "provider" NOT NULL,
-	"environment" "credential_environment" DEFAULT 'production' NOT NULL,
+	"environment" "environment" DEFAULT 'production' NOT NULL,
 	"secret_ciphertext" text NOT NULL,
 	"secret_iv" text NOT NULL,
 	"dek_ciphertext" text NOT NULL,
@@ -224,6 +224,7 @@ CREATE TABLE "subscription" (
 	"subscriber_id" bigint NOT NULL,
 	"channel" "channel" NOT NULL,
 	"platform" "subscription_platform",
+	"environment" "environment" DEFAULT 'production' NOT NULL,
 	"endpoint" text NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"status" "subscription_status" DEFAULT 'active' NOT NULL,

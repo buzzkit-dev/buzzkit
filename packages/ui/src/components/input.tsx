@@ -15,7 +15,7 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
         // Read-only fields stay in the tab order, so they keep a focus ring —
         // quieter than an editable field's, but never absent.
         'read-only:cursor-default read-only:border read-only:border-bg-4 read-only:text-fg-2 read-only:focus:outline-bg-4 read-only:focus:ring-0',
-        'aria-invalid:focus:outline-red-4 aria-invalid:focus:ring-red-2',
+        'aria-invalid:ring-1 aria-invalid:ring-red-4 aria-invalid:focus:outline-red-4 aria-invalid:focus:ring-[1.5px] aria-invalid:focus:ring-red-2',
         className
       )}
       {...props}

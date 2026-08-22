@@ -174,7 +174,7 @@ What is left of the original "second provider" phase: the FCM provider, the regi
 
 **Build**
 
-- First deployment: Cloudflare account (Hyperdrive, `AUTH_CACHE` + `PROVIDER_CACHE` KV, `buzzkit-deliveries` + DLQ, cron), real APNs `.p8` and FCM service account, a test app registering both tokens; `scripts/smoke` sends one message and polls the attempt ledger. Verify `invalid_endpoint` → subscription invalidation and `Retry-After` handling against real providers.
+- First deployment: Cloudflare account (Hyperdrive, `AUTH_CACHE` + `PROVIDER_CACHE` KV, `buzzkit-deliveries` + DLQ, cron), real APNs `.p8` and FCM service account, a test app registering both tokens; `scripts/smoke` sends one message and polls the attempt ledger. Verify `invalid_endpoint` → subscription invalidation and `Retry-After` handling against real providers; verify APNs environment detection against a real key (`BadDeviceToken` on the accepted host, `BadEnvironmentKeyInToken` on the other); verify that Cloudflare's pooled HTTP/2 connections to APNs never carry two tenants' keys on one connection (Apple rejects tokens from multiple developer accounts over a single connection).
 - Email through the same fan-out: `channel: 'email'` payload shape (`subject`, `html`/`text`, per-tenant `from`), `resend.send` via the registry, `delivered`/`bounced` written from Resend webhooks (the funnel counters already reserve them).
 - Whatever the second channel forces us to bend in the provider interface gets fixed **in the interface**, not with special cases.
 

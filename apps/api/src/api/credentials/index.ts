@@ -4,18 +4,15 @@ import { EnvironmentSchema } from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { parseServiceAccount } from '@buzzkit/api/providers/fcm/index';
+import type { ProviderValidationResult } from '@buzzkit/api/providers/index';
 import { PROVIDERS } from '@buzzkit/api/providers/index';
-import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
+import { and, type Db, desc, environment, eq, isNull, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Credential = typeof tables.credential.$inferSelect;
 export type CredentialProvider = Credential['provider'];
 export type CredentialEnvironment = Credential['environment'];
 export type CredentialChannel = Credential['channel'];
-
-export const PROVIDER_CHANNELS = Object.fromEntries(
-  Object.entries(PROVIDERS).map(([name, definition]) => [name, definition.channel])
-) as Record<CredentialProvider, CredentialChannel>;
 
 function sealingContext(input: {
   tenantId: number;
@@ -54,7 +51,7 @@ export type CredentialUploadInput = typeof CredentialUploadSchema.static;
 
 export type CredentialUpload = {
   provider: CredentialProvider;
-  environment: CredentialEnvironment;
+  environment: CredentialEnvironment | null;
   secret: string;
   details: Record<string, string>;
 };
@@ -64,7 +61,7 @@ export function resolveCredentialUpload(input: CredentialUploadInput): Credentia
     case 'apns':
       return {
         provider: 'apns',
-        environment: input.environment ?? 'production',
+        environment: input.environment ?? null,
         secret: input.p8,
         details: { teamId: input.teamId, keyId: input.keyId, bundleId: input.bundleId },
       };
@@ -88,6 +85,95 @@ export function resolveCredentialUpload(input: CredentialUploadInput): Credentia
   }
 }
 
+export async function detectCredentialEnvironments(
+  provider: CredentialProvider,
+  input: { secret: string; details: Record<string, string> }
+): Promise<Array<{ environment: CredentialEnvironment; outcome: ValidationOutcome }>> {
+  if (provider !== 'apns') {
+    return [
+      {
+        environment: 'production',
+        outcome: await validateCredentialUpload(provider, { ...input, environment: 'production' }),
+      },
+    ];
+  }
+
+  const definition = PROVIDERS[provider];
+  const probes = await Promise.all(
+    environment.enumValues.map(async (slot) => ({
+      environment: slot,
+      result: await trace<ProviderValidationResult>(
+        `credentials.validate.${provider}`,
+        { environment: slot },
+        async () => definition.validate({ ...input, environment: slot })
+      ),
+    }))
+  );
+
+  const accepted = probes.flatMap(
+    ({ environment, result }): Array<{ environment: CredentialEnvironment; outcome: ValidationOutcome }> => {
+      if (result.ok) return [{ environment, outcome: { status: 'active', lastError: null } }];
+      if (
+        result.code === 'transport' ||
+        result.code === 'timeout' ||
+        result.code === 'provider_unavailable'
+      ) {
+        return [
+          {
+            environment,
+            outcome: {
+              status: 'unvalidated',
+              lastError: `${definition.displayName} unreachable: ${result.reason}`,
+            },
+          },
+        ];
+      }
+      return [];
+    }
+  );
+  if (accepted.length > 0) return accepted;
+
+  const rejection = probes.find(
+    ({ result }) => !result.ok && result.reason !== 'BadEnvironmentKeyInToken'
+  )?.result;
+  throw new BadRequestError(
+    rejection && !rejection.ok
+      ? `${definition.displayName} rejected the credential: ${rejection.reason}`
+      : `${definition.displayName} rejected the key for both Sandbox and Production`,
+    { code: 'credential_rejected', param: 'p8' }
+  );
+}
+
+export async function replaceCredentials(
+  db: Db,
+  tenantId: number,
+  upload: CredentialUpload
+): Promise<Credential[]> {
+  const slots = upload.environment
+    ? [
+        {
+          environment: upload.environment,
+          outcome: await validateCredentialUpload(upload.provider, {
+            ...upload,
+            environment: upload.environment,
+          }),
+        },
+      ]
+    : await detectCredentialEnvironments(upload.provider, upload);
+
+  const credentials: Credential[] = [];
+  for (const slot of slots) {
+    credentials.push(
+      await replaceCredential(db, tenantId, {
+        ...upload,
+        environment: slot.environment,
+        outcome: slot.outcome,
+      })
+    );
+  }
+  return credentials;
+}
+
 export async function validateCredentialUpload(
   provider: CredentialProvider,
   input: { secret: string; details: Record<string, string>; environment: CredentialEnvironment }
@@ -103,7 +189,9 @@ export async function validateCredentialUpload(
     return { status: 'unvalidated', lastError: `${definition.displayName} unreachable: ${result.reason}` };
   }
 
-  throw new BadRequestError(`${definition.displayName} rejected the credential: ${result.reason}`);
+  throw new BadRequestError(`${definition.displayName} rejected the credential: ${result.reason}`, {
+    code: 'credential_rejected',
+  });
 }
 
 export function serializeCredential(credential: Credential) {
@@ -132,7 +220,7 @@ export async function replaceCredential(
     outcome: ValidationOutcome;
   }
 ): Promise<Credential> {
-  const channel = PROVIDER_CHANNELS[input.provider];
+  const channel = PROVIDERS[input.provider].channel;
   const sealed = await sealSecret(
     input.secret,
     sealingContext({ tenantId, channel, provider: input.provider, environment: input.environment })

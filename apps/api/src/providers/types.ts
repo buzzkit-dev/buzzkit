@@ -1,8 +1,8 @@
-import type { channel, credentialEnvironment, provider } from '@buzzkit/database';
+import type { channel, environment, provider } from '@buzzkit/database';
 import type { TokenMemo } from './shared/cache';
 
 export type ProviderChannel = (typeof channel.enumValues)[number];
-export type ProviderEnvironment = (typeof credentialEnvironment.enumValues)[number];
+export type ProviderEnvironment = (typeof environment.enumValues)[number];
 export type ProviderName = (typeof provider.enumValues)[number];
 
 export type DeliveryErrorCode =
@@ -38,7 +38,7 @@ export type MessagePayload = {
   data?: Record<string, unknown>;
   collapseId?: string;
   priority?: 'high' | 'normal';
-  apns?: { environment?: ProviderEnvironment; payload?: Record<string, unknown> };
+  apns?: { payload?: Record<string, unknown> };
   fcm?: { android?: Record<string, unknown>; payload?: Record<string, unknown> };
 };
 

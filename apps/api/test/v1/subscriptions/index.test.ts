@@ -10,6 +10,7 @@ type SubscriptionBody = {
   externalId: string;
   channel: string;
   platform: string | null;
+  environment: string;
   endpoint: string;
   enabled: boolean;
   status: string;
@@ -454,3 +455,21 @@ async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 20_000): P
   }
   throw new Error('timed out waiting for condition');
 }
+
+describe('device environment', () => {
+  it('defaults to production, accepts sandbox, and a changed environment is a write', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const token = fakeToken();
+    const externalId = `user_${uniq()}`;
+
+    const first = await register(keyBearer, { token, externalId });
+    expect(first.body.data?.environment).toBe('production');
+
+    const sandbox = await register(keyBearer, { token, externalId, environment: 'sandbox' });
+    expect(sandbox.status).toBe(200);
+    expect(sandbox.body.data?.environment).toBe('sandbox');
+
+    const invalid = await register(keyBearer, { token, externalId, environment: 'staging' });
+    expect(invalid.status).toBe(400);
+  });
+});

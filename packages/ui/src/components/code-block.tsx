@@ -25,7 +25,7 @@ export function CodeBlock({ code, className }: { code: string; className?: strin
   return (
     <div className={cn('corner-superellipse/1.125 relative isolate w-full rounded-xl bg-bg-2', className)}>
       <ScrollFade orientation='horizontal' size={24}>
-        <pre className='w-max min-w-full px-3 py-2 pr-11 font-mono text-fg-3 text-xs leading-relaxed'>
+        <pre className='w-max min-w-full px-3 py-2 pr-11 text-fg-3 text-xs leading-relaxed'>
           <code>{code}</code>
         </pre>
       </ScrollFade>

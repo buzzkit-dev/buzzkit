@@ -1,7 +1,16 @@
 # Copy to .dev.vars and fill in — required for local dev
-BETTER_AUTH_URL=http://localhost:8790
+# The public address of BetterAuth: the dashboard origin plus /api/auth (the dashboard proxies that path to this API's
+# /v1/auth mount, so sessions are first-party cookies on the dashboard). OAuth callback URLs are built from it.
+BETTER_AUTH_URL=http://localhost:5180/api/auth
 BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
 CREDENTIAL_MASTER_KEY=generate-with-openssl-rand-base64-32
+
+# Optional: GitHub sign-in. Self-hosters can skip this entirely; email + password is always on and is all a private
+# deployment needs. To offer it, create an OAuth app at https://github.com/settings/developers with the callback URL
+# <BETTER_AUTH_URL>/callback/github (http://localhost:5180/api/auth/callback/github locally). The dashboard shows the
+# GitHub button only when both values are set. Re-run `bun run cf-typegen` after adding them.
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 
 # Optional telemetry. Traces: OTEL_EXPORTER_OTLP_ENDPOINT wins (local: `bun jaeger` then http://localhost:4318),
 # else Axiom when token + dataset are set, else dropped. Logs always print to console; Axiom when configured.

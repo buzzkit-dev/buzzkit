@@ -19,6 +19,6 @@
       "@buzzkit/api/*": ["./src/*"]
     }
   },
-  "exclude": ["test"],
+  "exclude": ["test", "scripts"],
   "include": ["worker-configuration.d.ts", "src/**/*.ts"]
 }
