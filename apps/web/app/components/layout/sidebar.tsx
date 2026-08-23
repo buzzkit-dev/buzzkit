@@ -1,14 +1,17 @@
 import { Badge } from '@buzzkit/ui/components/badge';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { Icon } from '@buzzkit/ui/components/icon';
-import { SizeAnimator } from '@buzzkit/ui/components/size-animator';
 import { cn } from '@buzzkit/ui/lib/utils';
+import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { AccountMenu } from '@/app/components/layout/account-menu';
 import { NAVIGATION, type NavigationPage } from '@/app/components/layout/navigation';
 import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { Profile, Workspace } from '@/app/lib/api.server';
+
+const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
+const fold = { type: 'spring', duration: 0.2, bounce: 0 } as const;
 
 export function Sidebar({
   workspace,
@@ -26,10 +29,10 @@ export function Sidebar({
   const rootRef = useRef<HTMLElement>(null);
   const indicatorRef = useAnimatedIndicator(rootRef, { pressScale: '0.985' });
 
+  const isExact = (page: NavigationPage) => pathname === `${base}${page.path}`;
   const isActive = (page: NavigationPage) =>
-    page.path === '' ? pathname === base : pathname === `${base}${page.path}`;
-  const isWithin = (page: NavigationPage) =>
-    isActive(page) || (page.children?.some((child) => isActive(child)) ?? false);
+    page.path === '' ? pathname === base : isExact(page) || pathname.startsWith(`${base}${page.path}/`);
+  const isWithin = (page: NavigationPage) => page.children?.some(isExact) ?? isActive(page);
 
   return (
     <aside className='flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
@@ -59,7 +62,7 @@ export function Sidebar({
               const highlighted = hovered !== null ? hovered === key : active;
               const rowClass = cn(
                 'corner-superellipse/1.125 flex h-8 items-center gap-2 rounded-xl px-2.5 font-medium text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
-                '[&>svg]:transition-opacity [&>svg]:duration-200 [&[data-indicator-here]>svg]:opacity-85',
+                '[&>svg:first-child]:transition-opacity [&>svg:first-child]:duration-200 [&[data-indicator-here]>svg:first-child]:opacity-85',
                 active ? 'text-fg-4' : 'text-fg-2',
                 page.soon && 'cursor-default text-fg-1'
               );
@@ -79,13 +82,13 @@ export function Sidebar({
                       data-highlighted={highlighted ? '' : undefined}
                       onPointerEnter={() => setHovered(key)}
                       onClick={() => setOpened((current) => ({ ...current, [page.path]: !open }))}
-                      className={cn(rowClass, 'cursor-pointer')}
+                      className={cn(rowClass, 'cursor-pointer pr-2')}
                     >
                       {label}
                       <Icon
                         name='IconChevronRightMedium'
                         className={cn(
-                          'ml-auto size-4 transition-transform duration-200',
+                          'ml-auto size-4 transition-transform duration-150',
                           open && 'rotate-90'
                         )}
                       />
@@ -106,38 +109,47 @@ export function Sidebar({
                     </Link>
                   )}
                   {page.children && (
-                    <SizeAnimator>
+                    <AnimatePresence initial={false}>
                       {open && (
-                        <div className='ml-4 flex flex-col gap-0.5 border-bg-3 border-l pl-2'>
-                          {page.children.map((child) => {
-                            const childHighlighted =
-                              hovered !== null ? hovered === child.path : isActive(child);
-                            const childClass = cn(
-                              'corner-superellipse/1.125 flex h-7.5 items-center gap-2 rounded-[10px] px-2.5 font-medium text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
-                              isActive(child) ? 'text-fg-4' : 'text-fg-2',
-                              child.soon && 'cursor-default text-fg-1'
-                            );
-                            return child.soon ? (
-                              <div key={child.path} aria-disabled className={childClass}>
-                                <span className='truncate'>{child.label}</span>
-                                <Badge className='ml-auto'>Soon</Badge>
-                              </div>
-                            ) : (
-                              <Link
-                                key={child.path}
-                                to={`${base}${child.path}`}
-                                aria-current={isActive(child) ? 'page' : undefined}
-                                data-highlighted={childHighlighted ? '' : undefined}
-                                onPointerEnter={() => setHovered(child.path)}
-                                className={childClass}
-                              >
-                                <span className='truncate'>{child.label}</span>
-                              </Link>
-                            );
-                          })}
-                        </div>
+                        <motion.div
+                          key='children'
+                          className='overflow-hidden'
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0, transition: fold }}
+                          transition={unfold}
+                        >
+                          <div className='ml-4.75 flex flex-col gap-0.5 border-bg-3 border-l pl-1.5'>
+                            {page.children.map((child) => {
+                              const childHighlighted =
+                                hovered !== null ? hovered === child.path : isExact(child);
+                              const childClass = cn(
+                                'corner-superellipse/1.125 flex h-7.5 items-center gap-2 rounded-[10px] px-2.5 font-medium text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
+                                isExact(child) ? 'text-fg-4' : 'text-fg-2',
+                                child.soon && 'cursor-default text-fg-1'
+                              );
+                              return child.soon ? (
+                                <div key={child.path} aria-disabled className={childClass}>
+                                  <span className='truncate'>{child.label}</span>
+                                  <Badge className='ml-auto'>Soon</Badge>
+                                </div>
+                              ) : (
+                                <Link
+                                  key={child.path}
+                                  to={`${base}${child.path}`}
+                                  aria-current={isExact(child) ? 'page' : undefined}
+                                  data-highlighted={childHighlighted ? '' : undefined}
+                                  onPointerEnter={() => setHovered(child.path)}
+                                  className={childClass}
+                                >
+                                  <span className='truncate'>{child.label}</span>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
                       )}
-                    </SizeAnimator>
+                    </AnimatePresence>
                   )}
                 </div>
               );

@@ -26,7 +26,6 @@ import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -1176,9 +1175,6 @@ export default function DesignSystem() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create a tenant</DialogTitle>
-                <DialogDescription>
-                  Each customer of your platform gets a fully isolated tenant.
-                </DialogDescription>
               </DialogHeader>
               <form className='flex w-full flex-col gap-3'>
                 <div className='flex flex-col gap-1.5'>
@@ -1200,7 +1196,6 @@ export default function DesignSystem() {
             <DialogContent showCloseButton>
               <DialogHeader>
                 <DialogTitle>Keyboard shortcuts</DialogTitle>
-                <DialogDescription>Press Escape or the close button to dismiss.</DialogDescription>
               </DialogHeader>
             </DialogContent>
           </Dialog>

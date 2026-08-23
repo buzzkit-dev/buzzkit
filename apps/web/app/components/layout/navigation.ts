@@ -25,9 +25,9 @@ export const NAVIGATION: NavigationSection[] = [
   {
     label: 'Audience',
     pages: [
-      { label: 'Subscribers', path: '/subscribers', icon: 'IconTeamFilled', planned: 'Phase 3' },
+      { label: 'Subscribers', path: '/subscribers', icon: 'IconTeamFilled' },
       { label: 'Segments', path: '/segments', icon: 'IconTargetFilled', planned: 'Phase 8' },
-      { label: 'Topics', path: '/topics', icon: 'IconTagFilled', planned: 'Phase 3' },
+      { label: 'Topics', path: '/topics', icon: 'IconTagFilled' },
     ],
   },
   {
@@ -40,7 +40,7 @@ export const NAVIGATION: NavigationSection[] = [
   {
     label: 'Developers',
     pages: [
-      { label: 'API keys', path: '/keys', icon: 'IconKeyholeFilled', planned: 'Phase 5' },
+      { label: 'API keys', path: '/keys', icon: 'IconKeyholeFilled' },
       { label: 'Webhooks', path: '/webhooks', icon: 'IconWebhooksFilled', planned: 'Phase 10' },
     ],
   },

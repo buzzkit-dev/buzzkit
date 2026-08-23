@@ -16,11 +16,19 @@ export function meta({ loaderData }: Route.MetaArgs) {
 export default function PlannedRoute({ loaderData }: Route.ComponentProps) {
   const { page } = loaderData;
   return (
-    <div className='flex w-full items-center justify-center'>
+    <div className='flex w-full flex-col gap-5'>
+      <header className='flex flex-col gap-0.5'>
+        <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
+          {page.label}
+        </h1>
+        <p className='text-pretty text-base text-fg-2 leading-tighter'>
+          Planned for {page.planned ?? 'a later phase'} of the dashboard.
+        </p>
+      </header>
       <EmptyState
         icon={page.icon ?? 'IconSettingsGear4Filled'}
-        title={page.label}
-        description={`${page.label} is planned for ${page.planned ?? 'a later phase'} of the dashboard.`}
+        title={`${page.label} is on the way`}
+        description='This page is built in a later phase. Everything you see in the sidebar is the plan.'
       />
     </div>
   );

@@ -280,6 +280,151 @@ export function listSubscribers(
   );
 }
 
+export function getSubscriber(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).subscribers({ externalId }).get()
+  );
+}
+
+export function deleteSubscriber(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .delete()
+  );
+}
+
+export function getSubscriberPreferences(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .preferences.get()
+  ).then((page) => page.items);
+}
+
+export function updateSubscriberPreferences(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string,
+  preferences: Record<string, boolean | Record<string, boolean>>
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .preferences.patch({ preferences })
+  );
+}
+
+export function updateSubscription(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string,
+  patch: { enabled: boolean }
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscriptions({ id })
+      .patch(patch)
+  );
+}
+
+export function deleteSubscription(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).subscriptions({ id }).delete()
+  );
+}
+
+export function listTopics(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.get()
+  ).then((page) => page.items);
+}
+
+export type TopicInput = {
+  slug: string;
+  name: string;
+  description?: string;
+  defaultOptedIn?: boolean;
+  channelDefaults?: Record<string, boolean>;
+};
+
+export function createTopic(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  input: TopicInput
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.post(input)
+  );
+}
+
+export function updateTopic(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  topicSlug: string,
+  patch: Partial<TopicInput>
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .topics({ topicSlug })
+      .patch(patch)
+  );
+}
+
+export function deleteTopic(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  topicSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics({ topicSlug }).delete()
+  );
+}
+
 export function listMessages(
   ctx: RequestContext,
   token: string,
@@ -298,9 +443,13 @@ export type Profile = Awaited<ReturnType<typeof getProfile>>;
 export type Member = Awaited<ReturnType<typeof listMembers>>[number];
 export type Invite = Awaited<ReturnType<typeof listInvites>>[number];
 export type InvitePreview = Awaited<ReturnType<typeof getInvitePreview>>;
+export type Subscriber = Awaited<ReturnType<typeof listSubscribers>>['items'][number];
+export type SubscriberDetail = Awaited<ReturnType<typeof getSubscriber>>;
+export type Subscription = SubscriberDetail['subscriptions'][number];
+export type Topic = Awaited<ReturnType<typeof listTopics>>[number];
+export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>[number];
 export type CreatedKey = Awaited<ReturnType<typeof createKey>>;
-export type Subscriber = Awaited<ReturnType<typeof listSubscribers>>['items'][number];
 export type Message = Awaited<ReturnType<typeof listMessages>>['items'][number];

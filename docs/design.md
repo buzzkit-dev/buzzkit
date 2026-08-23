@@ -284,7 +284,7 @@ import { Icon } from '@buzzkit/ui/components/icon';
 - Icons paint via `currentColor`; state comes from CSS color, never a second asset.
 - Default `size-4` (16px) inside controls; one stroke weight across the set.
 - Decorative icons get `aria-hidden` automatically. Pass `ariaLabel` to make one meaningful (it then gets `role="img"`).
-- The generated SVGs carry a `<mask id>` per icon name, so **never render the same icon twice where one copy is `display: none`** (a hidden first copy owns the id and the visible one paints unmasked as a solid square). Reposition one node with CSS instead of rendering a mobile and a desktop copy.
+- Icons are generated in Central's **raw** mode: plain paths with `currentColor`, no `<mask>`, no ids. Render the same icon as often as you like, hidden or not; the masked mode's shared ids once turned a select's checkmark into a black rectangle whenever the first copy sat in a closed popup.
 - `IconCheckmark1` is the checkmark, with `rotate-[4deg]` — the other checkmarks in the set are optically wrong at small sizes.
 - **Glyph icons are solid: append `Filled`** (`IconPeopleFilled`, `IconTagFilled`) — any catalog name renders filled with the suffix. Outline is only for icons that have no meaningful fill: chevrons, arrows, checkmarks, the spinner.
 - Filled icons render at **50% opacity automatically** (in the `Icon` component) — solid glyphs carry more ink than strokes, so this keeps both at the same visual weight. Override with an `opacity-*` class when a filled icon must be full-strength.
@@ -337,7 +337,7 @@ Free-floating pill pickers (no track): header nav, inbox status filters, compose
 
 ### Nav lists (sidebars)
 
-Vertical navs (the settings sidebar, the `/ui` section nav) and pickers (the onboarding choice rows) share the menu mechanic via `useAnimatedIndicator`: one `bg-a2` highlight that **rests on the active item**, slides to the hovered item, and glides back on pointer leave — items never draw their own hover background. Text runs `fg-2` → `fg-4` under the indicator and stays `fg-4` on the active item; both transitions run 200ms so switching tabs shifts color instead of snapping. Group headers are quiet `text-xs fg-2` labels above their items. Active state must always be knowable with the pointer elsewhere.
+Vertical navs (the workspace sidebar, the `/ui` section nav) and pickers (the onboarding choice rows) share the menu mechanic via `useAnimatedIndicator`: one `bg-a2` highlight that **rests on the active item**, slides to the hovered item, and glides back on pointer leave — items never draw their own hover background. Text runs `fg-2` → `fg-4` under the indicator and stays `fg-4` on the active item; both transitions run 200ms so switching tabs shifts color instead of snapping. Group headers are quiet `text-xs fg-2` labels above their items. Active state must always be knowable with the pointer elsewhere.
 
 ### CodeBlock
 
@@ -348,6 +348,9 @@ Copyable snippet on `bg-bg-2`, `rounded-xl`: `text-xs` in the regular face, hori
 Items share one sliding highlight from `HighlightList` rather than each drawing its own hover. `DropdownMenuItem variant='destructive'` tints the indicator red. Submenus offset 12px. **`DropdownMenuLabel` must sit inside a `DropdownMenuGroup`** — Base UI throws otherwise, which kills hydration silently.
 
 ### Dialog / AlertDialog
+
+Dialogs carry a title and the form, nothing else: no `DialogDescription` restating what the fields already say. `AlertDialog` is the exception, its description is the consequence the user is confirming.
+
 
 Centered, 420px (`size='sm'` → `max-w-xs`), `rounded-3xl`. Title (`text-xl`) over description (`text-sm`), both centered and balanced, no gap. AlertDialog is for destructive confirms: two actions splitting the width 50/50, and the confirm button **repeats the consequence** ("Delete workspace", never "Delete").
 

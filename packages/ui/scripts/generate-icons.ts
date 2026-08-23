@@ -80,6 +80,7 @@ function renderIconPath(name: string, radius: string): string {
       fill: filled ? 'filled' : 'outlined',
       radius: radius as '0' | '1' | '2' | '3',
       stroke: '2',
+      mode: 'raw',
     })
   );
   const match = html.match(/<svg[^>]*>([\s\S]*)<\/svg>/);

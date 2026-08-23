@@ -125,6 +125,12 @@ export default function SettingsGeneralRoute() {
 
   return (
     <>
+      <header className='flex flex-col gap-0.5'>
+        <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
+          General
+        </h1>
+        <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage the workspace name and slug.</p>
+      </header>
       <WorkspaceCard workspace={workspace} canEdit={canEdit} />
       <SlugCard workspace={workspace} canEdit={canEdit} />
     </>

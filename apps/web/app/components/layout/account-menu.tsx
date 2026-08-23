@@ -1,12 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@buzzkit/ui/components/avatar';
 import { Button } from '@buzzkit/ui/components/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@buzzkit/ui/components/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -1,0 +1,594 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@buzzkit/ui/components/alert-dialog';
+import { Badge } from '@buzzkit/ui/components/badge';
+import { Button } from '@buzzkit/ui/components/button';
+import { Card } from '@buzzkit/ui/components/card';
+import { Checkbox } from '@buzzkit/ui/components/checkbox';
+import { CodeBlock } from '@buzzkit/ui/components/code-block';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@buzzkit/ui/components/dropdown-menu';
+import { EmptyState } from '@buzzkit/ui/components/empty-state';
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
+import { Icon } from '@buzzkit/ui/components/icon';
+import { Input } from '@buzzkit/ui/components/input';
+import { Label } from '@buzzkit/ui/components/label';
+import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
+import { toast } from '@buzzkit/ui/components/sonner';
+import { Spinner } from '@buzzkit/ui/components/spinner';
+import { cn } from '@buzzkit/ui/lib/utils';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router';
+import { cloudflareContext } from '@/app/cloudflare';
+import { SettingsRow } from '@/app/components/settings/card';
+import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { keysAction } from '@/app/lib/actions/keys.server';
+import { type ApiKey, listKeys, listTenants } from '@/app/lib/api.server';
+import { requireSession } from '@/app/lib/session.server';
+import { formatDate } from '@/app/lib/utils/format';
+import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
+import type { Route } from './+types/index';
+
+type KeyKind = 'workspace' | 'tenant' | 'client';
+type Preset = 'full' | 'read' | 'custom';
+type ScopeGroup = { label: string; wildcard: string; options: string[]; tenant: boolean };
+
+const SCOPE_GROUPS: ScopeGroup[] = [
+  {
+    label: 'workspace',
+    wildcard: 'workspace:*',
+    options: ['workspace:read', 'workspace:write'],
+    tenant: false,
+  },
+  { label: 'members', wildcard: 'members:*', options: ['members:read'], tenant: false },
+  { label: 'tenants', wildcard: 'tenants:*', options: ['tenants:read', 'tenants:write'], tenant: false },
+  { label: 'events', wildcard: 'events:*', options: ['events:read'], tenant: false },
+  {
+    label: 'credentials',
+    wildcard: 'credentials:*',
+    options: ['credentials:read', 'credentials:write'],
+    tenant: true,
+  },
+  {
+    label: 'subscribers',
+    wildcard: 'subscribers:*',
+    options: ['subscribers:read', 'subscribers:write'],
+    tenant: true,
+  },
+  {
+    label: 'subscriptions',
+    wildcard: 'subscriptions:*',
+    options: ['subscriptions:read', 'subscriptions:write'],
+    tenant: true,
+  },
+  { label: 'topics', wildcard: 'topics:*', options: ['topics:read', 'topics:write'], tenant: true },
+  { label: 'messages', wildcard: 'messages:*', options: ['messages:read', 'messages:send'], tenant: true },
+];
+
+const KINDS: { value: KeyKind; label: string }[] = [
+  { value: 'workspace', label: 'Workspace' },
+  { value: 'tenant', label: 'Tenant' },
+  { value: 'client', label: 'Client' },
+];
+
+const PRESETS: { value: Preset; label: string }[] = [
+  { value: 'full', label: 'Full access' },
+  { value: 'read', label: 'Read only' },
+  { value: 'custom', label: 'Custom' },
+];
+
+export function meta() {
+  return [{ title: 'API keys · BuzzKit' }];
+}
+
+export async function loader({ request, context, params }: Route.LoaderArgs) {
+  const { env } = context.get(cloudflareContext);
+  const { token } = requireSession(request);
+  const ctx = { request, env };
+  const [keys, tenants] = await Promise.all([
+    listKeys(ctx, token, params.slug),
+    listTenants(ctx, token, params.slug),
+  ]);
+  return { keys, tenants };
+}
+
+export const action = keysAction;
+
+function groupsFor(kind: KeyKind): ScopeGroup[] {
+  return kind === 'tenant' ? SCOPE_GROUPS.filter((group) => group.tenant) : SCOPE_GROUPS;
+}
+
+function ScopePicker({
+  groups,
+  selected,
+  onChange,
+}: {
+  groups: ScopeGroup[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
+  const uid = useId();
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      matches: trimmedQuery ? group.options.filter((option) => option.includes(trimmedQuery)) : group.options,
+    }))
+    .filter((group) => group.matches.length > 0 || group.label.includes(trimmedQuery));
+
+  const toggleExpanded = (label: string) =>
+    setExpanded((current) =>
+      current.includes(label) ? current.filter((entry) => entry !== label) : [...current, label]
+    );
+
+  const stateOf = (group: ScopeGroup) => {
+    const wildcardOn = selected.includes(group.wildcard);
+    const count = group.options.filter((option) => selected.includes(option)).length;
+    return { wildcardOn, allOn: wildcardOn || count === group.options.length, count };
+  };
+  const without = (group: ScopeGroup) =>
+    selected.filter((entry) => entry !== group.wildcard && !group.options.includes(entry));
+  const toggleGroup = (group: ScopeGroup) => {
+    const { allOn } = stateOf(group);
+    onChange(allOn ? without(group) : [...without(group), group.wildcard]);
+  };
+  const toggleOption = (group: ScopeGroup, option: string) => {
+    const { wildcardOn } = stateOf(group);
+    const current = wildcardOn ? group.options : group.options.filter((entry) => selected.includes(entry));
+    const next = current.includes(option)
+      ? current.filter((entry) => entry !== option)
+      : [...current, option];
+    onChange(
+      next.length === group.options.length
+        ? [...without(group), group.wildcard]
+        : [...without(group), ...next]
+    );
+  };
+
+  return (
+    <div className='flex flex-col gap-1.5'>
+      <Input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder='Search permissions'
+        aria-label='Search permissions'
+        className='h-8 text-sm'
+      />
+      <ScrollFade targetRef={listRef} />
+      <div ref={listRef} className='scrollbar-hide max-h-52 overflow-y-auto'>
+        <div className='flex flex-col gap-0.5'>
+          {visibleGroups.map((group) => {
+            const { wildcardOn, allOn, count } = stateOf(group);
+            const open = trimmedQuery !== '' || expanded.includes(group.label);
+            const groupId = `${uid}-${group.label}`;
+            return (
+              <div key={group.label} className='flex flex-col'>
+                <div
+                  className={cn(
+                    'relative isolate flex h-8 items-center gap-2 rounded-lg px-1.5',
+                    "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
+                    'before:transition-[background-color,scale] before:duration-150 before:ease-out active:before:scale-[0.9935]',
+                    'hover:before:bg-bg-a1 active:before:bg-bg-a1'
+                  )}
+                >
+                  <button
+                    type='button'
+                    onClick={() => toggleExpanded(group.label)}
+                    aria-expanded={open}
+                    aria-label={`${open ? 'Collapse' : 'Expand'} ${group.label}`}
+                    className='absolute inset-0 cursor-pointer rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-primary-2'
+                  />
+                  <Checkbox
+                    id={groupId}
+                    checked={allOn}
+                    onCheckedChange={() => toggleGroup(group)}
+                    className='relative'
+                  />
+                  <Label htmlFor={groupId} className='relative font-mono text-fg-4 text-xs'>
+                    {group.wildcard}
+                  </Label>
+                  <span className='text-fg-2 text-xs'>{allOn ? 'all' : count > 0 ? count : ''}</span>
+                  <Icon
+                    name='IconChevronRightMedium'
+                    className={cn(
+                      'mr-0.5 ml-auto size-3.5 transition-transform duration-150',
+                      open && 'rotate-90'
+                    )}
+                  />
+                </div>
+                {open && (
+                  <div className='flex flex-col gap-0.5 pt-0.5 pb-1 pl-8'>
+                    {group.matches.map((option) => (
+                      <Label
+                        key={option}
+                        htmlFor={`${uid}-${option}`}
+                        className='flex h-6 cursor-pointer items-center gap-2 font-mono font-normal text-fg-3 text-xs'
+                      >
+                        <Checkbox
+                          id={`${uid}-${option}`}
+                          checked={wildcardOn || selected.includes(option)}
+                          onCheckedChange={() => toggleOption(group, option)}
+                        />
+                        {option}
+                      </Label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {visibleGroups.length === 0 && (
+            <span className='flex items-center justify-center py-4 text-fg-2 text-sm'>
+              Nothing matches your search.
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function firstUseSnippet(apiUrl: string, kind: KeyKind, secret: string) {
+  if (kind === 'client') {
+    return [
+      `curl -X POST ${apiUrl}/v1/client/identify \\`,
+      `  -H 'Authorization: Bearer ${secret}' \\`,
+      "  -H 'Content-Type: application/json' \\",
+      `  -d '{ "externalId": "user_42" }'`,
+    ].join('\n');
+  }
+  return [
+    `curl -X PUT ${apiUrl}/v1/subscribers/user_42 \\`,
+    `  -H 'Authorization: Bearer ${secret}' \\`,
+    "  -H 'Content-Type: application/json' \\",
+    `  -d '{ "email": "jane@acme.com" }'`,
+  ].join('\n');
+}
+
+function KeyDialog({
+  open,
+  onOpenChange,
+  tenants,
+  apiUrl,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenants: { id: string; name: string; slug: string }[];
+  apiUrl: string;
+}) {
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<KeyKind>('workspace');
+  const [tenant, setTenant] = useState(tenants[0]?.slug ?? '');
+  const [preset, setPreset] = useState<Preset>('full');
+  const [scopes, setScopes] = useState<string[]>([]);
+  const [created, setCreated] = useState<{ secret: string; kind: KeyKind } | null>(null);
+  const { submit, pending } = useActionFetcher((data) => {
+    if (typeof data.secret === 'string')
+      setCreated({ secret: data.secret, kind: (data.kind as KeyKind) ?? 'workspace' });
+    else onOpenChange(false);
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setName('');
+    setKind('workspace');
+    setTenant(tenants[0]?.slug ?? '');
+    setPreset('full');
+    setScopes([]);
+    setCreated(null);
+  }, [open, tenants]);
+
+  const groups = groupsFor(kind);
+  const selected =
+    kind === 'client'
+      ? []
+      : preset === 'full'
+        ? ['*']
+        : preset === 'read'
+          ? groups.flatMap((group) => group.options.filter((option) => option.endsWith(':read')))
+          : scopes;
+  const trimmed = name.trim();
+  const canCreate = trimmed.length > 0 && (kind === 'client' || selected.length > 0) && !pending;
+
+  const create = () => submit('create', { name: trimmed, kind, tenant, scopes: JSON.stringify(selected) });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton>
+        {created ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Copy your key</DialogTitle>
+            </DialogHeader>
+            <div className='flex w-full flex-col gap-3'>
+              <CodeBlock code={created.secret} className='w-full' />
+              <span className='font-medium text-fg-2 text-xs'>Use it right away</span>
+              <CodeBlock code={firstUseSnippet(apiUrl, created.kind, created.secret)} className='w-full' />
+              <Button className='w-full' onClick={() => onOpenChange(false)}>
+                Done
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>New API key</DialogTitle>
+            </DialogHeader>
+            <FieldGroup className='w-full'>
+              <Field>
+                <FieldLabel htmlFor='key-name'>Name</FieldLabel>
+                <Input
+                  id='key-name'
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={kind === 'client' ? 'iOS app' : 'Production backend'}
+                  maxLength={100}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='key-kind'>Type</FieldLabel>
+                <Select items={KINDS} value={kind} onValueChange={(value) => setKind(value as KeyKind)}>
+                  <SelectTrigger id='key-kind' className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KINDS.map((entry) => (
+                      <SelectItem key={entry.value} value={entry.value}>
+                        {entry.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {kind === 'workspace'
+                    ? 'Workspace keys can access every tenant and are meant for your backend.'
+                    : kind === 'tenant'
+                      ? "Tenant keys are scoped to a single tenant and can't reach anything outside it."
+                      : 'Client keys can be embedded directly in your app and used with the SDK.'}
+                </FieldDescription>
+              </Field>
+              {kind !== 'workspace' && (
+                <Field>
+                  <FieldLabel htmlFor='key-tenant'>Tenant</FieldLabel>
+                  <Select
+                    items={tenants.map((entry) => ({ value: entry.slug, label: entry.name }))}
+                    value={tenant}
+                    onValueChange={(value) => setTenant(String(value))}
+                  >
+                    <SelectTrigger id='key-tenant' className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((entry) => (
+                        <SelectItem key={entry.id} value={entry.slug}>
+                          {entry.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+              {kind !== 'client' && (
+                <Field>
+                  <FieldLabel htmlFor='key-preset'>Permissions</FieldLabel>
+                  <Select
+                    items={PRESETS}
+                    value={preset}
+                    onValueChange={(value) => setPreset(value as Preset)}
+                  >
+                    <SelectTrigger id='key-preset' className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRESETS.map((entry) => (
+                        <SelectItem key={entry.value} value={entry.value}>
+                          {entry.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    {preset === 'full'
+                      ? 'Everything, including permissions added later.'
+                      : preset === 'read'
+                        ? 'Read access to every resource. Cannot change anything.'
+                        : 'Pick exactly what this key can do.'}
+                  </FieldDescription>
+                </Field>
+              )}
+              {kind !== 'client' && preset === 'custom' && (
+                <Field>
+                  <FieldLabel>Custom permissions</FieldLabel>
+                  <ScopePicker groups={groups} selected={scopes} onChange={setScopes} />
+                </Field>
+              )}
+              <Button className='w-full' disabled={!canCreate} onClick={create}>
+                {pending && <Spinner />}
+                Create key
+              </Button>
+            </FieldGroup>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function copyToClipboard(value: string) {
+  navigator.clipboard.writeText(value).then(
+    () => toast.success('Copied to clipboard'),
+    () => toast.error('Unable to copy', { description: 'Select the key and copy it manually.' })
+  );
+}
+
+function KeyRow({
+  apiKey,
+  tenantName,
+  canManage,
+  onRevoke,
+}: {
+  apiKey: ApiKey;
+  tenantName: string | null;
+  canManage: boolean;
+  onRevoke: (key: ApiKey) => void;
+}) {
+  const scopeSummary = apiKey.scopes.includes('*')
+    ? 'Full access'
+    : `${apiKey.scopes.length} scope${apiKey.scopes.length === 1 ? '' : 's'}`;
+  const copyable = apiKey.kind === 'client' && apiKey.token;
+
+  return (
+    <SettingsRow
+      title={
+        <span className='flex items-center gap-1.5'>
+          {apiKey.name}
+          <Badge size='sm'>{KINDS.find((entry) => entry.value === apiKey.kind)?.label}</Badge>
+        </span>
+      }
+      subtitle={
+        <span className='flex items-center gap-1.5'>
+          <span className='font-mono'>{copyable ? apiKey.token : `${apiKey.prefix}…${apiKey.last4}`}</span>
+          {apiKey.kind !== 'client' && <span>· {scopeSummary}</span>}
+          {tenantName && <span>· {tenantName}</span>}
+        </span>
+      }
+      end={
+        <>
+          <span className='hidden text-fg-2 text-xs sm:block'>
+            {apiKey.lastUsedAt
+              ? `Used ${formatDate(apiKey.lastUsedAt)}`
+              : `Created ${formatDate(apiKey.createdAt)}`}
+          </span>
+          {apiKey.revokedAt ? (
+            <Badge size='sm' variant='red'>
+              Revoked
+            </Badge>
+          ) : !canManage && !copyable ? undefined : (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    size='icon-xs'
+                    icon='IconDotGrid1x3Horizontal'
+                    aria-label='Key actions'
+                  />
+                }
+              />
+              <DropdownMenuContent align='end'>
+                {copyable && (
+                  <DropdownMenuItem onClick={() => copyToClipboard(apiKey.token as string)}>
+                    Copy key
+                  </DropdownMenuItem>
+                )}
+                {canManage && (
+                  <DropdownMenuItem variant='destructive' onClick={() => onRevoke(apiKey)}>
+                    Revoke
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </>
+      }
+    />
+  );
+}
+
+export default function KeysRoute({ loaderData }: Route.ComponentProps) {
+  const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
+  const { keys, tenants } = loaderData;
+  const [open, setOpen] = useState(false);
+  const [revoking, setRevoking] = useState<ApiKey | null>(null);
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const { submit, pending } = useActionFetcher(() => setRevokeOpen(false));
+  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+  const tenantName = (tenantId: string | null) =>
+    tenants.find((entry) => entry.id === tenantId)?.name ?? null;
+
+  const openRevoke = (key: ApiKey) => {
+    setRevoking(key);
+    setRevokeOpen(true);
+  };
+
+  return (
+    <div className='flex w-full flex-col gap-5'>
+      <header className='flex items-center justify-between gap-4'>
+        <div className='flex flex-col gap-0.5'>
+          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
+            API keys
+          </h1>
+          <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage your workspace API keys.</p>
+        </div>
+        {canManage && (
+          <Button icon='IconPlusMedium' onClick={() => setOpen(true)}>
+            Create key
+          </Button>
+        )}
+      </header>
+
+      <Card>
+        {keys.length === 0 ? (
+          <EmptyState
+            icon='IconKeyholeFilled'
+            title='No API keys yet'
+            description='Create a key to call the API from your backend, or a client key to embed in your app.'
+            className='py-10'
+          />
+        ) : (
+          <ul className='flex flex-col divide-y divide-bg-3 py-1.5'>
+            {keys.map((apiKey) => (
+              <KeyRow
+                key={apiKey.id}
+                apiKey={apiKey}
+                tenantName={tenantName(apiKey.tenantId)}
+                canManage={canManage}
+                onRevoke={openRevoke}
+              />
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <KeyDialog open={open} onOpenChange={setOpen} tenants={tenants} apiUrl={apiUrl} />
+
+      <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke {revoking?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Requests with this key start failing immediately. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant='destructive'
+              disabled={pending}
+              onClick={() => revoking && submit('revoke', { id: revoking.id })}
+            >
+              Revoke key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

@@ -64,8 +64,8 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
   const allDone = firstOpen === -1;
 
   return (
-    <div className='w-full overflow-y-auto'>
-      <div className='mx-auto flex w-full max-w-3xl flex-col gap-6 pt-4 pb-8'>
+    <div className='w-full'>
+      <div className='flex w-full flex-col gap-6'>
         <header className='flex flex-col gap-0.5'>
           <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             {workspace.name}
