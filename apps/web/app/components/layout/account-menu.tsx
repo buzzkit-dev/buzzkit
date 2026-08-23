@@ -32,7 +32,13 @@ import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import type { Profile } from '@/app/lib/api.server';
 import { initials } from '@/app/lib/utils/format';
 
-export function AccountMenu({ profile }: { profile: Profile }) {
+export function AccountMenu({
+  profile,
+  variant = 'avatar',
+}: {
+  profile: Profile;
+  variant?: 'avatar' | 'row';
+}) {
   const submit = useSubmit();
   const workspaceAction = useWorkspaceAction();
   const { theme, setTheme } = useTheme();
@@ -43,19 +49,33 @@ export function AccountMenu({ profile }: { profile: Profile }) {
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <button
-              type='button'
-              aria-label='Account menu'
-              className='cursor-pointer rounded-full outline-none transition-[scale] duration-150 focus-visible:ring-2 focus-visible:ring-primary-2 active:scale-[0.96]'
-            />
+            variant === 'row' ? (
+              <Button
+                variant='ghost'
+                className='w-full justify-start pr-2.5 pl-1.25 not-disabled:active:before:scale-[0.985] not-disabled:data-[pressed]:before:scale-[0.985]'
+                aria-label='Account menu'
+              />
+            ) : (
+              <button
+                type='button'
+                aria-label='Account menu'
+                className='cursor-pointer rounded-full outline-none transition-[scale] duration-150 focus-visible:ring-2 focus-visible:ring-primary-2 active:scale-[0.96]'
+              />
+            )
           }
         >
-          <Avatar className='size-7'>
+          <Avatar className={variant === 'row' ? 'size-6' : 'size-7'}>
             {profile.image && <AvatarImage src={profile.image} alt='' />}
             <AvatarFallback className='text-sm'>{initials(profile.name)}</AvatarFallback>
           </Avatar>
+          {variant === 'row' && (
+            <>
+              <span className='truncate text-fg-4'>{profile.name}</span>
+              <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
+            </>
+          )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-60'>
+        <DropdownMenuContent align={variant === 'row' ? 'start' : 'end'} className='w-60'>
           <DropdownMenuGroup>
             <DropdownMenuLabel className='flex flex-col py-1.5'>
               <span className='truncate text-fg-4 text-sm'>{profile.name}</span>
@@ -142,7 +162,6 @@ function EditProfileDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Profile</DialogTitle>
-          <DialogDescription>How you appear across BuzzKit.</DialogDescription>
         </DialogHeader>
         <div className='flex w-full flex-col gap-4'>
           <div className='flex flex-col gap-1.5'>

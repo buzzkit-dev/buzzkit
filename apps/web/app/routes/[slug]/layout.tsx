@@ -1,8 +1,6 @@
 import { data, Outlet, redirect } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { AccountMenu } from '@/app/components/layout/account-menu';
-import { NavTabs } from '@/app/components/layout/navigation-tabs';
-import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
+import { Sidebar } from '@/app/components/layout/sidebar';
 import { workspaceAction } from '@/app/lib/actions/workspace.server';
 import {
   ApiError,
@@ -59,7 +57,7 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   const { workspace, workspaces, profile, apiUrl } = loaderData;
   return (
-    <div className='flex h-svh flex-col'>
+    <div className='flex h-svh bg-background-subtle'>
       <a
         href='#content'
         className='corner-superellipse/1.125 sr-only z-50 rounded-xl bg-primary px-3 py-2 font-medium text-primary-foreground text-sm focus-visible:not-sr-only focus-visible:fixed focus-visible:top-4 focus-visible:left-4'
@@ -67,19 +65,13 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         Skip to content
       </a>
 
-      <header className='relative flex shrink-0 items-center justify-between px-5 pt-4 pb-3'>
-        <WorkspaceSwitcher workspaces={workspaces} current={workspace} />
+      <Sidebar workspace={workspace} workspaces={workspaces} profile={profile} />
 
-        <div className='-translate-x-1/2 absolute left-1/2 hidden sm:block'>
-          <NavTabs slug={workspace.slug} />
+      <main id='content' className='flex min-w-0 flex-1 p-2 pl-0'>
+        <div className='corner-superellipse/1.125 flex min-w-0 flex-1 overflow-y-auto rounded-2xl bg-card px-6 py-5 shadow-sm'>
+          <Outlet context={{ workspace, profile, apiUrl } satisfies WorkspaceOutletContext} />
         </div>
-
-        <AccountMenu profile={profile} />
-      </header>
-
-      <div id='content' className='flex min-h-0 flex-1 overflow-x-clip px-5 pb-5'>
-        <Outlet context={{ workspace, profile, apiUrl } satisfies WorkspaceOutletContext} />
-      </div>
+      </main>
     </div>
   );
 }

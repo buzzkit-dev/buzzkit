@@ -122,6 +122,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { useEffect, useRef, useState } from 'react';
 import { OAuthProviders } from '@/app/components/auth/providers';
+import { Sidebar } from '@/app/components/layout/sidebar';
 import { useTheme } from '@/app/components/layout/theme-provider';
 import { ChoiceRow, ChoiceRows } from '@/app/components/onboarding/choice-row';
 import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop';
@@ -318,6 +319,25 @@ function ProgressDemo() {
     </div>
   );
 }
+
+const MOCK_WORKSPACE = {
+  id: 'ws_1',
+  name: 'Acme',
+  slug: 'acme',
+  avatarUrl: null,
+  role: 'owner' as const,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const MOCK_PROFILE = {
+  id: 'usr_1',
+  name: 'Ada Lovelace',
+  email: 'ada@acme.dev',
+  image: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
 
 function StepCounterDemo() {
   const [step, setStep] = useState(1);
@@ -1426,6 +1446,19 @@ export default function DesignSystem() {
           </Specimen>
           <Specimen label='step counter'>
             <StepCounterDemo />
+          </Specimen>
+          <Specimen label='sidebar · mock workspace'>
+            <div className='corner-superellipse/1.125 flex h-[640px] w-[560px] overflow-hidden rounded-2xl bg-background-subtle'>
+              <Sidebar
+                workspace={MOCK_WORKSPACE}
+                workspaces={[
+                  MOCK_WORKSPACE,
+                  { ...MOCK_WORKSPACE, id: 'ws_2', name: 'Side project', slug: 'side' },
+                ]}
+                profile={MOCK_PROFILE}
+              />
+              <div className='corner-superellipse/1.125 m-2 ml-0 flex-1 rounded-2xl bg-card shadow-sm' />
+            </div>
           </Specimen>
           <Specimen label='sign-in providers'>
             <div className='w-72'>

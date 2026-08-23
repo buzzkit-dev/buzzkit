@@ -14,5 +14,6 @@ export default [
   route(':slug', 'routes/[slug]/layout.tsx', [
     index('routes/[slug]/index.tsx'),
     route('settings', 'routes/[slug]/settings/layout.tsx', [index('routes/[slug]/settings/index.tsx')]),
+    route('*', 'routes/[slug]/planned/index.tsx'),
   ]),
 ] satisfies RouteConfig;

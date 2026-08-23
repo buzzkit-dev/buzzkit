@@ -39,10 +39,17 @@ export function WorkspaceSwitcher({ workspaces, current }: { workspaces: Workspa
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant='ghost' className='pr-1.5 pl-1.25' />}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='ghost'
+              className='w-full justify-start pr-2.5 pl-1.25 not-disabled:active:before:scale-[0.985] not-disabled:data-[pressed]:before:scale-[0.985]'
+            />
+          }
+        >
           <WorkspaceAvatar name={current.name} avatarUrl={current.avatarUrl} />
-          <span className='max-w-48 truncate'>{current.name}</span>
-          <Icon name='IconChevronDownMedium' className='size-4 text-fg-2' />
+          <span className='truncate'>{current.name}</span>
+          <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start' className='w-60'>
           <DropdownMenuGroup>

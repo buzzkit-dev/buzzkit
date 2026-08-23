@@ -16,8 +16,8 @@ app/
                                 browser bundle and the build fails if client code imports it, so Worker env and tokens cannot leak
   hooks/                        Client hooks
   components/<feature>/         Only pieces used by more than one route live here, one directory per feature, files named for what they
-                                are (never prefixed, never abbreviated): auth/ (form, providers, password input) · layout/ (the signed-in chrome: account menu,
-                                navigation tabs, workspace switcher, theme provider) · onboarding/ (layout, transition, progress, catalog,
+                                are (never prefixed, never abbreviated): auth/ (form, providers, password input) · layout/ (the signed-in chrome: sidebar + navigation.ts, the IA;
+                                account menu, workspace switcher, theme provider) · onboarding/ (layout, transition, progress, catalog,
                                 choice-row, file-drop, connected, provider-guide; guides/ data; illustration/ primitives) · settings/ ·
                                 workspace/ (fields, create dialog) · errors/ (unexpected, no-access, not-found). Anything a single route uses is written in that route file
   routes/<segment>/index.tsx    Loader + `export const action = …Action` from lib/actions.server.ts + composition; pathless groups are
