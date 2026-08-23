@@ -1,14 +1,21 @@
+import { redirect } from 'react-router';
+import { cloudflareContext } from '@/app/cloudflare';
+import { listWorkspaces } from '@/app/lib/api.server';
+import { readLastWorkspace, requireSession } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
-export function meta(_args: Route.MetaArgs) {
-  return [{ title: 'buzzkit' }, { name: 'description', content: 'Code-first push notification framework.' }];
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const { env } = context.get(cloudflareContext);
+  const { token } = requireSession(request);
+  const workspaces = await listWorkspaces({ request, env }, token);
+
+  if (workspaces.length === 0) throw redirect('/new');
+
+  const lastWorkspace = await readLastWorkspace(request);
+  const target = workspaces.find((workspace) => workspace.slug === lastWorkspace) ?? workspaces[0]!;
+  throw redirect(`/${target.slug}`);
 }
 
-export default function Index() {
-  return (
-    <main className='flex min-h-svh flex-col items-center justify-center gap-2'>
-      <h1 className='font-semibold text-2xl'>buzzkit</h1>
-      <p className='text-neutral-500 text-sm'>Code-first push notification framework.</p>
-    </main>
-  );
+export default function Home() {
+  return null;
 }

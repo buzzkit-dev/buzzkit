@@ -29,7 +29,7 @@ export const credential = pgTable(
     secretIv: text('secret_iv').notNull(),
     dekCiphertext: text('dek_ciphertext').notNull(),
     dekIv: text('dek_iv').notNull(),
-    keyVersion: integer('key_version').notNull().default(1),
+    keyVersion: integer('key_version').notNull(),
     details: jsonb('details').notNull().default({}),
     status: credentialStatus('status').notNull().default('unvalidated'),
     lastError: text('last_error'),

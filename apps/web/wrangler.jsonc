@@ -16,7 +16,6 @@
 
   "vars": {
     "ENVIRONMENT": "development",
-    // Origin of the buzzkit API this dashboard talks to. Local dev overrides live in .dev.vars.
     "API_URL": "http://localhost:8790"
   }
 }

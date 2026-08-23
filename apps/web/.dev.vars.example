@@ -1,0 +1,11 @@
+# Copy to .dev.vars (git-ignored) for local development.
+
+# Origin of the local buzzkit API dev server.
+API_URL=http://localhost:8790
+
+# Optional: the GitHub OAuth app's client id (public, not a secret). Its presence turns on the "Continue with
+# GitHub" button; the API holds the same id plus the secret and runs the OAuth flow. Self-hosters can skip this.
+GITHUB_CLIENT_ID=
+
+# Optional, dev only: pin the dashboard theme while working (light | dark)
+#   echo 'VITE_FORCE_THEME=light' > .env.local

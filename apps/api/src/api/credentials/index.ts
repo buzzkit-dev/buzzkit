@@ -1,4 +1,10 @@
-import { type SealedSecret, sealSecret, unsealSecret } from '@buzzkit/api/libs/crypto';
+import {
+  currentKeyVersion,
+  rewrapSecret,
+  type SealedSecret,
+  sealSecret,
+  unsealSecret,
+} from '@buzzkit/api/libs/crypto';
 import { BadRequestError, describeError, NotFoundError } from '@buzzkit/api/libs/error';
 import { EnvironmentSchema } from '@buzzkit/api/libs/schemas';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
@@ -6,7 +12,7 @@ import { trace } from '@buzzkit/api/libs/telemetry';
 import { parseServiceAccount } from '@buzzkit/api/providers/fcm/index';
 import type { ProviderValidationResult } from '@buzzkit/api/providers/index';
 import { PROVIDERS } from '@buzzkit/api/providers/index';
-import { and, type Db, desc, environment, eq, isNull, tables } from '@buzzkit/database';
+import { and, type Db, desc, environment, eq, isNull, lt, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Credential = typeof tables.credential.$inferSelect;
@@ -384,4 +390,52 @@ export async function decryptCredentialSecret(credential: Credential): Promise<s
       })
     )
   );
+}
+
+export async function listCredentialsWrappedBefore(db: Db, keyVersion: number, limit: number) {
+  return db
+    .select()
+    .from(tables.credential)
+    .where(and(lt(tables.credential.keyVersion, keyVersion), isNull(tables.credential.deletedAt)))
+    .limit(limit);
+}
+
+export async function rewrapCredential(db: Db, credential: Credential): Promise<Credential> {
+  const sealed = await rewrapSecret(
+    {
+      secretCiphertext: credential.secretCiphertext,
+      secretIv: credential.secretIv,
+      dekCiphertext: credential.dekCiphertext,
+      dekIv: credential.dekIv,
+      keyVersion: credential.keyVersion,
+    },
+    sealingContext({
+      tenantId: credential.tenantId,
+      channel: credential.channel,
+      provider: credential.provider,
+      environment: credential.environment,
+    })
+  );
+
+  const [updated] = await db
+    .update(tables.credential)
+    .set({
+      dekCiphertext: sealed.dekCiphertext,
+      dekIv: sealed.dekIv,
+      keyVersion: sealed.keyVersion,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(tables.credential.id, credential.id), eq(tables.credential.keyVersion, credential.keyVersion))
+    )
+    .returning();
+
+  return updated ?? credential;
+}
+
+export async function rewrapCredentials(db: Db, limit: number): Promise<number> {
+  const current = currentKeyVersion();
+  const rows = await listCredentialsWrappedBefore(db, current, limit);
+  for (const row of rows) await rewrapCredential(db, row);
+  return rows.length;
 }

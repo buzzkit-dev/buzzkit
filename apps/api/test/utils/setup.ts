@@ -13,7 +13,7 @@ export async function signUpUser(name = 'Test User') {
   const response = await fetch(`${BASE_URL}/v1/auth/sign-up/email`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, email, password: 'password1234' }),
+    body: JSON.stringify({ name, email, password: `Bk-${crypto.randomUUID()}` }),
   });
 
   const token = response.headers.get('set-auth-token');

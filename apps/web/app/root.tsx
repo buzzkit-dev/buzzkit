@@ -1,4 +1,11 @@
+import { Toaster } from '@buzzkit/ui/components/sonner';
+import { TooltipProvider } from '@buzzkit/ui/components/tooltip';
+import { MotionConfig } from 'motion/react';
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
+import { ThemeProvider } from '@/app/components/layout/theme-provider';
+import { ErrorPage } from '@/app/components/system/error';
+import { NoAccessPage } from '@/app/components/system/no-access';
+import { NotFoundPage } from '@/app/components/system/not-found';
 import type { Route } from './+types/root';
 import './app.css';
 
@@ -21,10 +28,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return (
+    <ThemeProvider>
+      <MotionConfig reducedMotion='user'>
+        <TooltipProvider>
+          <Outlet />
+          <Toaster />
+        </TooltipProvider>
+      </MotionConfig>
+    </ThemeProvider>
+  );
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  if (isRouteErrorResponse(error) && error.status === 404) return <NotFoundPage />;
+  if (isRouteErrorResponse(error) && error.status === 403) return <NoAccessPage />;
+
   let title = 'Something broke';
   let details = 'Reload the page. If it keeps happening, contact support.';
   let stack: string | undefined;
@@ -37,15 +56,5 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     if (import.meta.env.DEV) stack = error.stack;
   }
 
-  return (
-    <main className='flex min-h-svh flex-col items-center justify-center gap-2 p-8'>
-      <h1 className='font-semibold text-lg'>{title}</h1>
-      <p className='text-neutral-500 text-sm'>{details}</p>
-      {stack && (
-        <pre className='max-w-full overflow-x-auto rounded-md bg-neutral-100 p-4 text-xs'>
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
-  );
+  return <ErrorPage title={title} details={details} stack={stack} />;
 }

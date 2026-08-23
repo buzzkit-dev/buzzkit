@@ -69,7 +69,7 @@ CREATE TABLE "credential" (
 	"secret_iv" text NOT NULL,
 	"dek_ciphertext" text NOT NULL,
 	"dek_iv" text NOT NULL,
-	"key_version" integer DEFAULT 1 NOT NULL,
+	"key_version" integer NOT NULL,
 	"details" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"status" "credential_status" DEFAULT 'unvalidated' NOT NULL,
 	"last_error" text,

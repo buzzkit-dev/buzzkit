@@ -69,8 +69,8 @@ export function classify(status: number, errorCode: string | null): DeliveryErro
   return classifyHttpStatus(status);
 }
 
-function tokenCacheKey(input: { credentialId: number; keyVersion: number }): string {
-  return `fcm:token:${input.credentialId}:${input.keyVersion}`;
+function tokenCacheKey(input: { credentialId: number; credentialUpdatedAt: number }): string {
+  return `fcm:token:${input.credentialId}:${input.credentialUpdatedAt}`;
 }
 
 type AccessToken =

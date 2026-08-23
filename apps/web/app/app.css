@@ -1,1 +1,11 @@
-@import "tailwindcss";
+@import "@buzzkit/ui/globals.css";
+
+@keyframes spot-pulse {
+  0%,
+  60% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-sky-4) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px color-mix(in oklab, var(--color-sky-4) 0%, transparent);
+  }
+}

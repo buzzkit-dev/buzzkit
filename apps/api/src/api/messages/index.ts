@@ -493,7 +493,7 @@ async function fanoutPageInner(db: Db, messageId: number, afterId: number): Prom
 
 type ResolvedCredential = {
   id: number;
-  keyVersion: number;
+  updatedAt: Date;
   environment: ProviderEnvironment;
   details: Record<string, string>;
   secret: string;
@@ -544,7 +544,7 @@ async function findCredentialForProvider(
 
   return {
     id: credential.id,
-    keyVersion: credential.keyVersion,
+    updatedAt: credential.updatedAt,
     environment: credential.environment,
     details: credential.details as Record<string, string>,
     secret: await decryptCredentialSecret(credential),
@@ -703,7 +703,7 @@ export async function processDeliveryBatch(
         ? await trace(`deliver.${provider}`, async () =>
             PROVIDERS[provider].send({
               credentialId: credential.id,
-              keyVersion: credential.keyVersion,
+              credentialUpdatedAt: credential.updatedAt.getTime(),
               secret: credential.secret,
               details: credential.details,
               environment: credential.environment,

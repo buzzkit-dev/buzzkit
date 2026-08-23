@@ -15,7 +15,7 @@ const buttonVariants = cva(
     'outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
     'aria-invalid:focus-visible:ring-0',
     '[&:disabled]:cursor-not-allowed [&:disabled_svg]:opacity-30',
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
   ].join(' '),
   {
     variants: {

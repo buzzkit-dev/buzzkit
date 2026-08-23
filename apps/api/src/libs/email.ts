@@ -8,7 +8,7 @@ export async function sendTextEmail(input: { to: string; subject: string; text: 
     try {
       await env.EMAIL.send({
         to: input.to,
-        from: { email: env.EMAIL_FROM, name: 'buzzkit' },
+        from: { email: 'mail@tm.buzzkit.dev', name: 'BuzzKit' },
         subject: input.subject,
         text: input.text,
       });

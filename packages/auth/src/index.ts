@@ -1,6 +1,7 @@
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { type DB, drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { bearer, openAPI } from 'better-auth/plugins';
+import { bearer, haveIBeenPwned, openAPI } from 'better-auth/plugins';
+import { sharedCookieDomain } from './cookies';
 
 interface Env {
   BETTER_AUTH_URL: string;
@@ -39,6 +40,7 @@ export function createBetterAuthConfig(env: Env) {
     trustedOrigins: [new URL(env.BETTER_AUTH_URL).origin, env.DASHBOARD_URL],
     emailAndPassword: {
       enabled: true,
+      minPasswordLength: 8,
     },
     socialProviders: githubAuthEnabled(env)
       ? {
@@ -51,10 +53,15 @@ export function createBetterAuthConfig(env: Env) {
     advanced: {
       cookiePrefix: 'buzzkit',
       disableCSRFCheck: env.ENVIRONMENT === 'development',
+      ...(() => {
+        const domain = sharedCookieDomain(env.BETTER_AUTH_URL, env.DASHBOARD_URL);
+        return domain ? { crossSubDomainCookies: { enabled: true, domain } } : {};
+      })(),
     },
     secret: env.BETTER_AUTH_SECRET,
     plugins: [
       bearer(),
+      haveIBeenPwned(),
       openAPI({
         path: '/reference',
         disableDefaultReference: env.ENVIRONMENT !== 'development',

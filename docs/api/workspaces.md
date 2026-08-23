@@ -17,7 +17,7 @@
 
 ## Invites
 
-Invites are **session-only** (`invites:*` cannot be granted to API keys — an invite is a path to a dashboard seat, so only a person may create one). Emails go through the Cloudflare Email Service binding (`EMAIL`, from `EMAIL_FROM`); delivery failure never fails the mutation — create/resend responses carry `emailSent` and the `token` so the inviter can share the link (`<dashboard>/invite/<token>`) directly. The token is never included in list responses.
+Invites are **session-only** (`invites:*` cannot be granted to API keys — an invite is a path to a dashboard seat, so only a person may create one). Emails go through the Cloudflare Email Service binding (`EMAIL`, from `mail@tm.buzzkit.dev`); delivery failure never fails the mutation — create/resend responses carry `emailSent` and the `token` so the inviter can share the link (`<dashboard>/invite/<token>`) directly. The token is never included in list responses.
 
 - `POST /v1/workspaces/:workspaceSlug/invites` — `invites:write`; `{ email, role?: member|admin }` → 201 with token + `emailSent`. One pending invite per email; existing members conflict.
 - `GET /v1/workspaces/:workspaceSlug/invites` — `invites:read`; pending invites (no tokens).

@@ -23,6 +23,7 @@
   "devDependencies": {
     "@central-icons-react/all": "^1.1.303",
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "tailwindcss": "^4.3.3",

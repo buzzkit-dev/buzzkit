@@ -52,8 +52,8 @@ export function classify(status: number, reason: string | null): DeliveryErrorCo
   return classifyHttpStatus(status);
 }
 
-function jwtCacheKey(input: { credentialId: number; keyVersion: number }): string {
-  return `apns:jwt:${input.credentialId}:${input.keyVersion}`;
+function jwtCacheKey(input: { credentialId: number; credentialUpdatedAt: number }): string {
+  return `apns:jwt:${input.credentialId}:${input.credentialUpdatedAt}`;
 }
 
 export function createApnsJwt(params: { p8: string; teamId: string; keyId: string }): Promise<string> {

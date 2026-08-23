@@ -726,7 +726,7 @@
  * the cascade against our layered base rules.
  * ────────────────────────────────────────────────────────────────────── */
 
-@keyframes fb-toast-shake {
+@keyframes bk-toast-shake {
   0%,
   100% {
     translate: 0 0;
@@ -741,7 +741,7 @@
     translate: -1px 0;
   }
 }
-@keyframes fb-toast-bump {
+@keyframes bk-toast-bump {
   0%,
   100% {
     scale: 1;
@@ -750,16 +750,16 @@
     scale: 1.015;
   }
 }
-[data-sonner-toast].fb-toast-shake {
-  animation: fb-toast-shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+[data-sonner-toast].bk-toast-shake {
+  animation: bk-toast-shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
-[data-sonner-toast].fb-toast-bump {
-  animation: fb-toast-bump 0.3s ease-out;
+[data-sonner-toast].bk-toast-bump {
+  animation: bk-toast-bump 0.3s ease-out;
 }
 
 /* Compact single-line toast; loosens up when a description is present so the
  * denser content doesn't feel cramped. */
-[data-sonner-toast][data-styled="true"].fb-toast {
+[data-sonner-toast][data-styled="true"].bk-toast {
   /* Sonner sets border-radius from its own unlayered stylesheet, which beats
    * the Tailwind rounded-* utility — restate it here. */
   border-radius: var(--radius-3xl);
@@ -767,7 +767,7 @@
   padding: 6px 14px;
   min-height: 44px;
 }
-[data-sonner-toast][data-styled="true"].fb-toast:has([data-description]) {
+[data-sonner-toast][data-styled="true"].bk-toast:has([data-description]) {
   padding: 14px;
   gap: 10px;
   min-height: 0;
@@ -775,19 +775,19 @@
 /* With an action (any sibling after [data-content]) the button sits against
  * the right edge — pad to match the vertical breathing room, not padding-x.
  * For a 44px toast with a 24px action that's (44 - 24) / 2 = 10px. */
-[data-sonner-toast][data-styled="true"].fb-toast:has([data-content] + *) {
+[data-sonner-toast][data-styled="true"].bk-toast:has([data-content] + *) {
   padding-right: 10px;
 }
-[data-sonner-toast][data-styled="true"].fb-toast:has([data-description]):has([data-content] + *) {
+[data-sonner-toast][data-styled="true"].bk-toast:has([data-description]):has([data-content] + *) {
   padding-right: 14px;
 }
 
-[data-sonner-toast].fb-toast [data-content] {
+[data-sonner-toast].bk-toast [data-content] {
   gap: 0;
   flex: 1 1 auto;
   min-width: 0;
 }
-[data-sonner-toaster] [data-sonner-toast].fb-toast [data-description] {
+[data-sonner-toaster] [data-sonner-toast].bk-toast [data-description] {
   color: var(--fg-2);
   margin-top: 8px;
   line-height: 1.175;
@@ -796,7 +796,7 @@
 /* Sonner's icon wrapper is sized for 16px icons with negative margins baked in.
  * Size it to our 18px icons explicitly — `auto` collapses to 0×0 for loading
  * toasts, whose loader sonner absolutely-positions (see below). */
-[data-sonner-toast].fb-toast [data-icon] {
+[data-sonner-toast].bk-toast [data-icon] {
   width: 18px;
   height: 18px;
   margin: 0;
@@ -805,38 +805,38 @@
   align-items: center;
   justify-content: center;
 }
-[data-sonner-toast].fb-toast [data-icon] > svg {
+[data-sonner-toast].bk-toast [data-icon] > svg {
   margin: 0;
 }
 /* The loader is absolutely centred *on purpose* — that's what lets the result
  * icon cross-fade in the same spot. Never pull it into flow, or the two icons
  * sit side by side. The explicit box above is what stops it collapsing. */
-[data-sonner-toast].fb-toast [data-icon] {
+[data-sonner-toast].bk-toast [data-icon] {
   position: relative;
 }
-[data-sonner-toast].fb-toast .sonner-loader {
+[data-sonner-toast].bk-toast .sonner-loader {
   transition:
     opacity 200ms ease,
     transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-[data-sonner-toast].fb-toast .sonner-loader[data-visible="false"] {
+[data-sonner-toast].bk-toast .sonner-loader[data-visible="false"] {
   opacity: 0;
   transform: scale(0.85) translate(-50%, -50%);
 }
 /* Trim line-box leading above cap height / below baseline so glyph edges line
  * up with flex alignment: icon centers on a single-line title, and tops-aligns
  * with the title's cap when a description is present. */
-[data-sonner-toaster] [data-sonner-toast].fb-toast [data-title],
-[data-sonner-toaster] [data-sonner-toast].fb-toast [data-description] {
+[data-sonner-toaster] [data-sonner-toast].bk-toast [data-title],
+[data-sonner-toaster] [data-sonner-toast].bk-toast [data-description] {
   text-box: trim-both cap alphabetic;
 }
-[data-sonner-toast].fb-toast:has([data-description]) [data-icon] {
+[data-sonner-toast].bk-toast:has([data-description]) [data-icon] {
   align-self: flex-start;
   margin-top: -2px;
 }
 
 /* The result icon scales up as the loader shrinks away underneath it. */
-@keyframes fb-toast-icon-in {
+@keyframes bk-toast-icon-in {
   from {
     opacity: 0;
     transform: scale(0.85);
@@ -846,11 +846,11 @@
     transform: scale(1);
   }
 }
-[data-sonner-toast][data-styled="true"].fb-toast [data-icon] > svg {
+[data-sonner-toast][data-styled="true"].bk-toast [data-icon] > svg {
   opacity: 1;
   transform: none;
   transform-origin: center;
-  animation: fb-toast-icon-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: bk-toast-icon-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ── Selection — follows the surface ──────────────────────────────────────

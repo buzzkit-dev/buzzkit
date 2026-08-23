@@ -1,14 +1,18 @@
-# Copy to .dev.vars and fill in — required for local dev
-# The public address of BetterAuth: the dashboard origin plus /api/auth (the dashboard proxies that path to this API's
-# /v1/auth mount, so sessions are first-party cookies on the dashboard). OAuth callback URLs are built from it.
-BETTER_AUTH_URL=http://localhost:5180/api/auth
+# Auth
+BETTER_AUTH_URL=http://localhost:8790/v1/auth
 BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
-CREDENTIAL_MASTER_KEY=generate-with-openssl-rand-base64-32
 
-# Optional: GitHub sign-in. Self-hosters can skip this entirely; email + password is always on and is all a private
-# deployment needs. To offer it, create an OAuth app at https://github.com/settings/developers with the callback URL
-# <BETTER_AUTH_URL>/callback/github (http://localhost:5180/api/auth/callback/github locally). The dashboard shows the
-# GitHub button only when both values are set. Re-run `bun run cf-typegen` after adding them.
+# Master key that wraps every credential's data key, 32 random bytes base64 (openssl rand -base64 32). To rotate, add
+# the next version (_V2, _V3, ...) and deploy: new uploads seal under the highest version, the scheduler re-wraps older
+# rows to it, and once none are left the old version can be removed. Versions must be contiguous from 1.
+CREDENTIAL_MASTER_KEY_V1=generate-with-openssl-rand-base64-32
+
+
+# Shuffled Sqids alphabet (all 62 of 0-9a-zA-Z in a random order) so public ids are not enumerable. Generate one per
+# deployment and never change it afterwards: ids are derived from it.
+SQIDS_ALPHABET=
+
+# Optional: GitHub OAuth
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 
@@ -19,7 +23,3 @@ AXIOM_API_TOKEN=
 AXIOM_LOGS_DATASET=
 AXIOM_TRACES_DATASET=
 
-# Optional: master-key rotation. Versioned keys as JSON, current version selects the key used for new credentials;
-# older versions stay readable. Without these, CREDENTIAL_MASTER_KEY is version 1.
-CREDENTIAL_MASTER_KEYS=
-CREDENTIAL_MASTER_KEY_VERSION=

@@ -42,7 +42,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // Colors come from our tokens, which already flip with the `.dark` class.
       className='toaster group'
       position='top-center'
-      offset={{ top: 54 }}
+      offset={{ top: 16 }}
       gap={12}
       icons={{
         success: <Icon name='IconCheckCircle2' className='size-4.5 text-green-4' />,
@@ -62,13 +62,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }
       toastOptions={{
         classNames: {
-          toast: 'bk-toast corner-superellipse/1.125 rounded-3xl font-medium !shadow-md',
+          toast: 'bk-toast corner-superellipse/1.125 cursor-default rounded-3xl font-medium !shadow-md',
           // Sonner ships its own button styling; override to our button language.
           actionButton:
-            'bk-toast-button corner-superellipse/1.125 !h-7 !rounded-xl !bg-primary !px-2.5 !font-medium !text-primary-foreground !text-xs',
+            'bk-toast-button corner-superellipse/1.125 !h-7 !cursor-pointer !rounded-xl !bg-primary !px-2.5 !font-medium !text-primary-foreground !text-xs',
           cancelButton:
-            'bk-toast-button corner-superellipse/1.125 !h-7 !rounded-xl !bg-bg-a2 !px-2.5 !font-medium !text-fg-3 !text-xs',
-          closeButton: 'bk-toast-button corner-superellipse/1.125 !rounded-lg !bg-bg-2 !text-fg-3',
+            'bk-toast-button corner-superellipse/1.125 !h-7 !cursor-pointer !rounded-xl !bg-bg-a2 !px-2.5 !font-medium !text-fg-3 !text-xs',
+          closeButton:
+            'bk-toast-button corner-superellipse/1.125 !cursor-pointer !rounded-lg !bg-bg-2 !text-fg-3',
         },
         // Inline style beats sonner's injected stylesheet — the reliable place
         // for translucency + blur.

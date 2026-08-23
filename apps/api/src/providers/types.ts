@@ -44,7 +44,7 @@ export type MessagePayload = {
 
 export type ProviderSendInput = {
   credentialId: number;
-  keyVersion: number;
+  credentialUpdatedAt: number;
   secret: string;
   details: Record<string, string>;
   environment: ProviderEnvironment;

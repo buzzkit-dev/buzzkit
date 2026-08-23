@@ -12,20 +12,14 @@
   "workers_dev": true,
   "preview_urls": true,
 
-  // Non-secret runtime config; override per environment at deploy time.
-  // SQIDS_ALPHABET is a shuffled alphabet so IDs aren't trivially enumerable —
-  // hosted/production deployments MUST override it (wrangler secret).
   "vars": {
     "ENVIRONMENT": "development",
-    "SQIDS_ALPHABET": "kdiEK9YyRrDlM4pnPXWQmL2wNZzeUxIqSHVvTGtjb0aJFuh3s618Bf5cCgAO7o",
     "DASHBOARD_URL": "http://localhost:5180",
-    "EMAIL_FROM": "invites@buzzkit.dev",
-    // Head-sampling ratio for traces (0..1); tail sampling always keeps error traces.
     "TRACE_SAMPLE_RATIO": "1"
   },
 
   // Cloudflare Email Service. `remote: true` sends real email even in local
-  // dev; the EMAIL_FROM domain must be onboarded to Email Sending first.
+  // dev; the sender domain (libs/email.ts) must be onboarded to Email Sending first.
   "send_email": [
     {
       "name": "EMAIL",
@@ -61,10 +55,7 @@
         "queue": "buzzkit-deliveries",
         "max_batch_size": 100,
         "max_batch_timeout": 1,
-        // Each invocation holds ≤2 DB connections; 40 × 2 stays well inside Hyperdrive's pool
         "max_concurrency": 40,
-        // Delivery retries are scheduled in-code (persisted next_attempt_at +
-        // delayed re-enqueue); this caps runaway redelivery of crashing jobs
         "max_retries": 8,
         "dead_letter_queue": "buzzkit-deliveries-dlq"
       }
@@ -72,7 +63,6 @@
   },
 
   "triggers": {
-    // Delivery reconciliation: due retries, lost enqueues, expiries, stalled fan-outs
     "crons": ["*/5 * * * *"]
   }
 }
