@@ -1,7 +1,7 @@
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { type DB, drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, haveIBeenPwned, openAPI } from 'better-auth/plugins';
-import { sharedCookieDomain } from './cookies';
+import { COOKIE_PREFIX, sharedCookieDomain } from './cookies';
 
 interface Env {
   BETTER_AUTH_URL: string;
@@ -51,7 +51,7 @@ export function createBetterAuthConfig(env: Env) {
         }
       : {},
     advanced: {
-      cookiePrefix: 'buzzkit',
+      cookiePrefix: COOKIE_PREFIX,
       disableCSRFCheck: env.ENVIRONMENT === 'development',
       ...(() => {
         const domain = sharedCookieDomain(env.BETTER_AUTH_URL, env.DASHBOARD_URL);

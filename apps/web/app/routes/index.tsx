@@ -9,7 +9,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const { token } = requireSession(request);
   const workspaces = await listWorkspaces({ request, env }, token);
 
-  if (workspaces.length === 0) throw redirect('/new');
+  if (workspaces.length === 0) throw redirect('/onboarding');
 
   const lastWorkspace = await readLastWorkspace(request);
   const target = workspaces.find((workspace) => workspace.slug === lastWorkspace) ?? workspaces[0]!;

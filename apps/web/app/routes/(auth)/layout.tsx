@@ -2,7 +2,7 @@ import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardDescription, CardFooter, CardTitle } from '@buzzkit/ui/components/card';
 import { Link, Outlet, useLocation, useMatches } from 'react-router';
 import { AuthForm, type AuthMode, type LoginProviders } from '@/app/components/auth/form';
-import { OnboardingCardHeader } from '@/app/components/onboarding/shell';
+import { OnboardingCardHeader } from '@/app/components/onboarding/layout';
 
 export type AuthHandle = {
   auth: {
@@ -17,7 +17,7 @@ function isAuthHandle(handle: unknown): handle is AuthHandle {
   return typeof handle === 'object' && handle !== null && 'auth' in handle;
 }
 
-export function AuthShell() {
+export default function AuthLayout() {
   const { search } = useLocation();
   const match = [...useMatches()].reverse().find((entry) => isAuthHandle(entry.handle));
   const auth = match && isAuthHandle(match.handle) ? match.handle.auth : null;

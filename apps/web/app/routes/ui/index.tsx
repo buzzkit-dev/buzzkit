@@ -68,6 +68,7 @@ import {
   FieldSeparator,
   FieldSet,
 } from '@buzzkit/ui/components/field';
+import { GuideStep } from '@buzzkit/ui/components/guide-step';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { ICON_NAMES, Icon } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
@@ -121,12 +122,11 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { useEffect, useRef, useState } from 'react';
 import { OAuthProviders } from '@/app/components/auth/providers';
-import { ModeToggle } from '@/app/components/layout/mode-toggle';
+import { useTheme } from '@/app/components/layout/theme-provider';
 import { ChoiceRow, ChoiceRows } from '@/app/components/onboarding/choice-row';
 import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop';
 import { apnsGuide } from '@/app/components/onboarding/guides/apns';
 import { OnboardingProgress } from '@/app/components/onboarding/progress';
-import { GuideStep } from '@/app/components/shared/guide-step';
 
 export function meta() {
   return [{ title: 'Design System · BuzzKit' }];
@@ -468,6 +468,28 @@ const FADE_ROWS = Array.from({ length: 16 }, (_, i) => ({
   id: `fade-${i + 1}`,
   label: `Plain container #${i + 1}`,
 }));
+
+function ModeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant='elevated' size='icon' aria-label='Toggle theme' />}>
+        <Icon name='IconSun' className='size-4 dark:hidden' />
+        <Icon name='IconMoon' className='hidden size-4 dark:block' />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-32'>
+        <DropdownMenuGroup>
+          <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as typeof theme)}>
+            <DropdownMenuRadioItem value='light'>Light</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value='dark'>Dark</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value='system'>System</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function DesignSystem() {
   const [expanded, setExpanded] = useState(false);

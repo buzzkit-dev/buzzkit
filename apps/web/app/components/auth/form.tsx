@@ -71,6 +71,7 @@ export function AuthForm({
   const nameError = errors?.fields?.name;
   const emailError = errors?.fields?.email;
   const passwordError = errors?.fields?.password;
+
   useFocusFirstError(errors);
 
   useEffect(() => {

@@ -197,11 +197,11 @@ A toast title is one line, always: a short statement of what happened ("Email or
 
 ### Brand marks
 
-Brand marks are icons like any other: `<Icon name='IconGithub' />` comes from Central, and marks Central does not carry (`IconResend`) live in `packages/ui/src/components/icon/custom.ts`, drawn into the same 24×24 box and emitted into `paths.ts` by the generator when referenced. No separate brand components, no inline SVGs. On a sign-in button the mark runs at `opacity-100`; inside an `IconTile` it takes the tile's treatment. The sign-in button always reads "Continue with GitHub", whichever page it is on.
+Brand marks are icons like any other: `<Icon name='IconGithub' />` comes from Central, and marks Central does not carry (`IconResend`, and our own logo as `IconBuzzkit`) live in `packages/ui/src/components/icon/custom.ts`, drawn into the same 24×24 box and emitted into `paths.ts` by the generator when referenced. No separate brand components, no inline SVGs. On a sign-in button the mark runs at `opacity-100`; inside an `IconTile` it takes the tile's treatment. The sign-in button always reads "Continue with GitHub", whichever page it is on.
 
 ### Auth pages
 
-`/login`, `/signup`, `/new` and `/invite/:token` are the onboarding card without the progress lines: a `max-w-md` `Card` centred on the page, title and one-line description in the header, the form in the content, and the alternate action ("Already have an account? Sign in") as the card footer. Sign in and create account are one form: header and footer swap instantly, Email, Password and the button never move, and the Name field rises out from behind Email (height, 24px translate, 0.95 scale, fade, 0.4s bounce-0 spring) when switching to create account. When GitHub is configured the card opens with a full-width `elevated` "Sign in with GitHub" / "Sign up with GitHub" button above an `or` divider, then the email form.
+`/login`, `/signup` and `/invite/:token` are the onboarding card without the progress lines (workspace creation at `/onboarding` is the onboarding card itself, step 1 active): a `max-w-md` `Card` centred on the page, title and one-line description in the header, the form in the content, and the alternate action ("Already have an account? Sign in") as the card footer. Sign in and create account are one form: header and footer swap instantly, Email, Password and the button never move, and the Name field rises out from behind Email (height, 24px translate, 0.95 scale, fade, 0.4s bounce-0 spring) when switching to create account. When GitHub is configured the card opens with a full-width `elevated` "Sign in with GitHub" / "Sign up with GitHub" button above an `or` divider, then the email form.
 
 ### The icon-swap standard
 

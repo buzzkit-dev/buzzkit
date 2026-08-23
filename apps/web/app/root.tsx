@@ -2,10 +2,10 @@ import { Toaster } from '@buzzkit/ui/components/sonner';
 import { TooltipProvider } from '@buzzkit/ui/components/tooltip';
 import { MotionConfig } from 'motion/react';
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
+import { NoAccessPage } from '@/app/components/errors/no-access';
+import { NotFoundPage } from '@/app/components/errors/not-found';
+import { ErrorPage } from '@/app/components/errors/unexpected';
 import { ThemeProvider } from '@/app/components/layout/theme-provider';
-import { ErrorPage } from '@/app/components/system/error';
-import { NoAccessPage } from '@/app/components/system/no-access';
-import { NotFoundPage } from '@/app/components/system/not-found';
 import type { Route } from './+types/root';
 import './app.css';
 
