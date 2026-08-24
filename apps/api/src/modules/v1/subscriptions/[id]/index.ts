@@ -1,4 +1,5 @@
 import {
+  findSubscriberById,
   findSubscription,
   resolveSubscriptionEventData,
   serializeSubscription,
@@ -29,6 +30,7 @@ export const subscription = new Elysia()
     '/subscriptions/:id',
     async ({ body, db, params, tenant, event }) => {
       const target = await findSubscription(db, tenant.id, params.id);
+      const subscriber = await findSubscriberById(db, tenant.id, target.subscriberId);
 
       const updated = await updateSubscriptionEnabled(db, target.id, body.enabled);
 
@@ -36,7 +38,7 @@ export const subscription = new Elysia()
         event: 'subscription.updated',
         tenantId: tenant.id,
         target: { type: 'subscription', id: target.id },
-        data: { ...resolveSubscriptionEventData(target), enabled: body.enabled },
+        data: { ...resolveSubscriptionEventData(target, subscriber.externalId), enabled: body.enabled },
       });
 
       return Response.success(
@@ -53,6 +55,7 @@ export const subscription = new Elysia()
     '/subscriptions/:id',
     async ({ db, params, tenant, event }) => {
       const target = await findSubscription(db, tenant.id, params.id);
+      const subscriber = await findSubscriberById(db, tenant.id, target.subscriberId);
 
       const deleted = await softDeleteSubscription(db, target.id);
 
@@ -60,7 +63,7 @@ export const subscription = new Elysia()
         event: 'subscription.removed',
         tenantId: tenant.id,
         target: { type: 'subscription', id: target.id },
-        data: resolveSubscriptionEventData(target),
+        data: resolveSubscriptionEventData(target, subscriber.externalId),
       });
 
       return Response.success(

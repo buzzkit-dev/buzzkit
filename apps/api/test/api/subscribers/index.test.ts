@@ -1,4 +1,8 @@
-import { assertNoSystemAttributes, resolveSystemAttributes } from '@buzzkit/api/api/subscribers/index';
+import {
+  assertNoSystemAttributes,
+  resolveSubscriptionEventData,
+  resolveSystemAttributes,
+} from '@buzzkit/api/api/subscribers/index';
 import { describe, expect, it } from 'vitest';
 
 function request(headers: Record<string, string> = {}, cf?: Record<string, string>) {
@@ -63,5 +67,33 @@ describe('assertNoSystemAttributes', () => {
         expect.objectContaining({ code: 'system_attribute', param: 'attributes' })
       );
     }
+  });
+});
+
+describe('resolveSubscriptionEventData', () => {
+  const subscription = {
+    id: 1,
+    channel: 'push' as const,
+    platform: 'ios' as const,
+    endpoint: 'a1b2c3',
+    token: 'secret-device-token',
+    enabled: true,
+  };
+
+  it('carries only the channel, platform and endpoint, never the rest of the row', () => {
+    expect(resolveSubscriptionEventData(subscription)).toEqual({
+      channel: 'push',
+      platform: 'ios',
+      endpoint: 'a1b2c3',
+    });
+  });
+
+  it('adds the external id when the caller knows it', () => {
+    expect(resolveSubscriptionEventData(subscription, 'user_1')).toEqual({
+      externalId: 'user_1',
+      channel: 'push',
+      platform: 'ios',
+      endpoint: 'a1b2c3',
+    });
   });
 });

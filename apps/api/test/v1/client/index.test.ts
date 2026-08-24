@@ -50,6 +50,8 @@ describe('client keys', () => {
       { path: '/v1/tenants', method: 'GET' },
       { path: '/v1/credentials', method: 'GET' },
       { path: '/v1/subscribers', method: 'GET' },
+      { path: '/v1/subscribers/user_1/deliveries', method: 'GET' },
+      { path: '/v1/subscribers/user_1/events', method: 'GET' },
       { path: `/v1/workspaces/${workspace.slug}`, method: 'GET' },
       { path: '/v1/profile', method: 'GET' },
     ]) {

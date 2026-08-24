@@ -289,6 +289,29 @@ export async function findSubscriberByExternalId(
   return subscriber;
 }
 
+export async function findSubscriberById(db: Db, tenantId: number, id: number): Promise<Subscriber> {
+  const [subscriber] = await trace(
+    'subscribers.findById',
+    async () =>
+      await db
+        .select()
+        .from(tables.subscriber)
+        .where(
+          and(
+            eq(tables.subscriber.tenantId, tenantId),
+            eq(tables.subscriber.id, id),
+            isNull(tables.subscriber.deletedAt)
+          )
+        )
+  );
+
+  if (!subscriber) {
+    throw new NotFoundError('Subscriber not found');
+  }
+
+  return subscriber;
+}
+
 export type SubscriberListItem = Subscriber & {
   lastSeenAt: Date | null;
   channels: string[];

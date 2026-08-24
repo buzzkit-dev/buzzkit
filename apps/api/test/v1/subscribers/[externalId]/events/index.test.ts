@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../../../utils/api';
 import { fakeToken } from '../../../../utils/fixtures';
-import { setupWorkspace, uniq } from '../../../../utils/setup';
+import { createKey, createTenant, setupWorkspace, uniq } from '../../../../utils/setup';
 
 describe('GET /v1/subscribers/:externalId/events', () => {
   it('lists the ledger about one subscriber, newest first, with a total', async () => {
@@ -66,5 +66,88 @@ describe('GET /v1/subscribers/:externalId/events', () => {
     );
     expect(page2.body.data?.items).toHaveLength(1);
     expect(page2.body.data?.hasMore).toBe(false);
+  });
+
+  it('includes subscriber and preference events, and names the subscription in event data', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `full-${uniq()}`;
+    const identify = (attributes: Record<string, unknown>) =>
+      api(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify({ attributes }),
+      });
+    expect((await identify({ plan: 'free' })).status).toBe(201);
+    expect((await identify({ plan: 'pro' })).status).toBe(200);
+
+    const token = fakeToken(externalId);
+    const registered = await api<{ id: string }>('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'android', token }),
+    });
+    const topic = `deals-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: topic, name: 'Deals' }),
+    });
+    await api(`/v1/subscribers/${encodeURIComponent(externalId)}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [topic]: false } }),
+    });
+    await api(`/v1/subscriptions/${registered.body.data?.id}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ enabled: false }),
+    });
+
+    const { body } = await api<{
+      items: Array<{ event: string; targetType: string | null; data: Record<string, unknown> | null }>;
+      total: number;
+    }>(`/v1/subscribers/${encodeURIComponent(externalId)}/events?limit=100`, { headers: keyBearer });
+    const items = body.data?.items ?? [];
+    const events = items.map((item) => item.event);
+    for (const expected of [
+      'subscriber.created',
+      'subscriber.updated',
+      'subscription.created',
+      'preferences.updated',
+      'subscription.updated',
+    ]) {
+      expect(events, expected).toContain(expected);
+    }
+    expect(body.data?.total).toBe(items.length);
+
+    const aboutSubscription = items.filter((item) => item.targetType === 'subscription');
+    expect(aboutSubscription.length).toBeGreaterThanOrEqual(2);
+    for (const item of aboutSubscription) {
+      expect(item.data).toMatchObject({ externalId, channel: 'push', platform: 'android' });
+      expect(item.data?.endpoint).toBe(token);
+    }
+  });
+
+  it('is scoped to the tenant and needs subscribers:read', async () => {
+    const { owner, workspace, keyBearer } = await setupWorkspace();
+    const externalId = `scoped-${uniq()}`;
+    await api(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: '{}',
+    });
+    const path = `/v1/subscribers/${encodeURIComponent(externalId)}/events`;
+
+    const other = await createTenant(keyBearer);
+    const foreign = await api(path, { headers: { ...keyBearer, 'buzzkit-tenant': other.slug } });
+    expect(foreign.status).toBe(404);
+
+    const wrongScope = await createKey(owner.token, workspace.slug, { scopes: ['messages:read'] });
+    const denied = await api(path, { headers: { Authorization: `Bearer ${wrongScope.secret}` } });
+    expect(denied.status).toBe(403);
+
+    const readOnly = await createKey(owner.token, workspace.slug, { scopes: ['subscribers:read'] });
+    const ok = await api(path, { headers: { Authorization: `Bearer ${readOnly.secret}` } });
+    expect(ok.status).toBe(200);
   });
 });
