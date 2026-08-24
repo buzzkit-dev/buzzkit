@@ -52,7 +52,7 @@ export function createBetterAuthConfig(env: Env) {
       : {},
     advanced: {
       cookiePrefix: COOKIE_PREFIX,
-      disableCSRFCheck: env.ENVIRONMENT === 'development',
+      disableCSRFCheck: env.ENVIRONMENT !== 'production',
       ...(() => {
         const domain = sharedCookieDomain(env.BETTER_AUTH_URL, env.DASHBOARD_URL);
         return domain ? { crossSubDomainCookies: { enabled: true, domain } } : {};
@@ -61,10 +61,10 @@ export function createBetterAuthConfig(env: Env) {
     secret: env.BETTER_AUTH_SECRET,
     plugins: [
       bearer(),
-      haveIBeenPwned(),
+      ...(env.ENVIRONMENT === 'test' ? [] : [haveIBeenPwned()]),
       openAPI({
         path: '/reference',
-        disableDefaultReference: env.ENVIRONMENT !== 'development',
+        disableDefaultReference: env.ENVIRONMENT === 'production',
       }),
     ],
   } satisfies BetterAuthOptions;

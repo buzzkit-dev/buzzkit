@@ -20,7 +20,7 @@ camelCase fields; every object carries `id`, `createdAt`, `updatedAt`; absent va
 
 ## Lists
 
-Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginated lists take `limit` (default 50, max 100) and `cursor` (the `nextCursor` of the previous page, opaque) and are ordered **newest first**. An invalid cursor is a 400 `invalid_cursor`. Lists that can count cheaply also carry `total`, the number of items across every page (keys today); unbounded ledgers (messages, events) never do.
+Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginated lists take `limit` (default 50, max 100) and `cursor` (the `nextCursor` of the previous page, opaque) and are ordered **newest first**. An invalid cursor is a 400 `invalid_cursor`. Every paginated list also carries `total`, the number of items across every page under the same filters, so a client can show "Page 2 / 5 (231)".
 
 ## Errors
 
@@ -28,7 +28,7 @@ Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginat
 { "success": false, "data": null, "error": { "code": "channel_disabled", "message": "The 'push' channel is disabled for this tenant", "param": "channel", "details": null }, "metadata": { "timestamp": "…", "requestId": "…" } }
 ```
 
-- `code` is lowercase snake_case and machine-readable: the HTTP class (`bad_request`, `validation`, `unauthorized`, `forbidden`, `missing_permission`, `not_found`, `conflict`, `gone`, `rate_limited`, `internal`, `unavailable`) or a domain code (`channel_disabled`, `channel_unsupported`, `targets_missing`, `payload_missing`, `payload_too_large`, `attributes_too_large`, `metadata_too_large`, `endpoint_owned`, `slug_taken`, `default_tenant_immutable`, `last_owner`, `tenant_required`, `idempotency_key_reused`, `idempotency_key_in_use`, `invalid_cursor`, `invalid_scope`, `invalid_api_key`, `api_key_expired`, `wrong_workspace`, `wrong_tenant`, `tenant_not_found`, `workspace_missing`, `missing_authorization`, `invalid_session`, `client_key_required`, `identity_required`, `identity_not_configured`, `invalid_identity_hash`, `subscriber_header_missing`, `invalid_service_account`, `credential_rejected`). Branch on `code`, never on `message`.
+- `code` is lowercase snake_case and machine-readable: the HTTP class (`bad_request`, `validation`, `unauthorized`, `forbidden`, `missing_permission`, `not_found`, `conflict`, `gone`, `rate_limited`, `internal`, `unavailable`) or a domain code (`channel_disabled`, `channel_unsupported`, `targets_missing`, `payload_missing`, `payload_too_large`, `attributes_too_large`, `system_attribute`, `metadata_too_large`, `endpoint_owned`, `slug_taken`, `default_tenant_immutable`, `last_owner`, `tenant_required`, `idempotency_key_reused`, `idempotency_key_in_use`, `invalid_cursor`, `invalid_scope`, `invalid_api_key`, `api_key_expired`, `wrong_workspace`, `wrong_tenant`, `tenant_not_found`, `workspace_missing`, `missing_authorization`, `invalid_session`, `client_key_required`, `identity_required`, `identity_not_configured`, `invalid_identity_hash`, `subscriber_header_missing`, `invalid_service_account`, `credential_rejected`). Branch on `code`, never on `message`.
 - `param` names the offending field when there is one. `validation` errors carry `details: [{ param, message }]` for every failing field.
 - Database failures never surface as database codes: a unique-index race is a `conflict`, an outage is `unavailable`; unexpected errors are `internal` with the real message logged, not returned.
 

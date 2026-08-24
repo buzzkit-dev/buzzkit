@@ -10,7 +10,7 @@ Every variable, secret and binding the two Workers read, what it is for, and whe
 
 | Name | Required | Purpose |
 | --- | --- | --- |
-| `ENVIRONMENT` | yes | `development` or `production`. Relaxes BetterAuth's CSRF check and exposes the OpenAPI reference in development only. |
+| `ENVIRONMENT` | yes | `development`, `test` or `production`. Outside production BetterAuth's CSRF check is relaxed and the OpenAPI reference is exposed; `test` (set by `scripts/test.ts` for the suite's own API) additionally skips the Have I Been Pwned password check, so the suite never waits on an external service. |
 | `DASHBOARD_URL` | yes | Origin of the dashboard (`http://localhost:5180` locally). It is the CORS origin, a BetterAuth trusted origin, and where GitHub sign-in hands the browser back to. |
 | `TRACE_SAMPLE_RATIO` | optional | Head-sampling ratio for traces, `0` to `1` (default `1`). Error traces are always kept. |
 

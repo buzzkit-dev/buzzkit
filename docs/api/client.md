@@ -4,6 +4,8 @@
 
 ## POST /v1/client/identify
 
+Identify and device registration both stamp the subscriber's **system attributes** (`$country`, `$city`, `$region`, `$timezone` from the edge, `$language` from `Accept-Language`) because these calls come from the device itself; server-side identify never does. See [subscribers.md](subscribers.md).
+
 `{ externalId, email?, identityHash? }` — creates the subscriber if new (`email` upserts an email subscription). Call at login (or before showing preferences, so they work even if push permission was denied).
 
 ## POST /v1/client/subscriptions

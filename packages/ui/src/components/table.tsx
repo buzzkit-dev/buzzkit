@@ -90,12 +90,14 @@ function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) 
 function TablePagination({
   page,
   pageCount,
+  total = null,
   previous,
   next,
   className,
 }: {
   page: number;
   pageCount: number | null;
+  total?: number | null;
   previous: string | null;
   next: string | null;
   className?: string;
@@ -120,6 +122,12 @@ function TablePagination({
             {' / '}
             <NumberFlow value={pageCount} />
           </>
+        )}
+        {total !== null && (
+          <span className='text-fg-1'>
+            {' '}
+            (<NumberFlow value={total} />)
+          </span>
         )}
       </span>
       <span className='-mr-2 flex items-center'>

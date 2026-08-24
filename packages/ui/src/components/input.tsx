@@ -1,9 +1,17 @@
 import { Input as InputPrimitive } from '@base-ui/react/input';
+import { Spinner } from '@buzzkit/ui/components/spinner';
 import { cn } from '@buzzkit/ui/lib/utils';
 import type * as React from 'react';
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
-  return (
+function Input({
+  className,
+  type,
+  loading,
+  ...props
+}: React.ComponentProps<'input'> & {
+  loading?: boolean;
+}) {
+  const input = (
     <InputPrimitive
       type={type}
       data-slot='input'
@@ -16,10 +24,25 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
         // quieter than an editable field's, but never absent.
         'read-only:cursor-default read-only:border read-only:border-bg-4 read-only:text-fg-2 read-only:focus:outline-bg-4 read-only:focus:ring-0',
         'aria-invalid:ring-1 aria-invalid:ring-red-4 aria-invalid:focus:outline-red-4 aria-invalid:focus:ring-[1.5px] aria-invalid:focus:ring-red-2',
-        className
+        loading === undefined ? className : 'pr-9'
       )}
       {...props}
     />
+  );
+
+  if (loading === undefined) return input;
+
+  return (
+    <span data-slot='input-frame' className={cn('relative inline-flex w-full', className)}>
+      {input}
+      <Spinner
+        aria-hidden={!loading}
+        className={cn(
+          'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-fg-2 transition-opacity duration-150',
+          loading ? 'opacity-100' : 'opacity-0'
+        )}
+      />
+    </span>
   );
 }
 

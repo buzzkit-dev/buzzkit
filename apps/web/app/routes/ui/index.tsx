@@ -269,7 +269,7 @@ function TableDemo() {
             </TableRow>
           ))}
         </TableBody>
-        <TablePagination page={2} pageCount={3} previous='#table' next='#table' />
+        <TablePagination page={2} pageCount={3} total={131} previous='#table' next='#table' />
       </Table>
     </Card>
   );
@@ -898,6 +898,7 @@ export default function DesignSystem() {
             <div className='flex flex-col gap-2'>
               <Label htmlFor='ds-readonly'>Read-only</Label>
               <Input id='ds-readonly' readOnly defaultValue='bk_ws_live_…' />
+              <Input id='ds-loading' placeholder='Look up by external id' defaultValue='user_42' loading />
             </div>
             <div className='flex flex-col gap-2'>
               <Label htmlFor='ds-message'>Textarea</Label>

@@ -5,6 +5,7 @@ export const PAGE_SIZE = 50;
 export type Pagination = {
   page: number;
   pageCount: number | null;
+  total: number | null;
   previous: string | null;
   next: string | null;
 };
@@ -37,6 +38,7 @@ export function paginate<T>(
     pagination: {
       page: trail.length + (cursor ? 2 : 1),
       pageCount: page.total === undefined ? null : Math.max(1, Math.ceil(page.total / pageSize)),
+      total: page.total ?? null,
       previous: cursor ? link(trail.at(-1) ?? null, trail.slice(0, -1)) : null,
       next:
         page.hasMore && page.nextCursor ? link(page.nextCursor, cursor ? [...trail, cursor] : trail) : null,

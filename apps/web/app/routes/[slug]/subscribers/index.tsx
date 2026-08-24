@@ -1,21 +1,31 @@
 import { Avatar, AvatarFallback } from '@buzzkit/ui/components/avatar';
 import { Badge } from '@buzzkit/ui/components/badge';
-import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Input } from '@buzzkit/ui/components/input';
-import { cn } from '@buzzkit/ui/lib/utils';
-import { Form, Link, useOutletContext } from 'react-router';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TablePagination,
+  TableRow,
+} from '@buzzkit/ui/components/table';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useNavigation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { TimeAgo } from '@/app/hooks/use-time-ago';
+import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { ApiError, getSubscriber, listKeys, listSubscribers, type Subscriber } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
 import { initials } from '@/app/lib/utils/format';
+import { type Pagination, paginate, readPage } from '@/app/lib/utils/pagination';
+import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
-const PAGE_SIZE = 50;
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
 export function meta() {
   return [{ title: 'Subscribers · BuzzKit' }];
@@ -25,52 +35,56 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
-  const url = new URL(request.url);
-  const query = url.searchParams.get('q')?.trim() ?? '';
+  const query = requestUrl(request).searchParams.get('q')?.trim() ?? '';
 
   if (query) {
     try {
       const subscriber = await getSubscriber(ctx, token, params.slug, 'default', query);
-      return {
-        query,
-        items: [subscriber],
-        nextCursor: null,
-        hasMore: false,
-        missing: false,
-        clientKey: null,
+      const item: Subscriber = {
+        ...subscriber,
+        lastSeenAt:
+          subscriber.subscriptions
+            .map((subscription) => subscription.lastSeenAt)
+            .sort()
+            .at(-1) ?? null,
+        platforms: [
+          ...new Set(
+            subscriber.subscriptions.flatMap((subscription) =>
+              subscription.platform ? [subscription.platform] : []
+            )
+          ),
+        ],
       };
+      return { query, items: [item], pagination: null, missing: false, clientKey: null };
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
-        return { query, items: [], nextCursor: null, hasMore: false, missing: true, clientKey: null };
+        return { query, items: [], pagination: null, missing: true, clientKey: null };
       }
       throw error;
     }
   }
 
-  const page = await listSubscribers(ctx, token, params.slug, 'default', {
-    limit: PAGE_SIZE,
-    cursor: url.searchParams.get('cursor') ?? undefined,
-  });
+  const page = await listSubscribers(ctx, token, params.slug, 'default', readPage(request));
   let clientKey: string | null = null;
   if (page.items.length === 0) {
     const keys = await listKeys(ctx, token, params.slug, { kind: 'client' });
     clientKey = keys.items.find((key) => !key.revokedAt)?.token ?? null;
   }
 
-  return {
-    query,
-    items: page.items,
-    nextCursor: page.nextCursor,
-    hasMore: page.hasMore,
-    missing: false,
-    clientKey,
-  };
+  return { query, ...paginate(request, page), missing: false, clientKey };
 }
 
-function displayName(subscriber: Subscriber): string | null {
-  const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
-  const candidate = attributes.name ?? attributes.email;
-  return typeof candidate === 'string' && candidate.trim() ? candidate : null;
+function attribute(subscriber: Subscriber, key: string): string | null {
+  const value = (subscriber.attributes as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function countryName(code: string): string {
+  try {
+    return regionNames.of(code.toUpperCase()) ?? code.toUpperCase();
+  } catch {
+    return code.toUpperCase();
+  }
 }
 
 function identifySnippet(apiUrl: string, clientKey: string | null) {
@@ -90,15 +104,115 @@ function identifySnippet(apiUrl: string, clientKey: string | null) {
   ].join('\n');
 }
 
+function SubscriberRow({ subscriber, base }: { subscriber: Subscriber; base: string }) {
+  const name = attribute(subscriber, 'name');
+  const email = attribute(subscriber, 'email');
+  const country = attribute(subscriber, '$country');
+  const secondary = name && email ? email : (email ?? name);
+
+  return (
+    <TableRow>
+      <TableCell className='py-2'>
+        <Link
+          to={`${base}/${encodeURIComponent(subscriber.externalId)}`}
+          className='flex items-center gap-2.5 outline-none focus-visible:underline'
+        >
+          <Avatar className='size-8'>
+            <AvatarFallback className='text-xs'>{initials(name ?? subscriber.externalId)}</AvatarFallback>
+          </Avatar>
+          <span className='flex min-w-0 flex-col'>
+            <span className='flex items-center gap-1.5 font-medium text-fg-4'>
+              {name ?? subscriber.externalId}
+              {subscriber.verified && (
+                <Badge variant='green' size='sm'>
+                  Verified
+                </Badge>
+              )}
+            </span>
+            <span className='text-fg-2 text-xs'>{name ? subscriber.externalId : secondary}</span>
+          </span>
+        </Link>
+      </TableCell>
+      <TableCell>
+        {country ? (
+          <span className='flex items-center gap-1.5'>
+            <img src={`/flags/${country.toLowerCase()}.svg`} alt='' className='size-4 shrink-0' />
+            {countryName(country)}
+          </span>
+        ) : (
+          <span className='text-fg-2'>Unknown</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {subscriber.platforms.length > 0 ? (
+          <span className='flex items-center gap-1'>
+            {subscriber.platforms.includes('ios') && (
+              <Badge size='sm' variant='blue' icon='IconAppleFilled'>
+                iOS
+              </Badge>
+            )}
+            {subscriber.platforms.includes('android') && (
+              <Badge size='sm' variant='green' icon='IconAndroid'>
+                Android
+              </Badge>
+            )}
+          </span>
+        ) : (
+          <span className='text-fg-2'>None</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Time at={subscriber.createdAt} />
+      </TableCell>
+      <TableCell>
+        {subscriber.lastSeenAt ? (
+          <TimeAgo at={subscriber.lastSeenAt} />
+        ) : (
+          <span className='text-fg-2'>Never</span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function LookupField({ query, base }: { query: string; base: string }) {
+  const navigate = useNavigate();
+  const navigation = useNavigation();
+  const [value, setValue] = useState(query);
+  const trimmed = value.trim();
+  const settled = trimmed === query;
+
+  useEffect(() => {
+    if (settled) return;
+    const timer = setTimeout(() => {
+      navigate(trimmed ? `${base}?q=${encodeURIComponent(trimmed)}` : base, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [trimmed, settled, base, navigate]);
+
+  return (
+    <Input
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      placeholder='Look up by external id'
+      aria-label='Look up by external id'
+      autoComplete='off'
+      spellCheck={false}
+      loading={!settled || navigation.state === 'loading'}
+      className='w-64'
+    />
+  );
+}
+
 export default function SubscribersRoute({ loaderData, params }: Route.ComponentProps) {
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { query, items, nextCursor, hasMore, missing, clientKey } = loaderData;
+  const { query, items, pagination, missing, clientKey } = loaderData;
   const base = `/${params.slug}/subscribers`;
   const fresh = !query && items.length === 0;
 
   return (
-    <div className='flex w-full flex-col gap-5 pb-8'>
-      <header className='flex items-center justify-between gap-4'>
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
         <div className='flex flex-col gap-0.5'>
           <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             Subscribers
@@ -107,6 +221,7 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
             Manage the subscribers of this workspace.
           </p>
         </div>
+        {!fresh && <LookupField query={query} base={base} />}
       </header>
 
       {fresh ? (
@@ -117,86 +232,35 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
         >
           <CodeBlock className='w-full max-w-xl text-left' code={identifySnippet(apiUrl, clientKey)} />
         </EmptyState>
+      ) : missing ? (
+        <Card>
+          <EmptyState
+            icon='IconTeamFilled'
+            title='No subscriber found'
+            description={`Nothing on this tenant is identified as “${query}”. Check the id your app sends when it identifies the user.`}
+            className='py-10'
+          />
+        </Card>
       ) : (
-        <>
-          <Form method='get' className='flex gap-2'>
-            <Input
-              name='q'
-              defaultValue={query}
-              placeholder='Look up by external id'
-              autoComplete='off'
-              spellCheck={false}
-              className='max-w-sm'
-            />
-            <Button type='submit' variant='elevated'>
-              Look up
-            </Button>
-            {query && (
-              <Button variant='ghost' nativeButton={false} render={<Link to={base} />}>
-                Clear
-              </Button>
-            )}
-          </Form>
-
-          {missing ? (
-            <p className='text-pretty text-fg-2 text-sm'>
-              No subscriber with the id <span className='text-fg-4'>{query}</span> on this tenant.
-            </p>
-          ) : (
-            <Card>
-              <ul className='flex flex-col gap-1 px-2.5 py-3'>
-                {items.map((subscriber) => {
-                  const name = displayName(subscriber);
-                  return (
-                    <li key={subscriber.id}>
-                      <Link
-                        to={`${base}/${encodeURIComponent(subscriber.externalId)}`}
-                        className={cn(
-                          'corner-superellipse/1.125 relative isolate flex items-center gap-3 rounded-2xl px-3.5 py-2.5 outline-none',
-                          "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
-                          'before:transition-[background-color,inset] before:duration-150 before:ease-out active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
-                          'hover:before:bg-bg-a2/70 active:before:bg-bg-a2/70 focus-visible:before:bg-bg-a2/70'
-                        )}
-                      >
-                        <Avatar className='size-8'>
-                          <AvatarFallback>{initials(name ?? subscriber.externalId)}</AvatarFallback>
-                        </Avatar>
-                        <span className='flex min-w-0 flex-1 flex-col'>
-                          <span className='flex min-w-0 items-center gap-1.5'>
-                            <span className='truncate font-medium text-fg-4 text-sm'>
-                              {subscriber.externalId}
-                            </span>
-                            {subscriber.verified && (
-                              <Badge variant='green' size='sm'>
-                                Verified
-                              </Badge>
-                            )}
-                          </span>
-                          {name && <span className='truncate text-fg-2 text-xs'>{name}</span>}
-                        </span>
-                        <span className='shrink-0 text-fg-2 text-xs tabular-nums'>
-                          <TimeAgo at={subscriber.createdAt} />
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          )}
-
-          {hasMore && nextCursor && (
-            <div className='flex justify-center'>
-              <Button
-                variant='elevated'
-                nativeButton={false}
-                render={<Link to={`${base}?cursor=${nextCursor}`} />}
-              >
-                Older subscribers
-              </Button>
-            </div>
-          )}
-        </>
+        <Card className='min-h-0 shrink'>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Subscriber</TableHead>
+                <TableHead>Country</TableHead>
+                <TableHead>Devices</TableHead>
+                <TableHead>Subscribed</TableHead>
+                <TableHead>Last seen</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((subscriber) => (
+                <SubscriberRow key={subscriber.id} subscriber={subscriber} base={base} />
+              ))}
+            </TableBody>
+            {pagination && <TablePagination {...(pagination as Pagination)} />}
+          </Table>
+        </Card>
       )}
     </div>
   );

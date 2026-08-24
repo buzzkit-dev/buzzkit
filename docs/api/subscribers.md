@@ -5,7 +5,8 @@ Subscribers are YOUR users, addressed everywhere by YOUR id (`externalId`) — b
 ## Subscribers — scopes `subscribers:read` / `subscribers:write`
 
 - `PUT /v1/subscribers/:externalId` — identify/upsert: `{ attributes?, email? }` → 201 on create, 200 after. `attributes` is free-form JSONB (object-typed, enforced in the DB) (tag data; segments filter on it in Phase 8), replaced wholesale when present, capped at 64KB serialized. `email` is sugar that upserts an email subscription.
-- `GET /v1/subscribers` — keyset-paginated list, newest first. `externalId` in paths must be URL-encoded (emails, slashes, spaces all work).
+- `GET /v1/subscribers` — keyset-paginated list, newest first. Each item also carries `lastSeenAt` (the newest `lastSeenAt` across the subscriber's live subscriptions, `null` with none) and `platforms` (the distinct push platforms registered, e.g. `["ios", "android"]`).
+- **System attributes.** Keys starting with `$` are set by buzzkit, never by you: `$country`, `$city`, `$region`, `$timezone` come from Cloudflare's view of the device request, `$language` from its `Accept-Language`, and they refresh on every `POST /v1/client/identify` and `POST /v1/client/subscriptions` (newest wins). They ride along in `attributes` on every read, survive a wholesale `attributes` replace from the server side, and a `$` key in a `PUT` body is a 400 `system_attribute`. `externalId` in paths must be URL-encoded (emails, slashes, spaces all work).
 - `GET /v1/subscribers/:externalId` — with embedded subscriptions; includes `verified` / `identityVerifiedAt` (see [client.md](client.md)).
 - `DELETE /v1/subscribers/:externalId` — soft-deletes the subscriber and all their subscriptions.
 - `GET|PATCH /v1/subscribers/:externalId/preferences` — see [topics.md](topics.md).

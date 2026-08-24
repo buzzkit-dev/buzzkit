@@ -10,6 +10,8 @@ const server = spawn(
     'dev',
     '--test-scheduled',
     '--local',
+    '--var',
+    'ENVIRONMENT:test',
     '--port',
     String(port),
     '--inspector-port',

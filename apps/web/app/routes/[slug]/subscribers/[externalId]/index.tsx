@@ -58,6 +58,7 @@ type AttributeRow = {
   label: string;
   icon: IconName;
   display: string;
+  flag?: string;
   mono?: boolean;
   href?: string;
   tooltip?: string;
@@ -92,7 +93,7 @@ function detectRow(key: string, value: unknown): AttributeRow {
     try {
       display = regionNames.of(display) ?? display;
     } catch {}
-    return { ...base, icon: 'IconGlobe', display };
+    return { ...base, icon: 'IconGlobe', flag: `/flags/${text.toLowerCase()}.svg`, display };
   }
 
   if (/^(city|region)$/i.test(key)) {
@@ -192,7 +193,11 @@ function AttributeList({ attributes }: { attributes: Record<string, unknown> }) 
         <div key={row.key} className='flex min-h-7 items-center justify-between gap-3'>
           <dt className='min-w-0 truncate text-fg-2 text-sm'>{row.label}</dt>
           <dd className='mr-2 flex min-w-0 items-center gap-1.5 text-fg-3 text-sm'>
-            <Icon name={row.icon} className='size-4 shrink-0 opacity-65' />
+            {row.flag ? (
+              <img src={row.flag} alt='' className='size-4 shrink-0' />
+            ) : (
+              <Icon name={row.icon} className='size-4 shrink-0 opacity-65' />
+            )}
             <AttributeValue row={row} />
           </dd>
         </div>
