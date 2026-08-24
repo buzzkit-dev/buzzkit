@@ -389,7 +389,7 @@ People and workspaces with a picture use `AvatarImage` + `AvatarFallback` (initi
 
 ### EmptyState
 
-Every empty *result* is an `EmptyState`, never a sentence: an empty list, a lookup that found nothing, a filter with no matches. Title is the plain fact, short ("No subscriber found", "No API keys yet"), the description says where the first one comes from or what to check, quoting the user's own input in curly quotes. A placeholder inside a card section that has a heading ("No devices or addresses registered yet.") stays a single line; the tile treatment is for the whole surface being empty.
+Every empty state is an `EmptyState`, never a sentence, with no exceptions: an empty list, a lookup that found nothing, a filter with no matches, an empty section inside a card. Title is the plain fact, short ("No subscriber found", "No API keys yet", "No topics yet"), the description says where the first one comes from or what to check, quoting the user's own input in curly quotes. Inside a card use `size='sm'`: a 32px tile, `text-sm` title, `text-xs` description, `p-6` with half the top padding (`pt-3`) because the card title above already carries its own.
 
 `icon` · `title` · `description?` · one optional action as `children`. **The** blank-slate treatment: glyph in a `size-12` `bg-bg-2` tile, title over description, at most one Button. Every "nothing here yet", "cannot load this" and "pick something" surface uses it, in the dashboard and the widget alike. Never hand-roll another one, and never give it two actions.
 
@@ -422,6 +422,8 @@ Popover: 288px, `rounded-xl`, title + description with no gap. Tooltip: a 24px d
 ### ScrollArea / ScrollFade
 
 Both fade the scrolling edges with a **mask on the scrolling element**, never a gradient overlay — an overlay has to guess the surface behind it and paints over the container's own border. `ScrollArea` adds a custom auto-hiding scrollbar; `ScrollFade` decorates a plain overflow container (or an existing one via `targetRef`). Fade size is `--fade-size`; edges animate via `@property`-registered lengths.
+
+Every overflow region on a dashboard page gets one — a content column, a side column, a table viewport — there is no bare `overflow-auto` without fades. A detail page with a side column is two independent scroll columns, each with its own fade, never one page scroller whose fade also dims the column that is not scrolling. The columns are wheel-linked: a wheel over either column also moves the other by the same delta (each clamps on its own), so the page scrolls as one no matter where the pointer is, and a short side column still scrolls the content. And an overflow container never hugs its cards: give it a few pixels of padding pulled back with a matching negative margin (`-m-1 p-1`, `-mx-8.5 px-8.5`) so the 1px ring and shadow of the first and edge cards are not clipped at the scroller's edge.
 
 ### Chat pieces — shared by the dashboard and the widget
 

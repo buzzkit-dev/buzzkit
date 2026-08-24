@@ -1,6 +1,6 @@
 import { createEventLogger } from '@buzzkit/api/api/events/index';
 import { NotFoundError } from '@buzzkit/api/libs/error';
-import { decodeEntityId } from '@buzzkit/api/libs/sqids';
+import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import type { DeliveryErrorCode, ProviderName, ProviderSendResult } from '@buzzkit/api/providers/index';
 import {
@@ -141,6 +141,66 @@ export async function countDeliveries(db: Db, messageId: number, status?: Delive
             status ? eq(tables.delivery.status, status) : undefined
           )
         )
+  );
+  return Number(row?.total ?? 0);
+}
+
+type Message = typeof tables.message.$inferSelect;
+
+export type SubscriberDeliveryRow = { delivery: Delivery; message: Message };
+
+export function serializeSubscriberDelivery(row: SubscriberDeliveryRow) {
+  const payload = row.message.payload as { title?: string; body?: string };
+  return {
+    ...serializeDelivery(row.delivery),
+    message: {
+      id: encodeId('message', row.message.id),
+      channel: row.message.channel,
+      topic: row.message.topic,
+      title: payload.title ?? null,
+      body: payload.body ?? null,
+      createdAt: row.message.createdAt,
+    },
+  };
+}
+
+export async function listSubscriberDeliveries(
+  db: Db,
+  tenantId: number,
+  subscriberId: number,
+  options: { limit: number; beforeId?: number }
+): Promise<SubscriberDeliveryRow[]> {
+  return await trace(
+    'deliveries.listForSubscriber',
+    async () =>
+      await db
+        .select({ delivery: tables.delivery, message: tables.message })
+        .from(tables.delivery)
+        .innerJoin(tables.message, eq(tables.message.id, tables.delivery.messageId))
+        .where(
+          and(
+            eq(tables.delivery.tenantId, tenantId),
+            eq(tables.delivery.subscriberId, subscriberId),
+            options.beforeId ? lt(tables.delivery.id, options.beforeId) : undefined
+          )
+        )
+        .orderBy(desc(tables.delivery.id))
+        .limit(options.limit + 1)
+  );
+}
+
+export async function countSubscriberDeliveries(
+  db: Db,
+  tenantId: number,
+  subscriberId: number
+): Promise<number> {
+  const [row] = await trace(
+    'deliveries.countForSubscriber',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.delivery)
+        .where(and(eq(tables.delivery.tenantId, tenantId), eq(tables.delivery.subscriberId, subscriberId)))
   );
   return Number(row?.total ?? 0);
 }

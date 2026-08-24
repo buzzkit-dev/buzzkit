@@ -1,6 +1,7 @@
 import {
   ExternalIdSchema,
   registerSubscription,
+  resolveSubscriptionEventData,
   resolveSubscriptionInput,
   SubscriptionInputSchema,
   serializeSubscription,
@@ -32,12 +33,7 @@ export const subscriptions = new Elysia()
           event: 'subscription.created',
           tenantId: tenant.id,
           target: { type: 'subscription', id: subscription.id },
-          data: {
-            externalId: subscriber.externalId,
-            channel: subscription.channel,
-            platform: subscription.platform,
-            subscriberCreated,
-          },
+          data: { ...resolveSubscriptionEventData(subscription, subscriber.externalId), subscriberCreated },
         });
       }
 

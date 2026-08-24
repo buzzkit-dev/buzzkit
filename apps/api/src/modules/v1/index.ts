@@ -17,6 +17,8 @@ import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
+import { subscriberDeliveries } from './subscribers/[externalId]/deliveries';
+import { subscriberEvents } from './subscribers/[externalId]/events';
 import { subscriberPreferences } from './subscribers/[externalId]/preferences';
 import { subscriberSubscriptions } from './subscribers/[externalId]/subscriptions';
 import { subscriptions } from './subscriptions';
@@ -140,6 +142,14 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/subscribers/:externalId/preferences
    */
   .use(subscriberPreferences)
+  /*
+   * /v1/subscribers/:externalId/deliveries
+   */
+  .use(subscriberDeliveries)
+  /*
+   * /v1/subscribers/:externalId/events
+   */
+  .use(subscriberEvents)
   /*
    * /v1/subscriptions
    */

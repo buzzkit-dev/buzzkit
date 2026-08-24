@@ -428,6 +428,38 @@ export function deleteTopic(
   );
 }
 
+export function listSubscriberDeliveries(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string,
+  query: { limit?: number; cursor?: string } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .deliveries.get({ query })
+  );
+}
+
+export function listSubscriberEvents(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string,
+  query: { limit?: number; cursor?: string } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .events.get({ query })
+  );
+}
+
 export function listMessages(
   ctx: RequestContext,
   token: string,
@@ -451,6 +483,8 @@ export type SubscriberDetail = Awaited<ReturnType<typeof getSubscriber>>;
 export type Subscription = SubscriberDetail['subscriptions'][number];
 export type Topic = Awaited<ReturnType<typeof listTopics>>[number];
 export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
+export type SubscriberDelivery = Awaited<ReturnType<typeof listSubscriberDeliveries>>['items'][number];
+export type SubscriberEvent = Awaited<ReturnType<typeof listSubscriberEvents>>['items'][number];
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];

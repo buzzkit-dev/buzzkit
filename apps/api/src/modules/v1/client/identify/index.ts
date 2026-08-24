@@ -2,6 +2,7 @@ import {
   ClientIdentitySchema,
   EmailAddressSchema,
   registerSubscription,
+  resolveSubscriptionEventData,
   resolveSystemAttributes,
   serializeSubscriber,
   upsertSubscriber,
@@ -42,9 +43,7 @@ export const clientIdentify = new Elysia()
           tenantId: tenant.id,
           target: { type: 'subscription', id: registered.subscription.id },
           data: {
-            externalId: subscriber.externalId,
-            channel: 'email',
-            platform: null,
+            ...resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
             subscriberCreated: created,
           },
         });

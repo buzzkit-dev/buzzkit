@@ -1,5 +1,6 @@
 import {
   findSubscription,
+  resolveSubscriptionEventData,
   serializeSubscription,
   softDeleteSubscription,
   updateSubscriptionEnabled,
@@ -35,7 +36,7 @@ export const subscription = new Elysia()
         event: 'subscription.updated',
         tenantId: tenant.id,
         target: { type: 'subscription', id: target.id },
-        data: { channel: target.channel, enabled: body.enabled },
+        data: { ...resolveSubscriptionEventData(target), enabled: body.enabled },
       });
 
       return Response.success(
@@ -59,7 +60,7 @@ export const subscription = new Elysia()
         event: 'subscription.removed',
         tenantId: tenant.id,
         target: { type: 'subscription', id: target.id },
-        data: { channel: target.channel, platform: target.platform },
+        data: resolveSubscriptionEventData(target),
       });
 
       return Response.success(

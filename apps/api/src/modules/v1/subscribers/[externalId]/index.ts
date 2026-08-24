@@ -6,6 +6,7 @@ import {
   findSubscriberByExternalId,
   listSubscriptions,
   registerSubscription,
+  resolveSubscriptionEventData,
   serializeSubscriber,
   serializeSubscription,
   softDeleteSubscriber,
@@ -64,9 +65,7 @@ export const subscriber = new Elysia()
           tenantId: tenant.id,
           target: { type: 'subscription', id: registered.subscription.id },
           data: {
-            externalId: subscriber.externalId,
-            channel: 'email',
-            platform: null,
+            ...resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
             subscriberCreated: created,
           },
         });

@@ -11,6 +11,8 @@ Subscribers are YOUR users, addressed everywhere by YOUR id (`externalId`) — b
 - `DELETE /v1/subscribers/:externalId` — soft-deletes the subscriber and all their subscriptions.
 - `GET|PATCH /v1/subscribers/:externalId/preferences` — see [topics.md](topics.md).
 - `GET /v1/subscribers/:externalId/subscriptions` — list object of the subscriber's subscriptions.
+- `GET /v1/subscribers/:externalId/deliveries` — `messages:read`; paginated (newest first, `total`) deliveries addressed to this subscriber, each with a `message` summary (`id`, `channel`, `topic`, `title`, `body`, `createdAt`): the messages this person received, and what happened to each.
+- `GET /v1/subscribers/:externalId/events` — `subscribers:read`; paginated (newest first, `total`) ledger events about this subscriber: events targeting the subscriber, any of its subscriptions (including removed ones), or carrying its `externalId` in `data` (`subscriber.created`, `subscription.created` / `updated` / `removed` / `invalidated`, `preferences.updated`, …). Same event shape as the workspace audit log. Every `subscription.*` event's `data` names the subscription it is about: `externalId`, `channel`, `platform`, `endpoint` (plus `enabled` on `updated`, `subscriberCreated` on `created`, `reason` on `invalidated`), so a log line can say which device or address changed.
 
 Subscriber ids (`sub_…`) are 32-char sqids (the most exposed id class).
 

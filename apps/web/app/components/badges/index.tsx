@@ -51,6 +51,21 @@ export function CredentialStatusBadge({ status }: { status: keyof typeof CREDENT
   return <Typed entry={CREDENTIAL_STATUSES[status]} />;
 }
 
+const DELIVERY_STATUSES: Record<string, Entry> = {
+  pending: { label: 'Pending', tone: 'amber' },
+  retrying: { label: 'Retrying', tone: 'amber' },
+  sent: { label: 'Sent', tone: 'green' },
+  delivered: { label: 'Delivered', tone: 'green' },
+  bounced: { label: 'Bounced', tone: 'red' },
+  failed: { label: 'Failed', tone: 'red' },
+  invalid: { label: 'Invalid', tone: 'red' },
+};
+
+export function DeliveryStatusBadge({ status }: { status: string }) {
+  const entry = DELIVERY_STATUSES[status];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;
+}
+
 export function VerifiedBadge({ verified }: { verified: boolean }) {
   return verified ? <Typed entry={{ label: 'Verified', tone: 'green' }} /> : null;
 }

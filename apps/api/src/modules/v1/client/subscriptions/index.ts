@@ -2,6 +2,7 @@ import {
   ClientIdentitySchema,
   findSubscriptionOwnedBy,
   registerSubscription,
+  resolveSubscriptionEventData,
   resolveSubscriptionInput,
   resolveSystemAttributes,
   SubscriptionInputSchema,
@@ -41,12 +42,7 @@ export const clientSubscriptions = new Elysia()
           event: 'subscription.created',
           tenantId: tenant.id,
           target: { type: 'subscription', id: subscription.id },
-          data: {
-            externalId: subscriber.externalId,
-            channel: subscription.channel,
-            platform: subscription.platform,
-            subscriberCreated,
-          },
+          data: { ...resolveSubscriptionEventData(subscription, subscriber.externalId), subscriberCreated },
         });
       }
 
@@ -78,7 +74,7 @@ export const clientSubscriptions = new Elysia()
         event: 'subscription.updated',
         tenantId: tenant.id,
         target: { type: 'subscription', id: subscription.id },
-        data: { channel: subscription.channel, enabled: body.enabled },
+        data: { ...resolveSubscriptionEventData(subscription, externalId), enabled: body.enabled },
       });
 
       return Response.success(
@@ -100,7 +96,7 @@ export const clientSubscriptions = new Elysia()
         event: 'subscription.removed',
         tenantId: tenant.id,
         target: { type: 'subscription', id: subscription.id },
-        data: { channel: subscription.channel, platform: subscription.platform },
+        data: resolveSubscriptionEventData(subscription, externalId),
       });
 
       return Response.success(

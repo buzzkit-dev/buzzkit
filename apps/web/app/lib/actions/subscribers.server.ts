@@ -1,8 +1,7 @@
-import { type ActionFunctionArgs, redirect } from 'react-router';
+import type { ActionFunctionArgs } from 'react-router';
 import { beginAction } from '@/app/lib/actions/context.server';
 import {
   ApiError,
-  deleteSubscriber,
   deleteSubscription,
   updateSubscriberPreferences,
   updateSubscription,
@@ -30,10 +29,6 @@ export async function subscriberAction(args: ActionFunctionArgs) {
           [String(form.get('topic'))]: { [String(form.get('channel'))]: form.get('optedIn') === 'true' },
         });
         return { ok: true };
-      }
-      case 'delete': {
-        await deleteSubscriber(ctx, token, slug, 'default', externalId);
-        throw redirect(`/${slug}/subscribers`);
       }
       default:
         return { error: 'Unknown action.' };

@@ -101,6 +101,18 @@ export function serializeSubscriber(subscriber: Subscriber) {
   };
 }
 
+export function resolveSubscriptionEventData(
+  subscription: Pick<Subscription, 'channel' | 'platform' | 'endpoint'>,
+  externalId?: string
+) {
+  return {
+    ...(externalId !== undefined ? { externalId } : {}),
+    channel: subscription.channel,
+    platform: subscription.platform,
+    endpoint: subscription.endpoint,
+  };
+}
+
 export function serializeSubscription(subscription: Subscription) {
   return {
     id: subscription.id,
@@ -497,6 +509,18 @@ export async function findSubscriptionOwnedBy(
     throw new NotFoundError('Subscription not found');
   }
   return subscription;
+}
+
+export async function listSubscriptionIds(db: Db, subscriberId: number): Promise<number[]> {
+  const rows = await trace(
+    'subscriptions.listIds',
+    async () =>
+      await db
+        .select({ id: tables.subscription.id })
+        .from(tables.subscription)
+        .where(eq(tables.subscription.subscriberId, subscriberId))
+  );
+  return rows.map((row) => row.id);
 }
 
 export async function listSubscriptions(db: Db, subscriberId: number): Promise<Subscription[]> {

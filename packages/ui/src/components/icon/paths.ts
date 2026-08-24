@@ -9,7 +9,9 @@ export const ICON_NAMES = [
   'IconArrowRotateClockwise',
   'IconArrowUpRight',
   'IconBell',
+  'IconBellActive',
   'IconBellFilled',
+  'IconBellOff',
   'IconBubbleTextFilled',
   'IconCalendar1',
   'IconChainLink1',
@@ -20,6 +22,8 @@ export const ICON_NAMES = [
   'IconChevronLeftMedium',
   'IconChevronRightMedium',
   'IconChevronTopMedium',
+  'IconCircleBanSign',
+  'IconCircleX',
   'IconClipboard2',
   'IconClock',
   'IconCloudUploadFilled',
@@ -34,6 +38,7 @@ export const ICON_NAMES = [
   'IconEyeOpen',
   'IconFileTextFilled',
   'IconFiles',
+  'IconFingerPrint1',
   'IconGithub',
   'IconGlobe',
   'IconGlobeFilled',
@@ -54,6 +59,7 @@ export const ICON_NAMES = [
   'IconParagraph',
   'IconPencil',
   'IconPeopleFilled',
+  'IconPhone',
   'IconPlusMedium',
   'IconResend',
   'IconRocket',
@@ -61,6 +67,7 @@ export const ICON_NAMES = [
   'IconSendFilled',
   'IconSettingsGear1',
   'IconSettingsGear4Filled',
+  'IconSettingsSliderHor',
   'IconSidebar',
   'IconSun',
   'IconSunFilled',
@@ -103,8 +110,14 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   IconBell: {
     '3': '<g><path d="M4.58073 9.43467C5.10819 5.74248 8.2703 3 12 3C15.7296 3 18.8918 5.74248 19.4192 9.43467L20.0108 13.5757C20.269 15.383 18.8666 17 17.0409 17H6.959C5.13335 17 3.73096 15.383 3.98915 13.5757L4.58073 9.43467Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17C16 19.2091 14.2091 21 12 21C9.79086 21 8 19.2091 8 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
   },
+  IconBellActive: {
+    '3': '<g><path d="M4.58073 9.43467C5.10819 5.74248 8.2703 3 12 3C15.7296 3 18.8918 5.74248 19.4192 9.43467L20.0108 13.5757C20.269 15.383 18.8666 17 17.0409 17H6.959C5.13335 17 3.73096 15.383 3.98915 13.5757L4.58073 9.43467Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17C16 19.2091 14.2091 21 12 21C9.79086 21 8 19.2091 8 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.8291 7C2.49394 4.99386 3.81843 3.26548 5.46206 2M18.5385 2C20.1821 3.26548 21.5065 4.99386 22.1714 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>',
+  },
   IconBellFilled: {
     '3': '<g><path d="M12 2C7.7922 2 4.14828 5.17264 3.70001 9.35647L3.17536 12.9169C2.81947 15.3321 4.69133 17.5 7.13263 17.5H16.8674C19.3087 17.5 21.1806 15.3321 20.8247 12.9169L20.3 9.35648C19.8517 5.17264 16.2078 2 12 2Z" fill="currentColor"/><path d="M16.5839 19H7.41602C8.18758 20.7659 9.94966 22 12 22C14.0503 22 15.8124 20.7659 16.5839 19Z" fill="currentColor"/></g>',
+  },
+  IconBellOff: {
+    '3': '<g><path d="M16 17C16 19.2091 14.2091 21 12 21C9.79086 21 8 19.2091 8 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.19177C5.35964 7.14102 4.93708 8.25397 4.80754 9.46305L4.10941 13.4873C3.79116 15.3217 5.20338 17 7.06526 17H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6786 14L19.1925 9.46301C18.7986 5.78732 15.6967 3 12 3C10.9336 3 9.91668 3.23195 9 3.65027" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
   },
   IconBubbleTextFilled: {
     '3': '<g><path fill-rule="evenodd" clip-rule="evenodd" d="M17.0019 3L7.00195 3.00002C4.79281 3.00002 3.00195 4.79088 3.00195 7.00002V15.0358C3.00195 17.2449 4.79281 19.0358 7.00195 19.0358H8.65157L11.3553 21.3021C11.7252 21.6123 12.2639 21.6138 12.6357 21.3058L15.3757 19.0358L17.002 19.0358C19.2111 19.0357 21.002 17.2449 21.002 15.0358V7C21.002 4.79086 19.2111 3 17.0019 3ZM7.99976 9C7.99976 8.44772 8.44747 8 8.99976 8H14.9998C15.552 8 15.9998 8.44772 15.9998 9C15.9998 9.55228 15.552 10 14.9998 10H8.99976C8.44747 10 7.99976 9.55228 7.99976 9ZM8.99976 12C8.44747 12 7.99976 12.4477 7.99976 13C7.99976 13.5523 8.44747 14 8.99976 14H14.9998C15.552 14 15.9998 13.5523 15.9998 13C15.9998 12.4477 15.552 12 14.9998 12H8.99976Z" fill="currentColor"/></g>',
@@ -140,6 +153,12 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   IconChevronTopMedium: {
     '2': '<g><path d="M6 14.5L12 8.5L18 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
     '3': '<g><path d="M6 14.5L12 8.5L18 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
+  },
+  IconCircleBanSign: {
+    '3': '<g><path d="M21 12C21 16.9706 16.9706 21 12 21C9.51472 21 7.26472 19.9926 5.63604 18.364C4.00736 16.7353 3 14.4853 3 12C3 7.02944 7.02944 3 12 3C14.4853 3 16.7353 4.00736 18.364 5.63604C19.9926 7.26472 21 9.51472 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="square"/><path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></g>',
+  },
+  IconCircleX: {
+    '3': '<g><path d="M15 9L9 15M15 15L9 9M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
   },
   IconClipboard2: {
     '3': '<g><path d="M16 5H17C18.6569 5 20 6.34315 20 8V18C20 19.6569 18.6569 21 17 21H7C5.34315 21 4 19.6569 4 18V8C4 6.34315 5.34315 5 7 5H8M16 7V6C16 4.34315 14.6569 3 13 3H11C9.34315 3 8 4.34315 8 6V7H16Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></g>',
@@ -182,6 +201,9 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   },
   IconFiles: {
     '3': '<g><path d="M11 3H13.7574C14.553 3 15.3161 3.31607 15.8787 3.87868L19.1213 7.12132C19.6839 7.68393 20 8.44699 20 9.24264V15C20 16.6569 18.6569 18 17 18H11C9.34315 18 8 16.6569 8 15V6C8 4.34315 9.34315 3 11 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 18C17 19.6569 15.6569 21 14 21H8C6.34315 21 5 19.6569 5 18V9C5 7.34315 6.34315 6 8 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 3V6C15 7.10457 15.8954 8 17 8H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
+  },
+  IconFingerPrint1: {
+    '3': '<g><path d="M6.40519 19.0481C6.58912 18.6051 6.75832 18.1545 6.91219 17.6969M14.3433 20.6926C14.6095 19.9418 14.8456 19.1768 15.0502 18.399C15.2359 17.6934 15.3956 16.9772 15.5283 16.2516M19.4477 17.0583C19.8121 15.0944 20.0026 13.0694 20.0026 11C20.0026 6.58172 16.4209 3 12.0026 3C10.7472 3 9.55932 3.28918 8.50195 3.80456M3.52344 15.0245C3.83663 13.7343 4.00262 12.3865 4.00262 11C4.00262 9.25969 4.55832 7.64917 5.50195 6.33621M12.003 11C12.003 13.7604 11.5557 16.4163 10.7295 18.8992C10.5169 19.5381 10.2792 20.1655 10.0176 20.7803M7.71227 14.5C7.90323 13.3618 8.00262 12.1925 8.00262 11C8.00262 8.79086 9.79348 7 12.0026 7C14.2118 7 16.0026 8.79086 16.0026 11C16.0026 11.6166 15.9834 12.2287 15.9455 12.8357" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
   },
   IconGithub: {
     '3': '<g><path d="M12 1.95068C17.525 1.95068 22 6.42568 22 11.9507C21.9995 14.0459 21.3419 16.0883 20.1198 17.7902C18.8977 19.4922 17.1727 20.768 15.1875 21.4382C14.6875 21.5382 14.5 21.2257 14.5 20.9632C14.5 20.6257 14.5125 19.5507 14.5125 18.2132C14.5125 17.2757 14.2 16.6757 13.8375 16.3632C16.0625 16.1132 18.4 15.2632 18.4 11.4257C18.4 10.3257 18.0125 9.43818 17.375 8.73818C17.475 8.48818 17.825 7.46318 17.275 6.08818C17.275 6.08818 16.4375 5.81318 14.525 7.11318C13.725 6.88818 12.875 6.77568 12.025 6.77568C11.175 6.77568 10.325 6.88818 9.525 7.11318C7.6125 5.82568 6.775 6.08818 6.775 6.08818C6.225 7.46318 6.575 8.48818 6.675 8.73818C6.0375 9.43818 5.65 10.3382 5.65 11.4257C5.65 15.2507 7.975 16.1132 10.2 16.3632C9.9125 16.6132 9.65 17.0507 9.5625 17.7007C8.9875 17.9632 7.55 18.3882 6.65 16.8757C6.4625 16.5757 5.9 15.8382 5.1125 15.8507C4.275 15.8632 4.775 16.3257 5.125 16.5132C5.55 16.7507 6.0375 17.6382 6.15 17.9257C6.35 18.4882 7 19.5632 9.5125 19.1007C9.5125 19.9382 9.525 20.7257 9.525 20.9632C9.525 21.2257 9.3375 21.5257 8.8375 21.4382C6.8458 20.7752 5.11342 19.502 3.88611 17.799C2.65881 16.096 1.9989 14.0498 2 11.9507C2 6.42568 6.475 1.95068 12 1.95068Z" fill="currentColor"/></g>',
@@ -243,6 +265,9 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   IconPeopleFilled: {
     '3': '<g><path d="M12 2C9.51472 2 7.5 4.01472 7.5 6.5C7.5 8.98528 9.51472 11 12 11C14.4853 11 16.5 8.98528 16.5 6.5C16.5 4.01472 14.4853 2 12 2Z" fill="currentColor"/><path d="M12.0001 12C8.64237 12 5.96263 13.7661 4.55269 16.3886C3.92347 17.5589 4.16063 18.7737 4.85818 19.6414C5.53148 20.479 6.62375 21 7.79536 21H16.2049C17.3765 21 18.4687 20.479 19.142 19.6414C19.8396 18.7737 20.0768 17.5589 19.4475 16.3886C18.0376 13.7661 15.3578 12 12.0001 12Z" fill="currentColor"/></g>',
   },
+  IconPhone: {
+    '3': '<g><path d="M10 19H14M9 22H15C16.6569 22 18 20.6569 18 19V5C18 3.34315 16.6569 2 15 2H9C7.34315 2 6 3.34315 6 5V19C6 20.6569 7.34315 22 9 22Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>',
+  },
   IconPlusMedium: {
     '3': '<g><path d="M12 5.5V12M12 12V18.5M12 12H5.5M12 12H18.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>',
   },
@@ -263,6 +288,9 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   },
   IconSettingsGear4Filled: {
     '3': '<g><path fill-rule="evenodd" clip-rule="evenodd" d="M12.9795 4.06151C13.9598 2.87898 15.657 2.56372 17 3.33886C18.3421 4.11373 18.916 5.73906 18.3838 7.1787C18.7415 7.65172 19.0489 8.16647 19.2959 8.71386C19.3203 8.76803 19.342 8.82407 19.3652 8.8789C20.879 9.13685 21.9997 10.4488 22 11.999C22 13.5494 20.8791 14.86 19.3652 15.1182C19.1072 15.7268 18.7766 16.2964 18.3838 16.8164C18.9182 18.2568 18.343 19.8836 17 20.6592C15.6569 21.4346 13.9608 21.1193 12.9805 19.9365C12.6587 19.9759 12.3317 20 12 20C11.6683 20 11.3413 19.9759 11.0195 19.9365C10.0392 21.1193 8.34309 21.4355 7 20.6601C5.65718 19.8847 5.08224 18.2576 5.61621 16.8174C5.22312 16.2971 4.89191 15.7272 4.63379 15.1182C3.12039 14.8597 2 13.5491 2 11.999C2.00034 10.4491 3.12047 9.13724 4.63379 8.8789C4.89196 8.27028 5.22325 7.70052 5.61621 7.18065C5.08287 5.74056 5.65732 4.11406 7 3.33886C8.34281 2.56376 10.0392 2.87929 11.0195 4.06151C11.3412 4.02213 11.6683 3.99999 12 3.99999C12.3313 3.99999 12.6581 4.02223 12.9795 4.06151ZM12 8.99999C10.3433 9.00005 9.00019 10.3433 9 12C9.00012 13.6567 10.3433 14.9999 12 15C13.6568 15 14.9999 13.6567 15 12C14.9998 10.3433 13.6567 8.99999 12 8.99999Z" fill="currentColor"/></g>',
+  },
+  IconSettingsSliderHor: {
+    '3': '<g><path fill-rule="evenodd" clip-rule="evenodd" d="M15 10C16.6575 10 18 8.6575 18 7C18 5.3425 16.6575 4 15 4C13.3425 4 12 5.3425 12 7C12 8.6575 13.3425 10 15 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7H4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 7H18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path fill-rule="evenodd" clip-rule="evenodd" d="M9 20C10.6575 20 12 18.6575 12 17C12 15.3425 10.6575 14 9 14C7.3425 14 6 15.3425 6 17C6 18.6575 7.3425 20 9 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 17H4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 17H12.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>',
   },
   IconSidebar: {
     '3': '<g><path d="M11 5H6C4.34315 5 3 6.34315 3 8V16C3 17.6569 4.34315 19 6 19H11M11 5H18C19.6569 5 21 6.34315 21 8V16C21 17.6569 19.6569 19 18 19H11M11 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="round"/><path d="M6.125 8.75C6.125 9.23325 6.51675 9.625 7 9.625C7.48325 9.625 7.875 9.23325 7.875 8.75C7.875 8.26675 7.48325 7.875 7 7.875C6.51675 7.875 6.125 8.26675 6.125 8.75ZM6.125 12C6.125 12.4832 6.51675 12.875 7 12.875C7.48325 12.875 7.875 12.4832 7.875 12C7.875 11.5168 7.48325 11.125 7 11.125C6.51675 11.125 6.125 11.5168 6.125 12ZM6.125 15.25C6.125 15.7332 6.51675 16.125 7 16.125C7.48325 16.125 7.875 15.7332 7.875 15.25C7.875 14.7668 7.48325 14.375 7 14.375C6.51675 14.375 6.125 14.7668 6.125 15.25Z" fill="currentColor" stroke="currentColor" stroke-width="0.75"/></g>',

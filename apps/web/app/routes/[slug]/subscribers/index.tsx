@@ -225,7 +225,7 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
           <EmptyState
             icon='IconTeamFilled'
             title='No subscriber found'
-            description={`Nothing on this tenant is identified as “${query}”. Check the id your app sends when it identifies the user.`}
+            description={`No subscriber on this tenant is identified as “${query}”. Check the id your app sends when it identifies the user.`}
             className='py-10'
           />
         </Card>

@@ -1709,6 +1709,21 @@ export default function DesignSystem() {
               <EmptyState icon='IconBellFilled' title='Select a message' />
             </div>
           </Specimen>
+          <Specimen label='size sm · inside a card section'>
+            <div className='w-80'>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preferences</CardTitle>
+                </CardHeader>
+                <EmptyState
+                  size='sm'
+                  icon='IconTagFilled'
+                  title='No topics yet'
+                  description='Create a topic and this subscriber’s choice per channel appears here.'
+                />
+              </Card>
+            </div>
+          </Specimen>
         </Section>
 
         <Section

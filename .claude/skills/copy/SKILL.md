@@ -38,7 +38,7 @@ A page description says what the page is for. A field hint says what the option 
 
 **Button / CTA** — verb + noun, naming the action exactly: "Create key", "Invite member", "Send test push", "Continue with GitHub". The header CTA and the dialog's submit button say the same thing. Not "New X", not "Add", not "Submit", not "OK".
 
-**Dialog** — a title only, no description (the form explains itself). `AlertDialog` keeps its description: the consequence in one sentence, then "This cannot be undone." when it is irreversible. "Requests with this key start failing immediately. This cannot be undone." Actions: "Cancel" and the verb ("Revoke key", "Delete subscriber"). A user-given name inside copy goes in curly quotes (typographic “ ”, never straight "): Revoke “Default”?, Delete “user_42”?
+**Dialog** — a title only, no description (the form explains itself). `AlertDialog` keeps its description: the consequence in one sentence, then "This cannot be undone." when it is irreversible. "Requests with this key start failing immediately. This cannot be undone." When the description has two sentences, the second one goes on its own line (`<span className='block'>…</span>`) so a sentence never starts at the end of a row; the wrapped result must look composed, not merely wrapped. Actions: "Cancel" and the verb ("Revoke key", "Remove subscription"). A user-given name inside copy goes in curly quotes (typographic “ ”, never straight "): Revoke “Default”?, Delete “user_42”?
 
 **Toast** — title on one line, detail in `description`. Success: what happened ("Copied to clipboard", "Invite sent"). Error: what is wrong, then what to do ("Unable to copy" / "Select the key and copy it manually.").
 

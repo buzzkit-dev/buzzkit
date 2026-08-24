@@ -5,7 +5,7 @@ import { decodeSqid, encodeBareId, encodeId, ID_PREFIXES, TARGET_ENTITIES } from
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { deepEqual } from '@buzzkit/api/utils/equality';
 import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
-import { and, count, type Db, desc, eq, inArray, lt, tables } from '@buzzkit/database';
+import { and, count, type Db, desc, eq, inArray, lt, or, sql, tables } from '@buzzkit/database';
 import type { EventName } from './catalog';
 
 export { EVENT_CATALOG, type EventName, isPublicEvent, PUBLIC_EVENTS } from './catalog';
@@ -214,6 +214,54 @@ export async function listEvents(
 
   return {
     ...toPage(rows.map(serializeEvent), limit, (id) => encodeId('event', id)),
+    total: Number(counted?.total ?? 0),
+  };
+}
+
+export async function listSubscriberEvents(
+  db: Db,
+  tenantId: number,
+  subscriber: { id: number; externalId: string },
+  subscriptionIds: number[],
+  options: { limit: number; beforeId?: number }
+) {
+  const about = or(
+    and(
+      eq(tables.event.targetType, 'subscriber'),
+      eq(tables.event.targetId, encodeBareId('subscriber', subscriber.id))
+    ),
+    subscriptionIds.length > 0
+      ? and(
+          eq(tables.event.targetType, 'subscription'),
+          inArray(
+            tables.event.targetId,
+            subscriptionIds.map((id) => encodeBareId('subscription', id))
+          )
+        )
+      : undefined,
+    sql`${tables.event.data}->>'externalId' = ${subscriber.externalId}`
+  );
+  const filters = and(eq(tables.event.tenantId, tenantId), about);
+
+  const [rows, [counted]] = await Promise.all([
+    trace(
+      'events.listForSubscriber',
+      async () =>
+        await db
+          .select()
+          .from(tables.event)
+          .where(and(filters, options.beforeId ? lt(tables.event.id, options.beforeId) : undefined))
+          .orderBy(desc(tables.event.id))
+          .limit(options.limit + 1)
+    ),
+    trace(
+      'events.countForSubscriber',
+      async () => await db.select({ total: count() }).from(tables.event).where(filters)
+    ),
+  ]);
+
+  return {
+    ...toPage(rows.map(serializeEvent), options.limit, (id) => encodeId('event', id)),
     total: Number(counted?.total ?? 0),
   };
 }

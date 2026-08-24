@@ -11,7 +11,12 @@ import {
 } from '@buzzkit/api/api/deliveries/index';
 import { SEND_CONCURRENCY, STALLED_FANOUT_MINUTES } from '@buzzkit/api/api/deliveries/policy';
 import { recordSystemEvents } from '@buzzkit/api/api/events/index';
-import { ExternalIdSchema, type Subscriber, type Subscription } from '@buzzkit/api/api/subscribers/index';
+import {
+  ExternalIdSchema,
+  resolveSubscriptionEventData,
+  type Subscriber,
+  type Subscription,
+} from '@buzzkit/api/api/subscribers/index';
 import { resolveTenantSettings, type Tenant } from '@buzzkit/api/api/tenants/index';
 import {
   CHANNELS,
@@ -592,7 +597,7 @@ type ProcessableRow = {
   message: Pick<Message, 'id' | 'payload' | 'expiresAt'>;
   subscription: Pick<
     Subscription,
-    'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel' | 'environment'
+    'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel' | 'environment' | 'platform'
   >;
   subscriber: Pick<Subscriber, 'externalId' | 'deletedAt'>;
 };
@@ -618,6 +623,7 @@ async function listDeliveriesForProcessing(db: Db, ids: number[]): Promise<Proce
       },
       subscription: {
         id: tables.subscription.id,
+        platform: tables.subscription.platform,
         endpoint: tables.subscription.endpoint,
         enabled: tables.subscription.enabled,
         status: tables.subscription.status,
@@ -790,8 +796,7 @@ export async function processDeliveryBatch(
             tenantId: row.delivery.tenantId,
             target: { type: 'subscription', id: row.subscription.id },
             data: {
-              externalId: row.subscriber.externalId,
-              channel: row.subscription.channel,
+              ...resolveSubscriptionEventData(row.subscription, row.subscriber.externalId),
               reason: outcome.result.ok ? null : outcome.result.reason,
             },
           };
