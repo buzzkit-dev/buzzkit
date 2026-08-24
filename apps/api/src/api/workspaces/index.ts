@@ -1,4 +1,8 @@
-import { purgeApiKeyCacheForWorkspace, randomString } from '@buzzkit/api/api/keys/index';
+import {
+  createDefaultClientKey,
+  purgeApiKeyCacheForWorkspace,
+  randomString,
+} from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
 import { NameSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -56,13 +60,18 @@ export async function createWorkspace(
         role: 'owner',
       });
 
-      await tx.insert(tables.tenant).values({
-        workspaceId: workspace!.id,
-        name: 'Default',
-        slug: 'default',
-        isDefault: true,
-        identitySecret: randomString(32),
-      });
+      const [tenant] = await tx
+        .insert(tables.tenant)
+        .values({
+          workspaceId: workspace!.id,
+          name: 'Default',
+          slug: 'default',
+          isDefault: true,
+          identitySecret: randomString(32),
+        })
+        .returning();
+
+      await createDefaultClientKey(tx, workspace!.id, tenant!.id, ownerUserId);
 
       return workspace!;
     })

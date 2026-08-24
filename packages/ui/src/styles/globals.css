@@ -39,6 +39,10 @@
 
 /* ── Light ───────────────────────────────────────────────────────────────── */
 :root {
+  /* Press feedback: backgrounds deflate by a fixed inset, never a ratio,
+     so every control presses the same whatever its width. */
+  --press-inset-x: 1px;
+  --press-inset-y: 0.5px;
   --background: oklch(1 0 0);
   --background-subtle: oklch(0.985 0 0);
 
@@ -623,7 +627,7 @@
 }
 
 /* ── Superellipse corners (squircle) — progressive enhancement ─────────────
-   Also applied to ::before/::after so background layers (the press-scale
+   Also applied to ::before/::after so background layers (the press
    ::before pattern) keep the same corner shape as their element. */
 @layer utilities {
   .corner-superellipse\/1\.125,

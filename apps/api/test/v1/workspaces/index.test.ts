@@ -36,6 +36,22 @@ describe('POST /v1/workspaces', () => {
     expect(body.data?.items[0]?.id).toMatch(/^tnt_/);
   });
 
+  it('creates a default client key for the default tenant', async () => {
+    const user = await signUpUser();
+    const workspace = await createWorkspace(user.token);
+
+    const { status, body } = await api<{
+      items: Array<{ name: string; kind: string; token: string | null; tenantId: string | null }>;
+    }>(`/v1/workspaces/${workspace.slug}/keys`, { headers: user.bearer });
+
+    expect(status).toBe(200);
+    expect(body.data?.items).toHaveLength(1);
+    expect(body.data?.items[0]?.name).toBe('Default');
+    expect(body.data?.items[0]?.kind).toBe('client');
+    expect(body.data?.items[0]?.token).toMatch(/^bk_pk_/);
+    expect(body.data?.items[0]?.tenantId).toMatch(/^tnt_/);
+  });
+
   it('rejects duplicate and reserved slugs', async () => {
     const user = await signUpUser();
     const workspace = await createWorkspace(user.token);

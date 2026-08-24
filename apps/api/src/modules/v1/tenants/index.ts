@@ -39,12 +39,12 @@ export const tenants = new Elysia()
   )
   .post(
     '/tenants',
-    async ({ body, db, set, workspace, event }) => {
+    async ({ body, db, set, workspace, user, event }) => {
       await assertTenantSlugAvailable(db, workspace.id, body.slug);
 
       assertTenantMetadataSize(body.metadata);
 
-      const tenant = await createTenant(db, workspace.id, body);
+      const tenant = await createTenant(db, workspace.id, body, user?.id ?? null);
 
       await event({
         event: 'tenant.created',

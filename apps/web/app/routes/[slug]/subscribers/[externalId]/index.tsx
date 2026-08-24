@@ -340,7 +340,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {subscriber.externalId}?</AlertDialogTitle>
+              <AlertDialogTitle>Delete “{subscriber.externalId}”?</AlertDialogTitle>
               <AlertDialogDescription>
                 Every device and address registered for this subscriber goes with it. Identifying the same id
                 again starts from scratch.

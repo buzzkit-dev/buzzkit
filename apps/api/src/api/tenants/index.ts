@@ -1,4 +1,4 @@
-import { purgeApiKeyCacheForTenant, randomString } from '@buzzkit/api/api/keys/index';
+import { createDefaultClientKey, purgeApiKeyCacheForTenant, randomString } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import { NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -172,12 +172,12 @@ export async function assertTenantSlugAvailable(db: Db, workspaceId: number, slu
 export async function createTenant(
   db: Db,
   workspaceId: number,
-  input: { name: string; slug: string; metadata?: Record<string, unknown> }
+  input: { name: string; slug: string; metadata?: Record<string, unknown> },
+  createdByUserId: string | null
 ): Promise<Tenant> {
-  const [tenant] = await trace(
-    'tenants.create',
-    async () =>
-      await db
+  return await trace('tenants.create', async () =>
+    db.transaction(async (tx) => {
+      const [tenant] = await tx
         .insert(tables.tenant)
         .values({
           workspaceId,
@@ -186,10 +186,13 @@ export async function createTenant(
           metadata: input.metadata ?? {},
           identitySecret: randomString(32),
         })
-        .returning()
-  );
+        .returning();
 
-  return tenant!;
+      await createDefaultClientKey(tx, workspaceId, tenant!.id, createdByUserId);
+
+      return tenant!;
+    })
+  );
 }
 
 export async function listTenants(

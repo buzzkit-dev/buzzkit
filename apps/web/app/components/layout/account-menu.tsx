@@ -46,7 +46,7 @@ export function AccountMenu({
             variant === 'row' ? (
               <Button
                 variant='ghost'
-                className='w-full justify-start pr-2.5 pl-1.25 not-disabled:active:before:scale-[0.985] not-disabled:data-[pressed]:before:scale-[0.985]'
+                className='w-full justify-start pr-2.5 pl-1.25'
                 aria-label='Account menu'
               />
             ) : (

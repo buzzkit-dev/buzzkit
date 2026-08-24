@@ -240,7 +240,7 @@ function TopicRow({ topic, onEdit }: { topic: Topic; onEdit: () => void }) {
         />
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {topic.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete “{topic.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
               It disappears from every subscriber's preferences and sends to it stop. Its slug becomes free
               again.

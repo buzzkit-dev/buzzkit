@@ -12,7 +12,7 @@ Auth: workspace API key (implies the workspace) or session + `buzzkit-workspace`
 { "name": "Customer One", "slug": "customer-one", "metadata": { "externalId": "cus_123" } }
 ```
 
-→ 201 `{ id: "tnt_…", name, slug, isDefault, metadata, createdAt, updatedAt }`. Slug: `^[a-z0-9]+(-[a-z0-9]+)*$`, unique per workspace, the stable address for all tenant-scoped APIs — pick carefully. `metadata` is free-form (your own customer id).
+→ 201 `{ id: "tnt_…", name, slug, isDefault, metadata, createdAt, updatedAt }`. Slug: `^[a-z0-9]+(-[a-z0-9]+)*$`, unique per workspace, the stable address for all tenant-scoped APIs — pick carefully. `metadata` is free-form (your own customer id). Every new tenant also gets a `Default` client key (`bk_pk_…`), visible in the workspace key listing.
 
 ## GET /v1/tenants
 

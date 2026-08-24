@@ -38,6 +38,19 @@ describe('/v1/tenants (workspace API key)', () => {
     expect(gone.status).toBe(404);
   });
 
+  it('creates a default client key for a new tenant', async () => {
+    const { workspace, ownerBearer, keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+
+    const { body } = await api<{
+      items: Array<{ kind: string; name: string; tenantId: string | null; token: string | null }>;
+    }>(`/v1/workspaces/${workspace.slug}/keys`, { headers: ownerBearer });
+
+    const created = body.data?.items.find((key) => key.tenantId === tenant.id && key.kind === 'client');
+    expect(created?.name).toBe('Default');
+    expect(created?.token).toMatch(/^bk_pk_/);
+  });
+
   it('rejects duplicate tenant slugs within the workspace', async () => {
     const { keyBearer } = await setupWorkspace();
     const slug = `cust-${uniq()}`;

@@ -9,7 +9,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import { Form, Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
-import { ApiError, getSubscriber, listSubscribers, type Subscriber } from '@/app/lib/api.server';
+import { ApiError, getSubscriber, listKeys, listSubscribers, type Subscriber } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
 import { initials } from '@/app/lib/utils/format';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
@@ -31,10 +31,17 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   if (query) {
     try {
       const subscriber = await getSubscriber(ctx, token, params.slug, 'default', query);
-      return { query, items: [subscriber], nextCursor: null, hasMore: false, missing: false };
+      return {
+        query,
+        items: [subscriber],
+        nextCursor: null,
+        hasMore: false,
+        missing: false,
+        clientKey: null,
+      };
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
-        return { query, items: [], nextCursor: null, hasMore: false, missing: true };
+        return { query, items: [], nextCursor: null, hasMore: false, missing: true, clientKey: null };
       }
       throw error;
     }
@@ -44,7 +51,20 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     limit: PAGE_SIZE,
     cursor: url.searchParams.get('cursor') ?? undefined,
   });
-  return { query, items: page.items, nextCursor: page.nextCursor, hasMore: page.hasMore, missing: false };
+  let clientKey: string | null = null;
+  if (page.items.length === 0) {
+    const keys = await listKeys(ctx, token, params.slug);
+    clientKey = keys.find((key) => key.kind === 'client' && !key.revokedAt)?.token ?? null;
+  }
+
+  return {
+    query,
+    items: page.items,
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+    missing: false,
+    clientKey,
+  };
 }
 
 function displayName(subscriber: Subscriber): string | null {
@@ -53,7 +73,15 @@ function displayName(subscriber: Subscriber): string | null {
   return typeof candidate === 'string' && candidate.trim() ? candidate : null;
 }
 
-function identifySnippet(apiUrl: string) {
+function identifySnippet(apiUrl: string, clientKey: string | null) {
+  if (clientKey) {
+    return [
+      `curl -X POST ${apiUrl}/v1/client/identify \\`,
+      `  -H 'Authorization: Bearer ${clientKey}' \\`,
+      "  -H 'Content-Type: application/json' \\",
+      `  -d '{ "externalId": "user_42" }'`,
+    ].join('\n');
+  }
   return [
     `curl -X PUT ${apiUrl}/v1/subscribers/user_42 \\`,
     "  -H 'Authorization: Bearer bk_ws_your_workspace_key' \\",
@@ -64,7 +92,7 @@ function identifySnippet(apiUrl: string) {
 
 export default function SubscribersRoute({ loaderData, params }: Route.ComponentProps) {
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { query, items, nextCursor, hasMore, missing } = loaderData;
+  const { query, items, nextCursor, hasMore, missing, clientKey } = loaderData;
   const base = `/${params.slug}/subscribers`;
   const fresh = !query && items.length === 0;
 
@@ -85,9 +113,9 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
         <EmptyState
           icon='IconTeamFilled'
           title='No subscribers yet'
-          description='Identify a user from your backend and they appear here with their devices and preferences.'
+          description='Identify a user and they appear here with their devices and preferences.'
         >
-          <CodeBlock className='w-full max-w-xl text-left' code={identifySnippet(apiUrl)} />
+          <CodeBlock className='w-full max-w-xl text-left' code={identifySnippet(apiUrl, clientKey)} />
         </EmptyState>
       ) : (
         <>
@@ -126,7 +154,7 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
                         className={cn(
                           'corner-superellipse/1.125 relative isolate flex items-center gap-3 rounded-2xl px-3.5 py-2.5 outline-none',
                           "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
-                          'before:transition-[background-color,scale] before:duration-150 before:ease-out active:before:scale-[0.99]',
+                          'before:transition-[background-color,inset] before:duration-150 before:ease-out active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
                           'hover:before:bg-bg-a2/70 active:before:bg-bg-a2/70 focus-visible:before:bg-bg-a2/70'
                         )}
                       >

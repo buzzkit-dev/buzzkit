@@ -184,7 +184,7 @@ function ScopePicker({
                   className={cn(
                     'relative isolate flex h-8 items-center gap-2 rounded-lg px-1.5',
                     "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
-                    'before:transition-[background-color,scale] before:duration-150 before:ease-out active:before:scale-[0.9935]',
+                    'before:transition-[background-color,inset] before:duration-150 before:ease-out active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
                     'hover:before:bg-bg-a1 active:before:bg-bg-a1'
                   )}
                 >
@@ -572,7 +572,7 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
       <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke {revoking?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke “{revoking?.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
               Requests with this key start failing immediately. This cannot be undone.
             </AlertDialogDescription>

@@ -233,18 +233,19 @@ Reference implementations: the `CodeBlock` copy button and the conversation head
 
 ## 7. The press pattern
 
-buzzkit controls press by scaling **only the background**. The label, icons and layout stay fixed.
+buzzkit controls press by deflating **only the background** by a fixed number of pixels. The label, icons and layout stay fixed, and every control deflates by the same amount whatever its width: a press is an **inset, never a ratio**, so a full-width dialog button, a sidebar row and a short "Create key" button all feel identical and nothing ever needs a per-instance override.
 
 ```tsx
-// The fill and its shadow live on ::before, which is what scales.
+// The fill and its shadow live on ::before, which is what deflates.
 "before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
-'before:transition-[background-color,box-shadow,scale] before:duration-150 before:ease-out',
-'enabled:active:before:scale-[0.975]',
+'before:transition-[background-color,box-shadow,inset] before:duration-150 before:ease-out',
+'enabled:active:before:inset-x-(--press-inset-x) enabled:active:before:inset-y-(--press-inset-y)',
 ```
 
-- Anything with content — buttons, selects, tabs, menu items — scales its `::before` to `0.975`.
-- Anything **without** content — checkbox, radio — scales itself to `0.95`.
-- Link buttons have no background, so the content itself scales to `0.975`.
+- The amounts are two tokens in `globals.css`: `--press-inset-x: 1px`, `--press-inset-y: 0.5px`, calibrated on the default 32px button (where the old `scale(0.975)` deflated roughly 1.3px × 0.4px, a touch too strong). Tune them there, never in a component.
+- `HighlightList` reads the same tokens and converts them to a per-item `scale(x, y)` on its sliding indicator, so menu items, select items, sidebar rows and choice rows deflate by the same pixels as buttons.
+- Anything **without** content — checkbox, radio, icon-only buttons — scales itself (`0.95` / `0.975`): their size is fixed, so a ratio is already a constant.
+- Link buttons and ghost tabs have no background, so the text itself scales to `0.975`.
 - **Disabled controls never show press feedback.** Gate on `enabled:` / `not-data-disabled:`.
 - Pressing a `<label>` presses its sibling control (handled in `globals.css`).
 
@@ -321,7 +322,7 @@ Status chips: `-1` tint + `-text`. Never interactive — if it needs a click, it
 
 ### Select
 
-One trigger size, matching the default button (32px, `rounded-xl`). The popup aligns the selected item over the trigger (`alignItemWithTrigger`), takes the trigger's width via `w-(--anchor-width)`, and `SelectValue` mirrors the selected item's icon.
+One trigger size, matching the default button (32px, `rounded-xl`). The popup aligns the selected item over the trigger (`alignItemWithTrigger`), takes the trigger's width via `w-(--anchor-width)`, and `SelectValue` mirrors the selected item's icon. Only the popup's surface animates in (it lives on `::before`; the list itself is the scroll container and its text lands instantly): over the trigger (Base UI's `data-side="none"`) the surface grows 0.975 → 1 from its centre in 150ms ease-out, picking up exactly where the trigger's press scale (`0.975`) let go; beside the trigger it fades in while growing from 95%. Closing is instant, no exit animation. Item padding is tuned so the aligned popup sits exactly over the trigger (list 4px + item 6px = trigger 10px).
 
 ### Checkbox · Radio · Switch
 

@@ -5,7 +5,7 @@ import * as React from 'react';
 
 const TRANSITION =
   'transform 180ms cubic-bezier(0.22, 1, 0.36, 1), width 180ms cubic-bezier(0.22, 1, 0.36, 1), height 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 120ms ease-out';
-const PRESS_SCALE = '0.985';
+const PRESS_INSET = { x: 1, y: 0.5 };
 
 /**
  * Attaches a sliding indicator to any container whose items expose a
@@ -27,11 +27,7 @@ const PRESS_SCALE = '0.985';
  */
 function useAnimatedIndicator<T extends HTMLElement>(
   rootRef: React.RefObject<T | null>,
-  {
-    attribute = 'data-highlighted',
-    press = true,
-    pressScale = PRESS_SCALE,
-  }: { attribute?: string; press?: boolean; pressScale?: string } = {}
+  { attribute = 'data-highlighted', press = true }: { attribute?: string; press?: boolean } = {}
 ): React.RefObject<HTMLDivElement | null> {
   const indicatorRef = React.useRef<HTMLDivElement>(null);
 
@@ -126,7 +122,16 @@ function useAnimatedIndicator<T extends HTMLElement>(
       if (!(event.target instanceof Element)) return;
       const item = event.target.closest<HTMLElement>(selector);
       if (!item || !root.contains(item)) return;
-      indicator.style.setProperty('--hl-press-scale', pressScale);
+      // Same fixed-pixel press as every other control (tokens in globals.css),
+      // converted to a ratio for this item's size.
+      const styles = getComputedStyle(root);
+      const insetX = Number.parseFloat(styles.getPropertyValue('--press-inset-x')) || PRESS_INSET.x;
+      const insetY = Number.parseFloat(styles.getPropertyValue('--press-inset-y')) || PRESS_INSET.y;
+      const width = indicator.offsetWidth;
+      const height = indicator.offsetHeight;
+      const scaleX = width ? 1 - (2 * insetX) / width : 1;
+      const scaleY = height ? 1 - (2 * insetY) / height : 1;
+      indicator.style.setProperty('--hl-press-scale', `${scaleX}, ${scaleY}`);
       const doc = root.ownerDocument ?? document;
       doc.addEventListener('pointerup', release, true);
       doc.addEventListener('pointercancel', release, true);
@@ -145,7 +150,7 @@ function useAnimatedIndicator<T extends HTMLElement>(
       release();
       activeEl?.removeAttribute('data-indicator-here');
     };
-  }, [rootRef, attribute, press, pressScale]);
+  }, [rootRef, attribute, press]);
 
   return indicatorRef;
 }

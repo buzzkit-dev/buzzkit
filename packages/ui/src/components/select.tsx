@@ -118,8 +118,8 @@ function SelectTrigger({
         'group/select-trigger relative isolate flex w-fit cursor-pointer select-none items-center justify-between gap-1.5 whitespace-nowrap font-medium text-fg-4 text-sm transition-[color,opacity] duration-150 ease-out',
         // One size, matching the default button exactly.
         'corner-superellipse/1.125 h-8 rounded-xl px-2.5',
-        "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:transition-[background-color,box-shadow,scale] before:duration-150 before:ease-out before:content-['']",
-        'enabled:active:before:scale-[0.975]',
+        "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:transition-[background-color,box-shadow,inset] before:duration-150 before:ease-out before:content-['']",
+        'enabled:active:before:inset-x-(--press-inset-x) enabled:active:before:inset-y-(--press-inset-y)',
         variant === 'ghost'
           ? 'enabled:hover:before:bg-bg-a2/70 enabled:active:before:bg-bg-a2/70 aria-expanded:before:bg-bg-a2'
           : 'before:bg-bg-2 enabled:hover:before:bg-bg-3/80 enabled:active:before:bg-bg-3/80 aria-expanded:before:bg-bg-3/80',
@@ -172,19 +172,29 @@ function SelectContent({
       >
         <SelectPrimitive.Popup
           data-slot='select-content'
-          data-align-trigger={alignItemWithTrigger}
           className={cn(
             // Anchor width is a floor, not a cage: long items grow the popup,
-            // and the positioner picks the side with room for it.
-            'corner-superellipse/1.125 relative isolate z-50 max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto whitespace-nowrap rounded-xl bg-popover text-popover-foreground shadow-md duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+            // and the positioner picks the side with room for it. The popup is a
+            // static shell: the list scrolls, and the surface lives on ::before so
+            // only the background animates while text lands instantly.
+            'corner-superellipse/1.125 relative isolate z-50 flex max-h-(--available-height) min-w-(--anchor-width) flex-col whitespace-nowrap rounded-xl text-popover-foreground',
+            "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:corner-superellipse/1.125 before:rounded-[inherit] before:bg-popover before:shadow-md before:content-['']",
+            // Entry only; closing is instant.
+            'before:origin-(--transform-origin) before:duration-150 before:ease-out data-open:before:animate-in',
+            // Beside the trigger: the surface fades and grows from 95%.
+            'data-open:before:fade-in-0 data-open:before:zoom-in-95',
+            // Over the trigger (Base UI reports side "none" when the selected item
+            // is aligned with it): the surface takes over from the trigger's press,
+            // growing 0.975 → 1 in place, no fade.
+            'data-[side=none]:before:origin-center data-open:data-[side=none]:before:fade-in-100 data-open:data-[side=none]:before:zoom-in-[0.975]',
             className
           )}
           {...props}
         >
           <SelectScrollUpButton />
-          <HighlightList className='p-0'>
-            <SelectPrimitive.List className='p-1'>{children}</SelectPrimitive.List>
-          </HighlightList>
+          <SelectPrimitive.List className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto'>
+            <HighlightList>{children}</HighlightList>
+          </SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
@@ -215,7 +225,9 @@ function SelectItem({
       data-icon={position}
       className={cn(
         // The sliding indicator draws the highlight; items only shift text color.
-        "relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-2 font-medium text-fg-3 text-sm outline-hidden select-none data-indicator-here:text-fg-4 [&[data-indicator-here]_span]:text-fg-4 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&[data-indicator-here]_svg]:opacity-100 [&_svg]:transition-opacity [&_svg]:duration-150 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        // pl-1.5 is load-bearing: list p-1 (4px) + pl-1.5 (6px) equals the
+        // trigger's px-2.5, so the aligned popup sits exactly over the trigger.
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-1.5 font-medium text-fg-3 text-sm outline-hidden select-none data-indicator-here:text-fg-4 [&[data-indicator-here]_span]:text-fg-4 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&[data-indicator-here]_svg]:opacity-100 [&_svg]:transition-opacity [&_svg]:duration-150 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}

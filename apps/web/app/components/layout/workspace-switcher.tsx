@@ -40,12 +40,7 @@ export function WorkspaceSwitcher({ workspaces, current }: { workspaces: Workspa
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={
-            <Button
-              variant='ghost'
-              className='w-full justify-start pr-2.5 pl-1.25 not-disabled:active:before:scale-[0.985] not-disabled:data-[pressed]:before:scale-[0.985]'
-            />
-          }
+          render={<Button variant='ghost' className='w-full justify-start pr-2.5 pl-1.25' />}
         >
           <WorkspaceAvatar name={current.name} avatarUrl={current.avatarUrl} />
           <span className='truncate'>{current.name}</span>

@@ -2,7 +2,7 @@
 
 ## Workspaces
 
-- `POST /v1/workspaces` (session) — `{ name, slug, avatarUrl? }` → 201. Creates owner membership **and the `default` tenant** in one transaction. Slugs: 3–48 chars, `^[a-z0-9]+(-[a-z0-9]+)*$`, reserved list applies.
+- `POST /v1/workspaces` (session) — `{ name, slug, avatarUrl? }` → 201. Creates owner membership, **the `default` tenant** and its `Default` client key (`bk_pk_…`) in one transaction. Slugs: 3–48 chars, `^[a-z0-9]+(-[a-z0-9]+)*$`, reserved list applies.
 - `GET /v1/workspaces` (session) — the caller's workspaces with their role (`{ items, hasMore, nextCursor }`). Workspace objects: `id`, `name`, `slug`, `avatarUrl`, `createdAt`, `updatedAt` (+ `role` where the caller has one).
 - `GET /v1/workspaces/:workspaceSlug` — `workspace:read`; `role` is null for key callers.
 - `PATCH /v1/workspaces/:workspaceSlug` — `workspace:write`; `{ name?, slug?, avatarUrl? }`.

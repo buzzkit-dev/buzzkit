@@ -177,8 +177,10 @@ describe('GET /v1/workspaces/:slug/keys', () => {
     for (const key of body.data?.items ?? []) {
       expect(key.secret).toBeUndefined();
       expect(key.keyHash).toBeUndefined();
-      expect(String(key.prefix)).toMatch(/^bk_(ws|tn)_/);
+      expect(String(key.prefix)).toMatch(/^bk_(ws|tn|pk)_/);
       expect(String(key.last4)).toHaveLength(4);
+      if (key.kind === 'client') expect(String(key.token)).toMatch(/^bk_pk_/);
+      else expect(key.token).toBeNull();
     }
   });
 });

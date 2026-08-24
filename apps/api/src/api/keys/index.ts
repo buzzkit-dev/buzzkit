@@ -4,7 +4,7 @@ import { sha256Hex } from '@buzzkit/api/libs/crypto';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
+import { and, type Db, desc, eq, isNull, type Tx, tables } from '@buzzkit/database';
 
 export type ApiKey = typeof tables.apiKey.$inferSelect;
 export type ApiKeyKind = ApiKey['kind'];
@@ -122,6 +122,37 @@ export async function createApiKey(
   );
 
   return { key: key!, secret };
+}
+
+export async function createDefaultClientKey(
+  db: Db | Tx,
+  workspaceId: number,
+  tenantId: number,
+  createdByUserId: string | null
+): Promise<ApiKey> {
+  const secret = generateApiKeySecret('client');
+
+  const [key] = await trace(
+    'keys.createDefaultClient',
+    async () =>
+      await db
+        .insert(tables.apiKey)
+        .values({
+          workspaceId,
+          tenantId,
+          name: 'Default',
+          kind: 'client',
+          keyHash: await hashApiKeySecret(secret),
+          token: secret,
+          prefix: secret.slice(0, CLIENT_KEY_PREFIX.length + 6),
+          last4: secret.slice(-4),
+          scopes: [],
+          createdByUserId,
+        })
+        .returning()
+  );
+
+  return key!;
 }
 
 export async function listApiKeys(db: Db, workspaceId: number) {

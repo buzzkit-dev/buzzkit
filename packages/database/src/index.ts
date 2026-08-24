@@ -40,6 +40,7 @@ export const createDrizzle = (url: string, options: DrizzleOptions = {}) => {
 };
 
 export type Db = ReturnType<typeof createDrizzle>;
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export * from 'drizzle-orm';
 export { drizzle } from 'drizzle-orm/postgres-js';

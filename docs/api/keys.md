@@ -10,7 +10,7 @@ Session-only management (`keys:read` / `keys:write` can never be satisfied by a 
 { "name": "iOS app", "kind": "client", "tenant": "default" }
 ```
 
-Client keys take no scopes (fixed `/v1/client/*` capabilities) and their token stays viewable in the listing — they're public by design.
+Client keys take no scopes (fixed `/v1/client/*` capabilities) and their token stays viewable in the listing — they're public by design. Every tenant starts with an auto-created `Default` client key, minted with the workspace's default tenant and with every new tenant.
 
 → 201 with the **`secret` shown exactly once**. Scopes are validated against the key-grantable catalog (wildcards `*` and `resource:*` allowed); `expiresAt` optional. Tenant keys require an existing tenant slug.
 

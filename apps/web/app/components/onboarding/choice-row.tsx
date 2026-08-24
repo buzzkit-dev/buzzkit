@@ -14,7 +14,7 @@ const HoverContext = createContext<{ hovered: string | null; setHovered: (id: st
 export function ChoiceRows({ children }: { children: React.ReactNode }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const indicatorRef = useAnimatedIndicator(rootRef, { pressScale: '0.9925' });
+  const indicatorRef = useAnimatedIndicator(rootRef);
 
   useEffect(() => {
     const indicator = indicatorRef.current;

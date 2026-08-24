@@ -27,7 +27,7 @@ export function Sidebar({
   const [hovered, setHovered] = useState<string | null>(null);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const rootRef = useRef<HTMLElement>(null);
-  const indicatorRef = useAnimatedIndicator(rootRef, { pressScale: '0.985' });
+  const indicatorRef = useAnimatedIndicator(rootRef);
 
   const isExact = (page: NavigationPage) => pathname === `${base}${page.path}`;
   const isActive = (page: NavigationPage) =>
