@@ -10,7 +10,19 @@ import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { deepEqual } from '@buzzkit/api/utils/equality';
 import { assertJsonSize } from '@buzzkit/api/utils/json';
-import { and, asc, type Db, desc, eq, getTableColumns, isNull, lt, sql, tables } from '@buzzkit/database';
+import {
+  and,
+  asc,
+  count,
+  type Db,
+  desc,
+  eq,
+  getTableColumns,
+  isNull,
+  lt,
+  sql,
+  tables,
+} from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Subscriber = typeof tables.subscriber.$inferSelect;
@@ -109,10 +121,64 @@ export const SUBSCRIPTION_TOUCH_THROTTLE_MS = 5 * 60 * 1000;
 
 export const IDENTITY_REVERIFY_THROTTLE_MS = 5 * 60 * 1000;
 
-type SubscriberInput = { attributes?: Record<string, unknown>; verifiedNow?: boolean };
+export const SYSTEM_ATTRIBUTE_PREFIX = '$';
+
+export function assertNoSystemAttributes(attributes: Record<string, unknown> | undefined): void {
+  if (!attributes) return;
+  for (const key of Object.keys(attributes)) {
+    if (key.startsWith(SYSTEM_ATTRIBUTE_PREFIX)) {
+      throw new BadRequestError(`'${key}' is a system attribute and cannot be set through the API`, {
+        code: 'system_attribute',
+        param: 'attributes',
+      });
+    }
+  }
+}
+
+export function resolveSystemAttributes(request: Request): Record<string, string> {
+  const cf = (request as Request & { cf?: IncomingRequestCfProperties }).cf;
+  const attributes: Record<string, string> = {};
+  const country = cf?.country ?? request.headers.get('cf-ipcountry');
+  if (country && country !== 'XX' && country !== 'T1') attributes.$country = country;
+  if (cf?.city) attributes.$city = cf.city;
+  if (cf?.region) attributes.$region = cf.region;
+  if (cf?.timezone) attributes.$timezone = cf.timezone;
+  const language = request.headers.get('accept-language')?.split(',')[0]?.trim();
+  if (language && language !== '*') attributes.$language = language;
+  return attributes;
+}
+
+function splitAttributes(attributes: Record<string, unknown>) {
+  const custom: Record<string, unknown> = {};
+  const system: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    (key.startsWith(SYSTEM_ATTRIBUTE_PREFIX) ? system : custom)[key] = value;
+  }
+  return { custom, system };
+}
+
+type SubscriberInput = {
+  attributes?: Record<string, unknown>;
+  systemAttributes?: Record<string, unknown>;
+  verifiedNow?: boolean;
+};
+
+function resolveAttributes(
+  existing: Subscriber | null,
+  input: SubscriberInput
+): Record<string, unknown> | undefined {
+  if (input.attributes === undefined && input.systemAttributes === undefined) return undefined;
+  const current = splitAttributes((existing?.attributes ?? {}) as Record<string, unknown>);
+  return {
+    ...(input.attributes ?? current.custom),
+    ...current.system,
+    ...(input.systemAttributes ?? {}),
+  };
+}
 
 function isSubscriberCurrent(existing: Subscriber, input: SubscriberInput, now: Date): boolean {
-  if (input.attributes !== undefined && !deepEqual(existing.attributes, input.attributes)) return false;
+  const attributes = resolveAttributes(existing, input);
+  if (attributes !== undefined && !deepEqual(existing.attributes, attributes)) return false;
   if (
     input.verifiedNow &&
     (!existing.identityVerifiedAt ||
@@ -158,19 +224,20 @@ export async function upsertSubscriber(
       return { subscriber: existing, created: false, changed: false };
     }
 
+    const attributes = resolveAttributes(existing, input);
     const [row] = await db
       .insert(tables.subscriber)
       .values({
         tenantId,
         externalId,
-        attributes: input.attributes ?? {},
+        attributes: attributes ?? {},
         ...(input.verifiedNow ? { identityVerifiedAt: now } : {}),
       })
       .onConflictDoUpdate({
         target: [tables.subscriber.tenantId, tables.subscriber.externalId],
         targetWhere: isNull(tables.subscriber.deletedAt),
         set: {
-          ...(input.attributes !== undefined ? { attributes: input.attributes } : {}),
+          ...(attributes !== undefined ? { attributes } : {}),
           ...(input.verifiedNow ? { identityVerifiedAt: now } : {}),
           updatedAt: now,
         },
@@ -210,16 +277,43 @@ export async function findSubscriberByExternalId(
   return subscriber;
 }
 
+export type SubscriberListItem = Subscriber & {
+  lastSeenAt: Date | null;
+  channels: string[];
+  platforms: string[];
+};
+
+export function serializeSubscriberListItem(item: SubscriberListItem) {
+  return {
+    ...serializeSubscriber(item),
+    lastSeenAt: item.lastSeenAt,
+    channels: item.channels,
+    platforms: item.platforms,
+  };
+}
+
 export async function listSubscribers(
   db: Db,
   tenantId: number,
   options: { limit: number; beforeId?: number }
-): Promise<Subscriber[]> {
-  return await trace(
+): Promise<SubscriberListItem[]> {
+  const live = sql`${tables.subscription.subscriberId} = ${tables.subscriber.id} and ${tables.subscription.deletedAt} is null`;
+  const rows = await trace(
     'subscribers.list',
     async () =>
       await db
-        .select()
+        .select({
+          ...getTableColumns(tables.subscriber),
+          lastSeenAt: sql<
+            string | null
+          >`(select max(${tables.subscription.lastSeenAt}) from ${tables.subscription} where ${live})`,
+          channels: sql<
+            string[] | null
+          >`(select json_agg(distinct ${tables.subscription.channel}) from ${tables.subscription} where ${live})`,
+          platforms: sql<
+            string[] | null
+          >`(select json_agg(distinct ${tables.subscription.platform}) from ${tables.subscription} where ${live} and ${tables.subscription.platform} is not null)`,
+        })
         .from(tables.subscriber)
         .where(
           and(
@@ -231,6 +325,25 @@ export async function listSubscribers(
         .orderBy(desc(tables.subscriber.id))
         .limit(options.limit + 1)
   );
+
+  return rows.map((row) => ({
+    ...row,
+    lastSeenAt: row.lastSeenAt ? new Date(row.lastSeenAt) : null,
+    channels: row.channels ?? [],
+    platforms: row.platforms ?? [],
+  }));
+}
+
+export async function countSubscribers(db: Db, tenantId: number): Promise<number> {
+  const [row] = await trace(
+    'subscribers.count',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.subscriber)
+        .where(and(eq(tables.subscriber.tenantId, tenantId), isNull(tables.subscriber.deletedAt)))
+  );
+  return Number(row?.total ?? 0);
 }
 
 export async function softDeleteSubscriber(db: Db, subscriber: Subscriber): Promise<Subscriber> {
@@ -300,6 +413,7 @@ export async function registerSubscription(
     environment?: Subscription['environment'];
     endpoint: string;
     verifiedNow?: boolean;
+    systemAttributes?: Record<string, unknown>;
     subscriber?: Subscriber;
     rebind?: boolean;
   }
@@ -312,7 +426,10 @@ export async function registerSubscription(
   return await trace('subscriptions.register', async (t) => {
     const { subscriber, created: subscriberCreated } = input.subscriber
       ? { subscriber: input.subscriber, created: false }
-      : await upsertSubscriber(db, tenantId, input.externalId, { verifiedNow: input.verifiedNow });
+      : await upsertSubscriber(db, tenantId, input.externalId, {
+          verifiedNow: input.verifiedNow,
+          systemAttributes: input.systemAttributes,
+        });
 
     const now = new Date();
     const existing = await findExistingSubscription(db, tenantId, input.channel, input.endpoint);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
-import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
+import { createClientKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 async function identify(headers: Record<string, string>, externalId: string, attributes?: object) {
   return api<{ id: string; externalId: string; attributes: Record<string, unknown> }>(
@@ -13,6 +13,231 @@ async function identify(headers: Record<string, string>, externalId: string, att
     }
   );
 }
+
+describe('system attributes', () => {
+  async function setupDevice() {
+    const { workspace, owner, keyBearer } = await setupWorkspace();
+    const clientKey = await createClientKey(owner.token, workspace.slug, 'default');
+    return { workspace, keyBearer, clientBearer: { Authorization: `Bearer ${clientKey.token}` } };
+  }
+  const device = { 'cf-ipcountry': 'DE', 'accept-language': 'de-DE,de;q=0.9' };
+  type Attributes = Record<string, unknown>;
+
+  it('are stamped when the device identifies, and only as $-keys', async () => {
+    const { clientBearer } = await setupDevice();
+    const externalId = `sys-${uniq()}`;
+
+    const identified = await api<{ attributes: Attributes }>('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId }),
+    });
+    expect(identified.status).toBe(201);
+    expect(identified.body.data?.attributes.$language).toBe('de-DE');
+    expect(typeof identified.body.data?.attributes.$country).toBe('string');
+    expect(Object.keys(identified.body.data?.attributes ?? {}).every((key) => key.startsWith('$'))).toBe(
+      true
+    );
+  });
+
+  it('are stamped when the device registers a subscription, creating the subscriber implicitly', async () => {
+    const { clientBearer, keyBearer } = await setupDevice();
+    const externalId = `dev-${uniq()}`;
+
+    const registered = await api('/v1/client/subscriptions', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token: `tok-${uniq()}` }),
+    });
+    expect(registered.status).toBe(201);
+
+    const fetched = await api<{ attributes: Attributes }>(
+      `/v1/subscribers/${encodeURIComponent(externalId)}`,
+      {
+        headers: keyBearer,
+      }
+    );
+    expect(fetched.body.data?.attributes.$language).toBe('de-DE');
+  });
+
+  it('refresh on every device call, newest wins, without touching custom keys', async () => {
+    const { clientBearer, keyBearer } = await setupDevice();
+    const externalId = `fresh-${uniq()}`;
+
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId }),
+    });
+    await api(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: JSON.stringify({ attributes: { plan: 'pro' } }),
+    });
+    const again = await api<{ attributes: Attributes }>('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, 'accept-language': 'fr-FR' },
+      body: JSON.stringify({ externalId }),
+    });
+    expect(again.status).toBe(200);
+    expect(again.body.data?.attributes.$language).toBe('fr-FR');
+    expect(again.body.data?.attributes.plan).toBe('pro');
+  });
+
+  it('survive a wholesale server-side replace of the custom attributes', async () => {
+    const { clientBearer, keyBearer } = await setupDevice();
+    const externalId = `keep-${uniq()}`;
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId }),
+    });
+
+    const replaced = await api<{ attributes: Attributes }>(
+      `/v1/subscribers/${encodeURIComponent(externalId)}`,
+      {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify({ attributes: { plan: 'pro' } }),
+      }
+    );
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.data?.attributes).toMatchObject({ plan: 'pro', $language: 'de-DE' });
+
+    const emptied = await api<{ attributes: Attributes }>(
+      `/v1/subscribers/${encodeURIComponent(externalId)}`,
+      {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify({ attributes: {} }),
+      }
+    );
+    expect(emptied.body.data?.attributes.plan).toBeUndefined();
+    expect(emptied.body.data?.attributes.$language).toBe('de-DE');
+
+    const untouched = await api<{ attributes: Attributes }>(
+      `/v1/subscribers/${encodeURIComponent(externalId)}`,
+      {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify({ email: `${externalId}@example.com` }),
+      }
+    );
+    expect(untouched.body.data?.attributes.$language).toBe('de-DE');
+  });
+
+  it('are never stamped by server-side identify, whatever headers the backend sends', async () => {
+    const { keyBearer } = await setupDevice();
+    const externalId = `srv-${uniq()}`;
+
+    const created = await api<{ attributes: Attributes }>(
+      `/v1/subscribers/${encodeURIComponent(externalId)}`,
+      {
+        method: 'PUT',
+        headers: { ...keyBearer, ...device },
+        body: JSON.stringify({ attributes: { plan: 'free' } }),
+      }
+    );
+    expect(created.status).toBe(201);
+    expect(created.body.data?.attributes).toEqual({ plan: 'free' });
+  });
+
+  it('cannot be written by hand, on create or on update', async () => {
+    const { keyBearer } = await setupDevice();
+    const externalId = `forge-${uniq()}`;
+
+    for (const attributes of [{ $country: 'US' }, { plan: 'pro', $language: 'en' }, { $custom: 1 }]) {
+      const forged = await api(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify({ attributes }),
+      });
+      expect(forged.status, JSON.stringify(attributes)).toBe(400);
+      expect(forged.body.error?.code).toBe('system_attribute');
+      expect(forged.body.error?.param).toBe('attributes');
+    }
+
+    const missing = await api(`/v1/subscribers/${encodeURIComponent(externalId)}`, { headers: keyBearer });
+    expect(missing.status).toBe(404);
+  });
+
+  it('do not churn the row when nothing changed', async () => {
+    const { clientBearer, keyBearer } = await setupDevice();
+    const externalId = `calm-${uniq()}`;
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId }),
+    });
+    const before = await api<{ updatedAt: string }>(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+      headers: keyBearer,
+    });
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId }),
+    });
+    const after = await api<{ updatedAt: string }>(`/v1/subscribers/${encodeURIComponent(externalId)}`, {
+      headers: keyBearer,
+    });
+    expect(after.body.data?.updatedAt).toBe(before.body.data?.updatedAt);
+  });
+
+  it('show up in the list and the detail alike', async () => {
+    const { clientBearer, keyBearer } = await setupDevice();
+    const externalId = `seen-${uniq()}`;
+    await api('/v1/client/identify', {
+      method: 'POST',
+      headers: { ...clientBearer, ...device },
+      body: JSON.stringify({ externalId }),
+    });
+
+    const list = await api<{ items: Array<{ externalId: string; attributes: Attributes }> }>(
+      '/v1/subscribers',
+      {
+        headers: keyBearer,
+      }
+    );
+    expect(list.body.data?.items.find((item) => item.externalId === externalId)?.attributes.$language).toBe(
+      'de-DE'
+    );
+  });
+
+  it('lists lastSeenAt and platforms per subscriber', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `seen-${uniq()}`;
+    await api('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token: `tok-${uniq()}` }),
+    });
+    await api('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'android', token: `tok-${uniq()}` }),
+    });
+    await api('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId, channel: 'email', address: `${externalId}@example.com` }),
+    });
+
+    const list = await api<{
+      items: Array<{
+        externalId: string;
+        lastSeenAt: string | null;
+        channels: string[];
+        platforms: string[];
+      }>;
+      total: number;
+    }>('/v1/subscribers', { headers: keyBearer });
+    expect(list.body.data?.total).toBe(1);
+    const item = list.body.data?.items.find((entry) => entry.externalId === externalId);
+    expect(item?.lastSeenAt).toBeTruthy();
+    expect([...(item?.platforms ?? [])].sort()).toEqual(['android', 'ios']);
+    expect([...(item?.channels ?? [])].sort()).toEqual(['email', 'push']);
+  });
+});
 
 describe('PUT /v1/subscribers/:externalId', () => {
   it('creates on first call (201) and upserts after (200)', async () => {

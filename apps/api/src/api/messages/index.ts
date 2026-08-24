@@ -35,7 +35,21 @@ import {
 } from '@buzzkit/api/providers/index';
 import type { TokenMemo } from '@buzzkit/api/providers/shared/cache';
 import { assertJsonSize, stableStringify } from '@buzzkit/api/utils/json';
-import { and, asc, type Db, desc, eq, gt, inArray, isNull, lt, ne, sql, tables } from '@buzzkit/database';
+import {
+  and,
+  asc,
+  count,
+  type Db,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  sql,
+  tables,
+} from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Message = typeof tables.message.$inferSelect;
@@ -258,6 +272,18 @@ export async function enqueueDeliveries(jobs: Array<DeliveryJob & { delaySeconds
       }))
     );
   }
+}
+
+export async function countMessages(db: Db, tenantId: number): Promise<number> {
+  const [row] = await trace(
+    'messages.count',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.message)
+        .where(and(eq(tables.message.tenantId, tenantId), isNull(tables.message.deletedAt)))
+  );
+  return Number(row?.total ?? 0);
 }
 
 export async function listMessages(

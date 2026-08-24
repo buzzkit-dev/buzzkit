@@ -1,5 +1,6 @@
 import {
   AttributesSchema,
+  assertNoSystemAttributes,
   EmailAddressSchema,
   ExternalIdSchema,
   findSubscriberByExternalId,
@@ -41,6 +42,8 @@ export const subscriber = new Elysia()
   .put(
     '/subscribers/:externalId',
     async ({ body, db, params, set, tenant, event }) => {
+      assertNoSystemAttributes(body?.attributes);
+
       const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, params.externalId, {
         attributes: body?.attributes,
       });

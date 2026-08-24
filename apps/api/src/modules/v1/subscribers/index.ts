@@ -1,4 +1,8 @@
-import { listSubscribers, serializeSubscriber } from '@buzzkit/api/api/subscribers/index';
+import {
+  countSubscribers,
+  listSubscribers,
+  serializeSubscriberListItem,
+} from '@buzzkit/api/api/subscribers/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
 import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
@@ -14,17 +18,21 @@ export const subscribers = new Elysia()
       const limit = clampLimit(query.limit);
       const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('subscriber', id));
 
-      const rows = await listSubscribers(db, tenant.id, { limit, beforeId });
+      const [rows, total] = await Promise.all([
+        listSubscribers(db, tenant.id, { limit, beforeId }),
+        countSubscribers(db, tenant.id),
+      ]);
+
       const page = toPage(rows, limit, (id) => encodeId('subscriber', id));
 
       return Response.success(
-        page.items.map(serializeSubscriber).map((item) => ({
+        page.items.map(serializeSubscriberListItem).map((item) => ({
           ...item,
           id: encodeId('subscriber', item.id),
         })),
         { ignoreTransform: ['attributes'] }
       )
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor })
+        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
         .send();
     },
     {

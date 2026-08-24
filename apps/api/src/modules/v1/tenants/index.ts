@@ -1,6 +1,7 @@
 import {
   assertTenantMetadataSize,
   assertTenantSlugAvailable,
+  countTenants,
   createTenant,
   listTenants,
   serializeTenant,
@@ -23,11 +24,15 @@ export const tenants = new Elysia()
       const limit = clampLimit(query.limit);
       const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('tenant', id));
 
-      const rows = await listTenants(db, workspace.id, { limit, beforeId });
+      const [rows, total] = await Promise.all([
+        listTenants(db, workspace.id, { limit, beforeId }),
+        countTenants(db, workspace.id),
+      ]);
+
       const page = toPage(rows, limit, (id) => encodeId('tenant', id));
 
       return Response.success(page.items.map(serializeTenant), { entity: 'tenant' })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor })
+        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
         .send();
     },
     {

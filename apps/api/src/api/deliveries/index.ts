@@ -6,6 +6,7 @@ import type { DeliveryErrorCode, ProviderName, ProviderSendResult } from '@buzzk
 import {
   and,
   asc,
+  count,
   type Db,
   desc,
   eq,
@@ -125,6 +126,23 @@ export async function listDeliveries(
         .orderBy(desc(tables.delivery.id))
         .limit(options.limit + 1)
   );
+}
+
+export async function countDeliveries(db: Db, messageId: number, status?: DeliveryStatus): Promise<number> {
+  const [row] = await trace(
+    'deliveries.count',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.delivery)
+        .where(
+          and(
+            eq(tables.delivery.messageId, messageId),
+            status ? eq(tables.delivery.status, status) : undefined
+          )
+        )
+  );
+  return Number(row?.total ?? 0);
 }
 
 export async function listAttempts(db: Db, deliveryId: number): Promise<DeliveryAttempt[]> {

@@ -111,11 +111,12 @@ describe('/v1/tenants (workspace API key)', () => {
     }
 
     // 4 tenants total (incl. default) — page size 2 needs two cursor hops
-    const page1 = await api<{ items: unknown[]; hasMore: boolean; nextCursor: string }>(
+    const page1 = await api<{ items: unknown[]; hasMore: boolean; nextCursor: string; total: number }>(
       '/v1/tenants?limit=2',
       { headers: keyBearer }
     );
     expect(page1.body.data?.items).toHaveLength(2);
+    expect(page1.body.data?.total).toBe(4);
     expect(page1.body.data?.hasMore).toBe(true);
     expect(page1.body.data?.nextCursor).toMatch(/^tnt_/);
 

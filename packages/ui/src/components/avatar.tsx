@@ -1,26 +1,49 @@
 import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar';
+import { BlurImage } from '@buzzkit/ui/components/blur-image';
 import { cn } from '@buzzkit/ui/lib/utils';
 import type * as React from 'react';
+
+function generatedAvatarUrl(name: string): string {
+  const key = name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'anonymous';
+  return `https://api.kodama.sh/${key}?size=128&shape=circle&depth=subtle&mood=happy,surprised,cool&animations=blink,eyebrowBounce`;
+}
+
+const FALLBACK_CLASS =
+  'flex size-full items-center justify-center rounded-full bg-bg-4 font-medium text-fg-2 text-sm uppercase group-data-[size=lg]/avatar:text-base group-data-[size=sm]/avatar:text-xs group-data-[size=xl]/avatar:text-3xl';
 
 function Avatar({
   className,
   size = 'default',
+  name,
+  label,
+  children,
   ...props
 }: AvatarPrimitive.Root.Props & {
   size?: 'default' | 'sm' | 'lg' | 'xl';
+  name?: string;
+  label?: string;
 }) {
   return (
     <AvatarPrimitive.Root
       data-slot='avatar'
       data-size={size}
       className={cn(
-        // No `overflow-hidden` here: the image and fallback round themselves, and
-        // clipping the root would swallow AvatarBadge and its ring.
         'group/avatar relative flex size-[30px] shrink-0 rounded-full select-none data-[size=lg]:size-10 data-[size=sm]:size-6 data-[size=xl]:size-16',
         className
       )}
       {...props}
-    />
+    >
+      {name === undefined ? (
+        children
+      ) : (
+        <BlurImage
+          src={generatedAvatarUrl(name)}
+          alt=''
+          className='size-full rounded-full'
+          placeholder={<span className={FALLBACK_CLASS}>{(label ?? name).trim().charAt(0)}</span>}
+        />
+      )}
+    </AvatarPrimitive.Root>
   );
 }
 
@@ -38,10 +61,7 @@ function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props)
   return (
     <AvatarPrimitive.Fallback
       data-slot='avatar-fallback'
-      className={cn(
-        'flex size-full items-center justify-center rounded-full bg-bg-4 font-medium text-fg-2 text-sm uppercase group-data-[size=lg]/avatar:text-base group-data-[size=sm]/avatar:text-xs group-data-[size=xl]/avatar:text-3xl',
-        className
-      )}
+      className={cn(FALLBACK_CLASS, className)}
       {...props}
     />
   );
@@ -90,4 +110,12 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<'div'>) 
   );
 }
 
-export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage };
+export {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+  generatedAvatarUrl,
+};

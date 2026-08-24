@@ -3,6 +3,7 @@ import {
   findSubscriptionOwnedBy,
   registerSubscription,
   resolveSubscriptionInput,
+  resolveSystemAttributes,
   SubscriptionInputSchema,
   serializeSubscription,
   softDeleteSubscription,
@@ -19,7 +20,7 @@ export const clientSubscriptions = new Elysia()
   .guard({ detail: { tags: ['Client'] } })
   .post(
     '/client/subscriptions',
-    async ({ body, db, set, tenant, clientEvent }) => {
+    async ({ body, db, request, set, tenant, clientEvent }) => {
       const verified = await verifyIdentity(tenant, body.externalId, body.identityHash);
       const resolved = resolveSubscriptionInput(body);
 
@@ -30,6 +31,7 @@ export const clientSubscriptions = new Elysia()
           externalId: body.externalId,
           ...resolved,
           verifiedNow: verified,
+          systemAttributes: resolveSystemAttributes(request),
           rebind: verified,
         }
       );

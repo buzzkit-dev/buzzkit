@@ -274,6 +274,8 @@ Pair whenever hover carries feedback a press should show: ghost/soft/link button
 
 ## 8. Icons
 
+Country flags are `Flag` (`@buzzkit/ui/components/flag`): `<Flag code='DE' />` renders the 16px SVG from the app's `/flags/<code>.svg` (the set lives in `apps/web/public/flags`), decorative, with a 1px upward nudge so it sits on the text baseline next to the country name. Never an inline `<img>`.
+
 Central Icons, exclusively:
 
 ```tsx
@@ -310,6 +312,8 @@ A button's `loading` prop is the only busy state: it disables the button and swa
 `default` is the single primary action on a view. `elevated` is the neutral workhorse. `soft` and `ghost` are secondary and tertiary; `ghost` rests in `fg-2` and only turns `fg-4` on hover and press, so a row of ghost actions reads as chrome until you reach for it. `destructive` only for irreversible actions. Use `xs` inside dense chrome such as a card footer.
 
 ### Badge
+
+A value that belongs to a vocabulary (key kind, platform, channel, credential status, verified, revoked, sandbox, invalid) is never a hand-written `Badge` on a page: `apps/web/app/components/badges` owns the label and the colour for each value (`KeyKindBadge`, `PlatformBadge`, `ChannelBadge`, `CredentialStatusBadge`, `VerifiedBadge`, `RevokedBadge`, `SandboxBadge`, `SubscriptionStatusBadge`), so iOS is blue and Android purple on every screen without anyone remembering. Add a value there first, then use it.
 
 `variant`: `default` · `purple` · `sky` · `blue` · `green` · `amber` · `orange` · `red` · `pink` · `solid`
 `size`: `sm` (20px, `text-xs`) · `default` (24px, `text-sm`)
@@ -374,6 +378,14 @@ Every time the UI shows, relative or absolute (created, updated, last used, last
 ### Table
 
 `@buzzkit/ui/components/table`. Lives inside a `Card`, edge to edge: hairline rows (`border-bg-3`), header cells `text-xs` `text-fg-2` at 36px, body cells `text-sm` `text-fg-3` with the identifying column `font-medium text-fg-4`, 12px horizontal padding and 16px at the card edges. Every cell is `whitespace-nowrap` and the wrapper is `overflow-auto`, so a narrow viewport scrolls the table sideways and never the page. `Table` is a column: a scroll viewport (`overflow-auto`, `min-h-0 flex-1`) holding the `<table>`, and below it anything that must never scroll. The header is sticky inside the viewport (`border-separate` table, hairlines drawn on cells so the sticky row keeps its line); when a page pins the table, the card takes `min-h-0` and the rows scroll in both directions while `TablePagination`, composed as the last child of `Table` and lifted out of the viewport by it, stays put across the full width: a 36px row (`border-t`, `text-xs`) holding "Page 1 / 3 (131)" (NumberFlow, the total in `fg-1`) and Previous / Next as `xs` ghost buttons that navigate through `LinkProvider`; it only exists when there is more than one page. Rows are not pressed and have no hover; table cells use `cursor: auto` (set in `globals.css`), so the I-beam appears only over the glyphs and the arrow over a cell's whitespace; per-row actions sit in a trailing `…` menu in a `w-0` cell. A row's category gets its own column as a `Badge size='sm'`, one colour per category (keys: Workspace blue, Tenant purple, Client green); state badges (`Revoked`, red) sit after the name; secondary counts (scopes) carry a dotted underline and a tooltip listing the detail; empty values say the word (`Never`, `All tenants`) in `text-fg-2` rather than a dash. Every time in a table goes through `Time` / `TimeAgo` (exact time on hover).
+
+### Avatar
+
+People and workspaces with a picture use `AvatarImage` + `AvatarFallback` (initials). Everything else, subscribers first, has no picture and gets no initials either: `<Avatar name={externalId} />` renders a generated **Kodama** face (`https://api.kodama.sh/<name>?size=128&shape=circle&depth=subtle&mood=happy,surprised,cool&animations=blink,eyebrowBounce`, the name reduced to URL-safe characters), deterministic per id so the same person looks the same on every screen; it blinks and raises an eyebrow now and then. It arrives through `BlurImage`: while it loads, and if it never does, the disc shows one centred letter (the first of `label`, the person's name, else the id; never two), and the picture eases in from a 4px blur over 300ms once decoded. The mood is one of `happy,surprised,cool`, picked by Kodama deterministically per name.
+
+### BlurImage
+
+`@buzzkit/ui/components/blur-image`: an `<img>` inside a `bg-3` frame, `opacity-0 blur-[4px]` until `load` (or already complete from cache), then `opacity-100 blur-0` on a 300ms ease-out; an optional `placeholder` sits centred underneath. Use it for any remote picture that would otherwise pop in.
 
 ### EmptyState
 

@@ -1,5 +1,6 @@
 import {
   CreateMessageSchema,
+  countMessages,
   createMessage,
   enqueueFanout,
   listMessages,
@@ -20,14 +21,17 @@ export const messages = new Elysia()
       const limit = clampLimit(query.limit);
       const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('message', id));
 
-      const rows = await listMessages(db, tenant.id, { limit, beforeId });
+      const [rows, total] = await Promise.all([
+        listMessages(db, tenant.id, { limit, beforeId }),
+        countMessages(db, tenant.id),
+      ]);
       const page = toPage(rows, limit, (id) => encodeId('message', id));
 
       return Response.success(page.items.map(serializeMessage), {
         entity: 'message',
         ignoreTransform: ['payload', 'targets'],
       })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor })
+        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
         .send();
     },
     {

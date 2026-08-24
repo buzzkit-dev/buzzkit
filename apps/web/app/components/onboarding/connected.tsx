@@ -1,8 +1,8 @@
-import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Link, type useFetcher } from 'react-router';
+import { CredentialStatusBadge } from '@/app/components/badges';
 import type { ChannelEntry, ProviderEntry } from '@/app/components/onboarding/catalog';
 import type { OnboardingSlots } from '@/app/components/onboarding/layout';
 import type { Credential } from '@/app/lib/api.server';
@@ -67,9 +67,7 @@ export function connectedSlots({
         <ul className='-mx-4 flex flex-col divide-y divide-bg-3'>
           <li className='flex min-h-10 items-center gap-3 px-4 py-1.5'>
             <span className='flex-1 font-medium text-fg-4 text-sm'>Status</span>
-            <Badge variant={active ? 'green' : 'amber'} size='sm'>
-              {active ? 'Active' : 'Unverified'}
-            </Badge>
+            <CredentialStatusBadge status={active ? 'active' : 'unvalidated'} />
           </li>
           {first.provider === 'apns' && (
             <li className='flex min-h-10 items-center gap-3 px-4 py-1.5'>

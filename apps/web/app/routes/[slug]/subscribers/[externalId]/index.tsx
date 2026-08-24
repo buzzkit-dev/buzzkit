@@ -9,16 +9,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@buzzkit/ui/components/alert-dialog';
-import { Avatar, AvatarFallback } from '@buzzkit/ui/components/avatar';
-import { Badge } from '@buzzkit/ui/components/badge';
+import { Avatar } from '@buzzkit/ui/components/avatar';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
+import { Flag } from '@buzzkit/ui/components/flag';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { PlatformBadge, SandboxBadge, SubscriptionStatusBadge, VerifiedBadge } from '@/app/components/badges';
 import { CHANNELS, findChannel } from '@/app/components/onboarding/catalog';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { TIME_TOOLTIP_DELAY, TimeAgo } from '@/app/hooks/use-time-ago';
@@ -30,7 +31,6 @@ import {
   type Subscription,
 } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
-import { initials } from '@/app/lib/utils/format';
 import type { Route } from './+types/index';
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -93,7 +93,7 @@ function detectRow(key: string, value: unknown): AttributeRow {
     try {
       display = regionNames.of(display) ?? display;
     } catch {}
-    return { ...base, icon: 'IconGlobe', flag: `/flags/${text.toLowerCase()}.svg`, display };
+    return { ...base, icon: 'IconGlobe', flag: text, display };
   }
 
   if (/^(city|region)$/i.test(key)) {
@@ -194,7 +194,7 @@ function AttributeList({ attributes }: { attributes: Record<string, unknown> }) 
           <dt className='min-w-0 truncate text-fg-2 text-sm'>{row.label}</dt>
           <dd className='mr-2 flex min-w-0 items-center gap-1.5 text-fg-3 text-sm'>
             {row.flag ? (
-              <img src={row.flag} alt='' className='size-4 shrink-0' />
+              <Flag code={row.flag} />
             ) : (
               <Icon name={row.icon} className='size-4 shrink-0 opacity-65' />
             )}
@@ -225,19 +225,9 @@ function SubscriptionRow({ subscription }: { subscription: Subscription }) {
           <span className='truncate font-medium text-fg-4 text-sm leading-tighter'>
             {endpointLabel(subscription)}
           </span>
-          {subscription.platform && (
-            <Badge size='sm'>{subscription.platform === 'ios' ? 'iOS' : 'Android'}</Badge>
-          )}
-          {subscription.environment === 'sandbox' && (
-            <Badge variant='amber' size='sm'>
-              Sandbox
-            </Badge>
-          )}
-          {invalid && (
-            <Badge variant='red' size='sm'>
-              Invalid
-            </Badge>
-          )}
+          {subscription.platform && <PlatformBadge platform={subscription.platform} />}
+          <SandboxBadge environment={subscription.environment} />
+          <SubscriptionStatusBadge status={subscription.status} />
         </span>
         <span className='truncate text-fg-2 text-xs'>
           {channel?.name ?? subscription.channel} · last seen <TimeAgo at={subscription.lastSeenAt} />
@@ -322,17 +312,11 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
 
       <header className='flex items-center justify-between gap-4'>
         <div className='flex items-center gap-3'>
-          <Avatar className='size-10'>
-            <AvatarFallback className='text-lg'>{initials(name ?? subscriber.externalId)}</AvatarFallback>
-          </Avatar>
+          <Avatar size='lg' name={subscriber.externalId} label={name ?? subscriber.externalId} />
           <div className='flex flex-col gap-0.5'>
             <h1 className='flex items-center gap-2 font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
               {subscriber.externalId}
-              {subscriber.verified && (
-                <Badge variant='green' size='sm'>
-                  Verified
-                </Badge>
-              )}
+              <VerifiedBadge verified={subscriber.verified} />
             </h1>
             <p className='text-pretty text-base text-fg-2 leading-tighter'>
               {name ? `${name} · ` : ''}subscribed <TimeAgo at={subscriber.createdAt} />

@@ -1,4 +1,3 @@
-import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
@@ -6,6 +5,7 @@ import { GuideStep } from '@buzzkit/ui/components/guide-step';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { CredentialStatusBadge } from '@/app/components/badges';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { ApiError, listCredentials, listKeys, listMessages, listSubscribers } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
@@ -104,21 +104,11 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
                       </span>
                     </span>
                     <span className='flex shrink-0 items-center gap-2'>
-                      {connected.some((credential) => credential.status === 'active') && (
-                        <Badge variant='green' size='sm'>
-                          Active
-                        </Badge>
-                      )}
-                      {connected.some((credential) => credential.status === 'unvalidated') && (
-                        <Badge variant='amber' size='sm'>
-                          Unverified
-                        </Badge>
-                      )}
-                      {connected.some((credential) => credential.status === 'invalid') && (
-                        <Badge variant='red' size='sm'>
-                          Invalid
-                        </Badge>
-                      )}
+                      {(['active', 'unvalidated', 'invalid'] as const)
+                        .filter((status) => connected.some((credential) => credential.status === status))
+                        .map((status) => (
+                          <CredentialStatusBadge key={status} status={status} />
+                        ))}
                       <Button
                         variant='elevated'
                         size='xs'

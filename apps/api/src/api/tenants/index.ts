@@ -3,7 +3,7 @@ import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs
 import { NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { assertJsonSize } from '@buzzkit/api/utils/json';
-import { and, type Db, desc, eq, isNull, lt, tables } from '@buzzkit/database';
+import { and, count, type Db, desc, eq, isNull, lt, tables } from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Tenant = typeof tables.tenant.$inferSelect;
@@ -216,6 +216,18 @@ export async function listTenants(
         .orderBy(desc(tables.tenant.id))
         .limit(options.limit + 1)
   );
+}
+
+export async function countTenants(db: Db, workspaceId: number): Promise<number> {
+  const [row] = await trace(
+    'tenants.count',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.tenant)
+        .where(and(eq(tables.tenant.workspaceId, workspaceId), isNull(tables.tenant.deletedAt)))
+  );
+  return Number(row?.total ?? 0);
 }
 
 export async function findTenantBySlug(db: Db, workspaceId: number, slug: string): Promise<Tenant> {

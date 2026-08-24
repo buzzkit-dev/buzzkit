@@ -8,7 +8,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@buzzkit/ui/components/alert-dialog';
-import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
@@ -38,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { KeyKindBadge, RevokedBadge } from '@/app/components/badges';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
@@ -88,12 +88,6 @@ const KINDS: { value: KeyKind; label: string }[] = [
   { value: 'tenant', label: 'Tenant' },
   { value: 'client', label: 'Client' },
 ];
-
-const KIND_BADGE: Record<KeyKind, 'blue' | 'purple' | 'green'> = {
-  workspace: 'blue',
-  tenant: 'purple',
-  client: 'green',
-};
 
 const PRESETS: { value: Preset; label: string }[] = [
   { value: 'full', label: 'Full access' },
@@ -356,20 +350,14 @@ function KeyRow({
       <TableCell className='font-medium text-fg-4'>
         <span className='flex items-center gap-1.5'>
           {apiKey.name}
-          {apiKey.revokedAt && (
-            <Badge size='sm' variant='red'>
-              Revoked
-            </Badge>
-          )}
+          <RevokedBadge revoked={apiKey.revokedAt !== null} />
         </span>
       </TableCell>
       <TableCell className='font-mono text-xs'>
         {apiKey.prefix}…{apiKey.last4}
       </TableCell>
       <TableCell>
-        <Badge size='sm' variant={KIND_BADGE[apiKey.kind]}>
-          {KINDS.find((entry) => entry.value === apiKey.kind)?.label}
-        </Badge>
+        <KeyKindBadge kind={apiKey.kind} />
       </TableCell>
       <TableCell>{tenantName ?? <span className='text-fg-2'>All tenants</span>}</TableCell>
       <TableCell>

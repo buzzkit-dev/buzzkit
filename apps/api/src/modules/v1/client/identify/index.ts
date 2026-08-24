@@ -2,6 +2,7 @@ import {
   ClientIdentitySchema,
   EmailAddressSchema,
   registerSubscription,
+  resolveSystemAttributes,
   serializeSubscriber,
   upsertSubscriber,
 } from '@buzzkit/api/api/subscribers/index';
@@ -16,11 +17,12 @@ export const clientIdentify = new Elysia()
   .guard({ detail: { tags: ['Client'] } })
   .post(
     '/client/identify',
-    async ({ body, db, set, tenant, clientEvent }) => {
+    async ({ body, db, request, set, tenant, clientEvent }) => {
       const verified = await verifyIdentity(tenant, body.externalId, body.identityHash);
 
       const { subscriber, created } = await upsertSubscriber(db, tenant.id, body.externalId, {
         verifiedNow: verified,
+        systemAttributes: resolveSystemAttributes(request),
       });
 
       const registered = body.email

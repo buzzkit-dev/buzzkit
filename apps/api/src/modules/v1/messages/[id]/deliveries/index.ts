@@ -1,4 +1,9 @@
-import { DELIVERY_STATUSES, listDeliveries, serializeDelivery } from '@buzzkit/api/api/deliveries/index';
+import {
+  countDeliveries,
+  DELIVERY_STATUSES,
+  listDeliveries,
+  serializeDelivery,
+} from '@buzzkit/api/api/deliveries/index';
 import { findMessage } from '@buzzkit/api/api/messages/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
@@ -16,11 +21,14 @@ export const messageDeliveries = new Elysia()
       const limit = clampLimit(query.limit);
       const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('delivery', id));
 
-      const rows = await listDeliveries(db, message.id, { limit, beforeId, status: query.status });
+      const [rows, total] = await Promise.all([
+        listDeliveries(db, message.id, { limit, beforeId, status: query.status }),
+        countDeliveries(db, message.id, query.status),
+      ]);
       const page = toPage(rows, limit, (id) => encodeId('delivery', id));
 
       return Response.success(page.items.map(serializeDelivery), { entity: 'delivery' })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor })
+        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
         .send();
     },
     {

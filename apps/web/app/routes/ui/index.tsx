@@ -1565,8 +1565,16 @@ export default function DesignSystem() {
         <Section
           id='avatar'
           title='Avatar'
-          description='Sizes, image with fallback, status badge and overlapping groups.'
+          description='Sizes, image with fallback, status badge and overlapping groups. Anything without a picture of its own gets a generated face: `name` draws a deterministic Kodama character that blurs in as it loads, never initials.'
         >
+          <Specimen label='generated · name="user_42" · the same id always gets the same face'>
+            <Avatar size='sm' name='user_42' />
+            <Avatar name='user_42' />
+            <Avatar size='lg' name='user_42' />
+            <Avatar size='xl' name='user_42' />
+            <Avatar size='lg' name='jane.doe7' />
+            <Avatar size='lg' name='usr_c055e203c655' />
+          </Specimen>
           <Specimen label='sizes'>
             <Avatar size='sm'>
               <AvatarFallback>bk</AvatarFallback>

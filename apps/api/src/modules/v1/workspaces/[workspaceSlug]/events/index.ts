@@ -11,7 +11,7 @@ export const events = new Elysia()
   .get(
     '/workspaces/:workspaceSlug/events',
     async ({ db, workspace, query }) => {
-      const { items, hasMore, nextCursor } = await listEvents(db, workspace.id, {
+      const { items, hasMore, nextCursor, total } = await listEvents(db, workspace.id, {
         cursor: query.cursor,
         limit: query.limit,
         event: query.event,
@@ -19,7 +19,7 @@ export const events = new Elysia()
       });
 
       return Response.success(items, { ignoreTransform: ['data'], entity: 'event' })
-        .paginated({ hasMore, nextCursor })
+        .paginated({ hasMore, nextCursor, total })
         .send();
     },
     {
