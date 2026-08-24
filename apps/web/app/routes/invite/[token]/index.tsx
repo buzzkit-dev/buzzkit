@@ -1,7 +1,6 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { FieldError } from '@buzzkit/ui/components/field';
-import { Spinner } from '@buzzkit/ui/components/spinner';
 import { Form, Link, useNavigation } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { WorkspaceAvatar } from '@/app/components/layout/workspace-switcher';
@@ -135,8 +134,7 @@ export default function InviteRoute({ loaderData, actionData, params }: Route.Co
         </div>
       ) : emailMatches ? (
         <Form method='post' className='flex flex-col gap-2'>
-          <Button type='submit' disabled={pending}>
-            {pending && <Spinner aria-label='Joining workspace' />}
+          <Button type='submit' loading={pending}>
             Join {preview.workspace.name}
           </Button>
           {actionData?.error && <FieldError>{actionData.error}</FieldError>}

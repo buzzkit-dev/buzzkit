@@ -16,7 +16,7 @@ Client keys take no scopes (fixed `/v1/client/*` capabilities) and their token s
 
 ## GET /v1/workspaces/:workspaceSlug/keys
 
-Masked keys only: `id`, `name`, `kind`, `tenantId`, `prefix` + `last4`, `token` (the plaintext for client keys, `null` for secret keys), `scopes`, `lastUsedAt` (throttled to 1 write/min), `expiresAt`, `revokedAt`, `createdAt`, `updatedAt`. `GET /v1/workspaces/:workspaceSlug/keys` is a list object; `GET /v1/workspaces/:workspaceSlug/keys/:id` retrieves one.
+Paginated (`limit`, `cursor`, newest first, plus `total`, see [conventions](conventions.md)) and filterable by `kind` (`workspace` | `tenant` | `client`). Masked keys only: `id`, `name`, `kind`, `tenantId`, `prefix` + `last4`, `token` (the plaintext for client keys, `null` for secret keys), `scopes`, `lastUsedAt` (throttled to 1 write/min), `expiresAt`, `revokedAt`, `createdAt`, `updatedAt`. `GET /v1/workspaces/:workspaceSlug/keys` is a list object; `GET /v1/workspaces/:workspaceSlug/keys/:id` retrieves one.
 
 ## DELETE /v1/workspaces/:workspaceSlug/keys/:id
 

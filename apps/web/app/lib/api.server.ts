@@ -242,10 +242,13 @@ export function deleteCredential(
   );
 }
 
-export function listKeys(ctx: RequestContext, token: string, workspaceSlug: string) {
-  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys.get()).then(
-    (page) => page.items
-  );
+export function listKeys(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  query: { limit?: number; cursor?: string; kind?: 'workspace' | 'tenant' | 'client' } = {}
+) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys.get({ query }));
 }
 
 export function createKey(
@@ -450,6 +453,6 @@ export type Topic = Awaited<ReturnType<typeof listTopics>>[number];
 export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
-export type ApiKey = Awaited<ReturnType<typeof listKeys>>[number];
+export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];
 export type CreatedKey = Awaited<ReturnType<typeof createKey>>;
 export type Message = Awaited<ReturnType<typeof listMessages>>['items'][number];

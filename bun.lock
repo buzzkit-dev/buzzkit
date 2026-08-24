@@ -151,6 +151,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@base-ui/react": "^1.4.0",
+        "@number-flow/react": "^0.6.2",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "motion": "^12.43.0",

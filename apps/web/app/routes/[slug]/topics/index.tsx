@@ -18,7 +18,6 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/com
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Input } from '@buzzkit/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
-import { Spinner } from '@buzzkit/ui/components/spinner';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { useEffect, useState } from 'react';
@@ -182,8 +181,7 @@ function TopicDialog({
                 </Select>
               </Field>
             ))}
-            <Button type='submit' className='w-full' disabled={pending || !name.trim() || !slugValue}>
-              {pending && <Spinner />}
+            <Button type='submit' className='w-full' disabled={!name.trim() || !slugValue} loading={pending}>
               {topic ? 'Save changes' : 'Create topic'}
             </Button>
           </FieldGroup>

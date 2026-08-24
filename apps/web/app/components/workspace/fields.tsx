@@ -1,7 +1,6 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
-import { Spinner } from '@buzzkit/ui/components/spinner';
 import { useState } from 'react';
 import type { FormErrors } from '@/app/hooks/use-focus-first-error';
 import { useFocusFirstError } from '@/app/hooks/use-focus-first-error';
@@ -77,8 +76,7 @@ export function WorkspaceFields({
         )}
       </Field>
       {errors?.form && <FieldError>{errors.form}</FieldError>}
-      <Button type='submit' className='w-full' disabled={pending}>
-        {pending && <Spinner aria-label='Creating workspace' />}
+      <Button type='submit' className='w-full' loading={pending}>
         {submitLabel}
       </Button>
     </FieldGroup>

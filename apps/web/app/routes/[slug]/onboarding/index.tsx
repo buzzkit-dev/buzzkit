@@ -1,7 +1,7 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { useState } from 'react';
-import { data, Link } from 'react-router';
+import { data, Link, redirect, type ShouldRevalidateFunctionArgs } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
   CHANNELS,
@@ -38,6 +38,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       getProfile(ctx, token),
       listCredentials(ctx, token, params.slug, 'default'),
     ]);
+    if (credentials.length > 0) throw redirect(`/${params.slug}`);
     return {
       workspace,
       profile,
@@ -57,13 +58,12 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 export function shouldRevalidate({
   currentUrl,
   nextUrl,
+  actionResult,
   defaultShouldRevalidate,
-}: {
-  currentUrl: URL;
-  nextUrl: URL;
-  defaultShouldRevalidate: boolean;
-}) {
+}: ShouldRevalidateFunctionArgs) {
   if (currentUrl.pathname === nextUrl.pathname && currentUrl.search !== nextUrl.search) return false;
+  if (actionResult && typeof actionResult === 'object' && 'ok' in actionResult && actionResult.ok)
+    return false;
   return defaultShouldRevalidate;
 }
 

@@ -164,6 +164,55 @@ describe('POST /v1/workspaces/:slug/keys', () => {
 });
 
 describe('GET /v1/workspaces/:slug/keys', () => {
+  it('paginates newest first with opaque cursors and filters by kind', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    for (const name of ['first', 'second', 'third']) {
+      await api(`/v1/workspaces/${workspace.slug}/keys`, {
+        method: 'POST',
+        headers: ownerBearer,
+        body: JSON.stringify({ name, scopes: ['tenants:read'] }),
+      });
+    }
+
+    const page1 = await api<{
+      items: Array<{ name: string }>;
+      hasMore: boolean;
+      nextCursor: string;
+      total: number;
+    }>(`/v1/workspaces/${workspace.slug}/keys?limit=2`, { headers: ownerBearer });
+    expect(page1.status).toBe(200);
+    expect(page1.body.data?.total).toBe(5);
+    expect(page1.body.data?.items.map((key) => key.name)).toEqual(['third', 'second']);
+    expect(page1.body.data?.hasMore).toBe(true);
+    expect(page1.body.data?.nextCursor).toMatch(/^key_/);
+
+    const page2 = await api<{ items: Array<{ name: string }>; hasMore: boolean; nextCursor: string | null }>(
+      `/v1/workspaces/${workspace.slug}/keys?limit=2&cursor=${page1.body.data?.nextCursor}`,
+      { headers: ownerBearer }
+    );
+    expect(page2.body.data?.items.map((key) => key.name)).toEqual(['first', 'Test key']);
+    expect(page2.body.data?.hasMore).toBe(true);
+
+    const page3 = await api<{ items: Array<{ name: string }>; hasMore: boolean; nextCursor: string | null }>(
+      `/v1/workspaces/${workspace.slug}/keys?limit=2&cursor=${page2.body.data?.nextCursor}`,
+      { headers: ownerBearer }
+    );
+    expect(page3.body.data?.items.map((key) => key.name)).toEqual(['Default']);
+    expect(page3.body.data?.hasMore).toBe(false);
+    expect(page3.body.data?.nextCursor).toBeNull();
+
+    const clientOnly = await api<{ items: Array<{ kind: string }> }>(
+      `/v1/workspaces/${workspace.slug}/keys?kind=client`,
+      { headers: ownerBearer }
+    );
+    expect(clientOnly.body.data?.items.length).toBeGreaterThan(0);
+    expect(clientOnly.body.data?.items.every((key) => key.kind === 'client')).toBe(true);
+
+    const garbage = await api(`/v1/workspaces/${workspace.slug}/keys?cursor=nope`, { headers: ownerBearer });
+    expect(garbage.status).toBe(400);
+    expect(garbage.body.error?.code).toBe('invalid_cursor');
+  });
+
   it('masks secrets: only prefix and last4 ever come back', async () => {
     const { workspace, ownerBearer } = await setupWorkspace();
 

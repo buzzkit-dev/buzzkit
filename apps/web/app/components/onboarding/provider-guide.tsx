@@ -2,15 +2,13 @@ import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
-import { Spinner } from '@buzzkit/ui/components/spinner';
+import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { TextSwap } from '@buzzkit/ui/components/text-swap';
-import NumberFlow from '@number-flow/react';
 import { useEffect, useState } from 'react';
 import { Link, useFetcher, useNavigate } from 'react-router';
 import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop';
 import type { GuideDefinition, GuideField } from '@/app/components/onboarding/guides';
 import type { OnboardingSlots } from '@/app/components/onboarding/layout';
-import { STEP_DURATION_MS } from '@/app/components/onboarding/transition';
 import type { Credential } from '@/app/lib/api.server';
 
 type FieldValues = Record<string, string>;
@@ -59,8 +57,6 @@ type GuideState = {
   touched: Record<string, boolean>;
   derived: Record<string, boolean>;
 };
-
-const counterTiming = { duration: STEP_DURATION_MS, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' } as const;
 
 const CONNECT_FORM = 'connect-provider';
 
@@ -308,18 +304,15 @@ export function useProviderGuide({
           className='-translate-x-1/2 absolute left-1/2 text-fg-2 text-xs tabular-nums'
           value={current + 1}
           suffix={` of ${total}`}
-          transformTiming={counterTiming}
-          spinTiming={counterTiming}
-          opacityTiming={counterTiming}
         />
         <Button
           type='button'
           size='xs'
           aria-label={primaryLabel}
-          disabled={last ? !allValid || pending : !canContinue}
+          disabled={last ? !allValid : !canContinue}
+          loading={pending}
           onClick={last ? submit : next}
         >
-          {pending && <Spinner />}
           <TextSwap>{primaryLabel}</TextSwap>
         </Button>
       </>

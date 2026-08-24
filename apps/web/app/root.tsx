@@ -1,7 +1,8 @@
+import { LinkProvider } from '@buzzkit/ui/components/link';
 import { Toaster } from '@buzzkit/ui/components/sonner';
 import { TooltipProvider } from '@buzzkit/ui/components/tooltip';
 import { MotionConfig } from 'motion/react';
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
+import { isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 import { NoAccessPage } from '@/app/components/errors/no-access';
 import { NotFoundPage } from '@/app/components/errors/not-found';
 import { ErrorPage } from '@/app/components/errors/unexpected';
@@ -30,12 +31,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <ThemeProvider>
-      <MotionConfig reducedMotion='user'>
-        <TooltipProvider>
-          <Outlet />
-          <Toaster />
-        </TooltipProvider>
-      </MotionConfig>
+      <LinkProvider link={Link}>
+        <MotionConfig reducedMotion='user'>
+          <TooltipProvider>
+            <Outlet />
+            <Toaster />
+          </TooltipProvider>
+        </MotionConfig>
+      </LinkProvider>
     </ThemeProvider>
   );
 }

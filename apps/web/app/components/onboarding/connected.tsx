@@ -2,7 +2,6 @@ import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
-import { Spinner } from '@buzzkit/ui/components/spinner';
 import { Link, type useFetcher } from 'react-router';
 import type { ChannelEntry, ProviderEntry } from '@/app/components/onboarding/catalog';
 import type { OnboardingSlots } from '@/app/components/onboarding/layout';
@@ -103,8 +102,7 @@ export function connectedSlots({
               name='ids'
               value={credentials.map((credential) => credential.id).join(',')}
             />
-            <Button type='submit' variant='ghost' size='xs' className='-ml-2' disabled={validating}>
-              {validating && <Spinner aria-label='Validating' />}
+            <Button type='submit' variant='ghost' size='xs' className='-ml-2' loading={validating}>
               Validate again
             </Button>
           </fetcher.Form>
@@ -114,7 +112,7 @@ export function connectedSlots({
             size='xs'
             className='-ml-2'
             nativeButton={false}
-            render={<Link to={`/${workspaceSlug}/onboarding`} />}
+            render={<Link to={`/${workspaceSlug}/settings/channels`} />}
           >
             Add another channel
           </Button>

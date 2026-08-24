@@ -25,8 +25,15 @@ import { Input } from '@buzzkit/ui/components/input';
 import { type ScopeGroup, ScopePicker } from '@buzzkit/ui/components/scope-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
 import { toast } from '@buzzkit/ui/components/sonner';
-import { Spinner } from '@buzzkit/ui/components/spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TablePagination,
+  TableRow,
+} from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
@@ -36,6 +43,7 @@ import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
 import { type ApiKey, listKeys, listTenants } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
+import { paginate, readPage } from '@/app/lib/utils/pagination';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
@@ -101,11 +109,11 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
-  const [keys, tenants] = await Promise.all([
-    listKeys(ctx, token, params.slug),
+  const [page, tenants] = await Promise.all([
+    listKeys(ctx, token, params.slug, readPage(request)),
     listTenants(ctx, token, params.slug),
   ]);
-  return { keys, tenants };
+  return { ...paginate(request, page), tenants };
 }
 
 export const action = keysAction;
@@ -289,8 +297,7 @@ function KeyDialog({
                   <ScopePicker groups={groups} selected={scopes} onChange={setScopes} />
                 </Field>
               )}
-              <Button className='w-full' disabled={!canCreate} onClick={create}>
-                {pending && <Spinner />}
+              <Button className='w-full' disabled={!canCreate} loading={pending} onClick={create}>
                 Create key
               </Button>
             </FieldGroup>
@@ -408,7 +415,7 @@ function KeyRow({
 
 export default function KeysRoute({ loaderData }: Route.ComponentProps) {
   const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { keys, tenants } = loaderData;
+  const { items: keys, pagination, tenants } = loaderData;
   const [open, setOpen] = useState(false);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
@@ -423,8 +430,8 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <div className='flex w-full flex-col gap-5'>
-      <header className='flex items-center justify-between gap-4'>
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
         <div className='flex flex-col gap-0.5'>
           <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             API keys
@@ -438,7 +445,7 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
         )}
       </header>
 
-      <Card>
+      <Card className='min-h-0 shrink'>
         {keys.length === 0 ? (
           <EmptyState
             icon='IconKeyholeFilled'
@@ -473,6 +480,7 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
                 />
               ))}
             </TableBody>
+            <TablePagination {...pagination} />
           </Table>
         )}
       </Card>

@@ -20,7 +20,8 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const [credentials, keys, subscribers, messages] = await Promise.all([
     listCredentials(ctx, token, params.slug, 'default'),
     listKeys(ctx, token, params.slug).catch((error) => {
-      if (error instanceof ApiError && error.status === 403) return [];
+      if (error instanceof ApiError && error.status === 403)
+        return { items: [], hasMore: false, nextCursor: null };
       throw error;
     }),
     listSubscribers(ctx, token, params.slug, 'default', { limit: 1 }),
@@ -29,7 +30,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 
   return {
     credentials,
-    hasKey: keys.some((key) => key.kind === 'workspace' && !key.revokedAt),
+    hasKey: keys.items.some((key) => key.kind === 'workspace' && !key.revokedAt),
     hasSubscriber: subscribers.items.length > 0,
     hasMessage: messages.items.length > 0,
   };
@@ -122,7 +123,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
                         variant='elevated'
                         size='xs'
                         nativeButton={false}
-                        render={<Link to={`/${workspace.slug}/onboarding/${channel.id}`} />}
+                        render={<Link to={`/${workspace.slug}/settings/channels`} />}
                       >
                         {connected.length === 0 ? 'Connect' : 'Manage'}
                       </Button>
@@ -148,7 +149,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
                         <Button
                           size='sm'
                           nativeButton={false}
-                          render={<Link to={`/${workspace.slug}/onboarding`} />}
+                          render={<Link to={`/${workspace.slug}/settings/channels`} />}
                         >
                           Connect a channel
                         </Button>

@@ -36,6 +36,7 @@ export const response = new Elysia()
 type CursorPagination = {
   hasMore: boolean;
   nextCursor: string | null;
+  total?: number;
 };
 
 type SuccessOptions = {
@@ -159,12 +160,13 @@ class SuccessResponseBuilder<T> {
 
   paginated(
     pagination: CursorPagination
-  ): SuccessResponseBuilder<{ items: T; hasMore: boolean; nextCursor: string | null }> {
+  ): SuccessResponseBuilder<{ items: T; hasMore: boolean; nextCursor: string | null; total?: number }> {
     this._cursor = pagination;
     return this as unknown as SuccessResponseBuilder<{
       items: T;
       hasMore: boolean;
       nextCursor: string | null;
+      total?: number;
     }>;
   }
 
@@ -187,6 +189,7 @@ class SuccessResponseBuilder<T> {
           items: transformedData,
           hasMore: this._cursor.hasMore,
           nextCursor: this._cursor.nextCursor,
+          ...(this._cursor.total === undefined ? {} : { total: this._cursor.total }),
         }
       : transformedData;
 

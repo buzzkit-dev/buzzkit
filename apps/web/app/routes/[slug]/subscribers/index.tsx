@@ -53,8 +53,8 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   });
   let clientKey: string | null = null;
   if (page.items.length === 0) {
-    const keys = await listKeys(ctx, token, params.slug);
-    clientKey = keys.find((key) => key.kind === 'client' && !key.revokedAt)?.token ?? null;
+    const keys = await listKeys(ctx, token, params.slug, { kind: 'client' });
+    clientKey = keys.items.find((key) => !key.revokedAt)?.token ?? null;
   }
 
   return {

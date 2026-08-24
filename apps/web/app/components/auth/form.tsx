@@ -3,7 +3,6 @@ import { CardContent } from '@buzzkit/ui/components/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
 import { toast } from '@buzzkit/ui/components/sonner';
-import { Spinner } from '@buzzkit/ui/components/spinner';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -200,8 +199,7 @@ export function AuthForm({
                 )}
               </AnimatePresence>
             </Field>
-            <Button type='submit' className='w-full' disabled={busy}>
-              {submitting && <Spinner aria-label={mode === 'login' ? 'Signing in' : 'Creating account'} />}
+            <Button type='submit' className='w-full' disabled={busy} loading={submitting}>
               {mode === 'login' ? 'Sign in' : 'Create account'}
             </Button>
           </div>

@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant disabled (&:is(:disabled, [data-disabled]));
+@custom-variant enabled (&:not(:disabled, [data-disabled]));
 
 @source "../components";
 @source "../hooks";

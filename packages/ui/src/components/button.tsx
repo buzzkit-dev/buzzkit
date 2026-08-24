@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { type MenuItemIcon, menuIconPosition, renderMenuIcon } from '@buzzkit/ui/components/menu-icon';
+import { Spinner } from '@buzzkit/ui/components/spinner';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
@@ -17,8 +18,11 @@ const buttonVariants = cva(
     'not-disabled:data-[pressed]:before:inset-x-(--press-inset-x) not-disabled:data-[pressed]:before:inset-y-(--press-inset-y)',
     'outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
     'aria-invalid:focus-visible:ring-0',
-    '[&:disabled]:cursor-not-allowed [&:disabled_svg]:opacity-30',
+    'disabled:cursor-not-allowed disabled:[&_svg]:opacity-30',
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
+    // Chevrons are tiny glyphs in a roomy viewbox: pull them in (2px gap, 5px
+    // edge padding) and draw them at 16px so they sit optically like the text.
+    "data-chevron:gap-0.5 data-chevron:[&_svg:not([class*='size-'])]:size-4 data-chevron:data-[icon=inline-end]:pr-[5px] data-chevron:data-[icon=inline-start]:pl-[5px]",
   ].join(' '),
   {
     variants: {
@@ -56,8 +60,8 @@ const buttonVariants = cva(
         xs: 'h-[26px] gap-1.5 rounded-[10px] px-2.5 text-xs data-[icon=inline-end]:pr-2 data-[icon=inline-start]:pl-2',
         sm: 'h-7.5 gap-1.5 rounded-[10px] px-2.5 text-xs data-[icon=inline-end]:pr-2 data-[icon=inline-start]:pl-2',
         default:
-          'h-8 gap-2 rounded-xl px-2.5 text-sm data-[icon=inline-end]:pr-2 data-[icon=inline-start]:pl-2',
-        lg: 'h-9 gap-2 rounded-xl px-3 text-sm data-[icon=inline-end]:pr-2.5 data-[icon=inline-start]:pl-2.5',
+          'h-8 gap-2 rounded-xl px-2.5 text-sm data-[icon]:gap-1.5 data-[icon=inline-end]:pr-2 data-[icon=inline-start]:pl-2',
+        lg: 'h-9 gap-2 rounded-xl px-3 text-sm data-[icon]:gap-1.5 data-[icon=inline-end]:pr-2.5 data-[icon=inline-start]:pl-2.5',
         'icon-xs': 'size-[26px] rounded-[10px] px-0',
         'icon-sm': 'size-7.5 rounded-[10px] px-0',
         icon: 'size-8 rounded-xl px-0',
@@ -76,24 +80,32 @@ function Button({
   variant = 'default',
   size = 'default',
   icon,
+  loading = false,
+  disabled,
   children,
   ...props
 }: ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
-    /** `icon='IconBell'`, or `{ name, position: 'inline-end' }` to trail. */
     icon?: MenuItemIcon;
+    loading?: boolean;
   }) {
-  const position = menuIconPosition(icon);
+  const position = menuIconPosition(icon) ?? (loading ? 'inline-start' : undefined);
+  const iconName = typeof icon === 'string' ? icon : icon?.name;
+  const spinner = <Spinner className='size-4' />;
   return (
     <ButtonPrimitive
       data-slot='button'
       data-icon={position}
+      data-chevron={!loading && iconName?.startsWith('IconChevron') ? '' : undefined}
+      data-loading={loading ? '' : undefined}
+      aria-busy={loading || undefined}
+      disabled={disabled || loading}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     >
-      {renderMenuIcon(icon, 'inline-start')}
+      {loading && position === 'inline-start' ? spinner : renderMenuIcon(icon, 'inline-start')}
       {children}
-      {renderMenuIcon(icon, 'inline-end')}
+      {loading && position === 'inline-end' ? spinner : renderMenuIcon(icon, 'inline-end')}
     </ButtonPrimitive>
   );
 }

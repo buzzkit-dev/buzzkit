@@ -4,7 +4,7 @@ import { sha256Hex } from '@buzzkit/api/libs/crypto';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, type Db, desc, eq, isNull, type Tx, tables } from '@buzzkit/database';
+import { and, count, type Db, desc, eq, isNull, lt, type Tx, tables } from '@buzzkit/database';
 
 export type ApiKey = typeof tables.apiKey.$inferSelect;
 export type ApiKeyKind = ApiKey['kind'];
@@ -155,18 +155,47 @@ export async function createDefaultClientKey(
   return key!;
 }
 
-export async function listApiKeys(db: Db, workspaceId: number) {
-  const keys = await trace(
+export async function listApiKeys(
+  db: Db,
+  workspaceId: number,
+  options: { limit: number; beforeId?: number; kind?: ApiKeyKind }
+): Promise<ApiKey[]> {
+  return await trace(
     'keys.list',
     async () =>
       await db
         .select()
         .from(tables.apiKey)
-        .where(and(eq(tables.apiKey.workspaceId, workspaceId), isNull(tables.apiKey.deletedAt)))
-        .orderBy(desc(tables.apiKey.createdAt))
+        .where(
+          and(
+            eq(tables.apiKey.workspaceId, workspaceId),
+            isNull(tables.apiKey.deletedAt),
+            options.kind ? eq(tables.apiKey.kind, options.kind) : undefined,
+            options.beforeId ? lt(tables.apiKey.id, options.beforeId) : undefined
+          )
+        )
+        .orderBy(desc(tables.apiKey.id))
+        .limit(options.limit + 1)
+  );
+}
+
+export async function countApiKeys(db: Db, workspaceId: number, kind?: ApiKeyKind): Promise<number> {
+  const [row] = await trace(
+    'keys.count',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.apiKey)
+        .where(
+          and(
+            eq(tables.apiKey.workspaceId, workspaceId),
+            isNull(tables.apiKey.deletedAt),
+            kind ? eq(tables.apiKey.kind, kind) : undefined
+          )
+        )
   );
 
-  return keys.map(maskApiKey);
+  return Number(row?.total ?? 0);
 }
 
 export async function findApiKey(db: Db, workspaceId: number, keySqid: string): Promise<ApiKey> {

@@ -6,12 +6,17 @@ Vite + React Router 8 SSR on Cloudflare Workers (`@cloudflare/vite-plugin`), del
 
 ```
 app/
-  root.tsx                      Layout, providers (Theme, MotionConfig, Tooltip, Toaster), ErrorBoundary
+  root.tsx                      Layout, providers (Theme, `LinkProvider` handing react-router's `Link` to the design system, MotionConfig,
+                                Tooltip, Toaster), ErrorBoundary
   cloudflare.ts                 `cloudflareContext`: env/ctx via RouterContextProvider
   routes.ts                     Route table (file-based, mirrors the API convention; brackets for params)
   lib/                          api.server.ts (typed Eden client) · session.server.ts (cookie, sign-out) · auth.client.ts (BetterAuth client)
                                 actions/   every route action (`*.server.ts`), one file per feature, `context.server.ts` for the preamble
-                                utils/     pure helpers (format, time)
+                                utils/     pure helpers (format, time, request: `requestUrl` is the only way to read a loader's URL, because
+                                           React Router's single-fetch requests arrive as `/path.data?_routes=…` and a link or redirect built
+                                           from the raw `request.url` would point at the data endpoint; pagination: `readPage` turns the request into `{ limit, cursor }`,
+                                           `paginate` turns an API page into `{ items, pagination }` with page number, page count and
+                                           Previous / Next hrefs, carrying the cursor trail in the URL)
                                 `.server.ts` / `.client.ts` are React Router module boundaries: a `.server` file is excluded from the
                                 browser bundle and the build fails if client code imports it, so Worker env and tokens cannot leak
   hooks/                        Client hooks
@@ -30,7 +35,7 @@ app/
 - **Loaders are the source of truth.** No client caches, no polling, no `setInterval` fetching. Mutations are route actions with form intents (`useActionFetcher` for toast-style results, `useFetcher` when the result renders inline), and React Router revalidates. No action-only routes: the action lives on the route that renders the control, and its body lives in `lib/actions/<feature>.server.ts`, never in the route file.
 - **Design system only.** Components from `@buzzkit/ui/components/*`, tokens only (`bg-bg-2`, `text-fg-2`, `primary-*`), `<Icon name='Icon…' />` with string literals only (the icon generator scans for them), the press pattern, `text-balance` titles / `text-pretty` descriptions, sentence case, no em or en dashes in user-facing copy. New UI belongs on `/ui`.
 - **Every time is hoverable.** Render times only through `TimeAgo` (relative) or `Time` (date) from `hooks/use-time-ago.tsx`; both show the exact time in a tooltip. Never put `formatDate()` output straight into JSX.
-- **Motion stack.** CSS transitions for state; `motion/react` for anything more complex (springs `bounce: 0`, `AnimatePresence initial={false}`); `@number-flow/react` for every changing number; `@buzzkit/ui/components/text-swap` `TextSwap` for short text that changes in place. No other animation libraries, no hand-rolled equivalents.
+- **Motion stack.** CSS transitions for state; `motion/react` for anything more complex (springs `bounce: 0`, `AnimatePresence initial={false}`); `NumberFlow` from `@buzzkit/ui/components/number-flow` for every changing number (never the raw `@number-flow/react`: the wrapper carries the one 400ms ease-out timing); `@buzzkit/ui/components/text-swap` `TextSwap` for short text that changes in place. No other animation libraries, no hand-rolled equivalents.
 - **SSR is the Worker, and the Worker looks like a browser.** The Cloudflare environment resolves packages with the `browser` export condition, so anything that asks `esm-env` whether it is in a browser gets `true` during SSR and skips its server markup (NumberFlow rendered an empty element until the client upgraded it). `vite.config.ts` answers `esm-env/browser` with `false` in the `ssr` environment and keeps those packages out of the Worker's dep pre-bundle so the override applies; if a component is missing on first paint but fine after hydration, check that first.
 - **Copy goes through the `copy` skill** (`.claude/skills/copy/SKILL.md`): one job per string, full sentences, the API's nouns, no reassurance or fragments. Page descriptions say what the page is for and stop; field hints say what the option is and where it is used; CTAs name the action ("Create key").
 - **No comments in apps/web.** Naming, small modules and `docs/` explain; only `TEMPORARY` markers and lint directives are allowed.

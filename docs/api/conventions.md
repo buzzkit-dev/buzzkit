@@ -20,7 +20,7 @@ camelCase fields; every object carries `id`, `createdAt`, `updatedAt`; absent va
 
 ## Lists
 
-Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginated lists take `limit` (default 50, max 100) and `cursor` (the `nextCursor` of the previous page, opaque) and are ordered **newest first**. An invalid cursor is a 400 `invalid_cursor`.
+Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginated lists take `limit` (default 50, max 100) and `cursor` (the `nextCursor` of the previous page, opaque) and are ordered **newest first**. An invalid cursor is a 400 `invalid_cursor`. Lists that can count cheaply also carry `total`, the number of items across every page (keys today); unbounded ledgers (messages, events) never do.
 
 ## Errors
 

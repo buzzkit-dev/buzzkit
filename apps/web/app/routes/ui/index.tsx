@@ -75,6 +75,7 @@ import { Input } from '@buzzkit/ui/components/input';
 import { Kbd, KbdGroup } from '@buzzkit/ui/components/kbd';
 import { Label } from '@buzzkit/ui/components/label';
 import { LivePing } from '@buzzkit/ui/components/live-ping';
+import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import {
   Popover,
@@ -114,13 +115,20 @@ import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Spinner } from '@buzzkit/ui/components/spinner';
 import { Switch } from '@buzzkit/ui/components/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TablePagination,
+  TableRow,
+} from '@buzzkit/ui/components/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@buzzkit/ui/components/tabs';
 import { TextSwap } from '@buzzkit/ui/components/text-swap';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { cn } from '@buzzkit/ui/lib/utils';
-import NumberFlow from '@number-flow/react';
 import { useEffect, useRef, useState } from 'react';
 import { OAuthProviders } from '@/app/components/auth/providers';
 import { Sidebar } from '@/app/components/layout/sidebar';
@@ -227,6 +235,43 @@ function SectionNav() {
         );
       })}
     </nav>
+  );
+}
+
+function TableDemo() {
+  const rows = [
+    ['Production backend', 'bk_ws_QkqhGT…clVF', 'Workspace', 'blue', 'Aug 24, 2026'],
+    ['Acme server', 'bk_tn_tbaAGQ…28cw', 'Tenant', 'purple', 'Aug 24, 2026'],
+    ['iOS app', 'bk_pk_vQub1z…msXq', 'Client', 'green', 'Never'],
+  ];
+  return (
+    <Card>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Key</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Last used</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(([name, key, type, tone, used]) => (
+            <TableRow key={name}>
+              <TableCell className='font-medium text-fg-4'>{name}</TableCell>
+              <TableCell className='font-mono text-xs'>{key}</TableCell>
+              <TableCell>
+                <Badge size='sm' variant={tone as 'blue' | 'purple' | 'green'}>
+                  {type}
+                </Badge>
+              </TableCell>
+              <TableCell>{used === 'Never' ? <span className='text-fg-2'>Never</span> : used}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+        <TablePagination page={2} pageCount={3} previous='#table' next='#table' />
+      </Table>
+    </Card>
   );
 }
 
@@ -725,6 +770,19 @@ export default function DesignSystem() {
             <Button size='icon-sm' icon='IconBell' aria-label='Notify' />
             <Button size='icon' variant='elevated' icon='IconFiles' aria-label='Copy' />
             <Button size='icon-lg' variant='soft' icon='IconSettingsGear1' aria-label='Settings' />
+          </Specimen>
+          <Specimen label='loading · the spinner takes the icon’s place, the label stays, the button disables itself'>
+            <Button loading>Create key</Button>
+            <Button loading icon='IconPlusMedium'>
+              Create key
+            </Button>
+            <Button
+              loading
+              variant='elevated'
+              icon={{ name: 'IconChevronRightMedium', position: 'inline-end' }}
+            >
+              Next
+            </Button>
           </Specimen>
           <Specimen label='icon prop · leading and trailing'>
             <Button icon='IconPlusMedium'>New tenant</Button>
@@ -1604,40 +1662,9 @@ export default function DesignSystem() {
         <Section
           id='table'
           title='Table'
-          description='Hairline rows inside a Card, edge to edge. Header cells are text-xs fg-2, body cells text-sm; every cell is nowrap and the container scrolls sideways, so narrow viewports scroll the table, never the page. Rows are not pressed; actions live in a trailing menu.'
+          description='Hairline rows inside a Card, edge to edge. Header cells are text-xs fg-2, body cells text-sm; every cell is nowrap and the container scrolls sideways, so narrow viewports scroll the table, never the page. Rows are not pressed; actions live in a trailing menu. TablePagination is the footer row: it disables Previous on the first page and Next on the last, and disappears for a single page.'
         >
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Key</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Last used</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[
-                  ['Production backend', 'bk_ws_QkqhGT…clVF', 'Workspace', 'blue', 'Aug 24, 2026'],
-                  ['Acme server', 'bk_tn_tbaAGQ…28cw', 'Tenant', 'purple', 'Aug 24, 2026'],
-                  ['iOS app', 'bk_pk_vQub1z…msXq', 'Client', 'green', 'Never'],
-                ].map(([name, key, type, tone, used]) => (
-                  <TableRow key={name}>
-                    <TableCell className='font-medium text-fg-4'>{name}</TableCell>
-                    <TableCell className='font-mono text-xs'>{key}</TableCell>
-                    <TableCell>
-                      <Badge size='sm' variant={tone as 'blue' | 'purple' | 'green'}>
-                        {type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {used === 'Never' ? <span className='text-fg-2'>Never</span> : used}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+          <TableDemo />
         </Section>
 
         <Section

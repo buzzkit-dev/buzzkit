@@ -1,6 +1,7 @@
 import { SESSION_COOKIE_NAMES, sharedCookieDomain } from '@buzzkit/auth/cookies';
 import { createAuthClient } from 'better-auth/client';
 import { createCookie, redirect } from 'react-router';
+import { requestUrl } from '@/app/lib/utils/request';
 
 const lastWorkspace = createCookie('buzzkit.workspace', {
   path: '/',
@@ -33,7 +34,7 @@ export function safeRedirect(requested: string | null | undefined, fallback: str
 export function requireSession(request: Request): { token: string } {
   const token = readSessionToken(request);
   if (token) return { token };
-  const { pathname, search } = new URL(request.url);
+  const { pathname, search } = requestUrl(request);
   const back = pathname === '/' ? '' : `?redirect=${encodeURIComponent(`${pathname}${search}`)}`;
   throw redirect(`/login${back}`);
 }

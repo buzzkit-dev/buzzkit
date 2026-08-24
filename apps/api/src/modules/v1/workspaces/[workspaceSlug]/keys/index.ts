@@ -1,10 +1,12 @@
-import { createApiKey, listApiKeys, maskApiKey } from '@buzzkit/api/api/keys/index';
+import { countApiKeys, createApiKey, listApiKeys, maskApiKey } from '@buzzkit/api/api/keys/index';
 import { findTenantBySlug } from '@buzzkit/api/api/tenants/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
 import { KeyKindSchema, NameSchema } from '@buzzkit/api/libs/schemas';
 import { assertValidKeyScopes } from '@buzzkit/api/libs/scopes';
+import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
+import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const keys = new Elysia()
@@ -12,12 +14,27 @@ export const keys = new Elysia()
   .guard({ detail: { tags: ['Keys'] } })
   .get(
     '/workspaces/:workspaceSlug/keys',
-    async ({ db, workspace }) => {
-      const rows = await listApiKeys(db, workspace.id);
+    async ({ db, query, workspace }) => {
+      const limit = clampLimit(query.limit);
+      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('key', id));
 
-      return Response.list(rows, { entity: 'key' }).send();
+      const [rows, total] = await Promise.all([
+        listApiKeys(db, workspace.id, { limit, beforeId, kind: query.kind }),
+        countApiKeys(db, workspace.id, query.kind),
+      ]);
+      const page = toPage(rows, limit, (id) => encodeId('key', id));
+
+      return Response.success(page.items.map(maskApiKey), { entity: 'key' })
+        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
+        .send();
     },
-    { scope: 'keys:read' }
+    {
+      scope: 'keys:read',
+      query: t.Object({
+        ...PaginationQuerySchema.properties,
+        kind: t.Optional(KeyKindSchema),
+      }),
+    }
   )
   .post(
     '/workspaces/:workspaceSlug/keys',
