@@ -676,11 +676,16 @@
 
   /* `cursor: default` on body keeps chrome on the arrow, but prose should read
      as selectable — restore the I-beam on text, except inside interactive
-     elements where the pointer/arrow must win. */
-  :where(p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, code, pre, td, th):not(
+     elements where the pointer/arrow must win. Table cells get `auto` instead
+     of `text`: the I-beam over the glyphs themselves, the arrow over the
+     cell's whitespace. */
+  :where(p, h1, h2, h3, h4, h5, h6, li, dd, dt, blockquote, figcaption, code, pre):not(
     :where(button, a, label, summary, [role="button"], [data-slot="button"]) *
   ) {
     cursor: text;
+  }
+  :where(td, th):not(:where(button, a, label, summary, [role="button"], [data-slot="button"]) *) {
+    cursor: auto;
   }
   input:not([type="button"]):not([type="submit"]):not([type="reset"]),
   textarea {

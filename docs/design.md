@@ -324,6 +324,10 @@ Status chips: `-1` tint + `-text`. Never interactive — if it needs a click, it
 
 One trigger size, matching the default button (32px, `rounded-xl`). The popup aligns the selected item over the trigger (`alignItemWithTrigger`), takes the trigger's width via `w-(--anchor-width)`, and `SelectValue` mirrors the selected item's icon. Only the popup's surface animates in (it lives on `::before`; the list itself is the scroll container and its text lands instantly): over the trigger (Base UI's `data-side="none"`) the surface grows 0.975 → 1 from its centre in 150ms ease-out, picking up exactly where the trigger's press scale (`0.975`) let go; beside the trigger it fades in while growing from 95%. Closing is instant, no exit animation. Item padding is tuned so the aligned popup sits exactly over the trigger (list 4px + item 6px = trigger 10px).
 
+### ScopePicker
+
+`@buzzkit/ui/components/scope-picker`, the one picker for permission-like strings (API key scopes, webhook events, later agent scopes): a search field over collapsible groups. A group row carries a checkbox that stands for the group's wildcard (`subscribers:*`; groups without one select every option), the wildcard or label in mono, a count (`all`, `2`), and a chevron that rotates 90° in 150ms; its options fold open and closed with the sidebar's springs (unfold 0.3s, fold 0.2s, bounce 0, height auto + opacity). Picking every option of a group collapses the selection back into its wildcard; searching expands every matching group. Rows press with the shared inset tokens.
+
 ### Checkbox · Radio · Switch
 
 18px, 18px, and 32×20 with a 16px knob. Each expands its hit area with `after:-inset-x-3 after:-inset-y-2` so the target clears 24×24 without growing visually. All three take `cursor-pointer` unless disabled.
@@ -353,11 +357,19 @@ Items share one sliding highlight from `HighlightList` rather than each drawing 
 Dialogs carry a title and the form, nothing else: no `DialogDescription` restating what the fields already say. `AlertDialog` is the exception, its description is the consequence the user is confirming.
 
 
-Centered, 420px (`size='sm'` → `max-w-xs`), `rounded-3xl`. Title (`text-xl`) over description (`text-sm`), both centered and balanced, no gap. AlertDialog is for destructive confirms: two actions splitting the width 50/50, and the confirm button **repeats the consequence** ("Delete workspace", never "Delete").
+Centered, 420px (`size='sm'` → `max-w-xs`), `rounded-3xl`, 20px padding (`p-5`), 16px between header, body and footer. Title (`text-xl`) over description (`text-sm`), both centered and balanced, 2px apart (`gap-0.5`). AlertDialog is for destructive confirms: two actions splitting the width 50/50, and the confirm button **repeats the consequence** ("Delete workspace", never "Delete").
 
 ### IconTile
 
 A glyph on a soft `bg-2` surface, the one way an icon sits on its own: `size` `sm` (32px tile, 18px glyph: dense rows, card titles) · `default` (34px / 20px, the input height: choice rows) · `lg` (48px / 28px: empty states, headers). It always wears its 1px `bg-4/70` hairline ring; that ring is part of the component, not something a caller adds, and there is no ring-less variant. `tone` themes it in any accent ramp (`green` for success, `red` for errors, …): the glyph takes the ramp's `-4` at 85% (red, the loudest ramp, at 70%), the fill is `-4` at 15%, the ring `-4` at 25%, so one rule covers every color and both themes. Callers never compose these classes by hand. Never change its fill on hover. `EmptyState`, the file drop zone, the icon gallery on `/ui` and every list row that leads with an icon use it; a glyph on a surface is never hand-rolled.
+
+### Time
+
+Every time the UI shows, relative or absolute (created, updated, last used, last seen), is hoverable and reveals the exact time: `TimeAgo` (relative, ticks every minute) and `Time` (`Aug 24, 2026`) in `apps/web/app/hooks/use-time-ago.tsx`, both rendering a `<time dateTime>` with a 150ms-delay tooltip carrying `exactTime` (`Aug 24, 2026, 12:58 PM`). A bare `formatDate()` in JSX is a bug.
+
+### Table
+
+`@buzzkit/ui/components/table`. Lives inside a `Card`, edge to edge: hairline rows (`border-bg-3`), header cells `text-xs` `text-fg-2` at 36px, body cells `text-sm` `text-fg-3` with the identifying column `font-medium text-fg-4`, 12px horizontal padding and 16px at the card edges. Every cell is `whitespace-nowrap` and the wrapper is `overflow-x-auto`, so a narrow viewport scrolls the table sideways and never the page. Rows are not pressed and have no hover; table cells use `cursor: auto` (set in `globals.css`), so the I-beam appears only over the glyphs and the arrow over a cell's whitespace; per-row actions sit in a trailing `…` menu in a `w-0` cell. A row's category gets its own column as a `Badge size='sm'`, one colour per category (keys: Workspace blue, Tenant purple, Client green); state badges (`Revoked`, red) sit after the name; secondary counts (scopes) carry a dotted underline and a tooltip listing the detail; empty values say the word (`Never`, `All tenants`) in `text-fg-2` rather than a dash. Every time in a table goes through `Time` / `TimeAgo` (exact time on hover).
 
 ### EmptyState
 

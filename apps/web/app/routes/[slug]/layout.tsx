@@ -68,7 +68,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
       <Sidebar workspace={workspace} workspaces={workspaces} profile={profile} />
 
       <main id='content' className='flex min-w-0 flex-1 p-2 pl-0'>
-        <div className='corner-superellipse/1.125 flex min-w-0 flex-1 overflow-y-auto rounded-2xl bg-card px-8.5 py-7.5 shadow-sm'>
+        <div className='corner-superellipse/1.125 flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl bg-card px-8.5 py-7.5 shadow-sm'>
           <Outlet context={{ workspace, profile, apiUrl } satisfies WorkspaceOutletContext} />
         </div>
       </main>

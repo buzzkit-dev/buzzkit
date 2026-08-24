@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { useSyncExternalStore } from 'react';
+import { formatDate } from '@/app/lib/utils/format';
 import { timeAgo } from '@/app/lib/utils/time';
 
 const listeners = new Set<() => void>();
@@ -38,16 +39,29 @@ export function exactTime(iso: string): string {
   });
 }
 
-export const TIME_TOOLTIP_DELAY = 250;
+export const TIME_TOOLTIP_DELAY = 150;
 
-export function TimeAgo({ at }: { at: string }) {
-  const value = useTimeAgo(at);
+function ExactTimeTooltip({ at, children }: { at: string; children: string }) {
   return (
     <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
       <Tooltip>
-        <TooltipTrigger render={<span className='cursor-default'>{value}</span>} />
+        <TooltipTrigger
+          render={
+            <time dateTime={at} className='cursor-default'>
+              {children}
+            </time>
+          }
+        />
         <TooltipContent>{exactTime(at)}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
+}
+
+export function TimeAgo({ at }: { at: string }) {
+  return <ExactTimeTooltip at={at}>{useTimeAgo(at)}</ExactTimeTooltip>;
+}
+
+export function Time({ at }: { at: string }) {
+  return <ExactTimeTooltip at={at}>{formatDate(at)}</ExactTimeTooltip>;
 }

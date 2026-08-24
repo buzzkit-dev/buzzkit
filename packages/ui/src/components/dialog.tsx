@@ -49,7 +49,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot='dialog-content'
         className={cn(
-          'corner-superellipse/1.125 fixed top-[50%] left-[50%] z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 overflow-y-auto rounded-3xl bg-background p-6 text-fg-3 shadow-md outline-none sm:max-w-[420px]',
+          'corner-superellipse/1.125 fixed top-[50%] left-[50%] z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 overflow-y-auto rounded-3xl bg-background p-5 text-fg-3 shadow-md outline-none sm:max-w-[420px]',
           'transition-[opacity,scale] duration-200 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0',
           className
         )}
@@ -80,7 +80,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot='dialog-header'
-      className={cn('flex w-full flex-col items-center text-center', className)}
+      className={cn('flex w-full flex-col items-center gap-0.5 text-center', className)}
       {...props}
     />
   );

@@ -11,7 +11,6 @@ import {
 import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
-import { Checkbox } from '@buzzkit/ui/components/checkbox';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import {
@@ -22,31 +21,29 @@ import {
 } from '@buzzkit/ui/components/dropdown-menu';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
-import { Icon } from '@buzzkit/ui/components/icon';
 import { Input } from '@buzzkit/ui/components/input';
-import { Label } from '@buzzkit/ui/components/label';
-import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { type ScopeGroup, ScopePicker } from '@buzzkit/ui/components/scope-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Spinner } from '@buzzkit/ui/components/spinner';
-import { cn } from '@buzzkit/ui/lib/utils';
-import { useEffect, useId, useRef, useState } from 'react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { SettingsRow } from '@/app/components/settings/card';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
 import { type ApiKey, listKeys, listTenants } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
-import { formatDate } from '@/app/lib/utils/format';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
 type KeyKind = 'workspace' | 'tenant' | 'client';
 type Preset = 'full' | 'read' | 'custom';
-type ScopeGroup = { label: string; wildcard: string; options: string[]; tenant: boolean };
+type KeyScopeGroup = ScopeGroup & { wildcard: string; tenant: boolean };
 
-const SCOPE_GROUPS: ScopeGroup[] = [
+const SCOPE_GROUPS: KeyScopeGroup[] = [
   {
     label: 'workspace',
     wildcard: 'workspace:*',
@@ -84,6 +81,12 @@ const KINDS: { value: KeyKind; label: string }[] = [
   { value: 'client', label: 'Client' },
 ];
 
+const KIND_BADGE: Record<KeyKind, 'blue' | 'purple' | 'green'> = {
+  workspace: 'blue',
+  tenant: 'purple',
+  client: 'green',
+};
+
 const PRESETS: { value: Preset; label: string }[] = [
   { value: 'full', label: 'Full access' },
   { value: 'read', label: 'Read only' },
@@ -107,142 +110,8 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 
 export const action = keysAction;
 
-function groupsFor(kind: KeyKind): ScopeGroup[] {
+function groupsFor(kind: KeyKind): KeyScopeGroup[] {
   return kind === 'tenant' ? SCOPE_GROUPS.filter((group) => group.tenant) : SCOPE_GROUPS;
-}
-
-function ScopePicker({
-  groups,
-  selected,
-  onChange,
-}: {
-  groups: ScopeGroup[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<string[]>([]);
-  const listRef = useRef<HTMLDivElement>(null);
-  const uid = useId();
-
-  const trimmedQuery = query.trim().toLowerCase();
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      matches: trimmedQuery ? group.options.filter((option) => option.includes(trimmedQuery)) : group.options,
-    }))
-    .filter((group) => group.matches.length > 0 || group.label.includes(trimmedQuery));
-
-  const toggleExpanded = (label: string) =>
-    setExpanded((current) =>
-      current.includes(label) ? current.filter((entry) => entry !== label) : [...current, label]
-    );
-
-  const stateOf = (group: ScopeGroup) => {
-    const wildcardOn = selected.includes(group.wildcard);
-    const count = group.options.filter((option) => selected.includes(option)).length;
-    return { wildcardOn, allOn: wildcardOn || count === group.options.length, count };
-  };
-  const without = (group: ScopeGroup) =>
-    selected.filter((entry) => entry !== group.wildcard && !group.options.includes(entry));
-  const toggleGroup = (group: ScopeGroup) => {
-    const { allOn } = stateOf(group);
-    onChange(allOn ? without(group) : [...without(group), group.wildcard]);
-  };
-  const toggleOption = (group: ScopeGroup, option: string) => {
-    const { wildcardOn } = stateOf(group);
-    const current = wildcardOn ? group.options : group.options.filter((entry) => selected.includes(entry));
-    const next = current.includes(option)
-      ? current.filter((entry) => entry !== option)
-      : [...current, option];
-    onChange(
-      next.length === group.options.length
-        ? [...without(group), group.wildcard]
-        : [...without(group), ...next]
-    );
-  };
-
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <Input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder='Search permissions'
-        aria-label='Search permissions'
-        className='h-8 text-sm'
-      />
-      <ScrollFade targetRef={listRef} />
-      <div ref={listRef} className='scrollbar-hide max-h-52 overflow-y-auto'>
-        <div className='flex flex-col gap-0.5'>
-          {visibleGroups.map((group) => {
-            const { wildcardOn, allOn, count } = stateOf(group);
-            const open = trimmedQuery !== '' || expanded.includes(group.label);
-            const groupId = `${uid}-${group.label}`;
-            return (
-              <div key={group.label} className='flex flex-col'>
-                <div
-                  className={cn(
-                    'relative isolate flex h-8 items-center gap-2 rounded-lg px-1.5',
-                    "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
-                    'before:transition-[background-color,inset] before:duration-150 before:ease-out active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
-                    'hover:before:bg-bg-a1 active:before:bg-bg-a1'
-                  )}
-                >
-                  <button
-                    type='button'
-                    onClick={() => toggleExpanded(group.label)}
-                    aria-expanded={open}
-                    aria-label={`${open ? 'Collapse' : 'Expand'} ${group.label}`}
-                    className='absolute inset-0 cursor-pointer rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-primary-2'
-                  />
-                  <Checkbox
-                    id={groupId}
-                    checked={allOn}
-                    onCheckedChange={() => toggleGroup(group)}
-                    className='relative'
-                  />
-                  <Label htmlFor={groupId} className='relative font-mono text-fg-4 text-xs'>
-                    {group.wildcard}
-                  </Label>
-                  <span className='text-fg-2 text-xs'>{allOn ? 'all' : count > 0 ? count : ''}</span>
-                  <Icon
-                    name='IconChevronRightMedium'
-                    className={cn(
-                      'mr-0.5 ml-auto size-3.5 transition-transform duration-150',
-                      open && 'rotate-90'
-                    )}
-                  />
-                </div>
-                {open && (
-                  <div className='flex flex-col gap-0.5 pt-0.5 pb-1 pl-8'>
-                    {group.matches.map((option) => (
-                      <Label
-                        key={option}
-                        htmlFor={`${uid}-${option}`}
-                        className='flex h-6 cursor-pointer items-center gap-2 font-mono font-normal text-fg-3 text-xs'
-                      >
-                        <Checkbox
-                          id={`${uid}-${option}`}
-                          checked={wildcardOn || selected.includes(option)}
-                          onCheckedChange={() => toggleOption(group, option)}
-                        />
-                        {option}
-                      </Label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {visibleGroups.length === 0 && (
-            <span className='flex items-center justify-center py-4 text-fg-2 text-sm'>
-              Nothing matches your search.
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function firstUseSnippet(apiUrl: string, kind: KeyKind, secret: string) {
@@ -270,12 +139,13 @@ function KeyDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tenants: { id: string; name: string; slug: string }[];
+  tenants: { id: string; name: string; slug: string; isDefault: boolean }[];
   apiUrl: string;
 }) {
+  const defaultTenant = tenants.find((entry) => entry.isDefault)?.slug ?? tenants[0]?.slug ?? '';
   const [name, setName] = useState('');
   const [kind, setKind] = useState<KeyKind>('workspace');
-  const [tenant, setTenant] = useState(tenants[0]?.slug ?? '');
+  const [tenant, setTenant] = useState(defaultTenant);
   const [preset, setPreset] = useState<Preset>('full');
   const [scopes, setScopes] = useState<string[]>([]);
   const [created, setCreated] = useState<{ secret: string; kind: KeyKind } | null>(null);
@@ -289,11 +159,11 @@ function KeyDialog({
     if (!open) return;
     setName('');
     setKind('workspace');
-    setTenant(tenants[0]?.slug ?? '');
+    setTenant(defaultTenant);
     setPreset('full');
     setScopes([]);
     setCreated(null);
-  }, [open, tenants]);
+  }, [open, defaultTenant]);
 
   const groups = groupsFor(kind);
   const selected =
@@ -438,6 +308,29 @@ function copyToClipboard(value: string) {
   );
 }
 
+function ScopeSummary({ apiKey }: { apiKey: ApiKey }) {
+  if (apiKey.kind === 'client') return <span className='text-fg-2'>Client API</span>;
+  if (apiKey.scopes.includes('*')) return <>Full access</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className='cursor-default underline decoration-dotted decoration-fg-1 underline-offset-3'>
+            {apiKey.scopes.length} scope{apiKey.scopes.length === 1 ? '' : 's'}
+          </span>
+        }
+      />
+      <TooltipContent>
+        <span className='flex flex-col gap-0.5 font-mono text-xs'>
+          {apiKey.scopes.map((scope) => (
+            <span key={scope}>{scope}</span>
+          ))}
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function KeyRow({
   apiKey,
   tenantName,
@@ -449,66 +342,67 @@ function KeyRow({
   canManage: boolean;
   onRevoke: (key: ApiKey) => void;
 }) {
-  const scopeSummary = apiKey.scopes.includes('*')
-    ? 'Full access'
-    : `${apiKey.scopes.length} scope${apiKey.scopes.length === 1 ? '' : 's'}`;
   const copyable = apiKey.kind === 'client' && apiKey.token;
 
   return (
-    <SettingsRow
-      title={
+    <TableRow className={apiKey.revokedAt ? 'opacity-60' : undefined}>
+      <TableCell className='font-medium text-fg-4'>
         <span className='flex items-center gap-1.5'>
           {apiKey.name}
-          <Badge size='sm'>{KINDS.find((entry) => entry.value === apiKey.kind)?.label}</Badge>
-        </span>
-      }
-      subtitle={
-        <span className='flex items-center gap-1.5'>
-          <span className='font-mono'>{copyable ? apiKey.token : `${apiKey.prefix}…${apiKey.last4}`}</span>
-          {apiKey.kind !== 'client' && <span>· {scopeSummary}</span>}
-          {tenantName && <span>· {tenantName}</span>}
-        </span>
-      }
-      end={
-        <>
-          <span className='hidden text-fg-2 text-xs sm:block'>
-            {apiKey.lastUsedAt
-              ? `Used ${formatDate(apiKey.lastUsedAt)}`
-              : `Created ${formatDate(apiKey.createdAt)}`}
-          </span>
-          {apiKey.revokedAt ? (
+          {apiKey.revokedAt && (
             <Badge size='sm' variant='red'>
               Revoked
             </Badge>
-          ) : !canManage && !copyable ? undefined : (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant='ghost'
-                    size='icon-xs'
-                    icon='IconDotGrid1x3Horizontal'
-                    aria-label='Key actions'
-                  />
-                }
-              />
-              <DropdownMenuContent align='end'>
-                {copyable && (
-                  <DropdownMenuItem onClick={() => copyToClipboard(apiKey.token as string)}>
-                    Copy key
-                  </DropdownMenuItem>
-                )}
-                {canManage && (
-                  <DropdownMenuItem variant='destructive' onClick={() => onRevoke(apiKey)}>
-                    Revoke
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           )}
-        </>
-      }
-    />
+        </span>
+      </TableCell>
+      <TableCell className='font-mono text-xs'>
+        {apiKey.prefix}…{apiKey.last4}
+      </TableCell>
+      <TableCell>
+        <Badge size='sm' variant={KIND_BADGE[apiKey.kind]}>
+          {KINDS.find((entry) => entry.value === apiKey.kind)?.label}
+        </Badge>
+      </TableCell>
+      <TableCell>{tenantName ?? <span className='text-fg-2'>All tenants</span>}</TableCell>
+      <TableCell>
+        <ScopeSummary apiKey={apiKey} />
+      </TableCell>
+      <TableCell>
+        {apiKey.lastUsedAt ? <Time at={apiKey.lastUsedAt} /> : <span className='text-fg-2'>Never</span>}
+      </TableCell>
+      <TableCell>
+        <Time at={apiKey.createdAt} />
+      </TableCell>
+      <TableCell className='w-0 py-1.5 text-right'>
+        {!apiKey.revokedAt && (canManage || copyable) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon-xs'
+                  icon='IconDotGrid1x3Horizontal'
+                  aria-label='Key actions'
+                />
+              }
+            />
+            <DropdownMenuContent align='end'>
+              {copyable && (
+                <DropdownMenuItem onClick={() => copyToClipboard(apiKey.token as string)}>
+                  Copy key
+                </DropdownMenuItem>
+              )}
+              {canManage && (
+                <DropdownMenuItem variant='destructive' onClick={() => onRevoke(apiKey)}>
+                  Revoke
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -553,17 +447,33 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
             className='py-10'
           />
         ) : (
-          <ul className='flex flex-col divide-y divide-bg-3 py-1.5'>
-            {keys.map((apiKey) => (
-              <KeyRow
-                key={apiKey.id}
-                apiKey={apiKey}
-                tenantName={tenantName(apiKey.tenantId)}
-                canManage={canManage}
-                onRevoke={openRevoke}
-              />
-            ))}
-          </ul>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Key</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Tenant</TableHead>
+                <TableHead>Access</TableHead>
+                <TableHead>Last used</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>
+                  <span className='sr-only'>Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {keys.map((apiKey) => (
+                <KeyRow
+                  key={apiKey.id}
+                  apiKey={apiKey}
+                  tenantName={tenantName(apiKey.tenantId)}
+                  canManage={canManage}
+                  onRevoke={openRevoke}
+                />
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Card>
 

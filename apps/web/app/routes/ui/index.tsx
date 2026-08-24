@@ -85,6 +85,7 @@ import {
   PopoverTrigger,
 } from '@buzzkit/ui/components/popover';
 import { RadioGroup, RadioGroupItem } from '@buzzkit/ui/components/radio-group';
+import { ScopePicker } from '@buzzkit/ui/components/scope-picker';
 import { ScrollArea } from '@buzzkit/ui/components/scroll-area';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import {
@@ -113,6 +114,7 @@ import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Spinner } from '@buzzkit/ui/components/spinner';
 import { Switch } from '@buzzkit/ui/components/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@buzzkit/ui/components/tabs';
 import { TextSwap } from '@buzzkit/ui/components/text-swap';
 import { Textarea } from '@buzzkit/ui/components/textarea';
@@ -143,6 +145,7 @@ const SECTIONS = [
   { id: 'input', label: 'Input & Textarea' },
   { id: 'field', label: 'Field' },
   { id: 'select', label: 'Select' },
+  { id: 'scope-picker', label: 'ScopePicker' },
   { id: 'controls', label: 'Checkbox, Radio, Switch' },
   { id: 'tabs', label: 'Tabs' },
   { id: 'pill-tabs', label: 'Pill tabs' },
@@ -155,6 +158,7 @@ const SECTIONS = [
   { id: 'drawer', label: 'Drawer' },
   { id: 'toast', label: 'Toast' },
   { id: 'card', label: 'Card' },
+  { id: 'table', label: 'Table' },
   { id: 'onboarding', label: 'Onboarding' },
   { id: 'code-block', label: 'Code block' },
   { id: 'avatar', label: 'Avatar' },
@@ -223,6 +227,23 @@ function SectionNav() {
         );
       })}
     </nav>
+  );
+}
+
+const DEMO_SCOPES = [
+  { label: 'subscribers', wildcard: 'subscribers:*', options: ['subscribers:read', 'subscribers:write'] },
+  { label: 'topics', wildcard: 'topics:*', options: ['topics:read', 'topics:write'] },
+  { label: 'messages', wildcard: 'messages:*', options: ['messages:read', 'messages:send'] },
+  { label: 'events', wildcard: 'events:*', options: ['events:read'] },
+];
+
+function ScopePickerDemo() {
+  const [selected, setSelected] = useState<string[]>(['subscribers:*', 'messages:read']);
+  return (
+    <div className='flex w-full max-w-sm flex-col gap-3'>
+      <ScopePicker groups={DEMO_SCOPES} selected={selected} onChange={setSelected} />
+      <span className='font-mono text-fg-2 text-xs'>{selected.join(' ') || 'nothing selected'}</span>
+    </div>
   );
 }
 
@@ -981,6 +1002,14 @@ export default function DesignSystem() {
         </Section>
 
         <Section
+          id='scope-picker'
+          title='ScopePicker'
+          description='Grouped permissions with a search field: each group is a collapsible row whose checkbox stands for its wildcard, options fold open with the sidebar spring, and picking every option collapses back into the wildcard.'
+        >
+          <ScopePickerDemo />
+        </Section>
+
+        <Section
           id='controls'
           title='Checkbox, Radio, Switch'
           description='Contentless controls scale fully on press; they have no label that could shift.'
@@ -1570,6 +1599,45 @@ export default function DesignSystem() {
               </div>
             </div>
           </Specimen>
+        </Section>
+
+        <Section
+          id='table'
+          title='Table'
+          description='Hairline rows inside a Card, edge to edge. Header cells are text-xs fg-2, body cells text-sm; every cell is nowrap and the container scrolls sideways, so narrow viewports scroll the table, never the page. Rows are not pressed; actions live in a trailing menu.'
+        >
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Key</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Last used</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[
+                  ['Production backend', 'bk_ws_QkqhGT…clVF', 'Workspace', 'blue', 'Aug 24, 2026'],
+                  ['Acme server', 'bk_tn_tbaAGQ…28cw', 'Tenant', 'purple', 'Aug 24, 2026'],
+                  ['iOS app', 'bk_pk_vQub1z…msXq', 'Client', 'green', 'Never'],
+                ].map(([name, key, type, tone, used]) => (
+                  <TableRow key={name}>
+                    <TableCell className='font-medium text-fg-4'>{name}</TableCell>
+                    <TableCell className='font-mono text-xs'>{key}</TableCell>
+                    <TableCell>
+                      <Badge size='sm' variant={tone as 'blue' | 'purple' | 'green'}>
+                        {type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {used === 'Never' ? <span className='text-fg-2'>Never</span> : used}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         </Section>
 
         <Section
