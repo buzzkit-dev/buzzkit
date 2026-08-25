@@ -23,19 +23,23 @@ export function CodeBlock({ code, className }: { code: string; className?: strin
   React.useEffect(() => () => clearTimeout(timer.current), []);
 
   return (
-    <div className={cn('corner-superellipse/1.125 relative isolate w-full rounded-xl bg-bg-2', className)}>
+    <div
+      className={cn(
+        'corner-superellipse/1.125 relative isolate w-full overflow-hidden rounded-xl bg-bg-2',
+        className
+      )}
+    >
       <ScrollFade orientation='horizontal' size={24}>
         <pre className='w-max min-w-full px-3 py-2 pr-11 text-fg-3 text-xs leading-relaxed'>
           <code>{code}</code>
         </pre>
       </ScrollFade>
-      {/* Centered beside a single line, pinned near the top of tall blocks
-          (the max-height cap is what tops it out). */}
-      <div className='pointer-events-none absolute inset-y-0 right-0 flex max-h-10 items-stretch'>
-        {/* Scrolled code fades out under the button instead of clipping: a
-            gradient strip into the block color, then a solid backing. */}
-        <span className='w-6 bg-linear-to-r from-transparent to-bg-2' />
-        <span className='pointer-events-auto flex items-center rounded-[10px] bg-bg-2 pr-1.5'>
+      {/* The button sits on a solid disc of the block color with a soft halo
+          of the same color, so code scrolling under it fades out on every side
+          instead of clipping at an edge. Centered beside a single line, pinned
+          near the top of tall blocks. */}
+      <div className='pointer-events-none absolute inset-y-0 right-0 flex max-h-10 items-center pr-1.5'>
+        <span className='pointer-events-auto flex items-center rounded-full bg-bg-2 shadow-[0_0_14px_12px_var(--color-bg-2)]'>
           <Button
             variant='ghost'
             size='icon-xs'

@@ -1,5 +1,5 @@
 import { cn } from '@buzzkit/ui/lib/utils';
-import { motion } from 'motion/react';
+import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import * as React from 'react';
 
 /**
@@ -77,22 +77,9 @@ export function PillTabs<V extends string>({
     height: number;
     value: V;
   } | null>(null);
-  // Written after paint, so every pre-paint render (hydration, StrictMode
-  // double-invokes) still sees null and snaps. Only a real value change —
-  // never the first placement, never a resize re-measure — animates.
-  const settled = React.useRef<{ value: V } | null>(null);
-  React.useEffect(() => {
-    settled.current = active;
-  });
-
   // Pressing the already-active item shrinks the pill (the clip window, so
   // the labels stay fixed) by the same ratio a button's background shrinks.
   const [pressed, setPressed] = React.useState(false);
-  const prevPressed = React.useRef(false);
-  const pressChanged = pressed !== prevPressed.current;
-  React.useEffect(() => {
-    prevPressed.current = pressed;
-  });
 
   const [fadeIn] = React.useState(() => !pageHasPainted);
   React.useEffect(() => {
@@ -138,13 +125,45 @@ export function PillTabs<V extends string>({
   );
   const styles = VARIANTS[variant];
 
-  const animates = settled.current !== null && active !== null && settled.current.value !== active.value;
-
-  const dx = pressed && active ? active.width * 0.0125 : 0;
-  const dy = pressed && active ? active.height * 0.0125 : 0;
-  const clip = active
-    ? `inset(${dy}px ${active.right + dx}px ${dy}px ${active.left + dx}px round 9999px)`
-    : 'inset(0px 100% 0px 0px round 9999px)';
+  // The clip window is driven by numeric springs, one per edge, sharing one
+  // spring config, so both edges move in lockstep and the pill keeps the
+  // width of a tab while it slides. (Animating the `clip-path` string lets the
+  // edges interpolate independently: the pill stretches across every tab in
+  // between on the way.)
+  const leftSource = useMotionValue(0);
+  const rightSource = useMotionValue(0);
+  const pressSource = useMotionValue(0);
+  const left = useSpring(leftSource, { visualDuration: 0.3, bounce: 0 });
+  const right = useSpring(rightSource, { visualDuration: 0.3, bounce: 0 });
+  const press = useSpring(pressSource, { visualDuration: 0.15, bounce: 0 });
+  const sizeRef = React.useRef({ width: 0, height: 0 });
+  const placedValue = React.useRef<V | null>(null);
+  React.useEffect(() => {
+    if (!active) return;
+    sizeRef.current = { width: active.width, height: active.height };
+    const animates = placedValue.current !== null && placedValue.current !== active.value;
+    placedValue.current = active.value;
+    if (animates) {
+      leftSource.set(active.left);
+      rightSource.set(active.right);
+    } else if (leftSource.get() !== active.left || rightSource.get() !== active.right) {
+      // First placement and resize re-measures snap; only a value change slides.
+      // A re-measure that lands on the same target (the page re-rendering while
+      // the pill is still sliding) must not cut the slide short.
+      leftSource.jump(active.left);
+      rightSource.jump(active.right);
+      left.jump(active.left);
+      right.jump(active.right);
+    }
+  }, [active, leftSource, rightSource, left, right]);
+  React.useEffect(() => {
+    pressSource.set(pressed ? 1 : 0);
+  }, [pressed, pressSource]);
+  const clip = useTransform([left, right, press], ([l, r, p]) => {
+    const dx = (p as number) * sizeRef.current.width * 0.0125;
+    const dy = (p as number) * sizeRef.current.height * 0.0125;
+    return `inset(${dy}px ${(r as number) + dx}px ${dy}px ${(l as number) + dx}px round 9999px)`;
+  });
 
   return (
     <div ref={listRef} className={cn('relative isolate flex w-max', gapClassName, className)}>
@@ -176,21 +195,10 @@ export function PillTabs<V extends string>({
       <motion.div
         aria-hidden
         className={cn('pointer-events-none absolute inset-0 z-10 flex', gapClassName, styles.overlay)}
+        style={{ clipPath: clip }}
         initial={false}
-        animate={{
-          clipPath: clip,
-          opacity: active ? 1 : 0,
-        }}
-        transition={
-          animates
-            ? { type: 'spring', duration: 0.3, bounce: 0 }
-            : pressChanged
-              ? { clipPath: { duration: 0.15, ease: 'easeOut' }, opacity: { duration: 0 } }
-              : {
-                  clipPath: { duration: 0 },
-                  opacity: fadeIn ? { duration: 0.15, ease: 'easeOut' } : { duration: 0 },
-                }
-        }
+        animate={{ opacity: active ? 1 : 0 }}
+        transition={{ opacity: fadeIn ? { duration: 0.15, ease: 'easeOut' } : { duration: 0 } }}
       >
         {items.map((item) => (
           <span key={item.value} className={itemBase}>

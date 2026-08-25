@@ -348,6 +348,9 @@ One trigger size, matching the default button (32px, `rounded-xl`). The popup al
 
 Free-floating pill pickers (no track): header nav, inbox status filters, composer modes. **The pill is a clip-path window, never a color transition**: an aria-hidden copy of the label row in the inverted color sits on the pill background, clipped by an animated `inset(… round 9999px)` — mid-slide a label splits at the pill edge instead of cross-fading. `variant`: `primary` (black pill, inverted labels) · `amber` (internal-mode composer picker) · `soft` (`bg-bg-2`). On first mount the pill snaps to position and fades in over 150ms; only value changes animate the slide. Interactive elements are buttons by default; pass `renderItem` for router Links. Keep the root padding-free (the overlay aligns to its box) — pad a wrapper instead.
 
+
+The clip window is driven by two numeric springs (one per edge, identical config) combined into the `clip-path` string every frame, never by animating the string itself: interpolating the string lets the two edges move at different rates, and the pill visibly stretches across every tab in between. A re-measure that lands on the same target (the page re-rendering while the pill is mid-slide) leaves the springs alone; only a genuinely new target snaps or slides.
+
 ### Nav lists (sidebars)
 
 Vertical navs (the workspace sidebar, the `/ui` section nav) and pickers (the onboarding choice rows) share the menu mechanic via `useAnimatedIndicator`: one `bg-a2` highlight that **rests on the active item**, slides to the hovered item, and glides back on pointer leave — items never draw their own hover background. Text runs `fg-2` → `fg-4` under the indicator and stays `fg-4` on the active item; both transitions run 200ms so switching tabs shifts color instead of snapping. Group headers are quiet `text-xs fg-2` labels above their items. Active state must always be knowable with the pointer elsewhere.

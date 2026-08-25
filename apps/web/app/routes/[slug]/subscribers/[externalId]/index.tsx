@@ -28,9 +28,7 @@ import { Switch } from '@buzzkit/ui/components/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
-import { iconSwap, iconSwapIn, iconSwapOut } from '@buzzkit/ui/lib/icon-swap';
-import { cn } from '@buzzkit/ui/lib/utils';
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
@@ -41,6 +39,7 @@ import {
   SubscriptionStatusBadge,
   VerifiedBadge,
 } from '@/app/components/badges';
+import { DetailRow } from '@/app/components/detail/row';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
@@ -409,69 +408,6 @@ function localTime(timeZone: string): string | null {
   }
 }
 
-function ProfileRow({ label, copy, children }: { label: string; copy?: string; children: React.ReactNode }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  const copyValue = () => {
-    if (!copy) return;
-    navigator.clipboard.writeText(copy).then(() => {
-      setCopied(true);
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1500);
-    });
-  };
-
-  return (
-    <div className='flex min-h-10 items-center gap-6 border-bg-3 border-b px-4 last:border-b-0'>
-      <dt className='w-36 shrink-0 text-fg-2 text-sm'>{label}</dt>
-      <dd className='flex min-w-0 flex-1 items-center text-fg-4 text-sm'>
-        {copy ? (
-          <button
-            type='button'
-            aria-label={copied ? 'Copied' : `Copy ${label.toLowerCase()}`}
-            onClick={copyValue}
-            className={cn(
-              'group/copy -mx-2 -my-1 relative isolate flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
-              "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
-              'before:transition-[background-color,inset] before:duration-150 before:ease-out active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
-              'hover:before:bg-bg-a1 active:before:bg-bg-a1'
-            )}
-          >
-            <span className='flex min-w-0 items-center gap-1.5 truncate'>{children}</span>
-            <span className='relative size-4 shrink-0'>
-              <Icon
-                name='IconClipboard2'
-                className={cn(
-                  'absolute inset-0 size-4 text-fg-2',
-                  iconSwap,
-                  copied
-                    ? iconSwapOut
-                    : cn(
-                        iconSwapIn,
-                        'opacity-0 group-hover/copy:opacity-100 group-focus-visible/copy:opacity-100'
-                      )
-                )}
-              />
-              <Icon
-                name='IconCheckmark1'
-                className={cn(
-                  'absolute inset-0 size-4 text-green-4',
-                  iconSwap,
-                  copied ? iconSwapIn : iconSwapOut
-                )}
-              />
-            </span>
-          </button>
-        ) : (
-          <span className='flex min-w-0 items-center gap-1.5'>{children}</span>
-        )}
-      </dd>
-    </div>
-  );
-}
-
 function subjectOf(data: Record<string, unknown>): string {
   if (data.channel === 'email')
     return typeof data.endpoint === 'string' ? `email ${data.endpoint}` : 'an email address';
@@ -637,54 +573,54 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
             </CardHeader>
             <dl className='flex flex-col border-bg-3 border-t'>
               {name && (
-                <ProfileRow label='Name' copy={name}>
+                <DetailRow label='Name' copy={name}>
                   {name}
-                </ProfileRow>
+                </DetailRow>
               )}
-              <ProfileRow label='External id' copy={subscriber.externalId}>
+              <DetailRow label='External id' copy={subscriber.externalId}>
                 <span className='font-mono text-xs'>{subscriber.externalId}</span>
                 <VerifiedBadge verified={subscriber.verified} />
-              </ProfileRow>
+              </DetailRow>
               {email && (
-                <ProfileRow label='Email' copy={email}>
+                <DetailRow label='Email' copy={email}>
                   {email}
-                </ProfileRow>
+                </DetailRow>
               )}
               {country && (
-                <ProfileRow label='Country' copy={countryName(country)}>
+                <DetailRow label='Country' copy={countryName(country)}>
                   <Flag code={country} />
                   {countryName(country)}
-                </ProfileRow>
+                </DetailRow>
               )}
               {(city || region) && (
-                <ProfileRow label='City' copy={[city, region].filter(Boolean).join(', ')}>
+                <DetailRow label='City' copy={[city, region].filter(Boolean).join(', ')}>
                   {[city, region].filter(Boolean).join(', ')}
-                </ProfileRow>
+                </DetailRow>
               )}
               {timezone && (
-                <ProfileRow label='Timezone' copy={timezone}>
+                <DetailRow label='Timezone' copy={timezone}>
                   {timezone}
                   {now && <span className='text-fg-2'>· {now} now</span>}
-                </ProfileRow>
+                </DetailRow>
               )}
               {language && (
-                <ProfileRow label='Language' copy={language}>
+                <DetailRow label='Language' copy={language}>
                   {languageName(language)}
-                </ProfileRow>
+                </DetailRow>
               )}
-              <ProfileRow label='Subscribed'>
+              <DetailRow label='Subscribed'>
                 <Time at={subscriber.createdAt} />
-              </ProfileRow>
-              <ProfileRow label='Last seen'>
+              </DetailRow>
+              <DetailRow label='Last seen'>
                 {lastSeenAt ? <TimeAgo at={lastSeenAt} /> : <span className='text-fg-2'>Never</span>}
-              </ProfileRow>
-              <ProfileRow label='Verified'>
+              </DetailRow>
+              <DetailRow label='Verified'>
                 {subscriber.identityVerifiedAt ? (
                   <Time at={subscriber.identityVerifiedAt} />
                 ) : (
                   <span className='text-fg-2'>No</span>
                 )}
-              </ProfileRow>
+              </DetailRow>
             </dl>
           </Card>
 

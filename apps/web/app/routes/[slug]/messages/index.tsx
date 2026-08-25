@@ -18,15 +18,15 @@ import {
   TableRow,
 } from '@buzzkit/ui/components/table';
 import { Textarea } from '@buzzkit/ui/components/textarea';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge } from '@/app/components/badges';
+import { Funnel } from '@/app/components/messages/funnel';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useFilters } from '@/app/hooks/use-filters';
-import { TIME_TOOLTIP_DELAY, TimeAgo } from '@/app/hooks/use-time-ago';
+import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
 import { listMessages, listTopics, type Message, type MessageQuery, type Topic } from '@/app/lib/api.server';
 import { CHANNEL_OPTIONS, type Channel, channelLabel } from '@/app/lib/channels';
@@ -83,6 +83,19 @@ export const action = messagesAction;
 
 type Target = 'subscriber' | 'topic';
 
+const EXAMPLES: { title: string; body: string }[] = [
+  { title: 'Leg day', body: "Let's go." },
+  { title: 'Your order shipped', body: 'Arrives Thursday between 9am and 1pm.' },
+  { title: 'Table for two is ready', body: 'Head to the host stand whenever you are.' },
+  { title: 'Price drop on your watchlist', body: 'Two items are now cheaper.' },
+  { title: 'New sign-in from Chrome on Mac', body: 'If this was not you, reset your password now.' },
+  { title: 'Ride arriving in 2 minutes', body: 'Meet your driver at the pickup point.' },
+  { title: 'Streak at risk', body: 'A 20 minute run keeps it alive.' },
+  { title: 'Jane replied to your thread', body: 'Tap to read her reply.' },
+  { title: 'Back in stock', body: 'The item you wanted is available again.' },
+  { title: 'Weekly digest', body: 'Five things you missed this week.' },
+];
+
 const TARGETS: { value: Target; label: string }[] = [
   { value: 'subscriber', label: 'Subscribers' },
   { value: 'topic', label: 'Topic' },
@@ -103,34 +116,6 @@ function targetOf(message: Message): { icon: IconName; nudge: string; text: stri
   const to = targets.to ?? [];
   if (to.length === 1) return { icon: 'IconPeopleFilled', nudge: 'mt-px', text: to[0] ?? '' };
   return { icon: 'IconTeamFilled', nudge: 'mt-px', text: `${to.length} subscribers` };
-}
-
-function Funnel({ counts, status }: { counts: Message['counts']; status: Message['status'] }) {
-  const { total, sent, failed, invalid, pending } = counts;
-  const width = (value: number) => (total === 0 ? '0%' : `${(value / total) * 100}%`);
-  const summary =
-    total > 0
-      ? `${total} reachable · ${sent} sent · ${failed + invalid} failed · ${pending} pending`
-      : status === 'completed'
-        ? 'No one was reachable'
-        : 'Deliveries scheduled';
-
-  return (
-    <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className='flex h-1.5 w-16 cursor-default overflow-hidden rounded-full bg-bg-3'>
-              <span className='h-full bg-green-4' style={{ width: width(sent) }} />
-              <span className='h-full bg-red-4' style={{ width: width(failed + invalid) }} />
-              <span className='h-full bg-amber-4' style={{ width: width(pending) }} />
-            </span>
-          }
-        />
-        <TooltipContent>{summary}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
 }
 
 function SendDialog({
@@ -155,6 +140,7 @@ function SendDialog({
   const [topic, setTopic] = useState('');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [example, setExample] = useState(EXAMPLES[0]!);
   const channelTopics = topics.filter((entry) => entry.channels.includes(channel));
   const channelName = channelLabel(channel).toLowerCase();
 
@@ -166,6 +152,7 @@ function SendDialog({
     setTopic('');
     setTitle('');
     setBody('');
+    setExample(EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]!);
   }, [open, channels[0]]);
 
   useEffect(() => {
@@ -263,7 +250,7 @@ function SendDialog({
               id='message-title'
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder='Leg day'
+              placeholder={example.title}
               maxLength={500}
             />
           </Field>
@@ -273,7 +260,7 @@ function SendDialog({
               id='message-body'
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              placeholder="Let's go."
+              placeholder={example.body}
               maxLength={4000}
               rows={3}
             />
