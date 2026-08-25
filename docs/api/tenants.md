@@ -22,7 +22,7 @@ Keyset-paginated (`limit` ≤ 100, `cursor` from `nextCursor`), oldest-first: `{
 
 ## PATCH /v1/tenants/:tenantSlug
 
-Any of `name`, `slug`, `metadata` (metadata replaces wholesale), `settings`. The default tenant keeps its slug.
+Any of `name`, `slug`, `metadata` (metadata replaces wholesale), `settings`. The default tenant’s slug cannot be changed (400).
 
 ## Settings
 

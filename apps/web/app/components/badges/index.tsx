@@ -105,6 +105,21 @@ export function SubscriptionStatusBadge({ status }: { status: string }) {
   return status === 'invalid' ? <Typed entry={{ label: 'Invalid', tone: 'red' }} /> : null;
 }
 
+const ROLES: Record<'owner' | 'admin' | 'member', Entry> = {
+  owner: { label: 'Owner', tone: 'purple' },
+  admin: { label: 'Admin', tone: 'blue' },
+  member: { label: 'Member', tone: 'default' },
+};
+
+export function RoleBadge({ role }: { role: string }) {
+  const entry = ROLES[role as keyof typeof ROLES] ?? { label: role, tone: 'default' as const };
+  return <Typed entry={entry} />;
+}
+
+export function DefaultTenantBadge({ isDefault }: { isDefault: boolean }) {
+  return isDefault ? <Typed entry={{ label: 'Default', tone: 'default' }} /> : null;
+}
+
 export function OptInBadge({ optedIn }: { optedIn: boolean }) {
   return (
     <Typed entry={optedIn ? { label: 'Opted in', tone: 'green' } : { label: 'Opted out', tone: 'default' }} />

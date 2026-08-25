@@ -84,7 +84,7 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
     guide: provider ? GUIDES[provider.id] : null,
     providerId: provider?.id ?? '',
     existing,
-    backTo: channel ? `${base}/${channel.id}` : base,
+    back: channel ? `${base}/${channel.id}` : base,
     initialStep: provider ? Math.min(initialStep, GUIDES[provider.id].steps.length - 1) : 0,
     storageKey: `buzzkit:onboarding:${workspace.slug}:${provider?.id ?? ''}`,
   });
@@ -134,9 +134,9 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
       credentials: connected,
       provider,
       channel,
-      workspaceSlug: workspace.slug,
-      otherChannels,
       fetcher: guide.fetcher,
+      more: otherChannels > 0 ? `/${workspace.slug}/settings/channels` : null,
+      done: { label: 'Go to the dashboard', to: `/${workspace.slug}` },
     });
   } else if (view === 'guide' && guide.slots) {
     slots = guide.slots;

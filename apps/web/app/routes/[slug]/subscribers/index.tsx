@@ -18,8 +18,15 @@ import { Link, useNavigate, useNavigation, useOutletContext } from 'react-router
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, PlatformBadge, VerifiedBadge } from '@/app/components/badges';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
-import { ApiError, getSubscriber, listKeys, listSubscribers, type Subscriber } from '@/app/lib/api.server';
-import { requireSession } from '@/app/lib/session.server';
+import {
+  ApiError,
+  getSubscriber,
+  getTenant,
+  listKeys,
+  listSubscribers,
+  type Subscriber,
+} from '@/app/lib/api.server';
+import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { type Pagination, paginate, readPage } from '@/app/lib/utils/pagination';
 import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
@@ -34,12 +41,13 @@ export function meta() {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
+  const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
   const query = requestUrl(request).searchParams.get('q')?.trim() ?? '';
 
   if (query) {
     try {
-      const subscriber = await getSubscriber(ctx, token, params.slug, 'default', query);
+      const subscriber = await getSubscriber(ctx, token, params.slug, tenant, query);
       const item: Subscriber = {
         ...subscriber,
         lastSeenAt:
@@ -65,11 +73,14 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     }
   }
 
-  const page = await listSubscribers(ctx, token, params.slug, 'default', readPage(request));
+  const page = await listSubscribers(ctx, token, params.slug, tenant, readPage(request));
   let clientKey: string | null = null;
   if (page.items.length === 0) {
-    const keys = await listKeys(ctx, token, params.slug, { kind: 'client' });
-    clientKey = keys.items.find((key) => !key.revokedAt)?.token ?? null;
+    const [keys, current] = await Promise.all([
+      listKeys(ctx, token, params.slug, { kind: 'client' }),
+      getTenant(ctx, token, params.slug, tenant),
+    ]);
+    clientKey = keys.items.find((key) => !key.revokedAt && key.tenantId === current.id)?.token ?? null;
   }
 
   return { query, ...paginate(request, page), missing: false, clientKey };
@@ -213,13 +224,16 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
       </header>
 
       {fresh ? (
-        <EmptyState
-          icon='IconTeamFilled'
-          title='No subscribers yet'
-          description='Identify a user and they appear here with their devices and preferences.'
-        >
-          <CodeBlock className='w-full max-w-xl text-left' code={identifySnippet(apiUrl, clientKey)} />
-        </EmptyState>
+        <Card className='min-h-0 shrink'>
+          <EmptyState
+            icon='IconTeamFilled'
+            title='No subscribers yet'
+            description='Identify a user and they appear here with their devices and preferences.'
+            className='py-10'
+          >
+            <CodeBlock className='w-full max-w-xl text-left' code={identifySnippet(apiUrl, clientKey)} />
+          </EmptyState>
+        </Card>
       ) : missing ? (
         <Card>
           <EmptyState

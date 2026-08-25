@@ -1,5 +1,15 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@buzzkit/ui/components/alert-dialog';
 import { Button } from '@buzzkit/ui/components/button';
-import { Field, FieldDescription, FieldError } from '@buzzkit/ui/components/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
 import { useEffect, useState } from 'react';
 import { useFetcher, useOutletContext } from 'react-router';
@@ -119,6 +129,69 @@ function SlugCard({ workspace, canEdit }: { workspace: Workspace; canEdit: boole
   );
 }
 
+function DeleteCard({ workspace }: { workspace: Workspace }) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState('');
+  const { submit, pending } = useActionFetcher();
+
+  useEffect(() => {
+    if (!open) setConfirm('');
+  }, [open]);
+
+  return (
+    <>
+      <SettingsCard
+        title='Delete workspace'
+        description='Delete this workspace and everything in it.'
+        footer='Every tenant, subscriber, key and message goes with it.'
+        action={
+          <Button size='xs' variant='destructive' onClick={() => setOpen(true)}>
+            Delete workspace
+          </Button>
+        }
+      />
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{workspace.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every tenant, subscriber, key and message goes with it. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Field className='w-full'>
+            <FieldLabel htmlFor='delete-confirm'>
+              <span>
+                Type <span className='text-fg-4'>{workspace.slug}</span> to confirm
+              </span>
+            </FieldLabel>
+            <Input
+              id='delete-confirm'
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && confirm.trim() === workspace.slug && !pending)
+                  submit('delete', { confirm: confirm.trim() });
+              }}
+              autoComplete='off'
+              spellCheck={false}
+            />
+          </Field>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant='destructive'
+              disabled={confirm.trim() !== workspace.slug || pending}
+              onClick={() => submit('delete', { confirm: confirm.trim() })}
+            >
+              Delete workspace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 export default function SettingsGeneralRoute() {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const canEdit = workspace.role === 'owner' || workspace.role === 'admin';
@@ -133,6 +206,7 @@ export default function SettingsGeneralRoute() {
       </header>
       <WorkspaceCard workspace={workspace} canEdit={canEdit} />
       <SlugCard workspace={workspace} canEdit={canEdit} />
+      {workspace.role === 'owner' && <DeleteCard workspace={workspace} />}
     </>
   );
 }

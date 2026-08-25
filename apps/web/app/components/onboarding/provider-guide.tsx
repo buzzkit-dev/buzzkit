@@ -89,16 +89,20 @@ export function useProviderGuide({
   guide,
   providerId,
   existing,
-  backTo,
+  back,
   initialStep,
   storageKey,
+  action,
+  trackStep = true,
 }: {
   guide: GuideDefinition | null;
   providerId: string;
   existing: Credential | null;
-  backTo: string;
+  back: string | (() => void);
   initialStep: number;
   storageKey: string;
+  action?: string;
+  trackStep?: boolean;
 }): {
   current: number;
   total: number;
@@ -158,14 +162,14 @@ export function useProviderGuide({
   }, [guide, storageKey, values, touched, derived, connected]);
 
   useEffect(() => {
-    if (!guide) return;
+    if (!guide || !trackStep) return;
     const url = new URL(window.location.href);
     const stepParam = current === 0 ? null : String(current + 1);
     if (url.searchParams.get('step') === stepParam) return;
     if (stepParam) url.searchParams.set('step', stepParam);
     else url.searchParams.delete('step');
     navigate(`${url.pathname}${url.search}`, { replace: true, preventScrollReset: true });
-  }, [guide, current, navigate]);
+  }, [guide, trackStep, current, navigate]);
 
   const errorField = serverError?.param
     ? (guide?.steps ?? [])
@@ -212,8 +216,9 @@ export function useProviderGuide({
     ),
     description: step.description,
     content: (
-      <fetcher.Form method='post' id={CONNECT_FORM}>
+      <fetcher.Form method='post' id={CONNECT_FORM} action={action}>
         <input type='hidden' name='intent' value='connect' />
+        <input type='hidden' name='provider' value={providerId} />
         {guide.steps.flatMap((entry) =>
           (entry.fields ?? []).map((field) => (
             <input
@@ -285,19 +290,31 @@ export function useProviderGuide({
     ),
     footer: (
       <>
-        {current === 0 ? (
+        {typeof back === 'string' ? (
+          current === 0 ? (
+            <Button
+              variant='ghost'
+              size='xs'
+              className='-ml-2'
+              nativeButton={false}
+              render={<Link to={back} />}
+            >
+              Back
+            </Button>
+          ) : (
+            <Button variant='ghost' size='xs' className='-ml-2' onClick={() => go(current - 1)}>
+              Back
+            </Button>
+          )
+        ) : (
           <Button
             variant='ghost'
             size='xs'
             className='-ml-2'
-            nativeButton={false}
-            render={<Link to={backTo} />}
+            aria-label={current === 0 ? 'Cancel' : 'Back'}
+            onClick={current === 0 ? back : () => go(current - 1)}
           >
-            Back
-          </Button>
-        ) : (
-          <Button variant='ghost' size='xs' className='-ml-2' onClick={() => go(current - 1)}>
-            Back
+            <TextSwap>{current === 0 ? 'Cancel' : 'Back'}</TextSwap>
           </Button>
         )}
         <NumberFlow

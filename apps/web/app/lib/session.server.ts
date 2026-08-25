@@ -10,6 +10,39 @@ const lastWorkspace = createCookie('buzzkit.workspace', {
   maxAge: 60 * 60 * 24 * 365,
 });
 
+const tenantChoices = createCookie('buzzkit.tenants', {
+  path: '/',
+  sameSite: 'lax',
+  httpOnly: true,
+  maxAge: 60 * 60 * 24 * 365,
+});
+
+export const DEFAULT_TENANT = 'default';
+
+async function readTenantChoices(request: Request): Promise<Record<string, string>> {
+  const value = await tenantChoices.parse(request.headers.get('Cookie'));
+  return value && typeof value === 'object' ? (value as Record<string, string>) : {};
+}
+
+export async function resolveTenant(request: Request, workspaceSlug: string): Promise<string> {
+  const requested = requestUrl(request).searchParams.get('tenant')?.trim();
+  if (requested) return requested;
+  return (await readTenantChoices(request))[workspaceSlug] ?? DEFAULT_TENANT;
+}
+
+export async function tenantCookie(
+  env: Env,
+  request: Request,
+  workspaceSlug: string,
+  tenantSlug: string
+): Promise<string | null> {
+  const choices = await readTenantChoices(request);
+  if ((choices[workspaceSlug] ?? DEFAULT_TENANT) === tenantSlug) return null;
+  const next = { ...choices, [workspaceSlug]: tenantSlug };
+  if (tenantSlug === DEFAULT_TENANT) delete next[workspaceSlug];
+  return tenantChoices.serialize(next, { secure: env.ENVIRONMENT !== 'development' });
+}
+
 function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get('Cookie') ?? '';
   for (const part of header.split(';')) {

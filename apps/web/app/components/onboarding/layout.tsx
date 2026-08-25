@@ -28,17 +28,37 @@ export function OnboardingLayout({
       <div className='flex w-full max-w-md flex-col gap-4'>
         <OnboardingProgress values={progress} labels={[...ONBOARDING_STEPS]} className='px-1' />
         <Card>
-          <OnboardingCardHeader>
-            <CardTitle>{slots.title}</CardTitle>
-            {slots.description && <CardDescription>{slots.description}</CardDescription>}
-          </OnboardingCardHeader>
-          <StepTransition id={transitionKey} motion={motion}>
-            {slots.content}
-          </StepTransition>
-          {slots.footer && <CardFooter className='relative'>{slots.footer}</CardFooter>}
+          <GuideCardBody transitionKey={transitionKey} motion={motion} slots={slots} />
         </Card>
       </div>
     </main>
+  );
+}
+
+export function GuideCardBody({
+  transitionKey,
+  motion,
+  slots,
+  Title = CardTitle,
+  Description = CardDescription,
+}: {
+  transitionKey: string;
+  motion: StepMotion;
+  slots: OnboardingSlots;
+  Title?: React.ComponentType<{ children: React.ReactNode }>;
+  Description?: React.ComponentType<{ children: React.ReactNode }>;
+}) {
+  return (
+    <>
+      <OnboardingCardHeader>
+        <Title>{slots.title}</Title>
+        {slots.description && <Description>{slots.description}</Description>}
+      </OnboardingCardHeader>
+      <StepTransition id={transitionKey} motion={motion}>
+        {slots.content}
+      </StepTransition>
+      {slots.footer && <CardFooter className='relative'>{slots.footer}</CardFooter>}
+    </>
   );
 }
 

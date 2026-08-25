@@ -39,7 +39,7 @@ import {
   listMessageDeliveries,
   type MessageDelivery,
 } from '@/app/lib/api.server';
-import { requireSession } from '@/app/lib/session.server';
+import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
 import { requestUrl } from '@/app/lib/utils/request';
 import type { Route } from './+types/index';
@@ -64,6 +64,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
+  const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
   const url = requestUrl(request);
   const statusParam = url.searchParams.get('status');
@@ -71,9 +72,9 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const deliveryId = url.searchParams.get('delivery');
 
   const [message, deliveries, attempts] = await Promise.all([
-    getMessage(ctx, token, params.slug, 'default', params.id),
-    listMessageDeliveries(ctx, token, params.slug, 'default', params.id, { ...readPage(request), status }),
-    deliveryId ? listDeliveryAttempts(ctx, token, params.slug, 'default', deliveryId) : Promise.resolve(null),
+    getMessage(ctx, token, params.slug, tenant, params.id),
+    listMessageDeliveries(ctx, token, params.slug, tenant, params.id, { ...readPage(request), status }),
+    deliveryId ? listDeliveryAttempts(ctx, token, params.slug, tenant, deliveryId) : Promise.resolve(null),
   ]);
   const payload = message.payload as { title?: string; body?: string };
 

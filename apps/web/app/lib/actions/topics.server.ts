@@ -38,7 +38,7 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
 }
 
 export async function topicsAction(args: ActionFunctionArgs) {
-  const { token, ctx, form, intent } = await beginAction(args);
+  const { token, ctx, form, intent, tenant } = await beginAction(args);
   const slug = String(args.params.slug);
 
   try {
@@ -46,17 +46,17 @@ export async function topicsAction(args: ActionFunctionArgs) {
       case 'create': {
         const topic = readTopic(form);
         if (!topic.ok) return { error: topic.error };
-        await createTopic(ctx, token, slug, 'default', topic.input);
+        await createTopic(ctx, token, slug, tenant, topic.input);
         return { ok: true };
       }
       case 'update': {
         const topic = readTopic(form);
         if (!topic.ok) return { error: topic.error };
-        await updateTopic(ctx, token, slug, 'default', String(form.get('topic')), topic.input);
+        await updateTopic(ctx, token, slug, tenant, String(form.get('topic')), topic.input);
         return { ok: true };
       }
       case 'delete': {
-        await deleteTopic(ctx, token, slug, 'default', String(form.get('topic')));
+        await deleteTopic(ctx, token, slug, tenant, String(form.get('topic')));
         return { ok: true };
       }
       default:

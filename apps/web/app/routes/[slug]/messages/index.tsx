@@ -36,7 +36,7 @@ import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
 import { listMessages, listTopics, type Message, type MessageQuery, type Topic } from '@/app/lib/api.server';
 import { CHANNEL_OPTIONS, type Channel, channelLabel } from '@/app/lib/channels';
-import { requireSession } from '@/app/lib/session.server';
+import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
 import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
@@ -57,6 +57,7 @@ export function meta() {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
+  const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
   const search = requestUrl(request).searchParams;
   const status = STATUS_OPTIONS.find((option) => option.value === search.get('status'))?.value;
@@ -72,8 +73,8 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const filtered = Boolean(query.q || status || channel || query.topic || query.from);
 
   const [page, topics] = await Promise.all([
-    listMessages(ctx, token, params.slug, 'default', query),
-    listTopics(ctx, token, params.slug, 'default', { limit: 100 }),
+    listMessages(ctx, token, params.slug, tenant, query),
+    listTopics(ctx, token, params.slug, tenant, { limit: 100 }),
   ]);
   return { ...paginate(request, page), filtered, topics: topics.items };
 }

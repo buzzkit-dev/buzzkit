@@ -56,7 +56,7 @@ import {
   type SubscriberPreference,
   type Subscription,
 } from '@/app/lib/api.server';
-import { requireSession } from '@/app/lib/session.server';
+import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -67,12 +67,13 @@ export function meta({ loaderData }: Route.MetaArgs) {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
+  const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
   const [subscriber, preferences, deliveries, events] = await Promise.all([
-    getSubscriber(ctx, token, params.slug, 'default', params.externalId),
-    getSubscriberPreferences(ctx, token, params.slug, 'default', params.externalId),
-    listSubscriberDeliveries(ctx, token, params.slug, 'default', params.externalId, { limit: 8 }),
-    listSubscriberEvents(ctx, token, params.slug, 'default', params.externalId, { limit: 12 }),
+    getSubscriber(ctx, token, params.slug, tenant, params.externalId),
+    getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
+    listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
+    listSubscriberEvents(ctx, token, params.slug, tenant, params.externalId, { limit: 12 }),
   ]);
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const name = typeof attributes.name === 'string' && attributes.name.trim() ? attributes.name : null;

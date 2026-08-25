@@ -159,9 +159,10 @@ export function acceptInvite(ctx: RequestContext, token: string, inviteToken: st
 }
 
 export function listTenants(ctx: RequestContext, token: string, workspaceSlug: string) {
-  return unwrap(ctx, client(ctx.env, token, { workspace: workspaceSlug }).tenants.get({ query: {} })).then(
-    (page) => page.items
-  );
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug }).tenants.get({ query: { limit: 100 } })
+  ).then((page) => page.items);
 }
 
 export function getTenant(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
@@ -175,6 +176,23 @@ export function createTenant(
   body: { name: string; slug: string; metadata?: Record<string, unknown> }
 ) {
   return unwrap(ctx, client(ctx.env, token, { workspace: workspaceSlug }).tenants.post(body));
+}
+
+export function updateTenant(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  patch: { name?: string; slug?: string; metadata?: Record<string, unknown> }
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug }).tenants({ tenantSlug }).patch(patch)
+  );
+}
+
+export function deleteTenant(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+  return unwrap(ctx, client(ctx.env, token, { workspace: workspaceSlug }).tenants({ tenantSlug }).delete());
 }
 
 export type CredentialUpload =

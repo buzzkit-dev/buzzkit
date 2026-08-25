@@ -31,7 +31,7 @@ function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: 
 }
 
 export async function messagesAction(args: ActionFunctionArgs) {
-  const { token, ctx, form, intent } = await beginAction(args);
+  const { token, ctx, form, intent, tenant } = await beginAction(args);
   const slug = String(args.params.slug);
 
   try {
@@ -39,7 +39,7 @@ export async function messagesAction(args: ActionFunctionArgs) {
       case 'send': {
         const message = readMessage(form);
         if (!message.ok) return { error: message.error };
-        const sent = await sendMessage(ctx, token, slug, 'default', message.input);
+        const sent = await sendMessage(ctx, token, slug, tenant, message.input);
         return { ok: true, id: sent.id };
       }
       default:

@@ -407,6 +407,35 @@ const MOCK_WORKSPACE = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const MOCK_TENANTS = [
+  {
+    id: 'tnt_default',
+    name: 'Default',
+    slug: 'default',
+    isDefault: true,
+    metadata: {},
+    settings: {
+      channels: { email: { enabled: true }, push: { enabled: true } },
+      identity: { requireVerification: false },
+    },
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  },
+  {
+    id: 'tnt_acme',
+    name: 'Acme Corp',
+    slug: 'acme-corp',
+    isDefault: false,
+    metadata: {},
+    settings: {
+      channels: { email: { enabled: true }, push: { enabled: true } },
+      identity: { requireVerification: false },
+    },
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  },
+];
+
 const MOCK_PROFILE = {
   id: 'usr_1',
   name: 'Ada Lovelace',
@@ -1668,6 +1697,8 @@ export default function DesignSystem() {
                   { ...MOCK_WORKSPACE, id: 'ws_2', name: 'Side project', slug: 'side' },
                 ]}
                 profile={MOCK_PROFILE}
+                tenant={MOCK_TENANTS[0]!}
+                tenants={MOCK_TENANTS}
               />
               <div className='corner-superellipse/1.125 m-2 ml-0 flex-1 rounded-2xl bg-card shadow-sm' />
             </div>

@@ -20,7 +20,12 @@ export default [
     route('events', 'routes/[slug]/events/index.tsx'),
     route('keys', 'routes/[slug]/keys/index.tsx'),
     route('subscribers/:externalId', 'routes/[slug]/subscribers/[externalId]/index.tsx'),
-    route('settings', 'routes/[slug]/settings/layout.tsx', [index('routes/[slug]/settings/index.tsx')]),
+    route('settings', 'routes/[slug]/settings/layout.tsx', [
+      index('routes/[slug]/settings/index.tsx'),
+      route('channels', 'routes/[slug]/settings/channels/index.tsx'),
+      route('members', 'routes/[slug]/settings/members/index.tsx'),
+      route('tenants', 'routes/[slug]/settings/tenants/index.tsx'),
+    ]),
     route('*', 'routes/[slug]/planned/index.tsx'),
   ]),
 ] satisfies RouteConfig;

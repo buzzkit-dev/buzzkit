@@ -53,9 +53,9 @@ export const NAVIGATION: NavigationSection[] = [
         icon: 'IconSettingsGear4Filled',
         children: [
           { label: 'General', path: '/settings' },
-          { label: 'Channels', path: '/settings/channels', planned: 'Phase 5' },
-          { label: 'Tenants', path: '/settings/tenants', planned: 'Phase 5' },
-          { label: 'Members', path: '/settings/members', planned: 'Phase 5' },
+          { label: 'Channels', path: '/settings/channels' },
+          { label: 'Tenants', path: '/settings/tenants' },
+          { label: 'Members', path: '/settings/members' },
           { label: 'Billing', path: '/settings/billing', soon: true },
         ],
       },

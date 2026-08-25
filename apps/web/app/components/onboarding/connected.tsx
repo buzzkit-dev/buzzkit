@@ -24,16 +24,18 @@ export function connectedSlots({
   credentials,
   provider,
   channel,
-  workspaceSlug,
-  otherChannels,
   fetcher,
+  action,
+  more,
+  done,
 }: {
   credentials: Credential[];
   provider: ProviderEntry;
   channel: ChannelEntry;
-  workspaceSlug: string;
-  otherChannels: number;
   fetcher: ReturnType<typeof useFetcher>;
+  action?: string;
+  more?: string | null;
+  done: { label: string; to?: string; onClick?: () => void };
 }): OnboardingSlots {
   const validating = fetcher.state !== 'idle';
   const first = credentials[0]!;
@@ -93,7 +95,7 @@ export function connectedSlots({
     footer: (
       <>
         {!active ? (
-          <fetcher.Form method='post'>
+          <fetcher.Form method='post' action={action}>
             <input type='hidden' name='intent' value='validate' />
             <input
               type='hidden'
@@ -104,22 +106,28 @@ export function connectedSlots({
               Validate again
             </Button>
           </fetcher.Form>
-        ) : otherChannels > 0 ? (
+        ) : more ? (
           <Button
             variant='ghost'
             size='xs'
             className='-ml-2'
             nativeButton={false}
-            render={<Link to={`/${workspaceSlug}/settings/channels`} />}
+            render={<Link to={more} />}
           >
             Add another channel
           </Button>
         ) : (
           <span />
         )}
-        <Button size='xs' nativeButton={false} render={<Link to={`/${workspaceSlug}`} />}>
-          Go to the dashboard
-        </Button>
+        {done.to ? (
+          <Button size='xs' nativeButton={false} render={<Link to={done.to} />}>
+            {done.label}
+          </Button>
+        ) : (
+          <Button size='xs' onClick={done.onClick}>
+            {done.label}
+          </Button>
+        )}
       </>
     ),
   };

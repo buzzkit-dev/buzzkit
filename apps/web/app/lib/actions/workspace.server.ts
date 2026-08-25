@@ -4,6 +4,7 @@ import { beginAction } from '@/app/lib/actions/context.server';
 import {
   ApiError,
   createWorkspace,
+  deleteWorkspace,
   type RequestContext,
   updateProfile,
   updateWorkspace,
@@ -77,7 +78,7 @@ export async function workspaceAction(args: ActionFunctionArgs) {
 }
 
 export async function workspaceSettingsAction(args: ActionFunctionArgs) {
-  const { token, ctx, form, intent } = await beginAction(args);
+  const { env, token, ctx, form, intent } = await beginAction(args);
   const slug = String(args.params.slug);
 
   try {
@@ -108,6 +109,11 @@ export async function workspaceSettingsAction(args: ActionFunctionArgs) {
           throw error;
         }
         return redirect(`/${next}/settings`);
+      }
+      case 'delete': {
+        if (String(form.get('confirm') ?? '').trim() !== slug) return { error: 'Type the slug to confirm.' };
+        await deleteWorkspace(ctx, token, slug);
+        return redirect('/', { headers: { 'Set-Cookie': await lastWorkspaceCookie(env, '') } });
       }
       default:
         return { error: 'Unknown action.' };

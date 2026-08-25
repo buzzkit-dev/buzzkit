@@ -8,24 +8,24 @@ import {
 } from '@/app/lib/api.server';
 
 export async function subscriberAction(args: ActionFunctionArgs) {
-  const { token, ctx, form, intent } = await beginAction(args);
+  const { token, ctx, form, intent, tenant } = await beginAction(args);
   const slug = String(args.params.slug);
   const externalId = String(args.params.externalId);
 
   try {
     switch (intent) {
       case 'subscription-enabled': {
-        await updateSubscription(ctx, token, slug, 'default', String(form.get('id')), {
+        await updateSubscription(ctx, token, slug, tenant, String(form.get('id')), {
           enabled: form.get('enabled') === 'true',
         });
         return { ok: true };
       }
       case 'subscription-remove': {
-        await deleteSubscription(ctx, token, slug, 'default', String(form.get('id')));
+        await deleteSubscription(ctx, token, slug, tenant, String(form.get('id')));
         return { ok: true };
       }
       case 'preference': {
-        await updateSubscriberPreferences(ctx, token, slug, 'default', externalId, {
+        await updateSubscriberPreferences(ctx, token, slug, tenant, externalId, {
           [String(form.get('topic'))]: { [String(form.get('channel'))]: form.get('optedIn') === 'true' },
         });
         return { ok: true };

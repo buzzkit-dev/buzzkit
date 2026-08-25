@@ -8,24 +8,25 @@ import { cloudflareContext } from '@/app/cloudflare';
 import { CredentialStatusBadge } from '@/app/components/badges';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { ApiError, listCredentials, listKeys, listMessages, listSubscribers } from '@/app/lib/api.server';
-import { requireSession } from '@/app/lib/session.server';
+import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
+  const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
 
   const [credentials, keys, subscribers, messages] = await Promise.all([
-    listCredentials(ctx, token, params.slug, 'default'),
+    listCredentials(ctx, token, params.slug, tenant),
     listKeys(ctx, token, params.slug).catch((error) => {
       if (error instanceof ApiError && error.status === 403)
         return { items: [], hasMore: false, nextCursor: null };
       throw error;
     }),
-    listSubscribers(ctx, token, params.slug, 'default', { limit: 1 }),
-    listMessages(ctx, token, params.slug, 'default', { limit: 1 }),
+    listSubscribers(ctx, token, params.slug, tenant, { limit: 1 }),
+    listMessages(ctx, token, params.slug, tenant, { limit: 1 }),
   ]);
 
   return {

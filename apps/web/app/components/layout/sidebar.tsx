@@ -8,7 +8,7 @@ import { Link, useLocation } from 'react-router';
 import { AccountMenu } from '@/app/components/layout/account-menu';
 import { NAVIGATION, type NavigationPage } from '@/app/components/layout/navigation';
 import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
-import type { Profile, Workspace } from '@/app/lib/api.server';
+import type { Profile, Tenant, Workspace } from '@/app/lib/api.server';
 
 const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
 const fold = { type: 'spring', duration: 0.2, bounce: 0 } as const;
@@ -17,10 +17,14 @@ export function Sidebar({
   workspace,
   workspaces,
   profile,
+  tenant,
+  tenants,
 }: {
   workspace: Workspace;
   workspaces: Workspace[];
   profile: Profile;
+  tenant: Tenant;
+  tenants: Tenant[];
 }) {
   const { pathname } = useLocation();
   const base = `/${workspace.slug}`;
@@ -36,7 +40,7 @@ export function Sidebar({
 
   return (
     <aside className='flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
-      <WorkspaceSwitcher workspaces={workspaces} current={workspace} />
+      <WorkspaceSwitcher workspaces={workspaces} current={workspace} tenant={tenant} tenants={tenants} />
 
       <nav
         ref={rootRef}

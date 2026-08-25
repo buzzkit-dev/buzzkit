@@ -43,7 +43,7 @@ import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { topicsAction } from '@/app/lib/actions/topics.server';
 import { listTopics, type Topic } from '@/app/lib/api.server';
-import { requireSession } from '@/app/lib/session.server';
+import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
@@ -59,7 +59,8 @@ export function meta() {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
-  const page = await listTopics({ request, env }, token, params.slug, 'default', readPage(request));
+  const tenant = await resolveTenant(request, params.slug);
+  const page = await listTopics({ request, env }, token, params.slug, tenant, readPage(request));
   return paginate(request, page);
 }
 
