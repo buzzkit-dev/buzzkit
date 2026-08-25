@@ -77,6 +77,7 @@ import { Kbd, KbdGroup } from '@buzzkit/ui/components/kbd';
 import { Label } from '@buzzkit/ui/components/label';
 import { LivePing } from '@buzzkit/ui/components/live-ping';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
+import { PastelAvatar } from '@buzzkit/ui/components/pastel-avatar';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import {
   Popover,
@@ -151,6 +152,7 @@ const SECTIONS = [
   { id: 'icons', label: 'Icons' },
   { id: 'button', label: 'Button' },
   { id: 'badge', label: 'Badge' },
+  { id: 'pastel-avatar', label: 'PastelAvatar' },
   { id: 'truncate', label: 'Truncate' },
   { id: 'filter-bar', label: 'FilterBar' },
   { id: 'selection', label: 'Selection' },
@@ -814,6 +816,38 @@ export default function DesignSystem() {
           </Specimen>
         </Section>
 
+        <Section
+          id='pastel-avatar'
+          title='PastelAvatar'
+          description='The picture for things without one (workspaces): a gradient between two neighbouring accent ramps picked from the seed, with a soft highlight. Same seed, same picture. Pure tokens, so it renders on the server and follows the theme.'
+          className='flex-col items-start gap-6'
+        >
+          <Specimen label='24px · the switcher'>
+            {['acme', 'globex', 'initech', 'umbrella', 'hooli', 'vandelay', 'wonka', 'stark'].map((seed) => (
+              <PastelAvatar
+                key={seed}
+                seed={seed}
+                size={24}
+                className='corner-superellipse/1.125 rounded-lg'
+              />
+            ))}
+          </Specimen>
+          <Specimen label='40px · invites and settings'>
+            {['acme', 'globex', 'initech'].map((seed) => (
+              <PastelAvatar
+                key={seed}
+                seed={seed}
+                size={40}
+                className='corner-superellipse/1.125 rounded-xl'
+              />
+            ))}
+          </Specimen>
+          <Specimen label='orb · people (subscribers, members without a picture) · other hash, other pairs'>
+            {['user_42', 'jane.doe7', 'usr_c055e203c655', 'acme', 'globex', 'initech'].map((seed) => (
+              <PastelAvatar key={seed} seed={seed} variant='orb' size={30} />
+            ))}
+          </Specimen>
+        </Section>
         <Section
           id='truncate'
           title='Truncate'

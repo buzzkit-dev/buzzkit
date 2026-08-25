@@ -117,7 +117,11 @@ export default function InviteRoute({ loaderData, actionData, params }: Route.Co
       description={`You were invited to join as ${preview.role}.`}
     >
       <div className='flex items-center gap-3'>
-        <WorkspaceAvatar name={preview.workspace.name} className='size-10! rounded-xl' />
+        <WorkspaceAvatar
+          slug={preview.workspace.slug ?? preview.workspace.name}
+          size={40}
+          className='rounded-xl'
+        />
         <span className='flex min-w-0 flex-col'>
           <Truncate className='font-medium text-fg-4 text-sm'>{preview.workspace.name}</Truncate>
           <Truncate className='text-fg-2 text-xs'>Invite sent to {preview.email}</Truncate>

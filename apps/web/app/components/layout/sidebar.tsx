@@ -61,7 +61,7 @@ export function Sidebar({
               const active = !page.children && isActive(page);
               const highlighted = hovered !== null ? hovered === key : active;
               const rowClass = cn(
-                'corner-superellipse/1.125 flex h-8 items-center gap-2 rounded-xl px-2.5 font-medium text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
+                'corner-superellipse/1.125 flex h-8 items-center gap-2 rounded-xl pr-2.5 pl-2 font-medium text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
                 '[&>svg:first-child]:transition-opacity [&>svg:first-child]:duration-200 [&[data-indicator-here]>svg:first-child]:opacity-85',
                 active ? 'text-fg-4' : 'text-fg-2',
                 page.soon && 'cursor-default text-fg-1'

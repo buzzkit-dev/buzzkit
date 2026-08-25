@@ -384,7 +384,7 @@ Every time the UI shows, relative or absolute (created, updated, last used, last
 
 ### Avatar
 
-People and workspaces with a picture use `AvatarImage` + `AvatarFallback` (initials). Everything else, subscribers first, has no picture and gets no initials either: `<Avatar name={externalId} />` renders a generated **Kodama** face (`https://api.kodama.sh/<name>?size=128&shape=circle&depth=subtle&mood=happy,surprised,cool&animations=blink,eyebrowBounce`, the name reduced to URL-safe characters), deterministic per id so the same person looks the same on every screen; it blinks and raises an eyebrow now and then. It arrives through `BlurImage`: while it loads, and if it never does, the disc shows one centred letter (the first of `label`, the person's name, else the id; never two), and the picture eases in from a 4px blur over 300ms once decoded. The mood is one of `happy,surprised,cool`, picked by Kodama deterministically per name.
+People and workspaces with a picture use `AvatarImage`. Everything else gets a generated picture, never an initial: `<Avatar name={externalId} />` renders a `PastelAvatar` **orb**, a lit sphere blending two accent ramps from different families, picked from the name with its own hash, so a subscriber and a workspace never share a look even from the same string (tiles are diagonal blends of neighbouring ramps on a superellipse; orbs are fully round). Pure tokens, so it renders on the server, follows the theme and needs no network. `AvatarFallback` (initials) remains for a person whose real image fails to load. The Kodama faces that preceded this were dropped together with the shader spheres: generated art in buzzkit comes from the token ramps.
 
 ### BlurImage
 
@@ -425,6 +425,10 @@ Popover: 288px, `rounded-xl`, title + description with no gap. Tooltip: a 24px d
 ### FilterBar
 
 Every filterable table gets the same row above it: `FilterBar` holding, left to right, one `FilterSelect` per facet whose empty state reads "Any status" / "Any channel" and whose trigger turns `fg-4` once something is picked, a `FilterClear` ghost button that only appears while anything is active, and on the far right a `FilterSearch` (a magnifying-glass input with the debounced `loading` spinner). The bar is `justify-between`: the facets form one group on the left, the search field sits alone on the right. It pulls the table 10px closer (`-mb-2.5` against the page's 20px rhythm, so 10px), because it belongs to the table, not to the page. The components are fully controlled and know nothing about routing: the dashboard's `useFilters` hook keeps the values in the URL (`?q=&status=&…`), drops the page cursor whenever a filter changes, and applies typed search 300ms after the last keystroke. Never invent per-page chips or "Add filter" menus; the facets are few and fixed, so show them.
+
+### PastelAvatar
+
+Workspaces never show an initial: a workspace without an uploaded picture gets a **pastel gradient tile**, a `linear-gradient` between two *neighbouring* accent ramps (`purple-2 → pink-3`, `sky-2 → blue-3`, `green-2 → yellow-3`, …) picked deterministically from the slug, with a soft radial highlight of `bg-1` in the top corner so it reads as a rounded object. It is built entirely from the ramp tokens, so it renders on the server, follows the theme and sits in the same family as the badges. A shader-generated avatar was tried and dropped: too strong for a soft, playful palette. People keep initials or their uploaded image; the gradient is for workspaces.
 
 ### Truncate
 

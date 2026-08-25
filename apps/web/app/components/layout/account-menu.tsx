@@ -59,10 +59,18 @@ export function AccountMenu({
             )
           }
         >
-          <Avatar className={variant === 'row' ? 'size-6' : 'size-7'}>
-            {profile.image && <AvatarImage src={profile.image} alt='' />}
-            <AvatarFallback className='text-sm'>{initials(profile.name)}</AvatarFallback>
-          </Avatar>
+          {profile.image ? (
+            <Avatar className={variant === 'row' ? 'size-6' : 'size-7'}>
+              <AvatarImage src={profile.image} alt='' />
+              <AvatarFallback className='text-sm'>{initials(profile.name)}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <Avatar
+              name={profile.email ?? profile.name}
+              label={profile.name}
+              className={variant === 'row' ? 'size-6' : 'size-7'}
+            />
+          )}
           {variant === 'row' && (
             <>
               <Truncate className='text-fg-4'>{profile.name}</Truncate>

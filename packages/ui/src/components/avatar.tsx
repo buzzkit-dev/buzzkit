@@ -1,12 +1,7 @@
 import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar';
-import { BlurImage } from '@buzzkit/ui/components/blur-image';
+import { PastelAvatar } from '@buzzkit/ui/components/pastel-avatar';
 import { cn } from '@buzzkit/ui/lib/utils';
 import type * as React from 'react';
-
-function generatedAvatarUrl(name: string): string {
-  const key = name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'anonymous';
-  return `https://api.kodama.sh/${key}?size=128&shape=circle&depth=subtle&mood=happy,surprised,cool&animations=blink,eyebrowBounce`;
-}
 
 const FALLBACK_CLASS =
   'flex size-full items-center justify-center rounded-full bg-bg-4 font-medium text-fg-2 text-sm uppercase group-data-[size=lg]/avatar:text-base group-data-[size=sm]/avatar:text-xs group-data-[size=xl]/avatar:text-3xl';
@@ -36,11 +31,12 @@ function Avatar({
       {name === undefined ? (
         children
       ) : (
-        <BlurImage
-          src={generatedAvatarUrl(name)}
-          alt=''
-          className='size-full rounded-full'
-          placeholder={<span className={FALLBACK_CLASS}>{(label ?? name).trim().charAt(0)}</span>}
+        <PastelAvatar
+          seed={name}
+          variant='orb'
+          className='size-full'
+          style={{ width: undefined, height: undefined }}
+          aria-label={label}
         />
       )}
     </AvatarPrimitive.Root>
@@ -110,12 +106,4 @@ function AvatarGroupCount({ className, ...props }: React.ComponentProps<'div'>) 
   );
 }
 
-export {
-  Avatar,
-  AvatarBadge,
-  AvatarFallback,
-  AvatarGroup,
-  AvatarGroupCount,
-  AvatarImage,
-  generatedAvatarUrl,
-};
+export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage };
