@@ -192,6 +192,12 @@ export async function createMessage(
   }
 
   const topic = input.topic ? await findTopicBySlug(db, tenant.id, input.topic) : null;
+  if (topic && !topic.channels.includes(channel)) {
+    throw new BadRequestError(`Topic '${topic.slug}' is not offered on the '${channel}' channel`, {
+      code: 'channel_not_offered',
+      param: 'topic',
+    });
+  }
 
   const targets: MessageTargets = { ...(to ? { to } : {}), ...(input.topic ? { topic: input.topic } : {}) };
   const payload = payloadFromInput(input as Record<string, unknown>);

@@ -284,6 +284,21 @@ describe('fan-out and targeting', () => {
     ).toEqual([loudSub]);
   });
 
+  it('refuses a topic send on a channel the topic does not offer', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const digest = `digest-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: digest, name: 'Weekly digest', channels: ['email'] }),
+    });
+
+    const refused = await send(keyBearer, { topic: digest });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error?.code).toBe('channel_not_offered');
+    expect(refused.body.error?.param).toBe('topic');
+  });
+
   it('`to` combined with `topic` respects preferences for just those subscribers', async () => {
     const { keyBearer } = await setupWorkspace();
     const topic = `promo-${uniq()}`;

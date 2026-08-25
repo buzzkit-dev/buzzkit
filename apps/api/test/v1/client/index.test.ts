@@ -341,6 +341,23 @@ describe('client registration flow', () => {
 
     const missingHeader = await api('/v1/client/preferences', { headers: clientBearer });
     expect(missingHeader.status).toBe(400);
+
+    const digest = `digest-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: digest, name: 'Weekly digest', channels: ['email'] }),
+    });
+    const listed = await api<{ items: Pref[] }>('/v1/client/preferences', { headers: subscriberHeaders });
+    expect(Object.keys(listed.body.data?.items.find((p) => p.slug === digest)?.channels ?? {})).toEqual([
+      'email',
+    ]);
+    const notOffered = await api('/v1/client/preferences', {
+      method: 'PATCH',
+      headers: subscriberHeaders,
+      body: JSON.stringify({ preferences: { [digest]: { push: false } } }),
+    });
+    expect(notOffered.status).toBe(400);
   });
 
   it('client keys are tenant-isolated', async () => {

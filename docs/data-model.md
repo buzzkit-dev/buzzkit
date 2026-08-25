@@ -32,7 +32,7 @@ PostgreSQL schema, owned by `packages/database` (Drizzle). Tables land per roadm
 
 - `subscriber` — tenant-scoped, (tenant, external_id) partial-unique, `attributes` JSONB (tag data / segment fuel), `identity_verified_at` (client HMAC proof).
 - `subscription` — one way to reach a subscriber on one channel: `channel` enum + `endpoint` (push token / email address / later phone), `platform` (push only), **`enabled`** (per-subscription mute — the work-iPhone case), status enum (active|invalid) + invalidation fields for the delivery feedback loop. (tenant, channel, endpoint) partial-unique so re-registration is idempotent and endpoints move between subscribers.
-- `topic` — tenant-scoped notification categories, (tenant, slug) partial-unique, `default_opted_in` baseline + `channel_defaults` JSONB per-channel overrides.
+- `topic` — tenant-scoped notification categories, (tenant, slug) partial-unique, `channels` (`channel[]`, non-empty: the channels the topic is offered on; migration `0001`), `default_opted_in` baseline + `channel_defaults` JSONB per-channel overrides.
 - `subscriber_preference` — (subscriber, topic, channel) unique — preferences are per topic × channel; stores only deviations from the topic's channel default; hard rows (no soft delete — resolved against live topics).
 - Send-time resolution (Phase 4): a topic send on a channel reaches the subscriptions that are `enabled` AND `active` AND whose (topic, channel) preference resolves opted-in.
 

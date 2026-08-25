@@ -1,6 +1,6 @@
 import { Badge } from '@buzzkit/ui/components/badge';
 
-type Tone = 'blue' | 'purple' | 'green' | 'amber' | 'red' | 'sky' | 'pink';
+type Tone = 'default' | 'blue' | 'purple' | 'green' | 'amber' | 'red' | 'sky' | 'pink';
 type Entry = { label: string; tone: Tone };
 
 const KEY_KINDS: Record<'workspace' | 'tenant' | 'client', Entry> = {
@@ -80,4 +80,10 @@ export function SandboxBadge({ environment }: { environment: string }) {
 
 export function SubscriptionStatusBadge({ status }: { status: string }) {
   return status === 'invalid' ? <Typed entry={{ label: 'Invalid', tone: 'red' }} /> : null;
+}
+
+export function OptInBadge({ optedIn }: { optedIn: boolean }) {
+  return (
+    <Typed entry={optedIn ? { label: 'Opted in', tone: 'green' } : { label: 'Opted out', tone: 'default' }} />
+  );
 }

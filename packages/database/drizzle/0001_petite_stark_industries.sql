@@ -1,0 +1,2 @@
+ALTER TABLE "topic" ADD COLUMN "channels" "channel"[] DEFAULT '{push,email}'::channel[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "topic" ADD CONSTRAINT "topic_channels_not_empty" CHECK (cardinality("topic"."channels") > 0);

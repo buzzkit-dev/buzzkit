@@ -8,6 +8,13 @@
       "when": 1787491481236,
       "tag": "0000_wonderful_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787611620219,
+      "tag": "0001_petite_stark_industries",
+      "breakpoints": true
     }
   ]
 }

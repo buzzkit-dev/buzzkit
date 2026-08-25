@@ -15,7 +15,7 @@ The send API — the product promise. One call targets subscribers by your ids o
 }
 ```
 
-- **Targeting**: `to` (one id or up to 1000), `topic` (every opted-in subscriber), or both (`to` filtered by the topic's preferences). At least one is required; an unknown topic is a 404.
+- **Targeting**: `to` (one id or up to 1000), `topic` (every opted-in subscriber), or both (`to` filtered by the topic's preferences). At least one is required; an unknown topic is a 404, and a topic that is not offered on the message's channel is a 400 `channel_not_offered`.
 - **Channel**: `channel` defaults to `push` (email sending arrives with the next phase → 400 for now). A channel disabled in tenant settings is a 400.
 - **Content**: at least one of `title`, `body`, `data`. Optional `subtitle`, `badge`, `sound`, `imageUrl`, `collapseId`, `priority` (`high` default | `normal`), and raw escape hatches `apns.payload` / `fcm.android` / `fcm.payload`. `apns.environment` picks sandbox vs production credentials (default production; falls back to whichever exists).
 - **Expiry**: `ttlSeconds` (60s … 28 days, default 24h) → `expiresAt`. Passed to APNs (`apns-expiration`) and FCM (`android.ttl`); deliveries still pending at expiry are failed with `expired` — stale pushes never go out.

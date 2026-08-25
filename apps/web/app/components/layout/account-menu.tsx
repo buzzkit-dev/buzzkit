@@ -19,6 +19,7 @@ import { Icon } from '@buzzkit/ui/components/icon';
 import { Input } from '@buzzkit/ui/components/input';
 import { Label } from '@buzzkit/ui/components/label';
 import { toast } from '@buzzkit/ui/components/sonner';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { useParams, useSubmit } from 'react-router';
 import { useTheme } from '@/app/components/layout/theme-provider';
@@ -64,7 +65,7 @@ export function AccountMenu({
           </Avatar>
           {variant === 'row' && (
             <>
-              <span className='truncate text-fg-4'>{profile.name}</span>
+              <Truncate className='text-fg-4'>{profile.name}</Truncate>
               <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
             </>
           )}
@@ -72,8 +73,8 @@ export function AccountMenu({
         <DropdownMenuContent align={variant === 'row' ? 'start' : 'end'} className='w-60'>
           <DropdownMenuGroup>
             <DropdownMenuLabel className='flex flex-col py-1.5'>
-              <span className='truncate text-fg-4 text-sm'>{profile.name}</span>
-              <span className='truncate font-normal text-fg-2 text-xs'>{profile.email}</span>
+              <Truncate className='text-fg-4 text-sm'>{profile.name}</Truncate>
+              <Truncate className='font-normal text-fg-2 text-xs'>{profile.email}</Truncate>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

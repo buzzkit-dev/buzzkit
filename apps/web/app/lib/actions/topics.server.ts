@@ -14,11 +14,15 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
   if (!slug || slug.length > 64 || !SLUG_PATTERN.test(slug)) {
     return { ok: false, error: 'Slugs are lowercase letters, numbers and single hyphens.' };
   }
+  const channels = String(form.get('channels') ?? '')
+    .split(',')
+    .filter((channel): channel is 'push' | 'email' => channel === 'push' || channel === 'email');
+  if (channels.length === 0) return { ok: false, error: 'Pick at least one channel.' };
   const channelDefaults: Record<string, boolean> = {};
-  for (const [key, value] of form.entries()) {
-    if (!key.startsWith('channel:')) continue;
-    if (value === 'in') channelDefaults[key.slice('channel:'.length)] = true;
-    if (value === 'out') channelDefaults[key.slice('channel:'.length)] = false;
+  for (const channel of channels) {
+    const choice = form.get(`channel:${channel}`);
+    if (choice === 'in') channelDefaults[channel] = true;
+    if (choice === 'out') channelDefaults[channel] = false;
   }
   return {
     ok: true,
@@ -26,6 +30,7 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
       slug,
       name,
       description: description || undefined,
+      channels,
       defaultOptedIn: form.get('defaultOptedIn') === 'true',
       channelDefaults,
     },

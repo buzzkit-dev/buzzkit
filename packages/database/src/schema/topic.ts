@@ -16,6 +16,7 @@ export const topic = pgTable(
     description: text('description'),
     defaultOptedIn: boolean('default_opted_in').notNull().default(true),
     channelDefaults: jsonb('channel_defaults').notNull().default({}),
+    channels: channel('channels').array().notNull().default(sql`'{push,email}'::channel[]`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: deletedAt(),
@@ -25,6 +26,7 @@ export const topic = pgTable(
       .on(table.tenantId, table.slug)
       .where(sql`${table.deletedAt} is null`),
     check('topic_channel_defaults_object', sql`jsonb_typeof(${table.channelDefaults}) = 'object'`),
+    check('topic_channels_not_empty', sql`cardinality(${table.channels}) > 0`),
   ]
 );
 

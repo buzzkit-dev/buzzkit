@@ -419,6 +419,10 @@ Popover: 288px, `rounded-xl`, title + description with no gap. Tooltip: a 24px d
 
 `toast.success | error | warning | info | loading` from `@buzzkit/ui/components/sonner`. Firing the same kind+message twice pings the existing toast (shake for error/warning, bump otherwise) instead of stacking a duplicate. `toast.loading` is a promise toast underneath, so settling it by id cross-fades the spinner into the result icon. Toasts are translucent + blurred; their CSS is unlayered so it beats sonner's own stylesheet.
 
+### Truncate
+
+`Truncate` is the only way to cut a line of data-driven text: it renders `truncate` and, when the text really is clipped (measured with a `ResizeObserver`, so it follows resizes), shows the full text in a tooltip after the same 150ms every time stamp uses. Text that fits never gets a tooltip. A bare `<span className='truncate'>` is fine for static labels only (navigation, headings); names, descriptions, addresses, message titles, endpoints go through `Truncate`.
+
 ### ScrollArea / ScrollFade
 
 Both fade the scrolling edges with a **mask on the scrolling element**, never a gradient overlay — an overlay has to guess the surface behind it and paints over the container's own border. `ScrollArea` adds a custom auto-hiding scrollbar; `ScrollFade` decorates a plain overflow container (or an existing one via `targetRef`). Fade size is `--fade-size`; edges animate via `@property`-registered lengths.

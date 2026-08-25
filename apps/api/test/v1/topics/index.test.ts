@@ -3,7 +3,7 @@ import { api } from '../../utils/api';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 async function createTopic(headers: Record<string, string>, input: Partial<Record<string, unknown>> = {}) {
-  return api<{ id: string; slug: string; defaultOptedIn: boolean }>('/v1/topics', {
+  return api<{ id: string; slug: string; channels: string[]; defaultOptedIn: boolean }>('/v1/topics', {
     method: 'POST',
     headers,
     body: JSON.stringify({ slug: `topic-${uniq()}`, name: 'Topic', ...input }),
@@ -271,6 +271,94 @@ describe('preferences', () => {
       body: JSON.stringify({ preferences: {} }),
     });
     expect(empty.status).toBe(400);
+  });
+
+  it('topics can be limited to some channels, and defaults must stay within them', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const everything = await createTopic(keyBearer, { slug: `all-${uniq()}` });
+    expect(everything.body.data?.channels).toEqual(['push', 'email']);
+
+    const slug = `digest-${uniq()}`;
+    const emailOnly = await createTopic(keyBearer, { slug, name: 'Weekly digest', channels: ['email'] });
+    expect(emailOnly.status).toBe(201);
+    expect(emailOnly.body.data?.channels).toEqual(['email']);
+
+    expect((await createTopic(keyBearer, { channels: [] })).status).toBe(400);
+    expect((await createTopic(keyBearer, { channels: ['fax'] })).status).toBe(400);
+    const outside = await createTopic(keyBearer, { channels: ['email'], channelDefaults: { push: false } });
+    expect(outside.status).toBe(400);
+    expect(outside.body.error?.code).toBe('channel_not_offered');
+
+    const externalId = `user_${uniq()}`;
+    await api(`/v1/subscribers/${externalId}`, { method: 'PUT', headers: keyBearer, body: '{}' });
+    const prefs = await getPrefs(keyBearer, externalId);
+    expect(Object.keys(prefs.get(slug)?.channels ?? {})).toEqual(['email']);
+
+    const rejected = await api(`/v1/subscribers/${externalId}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [slug]: { push: false } } }),
+    });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error?.code).toBe('channel_not_offered');
+
+    const shorthand = await api(`/v1/subscribers/${externalId}/preferences`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: JSON.stringify({ preferences: { [slug]: false } }),
+    });
+    expect(shorthand.status).toBe(200);
+    const after = await getPrefs(keyBearer, externalId);
+    expect(after.get(slug)?.channels.email).toMatchObject({ optedIn: false, isDefault: false });
+    expect(after.get(slug)?.channels.push).toBeUndefined();
+
+    const widened = await api<{ channels: string[]; channelDefaults: Record<string, boolean> }>(
+      `/v1/topics/${slug}`,
+      {
+        method: 'PATCH',
+        headers: keyBearer,
+        body: JSON.stringify({ channels: ['push', 'email'], channelDefaults: { push: false } }),
+      }
+    );
+    expect(widened.status).toBe(200);
+    expect(widened.body.data?.channels).toEqual(['push', 'email']);
+    const narrowed = await api<{ channels: string[]; channelDefaults: Record<string, boolean> }>(
+      `/v1/topics/${slug}`,
+      { method: 'PATCH', headers: keyBearer, body: JSON.stringify({ channels: ['email'] }) }
+    );
+    expect(narrowed.body.data?.channels).toEqual(['email']);
+    expect(narrowed.body.data?.channelDefaults).toEqual({});
+  });
+
+  it('lists newest first with cursors and a total', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const slugs = ['first', 'second', 'third'].map((name) => `${name}-${uniq()}`);
+    for (const slug of slugs) await createTopic(keyBearer, { slug });
+
+    type Page = {
+      items: Array<{ id: string; slug: string }>;
+      hasMore: boolean;
+      nextCursor: string | null;
+      total: number;
+    };
+    const page1 = await api<Page>('/v1/topics?limit=2', { headers: keyBearer });
+    expect(page1.status).toBe(200);
+    expect(page1.body.data?.items.map((topic) => topic.slug)).toEqual([slugs[2], slugs[1]]);
+    expect(page1.body.data?.items.every((topic) => /^tpc_/.test(topic.id))).toBe(true);
+    expect(page1.body.data?.hasMore).toBe(true);
+    expect(page1.body.data?.total).toBe(3);
+
+    const page2 = await api<Page>(`/v1/topics?limit=2&cursor=${page1.body.data?.nextCursor}`, {
+      headers: keyBearer,
+    });
+    expect(page2.body.data?.items.map((topic) => topic.slug)).toEqual([slugs[0]]);
+    expect(page2.body.data?.hasMore).toBe(false);
+    expect(page2.body.data?.total).toBe(3);
+
+    await api(`/v1/topics/${slugs[2]}`, { method: 'DELETE', headers: keyBearer });
+    const after = await api<Page>('/v1/topics', { headers: keyBearer });
+    expect(after.body.data?.total).toBe(2);
+    expect(after.body.data?.items.some((topic) => topic.slug === slugs[2])).toBe(false);
   });
 
   it('a topic from another tenant is invisible in preferences', async () => {

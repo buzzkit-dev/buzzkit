@@ -128,6 +128,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@buzzkit/ui/components
 import { TextSwap } from '@buzzkit/ui/components/text-swap';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { OAuthProviders } from '@/app/components/auth/providers';
@@ -149,6 +150,7 @@ const SECTIONS = [
   { id: 'icons', label: 'Icons' },
   { id: 'button', label: 'Button' },
   { id: 'badge', label: 'Badge' },
+  { id: 'truncate', label: 'Truncate' },
   { id: 'selection', label: 'Selection' },
   { id: 'input', label: 'Input & Textarea' },
   { id: 'field', label: 'Field' },
@@ -810,6 +812,29 @@ export default function DesignSystem() {
           </Specimen>
         </Section>
 
+        <Section
+          id='truncate'
+          title='Truncate'
+          description='A single line that cuts off with an ellipsis and, only when it really is cut off, shows the whole text in a tooltip after 150ms, like every time stamp. Replaces a bare `truncate` span wherever the text comes from data.'
+          className='flex-col items-start gap-6'
+        >
+          <Specimen label='clipped · hover for the full text'>
+            <div className='flex w-56 flex-col rounded-xl bg-bg-2 px-3 py-2'>
+              <Truncate className='font-medium text-fg-4 text-sm'>
+                Your trial ends in 3 days, keep your projects by upgrading before Friday
+              </Truncate>
+              <Truncate className='text-fg-2 text-xs'>
+                jane.okafor560@example.com · Sydney, New South Wales
+              </Truncate>
+            </div>
+          </Specimen>
+          <Specimen label='fits · no tooltip'>
+            <div className='flex w-56 flex-col rounded-xl bg-bg-2 px-3 py-2'>
+              <Truncate className='font-medium text-fg-4 text-sm'>Deals</Truncate>
+              <Truncate className='text-fg-2 text-xs'>Weekly offers</Truncate>
+            </div>
+          </Specimen>
+        </Section>
         <Section
           id='badge'
           title='Badge'

@@ -4,8 +4,10 @@ import {
   assertValidChannelDefaults,
   ChannelDefaultsSchema,
   findTopicBySlug,
+  resolveChannelDefaults,
   serializeTopic,
   softDeleteTopic,
+  TopicChannelsSchema,
   TopicNameSchema,
   TopicSlugSchema,
   updateTopic,
@@ -29,14 +31,15 @@ export const topic = new Elysia()
   .patch(
     '/topics/:topicSlug',
     async ({ body, db, params, tenant, event }) => {
-      assertValidChannelDefaults(body.channelDefaults);
-
       const topic = await findTopicBySlug(db, tenant.id, params.topicSlug);
+      const channels = body.channels ?? topic.channels;
+      assertValidChannelDefaults(body.channelDefaults, channels);
 
       if (
         body.slug === undefined &&
         body.name === undefined &&
         body.description === undefined &&
+        body.channels === undefined &&
         body.defaultOptedIn === undefined &&
         body.channelDefaults === undefined
       ) {
@@ -47,7 +50,10 @@ export const topic = new Elysia()
         await assertTopicSlugAvailable(db, tenant.id, body.slug);
       }
 
-      const updated = await updateTopic(db, topic.id, body);
+      const updated = await updateTopic(db, topic.id, {
+        ...body,
+        channelDefaults: resolveChannelDefaults(body.channelDefaults ?? topic.channelDefaults, channels),
+      });
 
       await event({
         event: 'topic.updated',
@@ -64,6 +70,7 @@ export const topic = new Elysia()
         slug: t.Optional(TopicSlugSchema),
         name: t.Optional(TopicNameSchema),
         description: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
+        channels: t.Optional(TopicChannelsSchema),
         defaultOptedIn: t.Optional(t.Boolean()),
         channelDefaults: t.Optional(ChannelDefaultsSchema),
       }),

@@ -11,6 +11,14 @@ import {
 } from '@buzzkit/ui/components/alert-dialog';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@buzzkit/ui/components/dropdown-menu';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Flag } from '@buzzkit/ui/components/flag';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
@@ -19,6 +27,7 @@ import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 import { iconSwap, iconSwapIn, iconSwapOut } from '@buzzkit/ui/lib/icon-swap';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useEffect, useRef, useState } from 'react';
@@ -186,7 +195,7 @@ function AttributeValue({ row }: { row: AttributeRow }) {
       {row.display}
     </a>
   ) : (
-    <span className={row.mono ? 'truncate font-mono text-xs' : 'truncate'}>{row.display}</span>
+    <Truncate className={row.mono ? 'font-mono text-xs' : undefined}>{row.display}</Truncate>
   );
 
   if (!row.tooltip) return content;
@@ -255,9 +264,9 @@ function SubscriptionRow({ subscription }: { subscription: Subscription }) {
       />
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <span className='flex min-w-0 items-center gap-1.5'>
-          <span className='truncate font-medium text-fg-4 text-sm leading-tighter'>
+          <Truncate className='font-medium text-fg-4 text-sm leading-tighter'>
             {endpointLabel(subscription)}
-          </span>
+          </Truncate>
           {subscription.platform && <PlatformBadge platform={subscription.platform} />}
           <SandboxBadge environment={subscription.environment} />
           <SubscriptionStatusBadge status={subscription.status} />
@@ -313,37 +322,59 @@ function SubscriptionRow({ subscription }: { subscription: Subscription }) {
 
 function PreferenceRow({ preference }: { preference: SubscriberPreference }) {
   const { submit, pending } = useActionFetcher();
-  const channels = CHANNELS.filter((channel) => channel.available);
+  const states = preference.channels as Record<string, { optedIn: boolean; isDefault: boolean } | undefined>;
+  const channels = CHANNELS.filter((channel) => states[channel.id]);
+  const receiving = channels.filter((channel) => states[channel.id]?.optedIn);
 
   return (
-    <li className='flex items-center gap-3 px-4 py-2.5'>
+    <li className='flex items-center gap-1.5 px-4 py-2.5'>
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <span className='truncate font-medium text-fg-4 text-sm leading-tighter'>{preference.name}</span>
-        <span className='truncate text-fg-2 text-xs'>{preference.description ?? preference.slug}</span>
+        <Truncate className='font-medium text-fg-4 text-sm leading-tighter'>{preference.name}</Truncate>
+        <Truncate className='text-fg-2 text-xs'>{preference.description ?? preference.slug}</Truncate>
       </span>
-      {channels.map((channel) => {
-        const state = (
-          preference.channels as Record<string, { optedIn: boolean; isDefault: boolean } | undefined>
-        )[channel.id];
-        if (!state) return null;
-        return (
-          <span key={channel.id} className='flex items-center gap-2 text-fg-2 text-xs'>
-            {channel.name}
-            <Switch
-              aria-label={`${preference.name} via ${channel.name}`}
-              checked={state.optedIn}
+      {receiving.length > 0 ? (
+        <span className='flex shrink-0 items-center gap-1'>
+          {receiving.map((channel) => (
+            <ChannelBadge key={channel.id} channel={channel.id} />
+          ))}
+        </span>
+      ) : (
+        <span className='shrink-0 text-fg-2 text-xs'>Opted out</span>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-xs'
+              icon='IconDotGrid1x3Horizontal'
+              aria-label={`${preference.name} preferences`}
               disabled={pending}
-              onCheckedChange={(optedIn) =>
-                submit('preference', {
-                  topic: preference.slug,
-                  channel: channel.id,
-                  optedIn: String(optedIn),
-                })
-              }
             />
-          </span>
-        );
-      })}
+          }
+        />
+        <DropdownMenuContent align='end'>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Receives on</DropdownMenuLabel>
+            {channels.map((channel) => (
+              <DropdownMenuCheckboxItem
+                key={channel.id}
+                checked={states[channel.id]?.optedIn ?? false}
+                closeOnClick={false}
+                onCheckedChange={(optedIn) =>
+                  submit('preference', {
+                    topic: preference.slug,
+                    channel: channel.id,
+                    optedIn: String(optedIn),
+                  })
+                }
+              >
+                {channel.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </li>
   );
 }
@@ -511,9 +542,9 @@ function DeliveryRow({ delivery }: { delivery: SubscriberDelivery }) {
     <TableRow>
       <TableCell className='max-w-96'>
         <span className='flex min-w-0 flex-col'>
-          <span className='truncate font-medium text-fg-4'>{delivery.message.title ?? 'Untitled'}</span>
+          <Truncate className='font-medium text-fg-4'>{delivery.message.title ?? 'Untitled'}</Truncate>
           {delivery.message.body && (
-            <span className='truncate text-fg-2 text-xs'>{delivery.message.body}</span>
+            <Truncate className='text-fg-2 text-xs'>{delivery.message.body}</Truncate>
           )}
         </span>
       </TableCell>
@@ -536,11 +567,10 @@ function EventRow({ event }: { event: SubscriberEvent }) {
     <li className='flex items-center gap-3 px-4 py-2.5'>
       <IconTile icon={icon} size='sm' />
       <div className='flex min-w-0 flex-1 flex-col items-start'>
-        <span className='max-w-full truncate font-medium text-fg-4 text-sm'>{label}</span>
-        <span className='max-w-full truncate text-fg-2 text-xs'>
-          {detail ? `${detail} · ` : ''}
-          {actorLabel(event)}
-        </span>
+        <Truncate className='max-w-full font-medium text-fg-4 text-sm'>{label}</Truncate>
+        <Truncate className='max-w-full text-fg-2 text-xs'>
+          {[detail, actorLabel(event)].filter(Boolean).join(' · ')}
+        </Truncate>
       </div>
       <div className='shrink-0 text-fg-2 text-xs'>
         <TimeAgo at={event.createdAt} />

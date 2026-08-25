@@ -371,17 +371,24 @@ export function deleteSubscription(
   );
 }
 
-export function listTopics(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+export function listTopics(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  query: { limit?: number; cursor?: string } = {}
+) {
   return unwrap(
     ctx,
-    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.get()
-  ).then((page) => page.items);
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.get({ query })
+  );
 }
 
 export type TopicInput = {
   slug: string;
   name: string;
   description?: string;
+  channels?: ('push' | 'email')[];
   defaultOptedIn?: boolean;
   channelDefaults?: Record<string, boolean>;
 };
@@ -481,7 +488,7 @@ export type InvitePreview = Awaited<ReturnType<typeof getInvitePreview>>;
 export type Subscriber = Awaited<ReturnType<typeof listSubscribers>>['items'][number];
 export type SubscriberDetail = Awaited<ReturnType<typeof getSubscriber>>;
 export type Subscription = SubscriberDetail['subscriptions'][number];
-export type Topic = Awaited<ReturnType<typeof listTopics>>[number];
+export type Topic = Awaited<ReturnType<typeof listTopics>>['items'][number];
 export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
 export type SubscriberDelivery = Awaited<ReturnType<typeof listSubscriberDeliveries>>['items'][number];
 export type SubscriberEvent = Awaited<ReturnType<typeof listSubscriberEvents>>['items'][number];

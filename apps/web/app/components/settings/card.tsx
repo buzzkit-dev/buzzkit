@@ -9,6 +9,7 @@ import {
 } from '@buzzkit/ui/components/card';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import type { IconName } from '@buzzkit/ui/components/icon';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 
 export function SettingsCard({
   title,
@@ -64,8 +65,8 @@ export function SettingsRow({
     <li className='flex min-h-11 items-center gap-3 px-4 py-2'>
       {start}
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <span className='truncate font-medium text-fg-4 text-sm'>{title}</span>
-        {subtitle && <span className='truncate text-fg-2 text-xs'>{subtitle}</span>}
+        <Truncate className='font-medium text-fg-4 text-sm'>{title}</Truncate>
+        {subtitle && <Truncate className='text-fg-2 text-xs'>{subtitle}</Truncate>}
       </span>
       {end && <span className='flex shrink-0 items-center gap-3'>{end}</span>}
     </li>

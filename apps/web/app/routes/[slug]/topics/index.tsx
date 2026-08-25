@@ -7,30 +7,48 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@buzzkit/ui/components/alert-dialog';
-import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@buzzkit/ui/components/dropdown-menu';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
-import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Input } from '@buzzkit/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
 import { Switch } from '@buzzkit/ui/components/switch';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TablePagination,
+  TableRow,
+} from '@buzzkit/ui/components/table';
 import { Textarea } from '@buzzkit/ui/components/textarea';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { cloudflareContext } from '@/app/cloudflare';
+import { OptInBadge } from '@/app/components/badges';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { Time } from '@/app/hooks/use-time-ago';
 import { topicsAction } from '@/app/lib/actions/topics.server';
-import { listTopics, type Topic } from '@/app/lib/api.server';
+import { listCredentials, listTopics, type Topic } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
+import { paginate, readPage } from '@/app/lib/utils/pagination';
 import type { Route } from './+types/index';
 
 const AVAILABLE_CHANNELS = CHANNELS.filter((channel) => channel.available);
+
+const COLUMN_LABELS: Record<string, string> = { push: 'Push' };
 
 export function meta() {
   return [{ title: 'Topics · BuzzKit' }];
@@ -39,30 +57,61 @@ export function meta() {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
-  return { topics: await listTopics({ request, env }, token, params.slug, 'default') };
+  const ctx = { request, env };
+  const [page, credentials] = await Promise.all([
+    listTopics(ctx, token, params.slug, 'default', readPage(request)),
+    listCredentials(ctx, token, params.slug, 'default'),
+  ]);
+  return {
+    ...paginate(request, page),
+    connected: [...new Set(credentials.map((credential): string => credential.channel))],
+  };
 }
 
 export const action = topicsAction;
 
-type ChannelChoice = 'default' | 'in' | 'out';
+type ChannelChoice = 'off' | 'default' | 'in' | 'out';
 
 const CHOICES: { value: ChannelChoice; label: string }[] = [
   { value: 'default', label: 'Follow topic default' },
   { value: 'in', label: 'Opted in' },
   { value: 'out', label: 'Opted out' },
+  { value: 'off', label: 'Not offered' },
 ];
 
+function offers(topic: Topic | null, channel: string): boolean {
+  return topic?.channels.includes(channel as Topic['channels'][number]) ?? false;
+}
+
+function resolvedFor(topic: Topic, channel: string): boolean {
+  return (topic.channelDefaults as Record<string, boolean> | null)?.[channel] ?? topic.defaultOptedIn;
+}
+
 function choiceFor(topic: Topic | null, channel: string): ChannelChoice {
+  if (topic && !offers(topic, channel)) return 'off';
   const value = (topic?.channelDefaults as Record<string, boolean> | null)?.[channel];
   return value === undefined ? 'default' : value ? 'in' : 'out';
 }
 
+function channelsFor(connected: string[], topic: Topic | null) {
+  const shown = AVAILABLE_CHANNELS.filter(
+    (channel) => connected.includes(channel.id) || offers(topic, channel.id)
+  );
+  return shown.length > 0 ? shown : AVAILABLE_CHANNELS;
+}
+
+function choicesFor(channels: typeof AVAILABLE_CHANNELS, topic: Topic | null): Record<string, ChannelChoice> {
+  return Object.fromEntries(channels.map((channel) => [channel.id, choiceFor(topic, channel.id)]));
+}
+
 function TopicDialog({
   topic,
+  connected,
   open,
   onOpenChange,
 }: {
   topic: Topic | null;
+  connected: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -70,23 +119,37 @@ function TopicDialog({
   const [name, setName] = useState(topic?.name ?? '');
   const [slug, setSlug] = useState(topic?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(Boolean(topic));
+  const [description, setDescription] = useState(topic?.description ?? '');
   const [optedIn, setOptedIn] = useState(topic?.defaultOptedIn ?? true);
-  const [choices, setChoices] = useState<Record<string, ChannelChoice>>(() =>
-    Object.fromEntries(AVAILABLE_CHANNELS.map((channel) => [channel.id, choiceFor(topic, channel.id)]))
-  );
+  const channels = channelsFor(connected, topic);
+  const [choices, setChoices] = useState<Record<string, ChannelChoice>>(() => choicesFor(channels, topic));
 
   useEffect(() => {
     if (!open) return;
     setName(topic?.name ?? '');
     setSlug(topic?.slug ?? '');
     setSlugTouched(Boolean(topic));
+    setDescription(topic?.description ?? '');
     setOptedIn(topic?.defaultOptedIn ?? true);
-    setChoices(
-      Object.fromEntries(AVAILABLE_CHANNELS.map((channel) => [channel.id, choiceFor(topic, channel.id)]))
-    );
-  }, [open, topic]);
+    setChoices(choicesFor(channelsFor(connected, topic), topic));
+  }, [open, topic, connected]);
 
   const slugValue = slugTouched ? slug : slugify(name);
+  const offered = Object.entries(choices).filter(([, choice]) => choice !== 'off');
+  const canSave = name.trim().length > 0 && slugValue.length > 0 && offered.length > 0 && !pending;
+
+  const save = () => {
+    const fields: Record<string, string> = {
+      name: name.trim(),
+      slug: slugValue,
+      description: description.trim(),
+      defaultOptedIn: String(optedIn),
+      channels: offered.map(([channel]) => channel).join(','),
+    };
+    for (const [channel, choice] of offered) fields[`channel:${channel}`] = choice;
+    if (topic) fields.topic = topic.slug;
+    submit(topic ? 'update' : 'create', fields);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,181 +157,175 @@ function TopicDialog({
         <DialogHeader>
           <DialogTitle>{topic ? 'Edit topic' : 'New topic'}</DialogTitle>
         </DialogHeader>
-        <form
-          className='flex w-full flex-col gap-5'
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            const fields: Record<string, string> = {
-              name,
-              slug: slugValue,
-              description: String(form.get('description') ?? ''),
-              defaultOptedIn: String(optedIn),
-            };
-            for (const [channel, choice] of Object.entries(choices)) fields[`channel:${channel}`] = choice;
-            if (topic) fields.topic = topic.slug;
-            submit(topic ? 'update' : 'create', fields);
-          }}
-        >
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor='topic-name'>Name</FieldLabel>
-              <Input
-                id='topic-name'
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder='Running reminders'
-                required
-                maxLength={100}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor='topic-slug'>Slug</FieldLabel>
-              <Input
-                id='topic-slug'
-                value={slugValue}
-                onChange={(event) => {
-                  setSlugTouched(true);
-                  setSlug(event.target.value);
-                }}
-                placeholder='running-reminders'
-                required
-                maxLength={64}
-                aria-describedby='topic-slug-description'
-              />
-              <FieldDescription id='topic-slug-description'>
-                What your code sends to and subscribers opt into.
-              </FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor='topic-description'>Description</FieldLabel>
-              <Textarea
-                id='topic-description'
-                name='description'
-                defaultValue={topic?.description ?? ''}
-                placeholder='Shown to users in their notification settings.'
-                maxLength={500}
-                rows={2}
-              />
-            </Field>
-            <Field orientation='horizontal'>
-              <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                <FieldLabel htmlFor='topic-default'>Opted in by default</FieldLabel>
-                <FieldDescription>New subscribers receive this topic until they opt out.</FieldDescription>
-              </span>
-              <Switch id='topic-default' checked={optedIn} onCheckedChange={setOptedIn} />
-            </Field>
-            {AVAILABLE_CHANNELS.map((channel) => (
-              <Field key={channel.id} orientation='horizontal'>
-                <FieldLabel className='flex-1'>{channel.name}</FieldLabel>
-                <Select
-                  items={CHOICES}
-                  value={choices[channel.id] ?? 'default'}
-                  onValueChange={(value) =>
-                    setChoices((current) => ({ ...current, [channel.id]: value as ChannelChoice }))
-                  }
-                >
-                  <SelectTrigger className='w-44' aria-label={`${channel.name} default`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CHOICES.map((choice) => (
-                      <SelectItem key={choice.value} value={choice.value}>
-                        {choice.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            ))}
-            <Button type='submit' className='w-full' disabled={!name.trim() || !slugValue} loading={pending}>
-              {topic ? 'Save changes' : 'Create topic'}
-            </Button>
-          </FieldGroup>
-        </form>
+        <FieldGroup className='w-full'>
+          <Field>
+            <FieldLabel htmlFor='topic-name'>Name</FieldLabel>
+            <Input
+              id='topic-name'
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder='Running reminders'
+              maxLength={100}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor='topic-slug'>Slug</FieldLabel>
+            <Input
+              id='topic-slug'
+              value={slugValue}
+              onChange={(event) => {
+                setSlugTouched(true);
+                setSlug(event.target.value);
+              }}
+              placeholder='running-reminders'
+              maxLength={64}
+              autoComplete='off'
+              spellCheck={false}
+            />
+            <FieldDescription>Used by your code when it sends to this topic.</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor='topic-description'>Description</FieldLabel>
+            <Textarea
+              id='topic-description'
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder='A nudge to get your run in'
+              maxLength={500}
+              rows={2}
+            />
+            <FieldDescription>
+              Shown to subscribers next to the topic in their notification settings.
+            </FieldDescription>
+          </Field>
+          <Field orientation='horizontal'>
+            <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
+              <FieldLabel htmlFor='topic-default'>Opted in by default</FieldLabel>
+              <FieldDescription>New subscribers receive this topic until they opt out.</FieldDescription>
+            </span>
+            <Switch id='topic-default' checked={optedIn} onCheckedChange={setOptedIn} />
+          </Field>
+          <Field>
+            <span className='flex flex-col gap-0.5'>
+              <FieldLabel>Channels</FieldLabel>
+              <FieldDescription>Where subscribers can opt in to this topic.</FieldDescription>
+            </span>
+            <div className='flex flex-col gap-3'>
+              {channels.map((channel) => (
+                <Field key={channel.id} orientation='horizontal'>
+                  <FieldLabel htmlFor={`topic-channel-${channel.id}`} className='flex-1'>
+                    {channel.name}
+                  </FieldLabel>
+                  <Select
+                    items={CHOICES}
+                    value={choices[channel.id] ?? 'off'}
+                    onValueChange={(value) =>
+                      setChoices((current) => ({ ...current, [channel.id]: value as ChannelChoice }))
+                    }
+                  >
+                    <SelectTrigger id={`topic-channel-${channel.id}`} className='w-44'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CHOICES.map((choice) => (
+                        <SelectItem key={choice.value} value={choice.value}>
+                          {choice.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ))}
+            </div>
+          </Field>
+          <Button className='w-full' disabled={!canSave} loading={pending} onClick={save}>
+            {topic ? 'Save changes' : 'Create topic'}
+          </Button>
+        </FieldGroup>
       </DialogContent>
     </Dialog>
   );
 }
 
-function TopicRow({ topic, onEdit }: { topic: Topic; onEdit: () => void }) {
-  const { submit, pending } = useActionFetcher();
-  const defaults = (topic.channelDefaults ?? {}) as Record<string, boolean>;
-
+function TopicRow({
+  topic,
+  columns,
+  onEdit,
+  onDelete,
+}: {
+  topic: Topic;
+  columns: typeof AVAILABLE_CHANNELS;
+  onEdit: (topic: Topic) => void;
+  onDelete: (topic: Topic) => void;
+}) {
   return (
-    <li className='flex min-h-14 items-center gap-3 px-4 py-2.5'>
-      <IconTile icon='IconTagFilled' size='sm' />
-      <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <span className='flex min-w-0 items-center gap-1.5'>
-          <span className='truncate font-medium text-fg-4 text-sm leading-tighter'>{topic.name}</span>
-          <span className='truncate text-fg-2 text-xs'>{topic.slug}</span>
+    <TableRow>
+      <TableCell className='py-2'>
+        <span className='flex min-h-9 min-w-0 flex-col justify-center'>
+          <span className='font-medium text-fg-4'>{topic.name}</span>
+          {topic.description && <Truncate className='text-fg-2 text-xs'>{topic.description}</Truncate>}
         </span>
-        <span className='truncate text-fg-2 text-xs'>
-          {topic.description ?? (topic.defaultOptedIn ? 'Opted in by default' : 'Opted out by default')}
-        </span>
-      </span>
-      <span className='flex shrink-0 items-center gap-1.5'>
-        {AVAILABLE_CHANNELS.map((channel) => {
-          const resolved = defaults[channel.id] ?? topic.defaultOptedIn;
-          return (
-            <Badge key={channel.id} variant={resolved ? 'green' : 'default'} size='sm'>
-              {channel.name} {resolved ? 'on' : 'off'}
-            </Badge>
-          );
-        })}
-      </span>
-      <Button
-        variant='ghost'
-        size='icon-xs'
-        icon='IconPencil'
-        aria-label={`Edit ${topic.name}`}
-        onClick={onEdit}
-      />
-      <AlertDialog>
-        <AlertDialogTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-xs'
-              icon='IconTrashCan'
-              aria-label={`Delete ${topic.name}`}
-              disabled={pending}
-            />
-          }
-        />
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{topic.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              It disappears from every subscriber's preferences and sends to it stop. Its slug becomes free
-              again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction onClick={() => submit('delete', { topic: topic.slug })}>
+      </TableCell>
+      <TableCell className='font-mono text-xs'>{topic.slug}</TableCell>
+      {columns.map((channel) => (
+        <TableCell key={channel.id}>
+          {offers(topic, channel.id) ? (
+            <OptInBadge optedIn={resolvedFor(topic, channel.id)} />
+          ) : (
+            <span className='text-fg-2'>Not offered</span>
+          )}
+        </TableCell>
+      ))}
+      <TableCell>
+        <Time at={topic.createdAt} />
+      </TableCell>
+      <TableCell className='w-0 py-1.5 text-right'>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon-xs'
+                icon='IconDotGrid1x3Horizontal'
+                aria-label='Topic actions'
+              />
+            }
+          />
+          <DropdownMenuContent align='end'>
+            <DropdownMenuItem onClick={() => onEdit(topic)}>Edit</DropdownMenuItem>
+            <DropdownMenuItem variant='destructive' onClick={() => onDelete(topic)}>
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </li>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
   );
 }
 
 export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
-  const { topics } = loaderData;
+  const { items: topics, pagination, connected } = loaderData;
+  const columns = AVAILABLE_CHANNELS.filter(
+    (channel) => connected.includes(channel.id) || topics.some((topic) => offers(topic, channel.id))
+  );
   const [editing, setEditing] = useState<Topic | null>(null);
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState<Topic | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const { submit, pending } = useActionFetcher(() => setDeleteOpen(false));
 
   const openDialog = (topic: Topic | null) => {
     setEditing(topic);
     setOpen(true);
   };
+  const openDelete = (topic: Topic) => {
+    setDeleting(topic);
+    setDeleteOpen(true);
+  };
 
   return (
-    <div className='flex w-full flex-col gap-5'>
-      <header className='flex items-center justify-between gap-4'>
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
         <div className='flex flex-col gap-0.5'>
           <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             Topics
@@ -276,29 +333,72 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
           <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage notification topics.</p>
         </div>
         <Button icon='IconPlusMedium' onClick={() => openDialog(null)}>
-          New topic
+          Create topic
         </Button>
       </header>
 
-      {topics.length === 0 ? (
-        <EmptyState
-          icon='IconTagFilled'
-          title='No topics yet'
-          description='Topics like "deals" or "running reminders" let users choose which notifications they get, without you building a settings table.'
-        >
-          <Button onClick={() => openDialog(null)}>Create your first topic</Button>
-        </EmptyState>
-      ) : (
-        <Card>
-          <ul className='flex flex-col divide-y divide-bg-3'>
-            {topics.map((topic) => (
-              <TopicRow key={topic.id} topic={topic} onEdit={() => openDialog(topic)} />
-            ))}
-          </ul>
-        </Card>
-      )}
+      <Card className='min-h-0 shrink'>
+        {topics.length === 0 ? (
+          <EmptyState
+            icon='IconTagFilled'
+            title='No topics yet'
+            description='Create a topic and subscribers can choose whether they receive it on each channel.'
+            className='py-10'
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Topic</TableHead>
+                <TableHead>Slug</TableHead>
+                {columns.map((channel) => (
+                  <TableHead key={channel.id}>{COLUMN_LABELS[channel.id] ?? channel.name}</TableHead>
+                ))}
+                <TableHead>Created</TableHead>
+                <TableHead>
+                  <span className='sr-only'>Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topics.map((topic) => (
+                <TopicRow
+                  key={topic.id}
+                  topic={topic}
+                  columns={columns}
+                  onEdit={openDialog}
+                  onDelete={openDelete}
+                />
+              ))}
+            </TableBody>
+            <TablePagination {...pagination} />
+          </Table>
+        )}
+      </Card>
 
-      <TopicDialog topic={editing} open={open} onOpenChange={setOpen} />
+      <TopicDialog topic={editing} connected={connected} open={open} onOpenChange={setOpen} />
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{deleting?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sends to it stop and subscribers no longer see it.
+              <span className='block'>This cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant='destructive'
+              disabled={pending}
+              onClick={() => deleting && submit('delete', { topic: deleting.slug })}
+            >
+              Delete topic
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

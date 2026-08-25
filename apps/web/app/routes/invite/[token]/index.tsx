@@ -1,6 +1,7 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { FieldError } from '@buzzkit/ui/components/field';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Form, Link, useNavigation } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { WorkspaceAvatar } from '@/app/components/layout/workspace-switcher';
@@ -118,8 +119,8 @@ export default function InviteRoute({ loaderData, actionData, params }: Route.Co
       <div className='flex items-center gap-3'>
         <WorkspaceAvatar name={preview.workspace.name} className='size-10! rounded-xl' />
         <span className='flex min-w-0 flex-col'>
-          <span className='truncate font-medium text-fg-4 text-sm'>{preview.workspace.name}</span>
-          <span className='truncate text-fg-2 text-xs'>Invite sent to {preview.email}</span>
+          <Truncate className='font-medium text-fg-4 text-sm'>{preview.workspace.name}</Truncate>
+          <Truncate className='text-fg-2 text-xs'>Invite sent to {preview.email}</Truncate>
         </span>
       </div>
 

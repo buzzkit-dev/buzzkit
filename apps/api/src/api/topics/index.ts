@@ -1,7 +1,20 @@
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
-import { NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
+import { ChannelSchema, NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, asc, channel, type Db, eq, inArray, isNull, sql, tables } from '@buzzkit/database';
+import {
+  and,
+  asc,
+  channel,
+  count,
+  type Db,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  sql,
+  tables,
+} from '@buzzkit/database';
 import { t } from 'elysia';
 
 export type Topic = typeof tables.topic.$inferSelect;
@@ -10,6 +23,8 @@ export const CHANNELS = channel.enumValues;
 export type Channel = (typeof CHANNELS)[number];
 
 export const ChannelDefaultsSchema = t.Record(t.String(), t.Any());
+
+export const TopicChannelsSchema = t.Array(ChannelSchema, { minItems: 1, uniqueItems: true });
 
 export const TopicSlugSchema = SlugSchema;
 
@@ -21,6 +36,7 @@ export function serializeTopic(topic: Topic) {
     slug: topic.slug,
     name: topic.name,
     description: topic.description,
+    channels: topic.channels,
     defaultOptedIn: topic.defaultOptedIn,
     channelDefaults: topic.channelDefaults,
     createdAt: topic.createdAt,
@@ -28,7 +44,10 @@ export function serializeTopic(topic: Topic) {
   };
 }
 
-export function assertValidChannelDefaults(channelDefaults: unknown): void {
+export function assertValidChannelDefaults(
+  channelDefaults: unknown,
+  channels: readonly string[] = CHANNELS
+): void {
   if (channelDefaults === undefined) return;
   if (!channelDefaults || typeof channelDefaults !== 'object' || Array.isArray(channelDefaults)) {
     throw new BadRequestError('channelDefaults must be an object');
@@ -37,10 +56,24 @@ export function assertValidChannelDefaults(channelDefaults: unknown): void {
     if (!CHANNELS.includes(channel as Channel)) {
       throw new BadRequestError(`Unknown channel '${channel}' in channelDefaults`);
     }
+    if (!channels.includes(channel)) {
+      throw new BadRequestError(`This topic is not offered on the '${channel}' channel`, {
+        code: 'channel_not_offered',
+        param: 'channelDefaults',
+      });
+    }
     if (typeof value !== 'boolean') {
       throw new BadRequestError(`channelDefaults.${channel} must be a boolean`);
     }
   }
+}
+
+export function resolveChannelDefaults(
+  channelDefaults: unknown,
+  channels: readonly string[]
+): Partial<Record<Channel, boolean>> {
+  const entries = Object.entries((channelDefaults ?? {}) as Record<string, boolean>);
+  return Object.fromEntries(entries.filter(([channel]) => channels.includes(channel)));
 }
 
 export function topicDefault(topic: Topic, channel: Channel): boolean {
@@ -76,6 +109,7 @@ export async function createTopic(
     slug: string;
     name: string;
     description?: string;
+    channels?: Channel[];
     defaultOptedIn?: boolean;
     channelDefaults?: Partial<Record<Channel, boolean>>;
   }
@@ -90,6 +124,7 @@ export async function createTopic(
           slug: input.slug,
           name: input.name,
           description: input.description,
+          channels: input.channels ?? [...CHANNELS],
           defaultOptedIn: input.defaultOptedIn ?? true,
           channelDefaults: input.channelDefaults ?? {},
         })
@@ -99,16 +134,39 @@ export async function createTopic(
   return topic!;
 }
 
-export async function listTopics(db: Db, tenantId: number): Promise<Topic[]> {
+export async function listTopics(
+  db: Db,
+  tenantId: number,
+  options: { limit: number; beforeId?: number }
+): Promise<Topic[]> {
   return await trace(
     'topics.list',
     async () =>
       await db
         .select()
         .from(tables.topic)
-        .where(and(eq(tables.topic.tenantId, tenantId), isNull(tables.topic.deletedAt)))
-        .orderBy(asc(tables.topic.id))
+        .where(
+          and(
+            eq(tables.topic.tenantId, tenantId),
+            isNull(tables.topic.deletedAt),
+            options.beforeId ? lt(tables.topic.id, options.beforeId) : undefined
+          )
+        )
+        .orderBy(desc(tables.topic.id))
+        .limit(options.limit + 1)
   );
+}
+
+export async function countTopics(db: Db, tenantId: number): Promise<number> {
+  const [row] = await trace(
+    'topics.count',
+    async () =>
+      await db
+        .select({ total: count() })
+        .from(tables.topic)
+        .where(and(eq(tables.topic.tenantId, tenantId), isNull(tables.topic.deletedAt)))
+  );
+  return Number(row?.total ?? 0);
 }
 
 export async function findTopicBySlug(db: Db, tenantId: number, slug: string): Promise<Topic> {
@@ -141,6 +199,7 @@ export async function updateTopic(
     slug?: string;
     name?: string;
     description?: string | null;
+    channels?: Channel[];
     defaultOptedIn?: boolean;
     channelDefaults?: Partial<Record<Channel, boolean>>;
   }
@@ -154,6 +213,7 @@ export async function updateTopic(
           slug: patch.slug,
           name: patch.name,
           description: patch.description,
+          channels: patch.channels,
           defaultOptedIn: patch.defaultOptedIn,
           channelDefaults: patch.channelDefaults,
         })
@@ -188,7 +248,7 @@ export type SubscriberPreference = {
   slug: string;
   name: string;
   description: string | null;
-  channels: Record<Channel, ChannelPreference>;
+  channels: Partial<Record<Channel, ChannelPreference>>;
 };
 
 export type PreferenceChanges = Record<string, boolean | Partial<Record<string, boolean>>>;
@@ -236,14 +296,14 @@ export async function listPreferences(
       name: topic.name,
       description: topic.description,
       channels: Object.fromEntries(
-        CHANNELS.map((channel) => [
+        (topic.channels as Channel[]).map((channel) => [
           channel,
           {
             optedIn: overrides.get(channel) ?? topicDefault(topic, channel),
             isDefault: !overrides.has(channel),
           },
         ])
-      ) as Record<Channel, ChannelPreference>,
+      ) as Partial<Record<Channel, ChannelPreference>>,
     }));
   });
 }
@@ -259,27 +319,13 @@ export async function updatePreferences(
     throw new BadRequestError('Nothing to update');
   }
 
-  const perChannel = new Map<string, Map<Channel, boolean>>();
-  for (const [slug, value] of Object.entries(changes)) {
-    const channelMap = new Map<Channel, boolean>();
-    if (typeof value === 'boolean') {
-      for (const channel of CHANNELS) {
-        channelMap.set(channel, value);
-      }
-    } else {
-      for (const [channel, optedIn] of Object.entries(value)) {
-        if (!CHANNELS.includes(channel as Channel)) {
-          throw new BadRequestError(`Unknown channel '${channel}'`);
-        }
-        if (typeof optedIn === 'boolean') {
-          channelMap.set(channel as Channel, optedIn);
-        }
+  for (const value of Object.values(changes)) {
+    if (typeof value === 'boolean') continue;
+    for (const channel of Object.keys(value)) {
+      if (!CHANNELS.includes(channel as Channel)) {
+        throw new BadRequestError(`Unknown channel '${channel}'`);
       }
     }
-    if (channelMap.size === 0) {
-      throw new BadRequestError(`No channels to update for topic '${slug}'`);
-    }
-    perChannel.set(slug, channelMap);
   }
 
   return await trace('preferences.update', async () => {
@@ -299,6 +345,29 @@ export async function updatePreferences(
       if (!bySlug.has(slug)) {
         throw new NotFoundError(`Unknown topic '${slug}'`);
       }
+    }
+
+    const perChannel = new Map<string, Map<Channel, boolean>>();
+    for (const [slug, value] of Object.entries(changes)) {
+      const offered = bySlug.get(slug)!.channels as Channel[];
+      const channelMap = new Map<Channel, boolean>();
+      if (typeof value === 'boolean') {
+        for (const channel of offered) channelMap.set(channel, value);
+      } else {
+        for (const [channel, optedIn] of Object.entries(value)) {
+          if (!offered.includes(channel as Channel)) {
+            throw new BadRequestError(`Topic '${slug}' is not offered on the '${channel}' channel`, {
+              code: 'channel_not_offered',
+              param: 'preferences',
+            });
+          }
+          if (typeof optedIn === 'boolean') channelMap.set(channel as Channel, optedIn);
+        }
+      }
+      if (channelMap.size === 0) {
+        throw new BadRequestError(`No channels to update for topic '${slug}'`);
+      }
+      perChannel.set(slug, channelMap);
     }
 
     const rows = [...perChannel].flatMap(([slug, channelMap]) =>

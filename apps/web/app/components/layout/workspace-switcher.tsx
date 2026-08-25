@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@buzzkit/ui/components/dropdown-menu';
 import { Icon } from '@buzzkit/ui/components/icon';
+import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -43,7 +44,7 @@ export function WorkspaceSwitcher({ workspaces, current }: { workspaces: Workspa
           render={<Button variant='ghost' className='w-full justify-start pr-2.5 pl-1.25' />}
         >
           <WorkspaceAvatar name={current.name} avatarUrl={current.avatarUrl} />
-          <span className='truncate'>{current.name}</span>
+          <Truncate>{current.name}</Truncate>
           <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start' className='w-60'>
@@ -60,7 +61,7 @@ export function WorkspaceSwitcher({ workspaces, current }: { workspaces: Workspa
                   avatarUrl={workspace.avatarUrl}
                   className='size-5.5!'
                 />
-                <span className='truncate'>{workspace.name}</span>
+                <Truncate>{workspace.name}</Truncate>
                 {workspace.slug === current.slug && (
                   <Icon name='IconCheckmark1' className='ml-auto size-4 rotate-[4deg]' />
                 )}
