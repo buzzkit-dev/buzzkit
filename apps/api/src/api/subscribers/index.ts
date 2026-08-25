@@ -1,3 +1,4 @@
+import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import {
   ChannelSchema,
@@ -458,6 +459,7 @@ export async function registerSubscription(
   subscriberCreated: boolean;
   subscriber: Subscriber;
 }> {
+  await assertChannelConnected(db, tenantId, input.channel, 'channel');
   return await trace('subscriptions.register', async (t) => {
     const { subscriber, created: subscriberCreated } = input.subscriber
       ? { subscriber: input.subscriber, created: false }

@@ -11,10 +11,16 @@ import {
   type Profile,
   type Workspace,
 } from '@/app/lib/api.server';
+import { type Channel, connectedChannels } from '@/app/lib/channels';
 import { lastWorkspaceCookie, readLastWorkspace, requireSession } from '@/app/lib/session.server';
 import type { Route } from './+types/layout';
 
-export type WorkspaceOutletContext = { workspace: Workspace; profile: Profile; apiUrl: string };
+export type WorkspaceOutletContext = {
+  workspace: Workspace;
+  profile: Profile;
+  apiUrl: string;
+  connected: Channel[];
+};
 
 export function meta({ loaderData }: Route.MetaArgs) {
   return [{ title: loaderData ? `${loaderData.workspace.name} · BuzzKit` : 'BuzzKit' }];
@@ -34,7 +40,13 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     ]);
     if (credentials.length === 0) throw redirect(`/${params.slug}/onboarding`);
 
-    const payload = { workspace, workspaces, profile, apiUrl: env.API_URL };
+    const payload = {
+      workspace,
+      workspaces,
+      profile,
+      apiUrl: env.API_URL,
+      connected: connectedChannels(credentials),
+    };
 
     if ((await readLastWorkspace(request)) !== params.slug) {
       return data(payload, { headers: { 'Set-Cookie': await lastWorkspaceCookie(env, params.slug) } });
@@ -55,7 +67,7 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 }
 
 export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
-  const { workspace, workspaces, profile, apiUrl } = loaderData;
+  const { workspace, workspaces, profile, apiUrl, connected } = loaderData;
   return (
     <div className='flex h-svh bg-background-subtle'>
       <a
@@ -69,7 +81,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
 
       <main id='content' className='flex min-w-0 flex-1 p-2 pl-0'>
         <div className='corner-superellipse/1.125 flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl bg-card px-8.5 py-7.5 shadow-sm'>
-          <Outlet context={{ workspace, profile, apiUrl } satisfies WorkspaceOutletContext} />
+          <Outlet context={{ workspace, profile, apiUrl, connected } satisfies WorkspaceOutletContext} />
         </div>
       </main>
     </div>

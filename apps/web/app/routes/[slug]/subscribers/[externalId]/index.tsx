@@ -43,6 +43,7 @@ import {
 } from '@/app/components/badges';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { subscriberAction } from '@/app/lib/actions/subscribers.server';
 import {
@@ -537,12 +538,17 @@ function describeEvent(event: SubscriberEvent): { label: string; icon: IconName;
   return EVENT_LABELS[event.event]?.(data) ?? { label: event.event, icon: 'IconBell' };
 }
 
-function DeliveryRow({ delivery }: { delivery: SubscriberDelivery }) {
+function DeliveryRow({ delivery, params }: { delivery: SubscriberDelivery; params: { slug: string } }) {
   return (
     <TableRow>
       <TableCell className='max-w-96'>
         <span className='flex min-w-0 flex-col'>
-          <Truncate className='font-medium text-fg-4'>{delivery.message.title ?? 'Untitled'}</Truncate>
+          <Link
+            to={`/${params.slug}/messages/${delivery.message.id}`}
+            className='min-w-0 outline-none hover:underline focus-visible:underline'
+          >
+            <Truncate className='font-medium text-fg-4'>{delivery.message.title ?? 'Untitled'}</Truncate>
+          </Link>
           {delivery.message.body && (
             <Truncate className='text-fg-2 text-xs'>{delivery.message.body}</Truncate>
           )}
@@ -577,23 +583,6 @@ function EventRow({ event }: { event: SubscriberEvent }) {
       </div>
     </li>
   );
-}
-
-function useLinkedScroll(...refs: React.RefObject<HTMLElement | null>[]) {
-  useEffect(() => {
-    const columns = refs.map((ref) => ref.current).filter((el) => el !== null);
-    const forward = (event: WheelEvent) => {
-      if (event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) return;
-      const source = columns.find((column) => column.contains(event.target as Node));
-      for (const column of columns) {
-        if (column !== source) column.scrollTop += event.deltaY;
-      }
-    };
-    for (const column of columns) column.addEventListener('wheel', forward, { passive: true });
-    return () => {
-      for (const column of columns) column.removeEventListener('wheel', forward);
-    };
-  }, refs);
 }
 
 export default function SubscriberRoute({ loaderData, params }: Route.ComponentProps) {
@@ -722,7 +711,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 </TableHeader>
                 <TableBody>
                   {messages.map((delivery) => (
-                    <DeliveryRow key={delivery.id} delivery={delivery} />
+                    <DeliveryRow key={delivery.id} delivery={delivery} params={params} />
                   ))}
                 </TableBody>
               </Table>

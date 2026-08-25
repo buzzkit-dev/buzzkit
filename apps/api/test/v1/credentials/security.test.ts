@@ -35,7 +35,7 @@ async function storedRow(bundleId: string) {
 
 describe('credential storage security', () => {
   it('detects ciphertext tampering — a flipped byte fails closed as invalid', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const bundleId = `dev.buzzkit.tamper${uniq()}`;
     const uploaded = await uploadApns(keyBearer, bundleId);
 
@@ -59,8 +59,8 @@ describe('credential storage security', () => {
   });
 
   it('refuses a ciphertext swapped between tenants — AAD context binding', async () => {
-    const { keyBearer } = await setupWorkspace();
-    const tenant = await createTenant(keyBearer);
+    const { keyBearer } = await setupWorkspace({ bare: true });
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
     const bundleA = `dev.buzzkit.aad-a${uniq()}`;
     const bundleB = `dev.buzzkit.aad-b${uniq()}`;
 
@@ -90,12 +90,12 @@ describe('credential storage security', () => {
   });
 
   it('stores unique data keys and IVs per credential — no reuse', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const bundleA = `dev.buzzkit.uniq-a${uniq()}`;
     const bundleB = `dev.buzzkit.uniq-b${uniq()}`;
 
     await uploadApns(keyBearer, bundleA);
-    const tenant = await createTenant(keyBearer);
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
     await uploadApns({ ...keyBearer, 'buzzkit-tenant': tenant.slug }, bundleB);
 
     const rowA = await storedRow(bundleA);
@@ -108,7 +108,7 @@ describe('credential storage security', () => {
   });
 
   it('an intact credential still revalidates after the tamper suite ran', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const bundleId = `dev.buzzkit.intact${uniq()}`;
     const uploaded = await uploadApns(keyBearer, bundleId);
 

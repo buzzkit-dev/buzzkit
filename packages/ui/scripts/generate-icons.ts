@@ -68,6 +68,11 @@ const STROKE_OVERRIDES: Record<string, string> = {
   IconCheckmark1: '2.5',
 };
 
+const OPTICAL_SCALE: Record<string, number> = {
+  IconPaperPlaneTopRight: 0.9,
+  IconPaperPlaneTopRightFilled: 0.9,
+};
+
 function renderIconPath(name: string, radius: string): string {
   const custom = CUSTOM_ICON_PATHS[name];
   if (custom) return custom;
@@ -86,7 +91,9 @@ function renderIconPath(name: string, radius: string): string {
   const match = html.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
   if (!match?.[1]) throw new Error(`Failed to extract SVG for ${name}@r${radius}`);
   const stroke = STROKE_OVERRIDES[name];
-  return stroke ? match[1].replaceAll('stroke-width="2"', `stroke-width="${stroke}"`) : match[1];
+  const inner = stroke ? match[1].replaceAll('stroke-width="2"', `stroke-width="${stroke}"`) : match[1];
+  const scale = OPTICAL_SCALE[name];
+  return scale ? `<g transform="translate(12 12) scale(${scale}) translate(-12 -12)">${inner}</g>` : inner;
 }
 
 const discovered = discover();

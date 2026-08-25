@@ -4,7 +4,7 @@ Topics are named notification categories — `gym-reminders`, `running-reminders
 
 ## Topics — scopes `topics:read` / `topics:write` (tenant context)
 
-- `POST /v1/topics` — `{ slug, name, description?, channels? (every channel), defaultOptedIn? (true), channelDefaults? }` → 201 `tpc_…`. `channels` is the list of channels the topic is offered on (at least one): an email-only digest is `channels: ['email']`. `channelDefaults` may only name offered channels (400 `channel_not_offered`).
+- `POST /v1/topics` — `{ slug, name, description?, channels? (every channel), defaultOptedIn? (true), channelDefaults? }` → 201 `tpc_…`. `channels` is the list of channels the topic is offered on (at least one, each of them connected to the tenant, otherwise 400 `channel_not_connected`; omitted, the topic gets every connected channel): an email-only digest is `channels: ['email']`. `channelDefaults` may only name offered channels (400 `channel_not_offered`).
 - `GET /v1/topics` — paginated (newest first, `limit` / `cursor`, `total`) · `GET /v1/topics/:topicSlug`
 - `PATCH /v1/topics/:topicSlug` — any field; slug renames are checked for conflicts. Narrowing `channels` drops the `channelDefaults` entries for channels no longer offered; the stored preferences for those channels are kept and come back if the channel is offered again.
 - `DELETE /v1/topics/:topicSlug` — soft delete; it disappears from every preference list.

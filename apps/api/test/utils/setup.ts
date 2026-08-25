@@ -1,4 +1,6 @@
 import { api, BASE_URL } from './api';
+import { connectChannel, tenantIdBySlug, tenantIdFor } from './db';
+import { uploadSandboxApns } from './fixtures';
 
 let counter = 0;
 
@@ -65,7 +67,11 @@ export async function createKey(
   return body.data;
 }
 
-export async function createTenant(headers: Record<string, string>, name = 'Customer') {
+export async function createTenant(
+  headers: Record<string, string>,
+  name = 'Customer',
+  options: { bare?: boolean } = {}
+) {
   const slug = `cust-${uniq()}`;
   const { status, body } = await api<{ id: string; slug: string }>('/v1/tenants', {
     method: 'POST',
@@ -77,7 +83,16 @@ export async function createTenant(headers: Record<string, string>, name = 'Cust
     throw new Error(`tenant create failed: ${status} ${JSON.stringify(body)}`);
   }
 
+  if (!options.bare)
+    await connectChannels({ ...headers, 'buzzkit-tenant': slug }, await tenantIdBySlug(slug));
+
   return body.data;
+}
+
+/** Push through the real APNs upload, email through a direct credential row. */
+export async function connectChannels(headers: Record<string, string>, tenantId: number) {
+  await uploadSandboxApns(headers);
+  await connectChannel(tenantId, 'email');
 }
 
 export async function addMember(
@@ -131,17 +146,34 @@ export async function createClientKey(token: string, slug: string, tenantSlug: s
   return body.data;
 }
 
-/** A user with a workspace and a full-access workspace API key. */
-export async function setupWorkspace() {
+/**
+ * A user with a workspace and a full-access workspace API key. The default
+ * tenant has push (sandbox APNs) and email connected, like a workspace that
+ * finished onboarding; pass `bare: true` for a tenant with no credentials, or
+ * `push: 'unusable'` for a push credential the provider rejected, so deliveries
+ * fail at once as `no_credential` instead of retrying against a real APNs.
+ */
+export async function setupWorkspace(options: { bare?: boolean; push?: 'sandbox' | 'unusable' } = {}) {
   const owner = await signUpUser('Owner');
   const workspace = await createWorkspace(owner.token);
   const key = await createKey(owner.token, workspace.slug);
+  const keyBearer = { Authorization: `Bearer ${key.secret}` };
+  const tenantId = await tenantIdFor(workspace.slug);
+  if (!options.bare) {
+    if (options.push === 'unusable') {
+      await connectChannel(tenantId, 'push', 'invalid');
+      await connectChannel(tenantId, 'email');
+    } else {
+      await connectChannels(keyBearer, tenantId);
+    }
+  }
 
   return {
     owner,
     workspace,
     key,
-    keyBearer: { Authorization: `Bearer ${key.secret}` },
+    tenantId,
+    keyBearer,
     ownerBearer: { Authorization: `Bearer ${owner.token}` },
   };
 }

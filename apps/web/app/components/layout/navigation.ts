@@ -33,7 +33,7 @@ export const NAVIGATION: NavigationSection[] = [
   {
     label: 'Activity',
     pages: [
-      { label: 'Messages', path: '/messages', icon: 'IconSendFilled', planned: 'Phase 4' },
+      { label: 'Messages', path: '/messages', icon: 'IconPaperPlaneTopRightFilled' },
       { label: 'Events', path: '/events', icon: 'IconHistoryFilled', planned: 'Phase 5' },
     ],
   },

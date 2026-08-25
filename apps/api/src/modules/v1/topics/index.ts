@@ -1,3 +1,4 @@
+import { assertChannelsConnected, listConnectedChannels } from '@buzzkit/api/api/credentials/index';
 import {
   assertTopicSlugAvailable,
   assertValidChannelDefaults,
@@ -40,10 +41,15 @@ export const topics = new Elysia()
   .post(
     '/topics',
     async ({ body, db, set, tenant, event }) => {
-      assertValidChannelDefaults(body.channelDefaults, body.channels);
+      const connected = await listConnectedChannels(db, tenant.id);
+      const channels = body.channels ?? connected;
+
+      assertChannelsConnected(connected, channels, 'channels');
+      assertValidChannelDefaults(body.channelDefaults, channels);
+
       await assertTopicSlugAvailable(db, tenant.id, body.slug);
 
-      const topic = await createTopic(db, tenant.id, body);
+      const topic = await createTopic(db, tenant.id, { ...body, channels });
 
       await event({
         event: 'topic.created',

@@ -1,3 +1,4 @@
+import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import {
   AttributesSchema,
   assertNoSystemAttributes,
@@ -44,6 +45,7 @@ export const subscriber = new Elysia()
     '/subscribers/:externalId',
     async ({ body, db, params, set, tenant, event }) => {
       assertNoSystemAttributes(body?.attributes);
+      if (body?.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
       const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, params.externalId, {
         attributes: body?.attributes,

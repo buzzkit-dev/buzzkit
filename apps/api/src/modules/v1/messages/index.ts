@@ -4,6 +4,7 @@ import {
   createMessage,
   enqueueFanout,
   listMessages,
+  MessageFiltersSchema,
   serializeMessage,
 } from '@buzzkit/api/api/messages/index';
 import { auth } from '@buzzkit/api/libs/auth';
@@ -21,9 +22,17 @@ export const messages = new Elysia()
       const limit = clampLimit(query.limit);
       const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('message', id));
 
+      const filters = {
+        q: query.q,
+        status: query.status,
+        channel: query.channel,
+        topic: query.topic,
+        from: query.from ? new Date(query.from) : undefined,
+        to: query.to ? new Date(query.to) : undefined,
+      };
       const [rows, total] = await Promise.all([
-        listMessages(db, tenant.id, { limit, beforeId }),
-        countMessages(db, tenant.id),
+        listMessages(db, tenant.id, { limit, beforeId, ...filters }),
+        countMessages(db, tenant.id, filters),
       ]);
       const page = toPage(rows, limit, (id) => encodeId('message', id));
 
@@ -38,6 +47,7 @@ export const messages = new Elysia()
       tenant: 'messages:read',
       query: t.Object({
         ...PaginationQuerySchema.properties,
+        ...MessageFiltersSchema.properties,
       }),
     }
   )

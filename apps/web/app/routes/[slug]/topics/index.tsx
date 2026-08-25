@@ -34,6 +34,7 @@ import {
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { OptInBadge } from '@/app/components/badges';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
@@ -41,9 +42,10 @@ import { slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { topicsAction } from '@/app/lib/actions/topics.server';
-import { listCredentials, listTopics, type Topic } from '@/app/lib/api.server';
+import { listTopics, type Topic } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
+import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
 const AVAILABLE_CHANNELS = CHANNELS.filter((channel) => channel.available);
@@ -57,15 +59,8 @@ export function meta() {
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
-  const ctx = { request, env };
-  const [page, credentials] = await Promise.all([
-    listTopics(ctx, token, params.slug, 'default', readPage(request)),
-    listCredentials(ctx, token, params.slug, 'default'),
-  ]);
-  return {
-    ...paginate(request, page),
-    connected: [...new Set(credentials.map((credential): string => credential.channel))],
-  };
+  const page = await listTopics({ request, env }, token, params.slug, 'default', readPage(request));
+  return paginate(request, page);
 }
 
 export const action = topicsAction;
@@ -213,9 +208,14 @@ function TopicDialog({
             <div className='flex flex-col gap-3'>
               {channels.map((channel) => (
                 <Field key={channel.id} orientation='horizontal'>
-                  <FieldLabel htmlFor={`topic-channel-${channel.id}`} className='flex-1'>
-                    {channel.name}
-                  </FieldLabel>
+                  <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                    <FieldLabel htmlFor={`topic-channel-${channel.id}`}>{channel.name}</FieldLabel>
+                    {!connected.includes(channel.id) && (
+                      <FieldDescription>
+                        Not connected anymore. Subscribers cannot receive it here.
+                      </FieldDescription>
+                    )}
+                  </span>
                   <Select
                     items={CHOICES}
                     value={choices[channel.id] ?? 'off'}
@@ -266,7 +266,7 @@ function TopicRow({
           {topic.description && <Truncate className='text-fg-2 text-xs'>{topic.description}</Truncate>}
         </span>
       </TableCell>
-      <TableCell className='font-mono text-xs'>{topic.slug}</TableCell>
+      <TableCell>{topic.slug}</TableCell>
       {columns.map((channel) => (
         <TableCell key={channel.id}>
           {offers(topic, channel.id) ? (
@@ -304,10 +304,9 @@ function TopicRow({
 }
 
 export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
-  const { items: topics, pagination, connected } = loaderData;
-  const columns = AVAILABLE_CHANNELS.filter(
-    (channel) => connected.includes(channel.id) || topics.some((topic) => offers(topic, channel.id))
-  );
+  const { connected } = useOutletContext<WorkspaceOutletContext>();
+  const { items: topics, pagination } = loaderData;
+  const columns = AVAILABLE_CHANNELS.filter((channel) => (connected as string[]).includes(channel.id));
   const [editing, setEditing] = useState<Topic | null>(null);
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<Topic | null>(null);

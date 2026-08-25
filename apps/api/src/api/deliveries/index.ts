@@ -105,17 +105,40 @@ export async function findDelivery(db: Db, tenantId: number, deliverySqid: strin
   return delivery;
 }
 
+export type MessageDeliveryRow = {
+  delivery: Delivery;
+  externalId: string;
+  platform: string | null;
+  endpoint: string | null;
+};
+
+export function serializeMessageDelivery(row: MessageDeliveryRow) {
+  return {
+    ...serializeDelivery(row.delivery),
+    externalId: row.externalId,
+    platform: row.platform,
+    endpoint: row.endpoint,
+  };
+}
+
 export async function listDeliveries(
   db: Db,
   messageId: number,
   options: { limit: number; beforeId?: number; status?: DeliveryStatus }
-): Promise<Delivery[]> {
+): Promise<MessageDeliveryRow[]> {
   return await trace(
     'deliveries.list',
     async () =>
       await db
-        .select()
+        .select({
+          delivery: tables.delivery,
+          externalId: tables.subscriber.externalId,
+          platform: tables.subscription.platform,
+          endpoint: tables.subscription.endpoint,
+        })
         .from(tables.delivery)
+        .innerJoin(tables.subscriber, eq(tables.subscriber.id, tables.delivery.subscriberId))
+        .leftJoin(tables.subscription, eq(tables.subscription.id, tables.delivery.subscriptionId))
         .where(
           and(
             eq(tables.delivery.messageId, messageId),

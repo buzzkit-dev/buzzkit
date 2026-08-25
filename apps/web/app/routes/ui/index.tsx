@@ -67,6 +67,7 @@ import {
   FieldSeparator,
   FieldSet,
 } from '@buzzkit/ui/components/field';
+import { FilterBar, FilterClear, FilterSearch, FilterSelect } from '@buzzkit/ui/components/filter-bar';
 import { GuideStep } from '@buzzkit/ui/components/guide-step';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { ICON_NAMES, Icon } from '@buzzkit/ui/components/icon';
@@ -151,6 +152,7 @@ const SECTIONS = [
   { id: 'button', label: 'Button' },
   { id: 'badge', label: 'Badge' },
   { id: 'truncate', label: 'Truncate' },
+  { id: 'filter-bar', label: 'FilterBar' },
   { id: 'selection', label: 'Selection' },
   { id: 'input', label: 'Input & Textarea' },
   { id: 'field', label: 'Field' },
@@ -833,6 +835,51 @@ export default function DesignSystem() {
               <Truncate className='font-medium text-fg-4 text-sm'>Deals</Truncate>
               <Truncate className='text-fg-2 text-xs'>Weekly offers</Truncate>
             </div>
+          </Specimen>
+        </Section>
+        <Section
+          id='filter-bar'
+          title='FilterBar'
+          description='The row above a data table: a search field, one select per facet ("Any status" until something is picked), and a Clear button once anything is active. Controlled by the page, which keeps the state in the URL.'
+          className='flex-col items-start gap-6'
+        >
+          <Specimen label='nothing active'>
+            <FilterBar>
+              <FilterSelect
+                label='Status'
+                value={null}
+                options={[
+                  { value: 'queued', label: 'Queued' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+                onValueChange={() => {}}
+              />
+              <FilterSelect
+                label='Channel'
+                value={null}
+                options={[
+                  { value: 'push', label: 'Push' },
+                  { value: 'email', label: 'Email' },
+                ]}
+                onValueChange={() => {}}
+              />
+              <FilterSearch placeholder='Search messages' aria-label='Search' defaultValue='' />
+            </FilterBar>
+          </Specimen>
+          <Specimen label='active · searching'>
+            <FilterBar>
+              <FilterSelect
+                label='Status'
+                value='completed'
+                options={[
+                  { value: 'queued', label: 'Queued' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+                onValueChange={() => {}}
+              />
+              <FilterClear />
+              <FilterSearch placeholder='Search' aria-label='Search' defaultValue='order' loading />
+            </FilterBar>
           </Specimen>
         </Section>
         <Section

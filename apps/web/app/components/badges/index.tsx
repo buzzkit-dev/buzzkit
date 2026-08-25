@@ -61,6 +61,29 @@ const DELIVERY_STATUSES: Record<string, Entry> = {
   invalid: { label: 'Invalid', tone: 'red' },
 };
 
+const MESSAGE_STATUSES: Record<string, Entry> = {
+  queued: { label: 'Queued', tone: 'amber' },
+  processing: { label: 'Sending', tone: 'purple' },
+  completed: { label: 'Completed', tone: 'green' },
+};
+
+export function MessageStatusBadge({ status }: { status: string }) {
+  const entry = MESSAGE_STATUSES[status];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;
+}
+
+const ATTEMPT_OUTCOMES: Record<string, Entry> = {
+  sent: { label: 'Sent', tone: 'green' },
+  retry: { label: 'Retry', tone: 'amber' },
+  failed: { label: 'Failed', tone: 'red' },
+  invalid: { label: 'Invalid', tone: 'red' },
+};
+
+export function AttemptOutcomeBadge({ outcome }: { outcome: string }) {
+  const entry = ATTEMPT_OUTCOMES[outcome];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{outcome}</Badge>;
+}
+
 export function DeliveryStatusBadge({ status }: { status: string }) {
   const entry = DELIVERY_STATUSES[status];
   return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;

@@ -37,6 +37,7 @@ src/
 - **Errors:** throw the typed classes from `libs/error.ts` with `{ code, param }` for domain failures (lowercase snake_case codes, see `docs/api/conventions.md`) — never hand-build error responses in handlers. Malformed ids are 404, not 400.
 - **Soft delete only**, every read filters `isNull(deletedAt)`.
 - **Tenant scoping:** every data-plane query filters by `tenantId` from resolved auth context — there must be no code path that touches tenant data without one.
+- **A channel exists only once it is connected:** topics (`channels`), subscriptions (every registration route, including the client ones and the `email` field on `PUT /v1/subscribers/:id`) and sends check `listConnectedChannels` (live credentials) first and answer 400 `channel_not_connected`; deleting a credential keeps existing topics and subscriptions. Helpers live in `api/credentials`.
 - **Cloudflare:** env via `import { env } from 'cloudflare:workers'`; `bun cf-typegen` after wrangler.jsonc changes; Web Crypto only (no `node:crypto`); no `fs`.
 
 ## Event ledger — every mutation records one event
@@ -50,6 +51,8 @@ Traces and logs come from `@buzzkit/observability` (`packages/observability`). W
 ## Testing
 
 Integration over HTTP in the plain Node vitest pool (NEVER `@cloudflare/vitest-pool-workers`). `bun test` boots its **own** API on port 8791 (`scripts/test.ts`: separate `--persist-to` state, separate inspector port, `ENVIRONMENT=test` so sign-ups skip the external Have I Been Pwned check), waits for `/v1/health`, runs vitest with `API_URL`, and stops it — never point tests at the dev server on 8790 and never kill a dev server you did not start. `bun test:only <files>` runs vitest alone against an already-running 8791 instance. Needs local Postgres (`bun db:up` at repo root). `test/` mirrors `modules/` exactly (`test/v1/health/index.test.ts` ↔ `/v1/health`). Helpers in `test/utils/`.
+
+`setupWorkspace()` returns a workspace whose default tenant has push (a real sandbox APNs upload) and email (a credential row written straight to the database) connected, because nothing channel-specific can be created for a channel without a credential (`channel_not_connected`). Pass `{ bare: true }` for a tenant with no credentials (the credentials suites, the refusal tests) or `{ push: 'unusable' }` for a push credential the provider rejected (`status: 'invalid'`): still connected, but deliveries skip it and settle at once as `no_credential`, which is what the fan-out tests need instead of retrying against an unreachable APNs. `createTenant()` connects the same way unless `{ bare: true }`; `connectChannel` / `disconnectChannel` in `test/utils/db.ts` flip a channel mid-test.
 
 Pure modules get unit tests mirroring `src/` (`test/api/...`, `test/libs/...`, `test/providers/...`, `test/utils/...`, `test/packages/...`); the `@buzzkit/api` alias plus the `cloudflare:workers` stub in `vitest.config.mts` resolve them without the Worker runtime. Shared integration helpers live in `test/utils/` (`setup.ts` for accounts/keys/tenants, `fixtures.ts` for tokens, APNs uploads and the `APNS_REACHABLE` gate that flips APNs expectations between local `retrying` and deployed `failed`, `db.ts` for direct reads, `ids.ts` for sqids built from `wrangler.jsonc`).
 

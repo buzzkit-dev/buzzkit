@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { decryptCredentialSecret } from '@buzzkit/api/api/credentials/index';
+import { assertChannelConnected, decryptCredentialSecret } from '@buzzkit/api/api/credentials/index';
 import {
   type AttemptOutcome,
   applyAttemptResults,
@@ -48,10 +48,15 @@ import {
   desc,
   eq,
   gt,
+  gte,
+  ilike,
   inArray,
   isNull,
   lt,
+  lte,
+  messageStatus,
   ne,
+  or,
   sql,
   tables,
 } from '@buzzkit/database';
@@ -174,6 +179,7 @@ export async function createMessage(
       param: 'channel',
     });
   }
+  await assertChannelConnected(db, tenant.id, channel, 'channel');
 
   const to =
     input.to === undefined ? undefined : Array.isArray(input.to) ? [...new Set(input.to)] : [input.to];
@@ -285,14 +291,53 @@ export async function enqueueDeliveries(jobs: Array<DeliveryJob & { delaySeconds
   }
 }
 
-export async function countMessages(db: Db, tenantId: number): Promise<number> {
+export const MESSAGE_STATUSES = messageStatus.enumValues;
+export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
+
+export type MessageFilters = {
+  q?: string;
+  status?: MessageStatus;
+  channel?: Channel;
+  topic?: string;
+  from?: Date;
+  to?: Date;
+};
+
+export const MessageFiltersSchema = t.Object({
+  q: t.Optional(t.String({ maxLength: 200 })),
+  status: t.Optional(t.Union(MESSAGE_STATUSES.map((status) => t.Literal(status)))),
+  channel: t.Optional(ChannelSchema),
+  topic: t.Optional(TopicSlugSchema),
+  from: t.Optional(t.String({ format: 'date-time' })),
+  to: t.Optional(t.String({ format: 'date-time' })),
+});
+
+function resolveMessageFilters(tenantId: number, filters: MessageFilters) {
+  const needle = filters.q?.trim();
+  return and(
+    eq(tables.message.tenantId, tenantId),
+    isNull(tables.message.deletedAt),
+    filters.status ? eq(tables.message.status, filters.status) : undefined,
+    filters.channel ? eq(tables.message.channel, filters.channel) : undefined,
+    filters.topic ? eq(tables.message.topic, filters.topic) : undefined,
+    filters.from ? gte(tables.message.createdAt, filters.from) : undefined,
+    filters.to ? lte(tables.message.createdAt, filters.to) : undefined,
+    needle
+      ? or(
+          ilike(sql`${tables.message.payload}->>'title'`, `%${needle}%`),
+          ilike(sql`${tables.message.payload}->>'body'`, `%${needle}%`),
+          ilike(tables.message.topic, `%${needle}%`),
+          ilike(sql`${tables.message.targets}::text`, `%${needle}%`)
+        )
+      : undefined
+  );
+}
+
+export async function countMessages(db: Db, tenantId: number, filters: MessageFilters = {}): Promise<number> {
   const [row] = await trace(
     'messages.count',
     async () =>
-      await db
-        .select({ total: count() })
-        .from(tables.message)
-        .where(and(eq(tables.message.tenantId, tenantId), isNull(tables.message.deletedAt)))
+      await db.select({ total: count() }).from(tables.message).where(resolveMessageFilters(tenantId, filters))
   );
   return Number(row?.total ?? 0);
 }
@@ -300,7 +345,7 @@ export async function countMessages(db: Db, tenantId: number): Promise<number> {
 export async function listMessages(
   db: Db,
   tenantId: number,
-  options: { limit: number; beforeId?: number }
+  options: { limit: number; beforeId?: number } & MessageFilters
 ): Promise<Message[]> {
   return await trace(
     'messages.list',
@@ -310,8 +355,7 @@ export async function listMessages(
         .from(tables.message)
         .where(
           and(
-            eq(tables.message.tenantId, tenantId),
-            isNull(tables.message.deletedAt),
+            resolveMessageFilters(tenantId, options),
             options.beforeId ? lt(tables.message.id, options.beforeId) : undefined
           )
         )

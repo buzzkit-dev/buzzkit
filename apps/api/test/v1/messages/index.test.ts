@@ -1,7 +1,7 @@
 import { and } from '@buzzkit/database';
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
-import { db, eq, tables } from '../../utils/db';
+import { db, disconnectChannel, eq, tables } from '../../utils/db';
 import { fakeToken, TRANSIENT_CODES, TRANSIENT_STATUS, uploadSandboxApns } from '../../utils/fixtures';
 import { encodeMessageId } from '../../utils/ids';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
@@ -27,6 +27,9 @@ type DeliveryBody = {
   id: string;
   subscriberId: string;
   subscriptionId: string;
+  externalId: string;
+  platform: string | null;
+  endpoint: string | null;
   provider: string;
   status: string;
   attempts: number;
@@ -117,7 +120,7 @@ async function triggerReconciliation() {
 
 describe('POST /v1/messages — validation', () => {
   it('requires a target and some content, and rejects unknown topics, unsupported channels, bad ttl', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
 
     expect((await send(keyBearer, {})).status).toBe(400);
 
@@ -136,7 +139,7 @@ describe('POST /v1/messages — validation', () => {
   });
 
   it('caps the payload at 8KB', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const tooBig = await send(keyBearer, { to: 'u', data: { blob: 'x'.repeat(9 * 1024) } });
     expect(tooBig.status).toBe(400);
     const fits = await send(keyBearer, { to: 'u', data: { blob: 'x'.repeat(4 * 1024) } });
@@ -144,7 +147,7 @@ describe('POST /v1/messages — validation', () => {
   });
 
   it('refuses sends on a disabled channel', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
 
     await api('/v1/tenants/default', {
       method: 'PATCH',
@@ -158,7 +161,7 @@ describe('POST /v1/messages — validation', () => {
   });
 
   it('is idempotent per tenant: replays return the original with 202 + Idempotent-Replayed, mismatches are 409', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const idempotencyKey = `idem-${uniq()}`;
 
     const first = await send(keyBearer, { to: 'user_1', idempotencyKey, ttlSeconds: 3600 });
@@ -197,7 +200,7 @@ describe('POST /v1/messages — validation', () => {
   });
 
   it('requires messages:send — read-only keys cannot send but can read', async () => {
-    const { owner, workspace } = await setupWorkspace();
+    const { owner, workspace } = await setupWorkspace({ push: 'unusable' });
     const readOnly = await createKey(owner.token, workspace.slug, { scopes: ['messages:read'] });
     const bearer = { Authorization: `Bearer ${readOnly.secret}` };
 
@@ -208,7 +211,7 @@ describe('POST /v1/messages — validation', () => {
 
 describe('fan-out and targeting', () => {
   it('targets every enabled, active push subscription of the named subscribers — and nothing else', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const alice = `alice_${uniq()}`;
     const bob = `bob_${uniq()}`;
 
@@ -240,7 +243,7 @@ describe('fan-out and targeting', () => {
   });
 
   it('topic sends honour per-subscriber preferences and topic defaults', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const optIn = `optin-${uniq()}`;
     const optOut = `optout-${uniq()}`;
     await api('/v1/topics', {
@@ -273,9 +276,10 @@ describe('fan-out and targeting', () => {
 
     const defaultOn = await send(keyBearer, { topic: optIn });
     expect((await awaitCompletion(keyBearer, defaultOn.body.data?.id ?? '')).counts.total).toBe(2);
-    expect(
-      (await deliveries(keyBearer, defaultOn.body.data?.id ?? '')).map((d) => d.subscriptionId).sort()
-    ).toEqual([loudSub, undecidedSub].sort());
+    const defaultOnRows = await deliveries(keyBearer, defaultOn.body.data?.id ?? '');
+    expect(defaultOnRows.map((d) => d.subscriptionId).sort()).toEqual([loudSub, undecidedSub].sort());
+    expect(defaultOnRows.map((d) => d.externalId).sort()).toEqual([loud, undecided].sort());
+    expect(defaultOnRows.every((d) => d.platform === 'ios' && typeof d.endpoint === 'string')).toBe(true);
 
     const defaultOff = await send(keyBearer, { topic: optOut });
     expect((await awaitCompletion(keyBearer, defaultOff.body.data?.id ?? '')).counts.total).toBe(1);
@@ -285,7 +289,7 @@ describe('fan-out and targeting', () => {
   });
 
   it('refuses a topic send on a channel the topic does not offer', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const digest = `digest-${uniq()}`;
     await api('/v1/topics', {
       method: 'POST',
@@ -300,7 +304,7 @@ describe('fan-out and targeting', () => {
   });
 
   it('`to` combined with `topic` respects preferences for just those subscribers', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const topic = `promo-${uniq()}`;
     await api('/v1/topics', {
       method: 'POST',
@@ -326,7 +330,7 @@ describe('fan-out and targeting', () => {
   });
 
   it('completes with zero deliveries when nobody is reachable', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
 
     const sent = await send(keyBearer, { to: `nobody_${uniq()}` });
     const done = await awaitCompletion(keyBearer, sent.body.data?.id ?? '');
@@ -336,7 +340,7 @@ describe('fan-out and targeting', () => {
   });
 
   it('fans out large audiences across self-chaining pages', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const tenantSlug = (await createTenant(keyBearer)).slug;
     const headers = { ...keyBearer, 'buzzkit-tenant': tenantSlug };
     const [tenant] = await db
@@ -374,23 +378,20 @@ describe('fan-out and targeting', () => {
 });
 
 describe('delivery outcomes and the attempt ledger', () => {
-  it('fails immediately with no_credential and still records the reason', async () => {
-    const { keyBearer } = await setupWorkspace();
+  it('refuses to send on a channel the tenant has not connected', async () => {
+    const { keyBearer, tenantId } = await setupWorkspace({ push: 'unusable' });
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
+    await disconnectChannel(tenantId, 'push');
 
-    const sent = await send(keyBearer, { to: user });
-    const done = await awaitCompletion(keyBearer, sent.body.data?.id ?? '');
-
-    expect(done.counts).toEqual(zeroCounts(1, { failed: 1 }));
-    const [row] = await deliveries(keyBearer, sent.body.data?.id ?? '');
-    expect(row?.status).toBe('failed');
-    expect(row?.lastErrorCode).toBe('no_credential');
-    expect(row?.settledAt).toBeTruthy();
+    const refused = await send(keyBearer, { to: user });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error?.code).toBe('channel_not_connected');
+    expect(refused.body.error?.param).toBe('channel');
   });
 
   it('records every provider attempt with request, classification, and a scheduled retry', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -434,7 +435,7 @@ describe('delivery outcomes and the attempt ledger', () => {
   });
 
   it('heals a message whose counters drifted: completion is derived and counts are recounted', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
 
@@ -466,7 +467,7 @@ describe('delivery outcomes and the attempt ledger', () => {
   });
 
   it('reconciliation re-drives due retries and expires overdue deliveries', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -516,7 +517,7 @@ describe('delivery outcomes and the attempt ledger', () => {
 
 describe('GET /v1/messages, deliveries', () => {
   it('lists newest-first with cursors, filters deliveries by status, isolates tenants, and audits', async () => {
-    const { keyBearer, ownerBearer, workspace } = await setupWorkspace();
+    const { keyBearer, ownerBearer, workspace } = await setupWorkspace({ push: 'unusable' });
     const other = await createTenant(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -650,7 +651,7 @@ async function attemptsOf(deliveryId: number) {
 
 describe('scheduling, queueing and retries', () => {
   it('concurrent sends with one idempotency key create exactly one message', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const idempotencyKey = `race-${uniq()}`;
 
     const to = `u_${uniq()}`;
@@ -664,7 +665,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('deduplicates `to` and skips invalid or deleted subscriptions', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const user = `user_${uniq()}`;
     const dead = `dead_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -684,7 +685,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('routes each platform to its provider and only fails the one without a credential', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     const ios = await subscribe(keyBearer, user, 'ios');
@@ -709,7 +710,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('re-drives a due retry exactly once — never inside the grace period, never twice under duplicate sweeps', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -748,7 +749,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('exhausts retries at the attempt cap: terminal failed, settled, message completed with exact counts', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -777,7 +778,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('re-drives deliveries whose enqueue was lost and deliveries whose worker died mid-attempt', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const lost = `lost_${uniq()}`;
     const crashed = `crashed_${uniq()}`;
@@ -817,7 +818,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('resumes a stalled fan-out from its cursor', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
     const { tenantId } = await subscriptionFor(user);
@@ -838,7 +839,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('expiry only touches unsettled deliveries; sent ones keep their state and count', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const sentUser = `sent_${uniq()}`;
     const stuckUser = `stuck_${uniq()}`;
     await subscribe(keyBearer, sentUser);
@@ -873,7 +874,7 @@ describe('scheduling, queueing and retries', () => {
   });
 
   it('never completes a message while a delivery is still in flight, even if it looks stalled', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
     const { tenantId } = await subscriptionFor(user);
@@ -904,7 +905,7 @@ describe('scheduling, queueing and retries', () => {
 
 describe('attempt-time guards and sweep bounds', () => {
   it('respects an active lease: a duplicate job for a claimed attempt is skipped', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -927,7 +928,7 @@ describe('attempt-time guards and sweep bounds', () => {
   });
 
   it('fails a delivery as unsubscribed when the subscription was muted or removed after fan-out, without calling the provider', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const muted = `muted_${uniq()}`;
     const removed = `removed_${uniq()}`;
@@ -966,7 +967,7 @@ describe('attempt-time guards and sweep bounds', () => {
   });
 
   it('duplicate fan-out jobs for the same page create one set of deliveries and exact counts', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const users = [`a_${uniq()}`, `b_${uniq()}`, `c_${uniq()}`];
     for (const user of users) await subscribe(keyBearer, user);
     const { tenantId } = await subscriptionFor(users[0]!);
@@ -986,7 +987,7 @@ describe('attempt-time guards and sweep bounds', () => {
   });
 
   it('completes with zero deliveries when the topic vanished before fan-out', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
     const { tenantId } = await subscriptionFor(user);
@@ -1007,7 +1008,7 @@ describe('attempt-time guards and sweep bounds', () => {
   });
 
   it('sweeps are bounded: a backlog larger than one sweep drains across runs without loss', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const tenantSlug = (await createTenant(keyBearer)).slug;
     const [tenant] = await db
       .select({ id: tables.tenant.id })
@@ -1074,7 +1075,7 @@ describe('attempt-time guards and sweep bounds', () => {
 
 describe('isolation, pagination, and delivery-time credential state', () => {
   it('deliveries, attempts, and messages are invisible across tenants and 404 on malformed ids', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const other = await createTenant(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -1090,8 +1091,44 @@ describe('isolation, pagination, and delivery-time credential state', () => {
     expect((await api('/v1/deliveries/nope!/attempts', { headers: keyBearer })).status).toBe(404);
   });
 
+  it('filters the list by text, status, channel, topic and time', async () => {
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
+    const digest = `digest-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: digest, name: 'Digest' }),
+    });
+    const marker = uniq();
+    const direct = await send(keyBearer, { to: `order_${marker}`, title: `Order shipped ${marker}` });
+    const topical = await send(keyBearer, { topic: digest, title: `Weekly digest ${marker}` });
+    expect(direct.status).toBe(202);
+    expect(topical.status).toBe(202);
+
+    type Page = { items: Array<{ id: string }>; total: number };
+    const list = (query: string) => api<Page>(`/v1/messages?${query}`, { headers: keyBearer });
+    const ids = (page: { body: { data?: Page } }) => page.body.data?.items.map((item) => item.id) ?? [];
+
+    expect(ids(await list(`q=shipped ${marker}`))).toEqual([direct.body.data?.id]);
+    expect(ids(await list(`q=order_${marker}`))).toEqual([direct.body.data?.id]);
+    expect(ids(await list(`topic=${digest}`))).toEqual([topical.body.data?.id]);
+    expect(ids(await list(`q=${marker}&channel=push`))).toHaveLength(2);
+    expect((await list(`q=${marker}&channel=email`)).body.data?.total).toBe(0);
+    expect(
+      (await list(`q=${marker}&from=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}`)).body
+        .data?.total
+    ).toBe(0);
+    expect(
+      (await list(`q=${marker}&to=${encodeURIComponent(new Date().toISOString())}`)).body.data?.total
+    ).toBe(2);
+    expect((await list('status=nope')).status).toBe(400);
+    const completed = await list(`q=${marker}&status=completed`);
+    expect(completed.status).toBe(200);
+    expect(completed.body.data?.items.length).toBeLessThanOrEqual(2);
+  });
+
   it('validates list parameters and pages deliveries with opaque cursors', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const other = await createTenant(keyBearer);
     expect((await api('/v1/messages?cursor=nope!', { headers: keyBearer })).status).toBe(400);
     expect((await api('/v1/messages?limit=0', { headers: keyBearer })).status).toBe(400);
@@ -1125,7 +1162,7 @@ describe('isolation, pagination, and delivery-time credential state', () => {
   });
 
   it('a credential revoked between fan-out and delivery fails the attempt as no_credential with an empty request', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const credential = await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -1154,7 +1191,7 @@ describe('isolation, pagination, and delivery-time credential state', () => {
   });
 
   it('a device registered for production never uses a sandbox key — the delivery fails as no_credential naming the environment', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     await uploadSandboxApns(keyBearer);
     const user = `user_${uniq()}`;
     await subscribe(keyBearer, user, 'ios', 'production');
@@ -1168,7 +1205,7 @@ describe('isolation, pagination, and delivery-time credential state', () => {
   });
 
   it('fan-out honours per-channel topic defaults', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const topic = `quiet-${uniq()}`;
     await api('/v1/topics', {
       method: 'POST',

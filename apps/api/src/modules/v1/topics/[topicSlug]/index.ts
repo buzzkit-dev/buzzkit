@@ -1,3 +1,4 @@
+import { assertChannelsConnected, listConnectedChannels } from '@buzzkit/api/api/credentials/index';
 import { diffForEvent } from '@buzzkit/api/api/events/index';
 import {
   assertTopicSlugAvailable,
@@ -33,6 +34,11 @@ export const topic = new Elysia()
     async ({ body, db, params, tenant, event }) => {
       const topic = await findTopicBySlug(db, tenant.id, params.topicSlug);
       const channels = body.channels ?? topic.channels;
+
+      if (body.channels) {
+        assertChannelsConnected(await listConnectedChannels(db, tenant.id), body.channels, 'channels');
+      }
+
       assertValidChannelDefaults(body.channelDefaults, channels);
 
       if (

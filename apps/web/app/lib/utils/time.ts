@@ -12,5 +12,5 @@ export function timeAgo(iso: string): string {
   if (days < 7) return `${days}d`;
   const weeks = Math.floor(days / 7);
   if (weeks < 5) return `${weeks}w`;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }

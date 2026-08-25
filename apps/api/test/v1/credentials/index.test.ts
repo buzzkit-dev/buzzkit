@@ -30,7 +30,7 @@ async function uploadApns(headers: Record<string, string>, options: { p8?: strin
 
 describe('POST /v1/credentials (apns)', () => {
   it('rejects a structurally invalid .p8 without storing anything', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
 
     const { status, body } = await uploadApns(keyBearer, { p8: 'not a p8 key at all' });
 
@@ -42,7 +42,7 @@ describe('POST /v1/credentials (apns)', () => {
   });
 
   it('stores a well-formed key against the default tenant (unvalidated when APNs is unreachable locally)', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
 
     const { status, body } = await uploadApns(keyBearer);
 
@@ -57,7 +57,7 @@ describe('POST /v1/credentials (apns)', () => {
   });
 
   it('never returns or stores the secret in readable form', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const p8 = await generateP8();
     const bundleId = `dev.buzzkit.secrecy${uniq()}`;
 
@@ -83,7 +83,7 @@ describe('POST /v1/credentials (apns)', () => {
   });
 
   it('re-uploading replaces the credential — one live row per provider and environment', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
 
     await uploadApns(keyBearer);
     await uploadApns(keyBearer);
@@ -95,7 +95,7 @@ describe('POST /v1/credentials (apns)', () => {
 
 describe('credential input validation and slots', () => {
   it('validates APNs metadata shape before touching any provider', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const p8 = await generateP8();
 
     for (const body of [
@@ -115,7 +115,7 @@ describe('credential input validation and slots', () => {
   });
 
   it('sandbox and production APNs credentials are separate slots', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const base = { teamId: 'ABCDE12345', keyId: 'XYZ9876543', bundleId: 'dev.buzzkit.slots' };
 
     const sandbox = await api('/v1/credentials', {
@@ -138,8 +138,8 @@ describe('credential input validation and slots', () => {
   });
 
   it('dashboard sessions upload with workspace + tenant headers', async () => {
-    const { workspace, ownerBearer, keyBearer } = await setupWorkspace();
-    const tenant = await createTenant(keyBearer);
+    const { workspace, ownerBearer, keyBearer } = await setupWorkspace({ bare: true });
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
 
     const { status } = await uploadApns({
       ...ownerBearer,
@@ -157,7 +157,7 @@ describe('credential input validation and slots', () => {
 
 describe('POST /v1/credentials (fcm)', () => {
   it('rejects malformed service accounts', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
 
     const { status } = await api('/v1/credentials', {
       method: 'POST',
@@ -169,7 +169,7 @@ describe('POST /v1/credentials (fcm)', () => {
   });
 
   it('validates against Google and rejects unregistered accounts end-to-end', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const account = await generateServiceAccount(`buzzkit-test-${uniq()}`);
 
     const { status, body } = await api('/v1/credentials', {
@@ -189,7 +189,7 @@ describe('POST /v1/credentials (fcm)', () => {
 
 describe('POST /v1/credentials (resend)', () => {
   it('validates against Resend and rejects invalid keys end-to-end', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
 
     const { status, body } = await api('/v1/credentials', {
       method: 'POST',
@@ -206,7 +206,7 @@ describe('POST /v1/credentials (resend)', () => {
   });
 
   it('an email credential lives in its own slot next to push credentials', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     await uploadApns(keyBearer);
 
     const list = await api<{ items: Array<{ channel: string; provider: string }> }>('/v1/credentials', {
@@ -218,8 +218,8 @@ describe('POST /v1/credentials (resend)', () => {
 
 describe('credential tenant isolation', () => {
   it('scopes credentials to the addressed tenant via buzzkit-tenant', async () => {
-    const { keyBearer } = await setupWorkspace();
-    const tenant = await createTenant(keyBearer);
+    const { keyBearer } = await setupWorkspace({ bare: true });
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
 
     await uploadApns(keyBearer);
     await uploadApns({ ...keyBearer, 'buzzkit-tenant': tenant.slug });
@@ -237,7 +237,7 @@ describe('credential tenant isolation', () => {
   });
 
   it('404s on unknown buzzkit-tenant slugs', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
 
     const { status } = await api('/v1/credentials', {
       headers: { ...keyBearer, 'buzzkit-tenant': `ghost-${uniq()}` },
@@ -247,8 +247,8 @@ describe('credential tenant isolation', () => {
   });
 
   it('a tenant key reads its own tenant and only its own tenant', async () => {
-    const { owner, workspace, keyBearer } = await setupWorkspace();
-    const tenant = await createTenant(keyBearer);
+    const { owner, workspace, keyBearer } = await setupWorkspace({ bare: true });
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
     await uploadApns({ ...keyBearer, 'buzzkit-tenant': tenant.slug });
 
     const tenantKey = await createKey(owner.token, workspace.slug, {
@@ -284,8 +284,8 @@ describe('credential tenant isolation', () => {
 
 describe('credential id isolation', () => {
   it("a credential id never resolves under a different tenant's context", async () => {
-    const { keyBearer } = await setupWorkspace();
-    const tenant = await createTenant(keyBearer);
+    const { keyBearer } = await setupWorkspace({ bare: true });
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
     const defaultCred = await uploadApns(keyBearer);
     const credentialId = defaultCred.body.data?.id;
 
@@ -311,8 +311,8 @@ describe('credential id isolation', () => {
   });
 
   it('rejects malformed and wrong-entity credential ids', async () => {
-    const { keyBearer } = await setupWorkspace();
-    const tenant = await createTenant(keyBearer);
+    const { keyBearer } = await setupWorkspace({ bare: true });
+    const tenant = await createTenant(keyBearer, undefined, { bare: true });
 
     const malformed = await api('/v1/credentials/not-a-sqid!', { headers: keyBearer });
     expect(malformed.status).toBe(404);
@@ -324,7 +324,7 @@ describe('credential id isolation', () => {
 
 describe('credential lifecycle edges', () => {
   it('a replaced credential id dies; a revoked one 404s on every verb; read-only keys cannot act', async () => {
-    const { owner, workspace, keyBearer } = await setupWorkspace();
+    const { owner, workspace, keyBearer } = await setupWorkspace({ bare: true });
 
     const first = await uploadApns(keyBearer);
     const second = await uploadApns(keyBearer);
@@ -367,7 +367,7 @@ describe('credential lifecycle edges', () => {
   });
 
   it('the audit ledger never contains credential secrets', async () => {
-    const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
+    const { workspace, keyBearer, ownerBearer } = await setupWorkspace({ bare: true });
     const p8 = await generateP8();
     await uploadApns(keyBearer, { p8, bundleId: `dev.buzzkit.ledger${uniq()}` });
 
@@ -380,7 +380,7 @@ describe('credential lifecycle edges', () => {
 
 describe('credential lifecycle', () => {
   it('revokes, revalidates, and records ledger events', async () => {
-    const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
+    const { workspace, keyBearer, ownerBearer } = await setupWorkspace({ bare: true });
 
     const upload = await uploadApns(keyBearer);
     const credentialId = upload.body.data?.id;
@@ -416,7 +416,7 @@ describe('credential lifecycle', () => {
 
 describe('environment detection', () => {
   it('detects the environments a key is valid for and creates one slot per environment', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const { status, body } = await api<{ items: CredentialBody[] }>('/v1/credentials', {
       method: 'POST',
       headers: keyBearer,
@@ -438,7 +438,7 @@ describe('environment detection', () => {
   });
 
   it('an explicit environment creates exactly that slot', async () => {
-    const { keyBearer } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace({ bare: true });
     const { body } = await uploadApns(keyBearer);
     expect(body.data?.environment).toBe('sandbox');
     const list = await api<{ items: CredentialBody[] }>('/v1/credentials', { headers: keyBearer });

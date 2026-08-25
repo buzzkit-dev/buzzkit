@@ -1,3 +1,4 @@
+import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import {
   ClientIdentitySchema,
   EmailAddressSchema,
@@ -20,6 +21,8 @@ export const clientIdentify = new Elysia()
     '/client/identify',
     async ({ body, db, request, set, tenant, clientEvent }) => {
       const verified = await verifyIdentity(tenant, body.externalId, body.identityHash);
+
+      if (body.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
       const { subscriber, created } = await upsertSubscriber(db, tenant.id, body.externalId, {
         verifiedNow: verified,

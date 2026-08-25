@@ -65,6 +65,8 @@ export async function topicsAction(args: ActionFunctionArgs) {
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.code === 'conflict') return { error: 'A topic with that slug already exists.' };
+      if (error.code === 'channel_not_connected')
+        return { error: 'Connect a provider for that channel first.' };
       return { error: error.message };
     }
     throw error;

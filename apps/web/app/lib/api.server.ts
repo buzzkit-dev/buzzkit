@@ -467,16 +467,95 @@ export function listSubscriberEvents(
   );
 }
 
+export type MessageQuery = {
+  limit?: number;
+  cursor?: string;
+  q?: string;
+  status?: 'queued' | 'processing' | 'completed';
+  channel?: 'push' | 'email';
+  topic?: string;
+  from?: string;
+  to?: string;
+};
+
 export function listMessages(
   ctx: RequestContext,
   token: string,
   workspaceSlug: string,
   tenantSlug: string,
-  query: { limit?: number; cursor?: string } = {}
+  query: MessageQuery = {}
 ) {
   return unwrap(
     ctx,
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).messages.get({ query })
+  );
+}
+
+export function getMessage(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).messages({ id }).get()
+  );
+}
+
+export function listMessageDeliveries(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string,
+  query: {
+    limit?: number;
+    cursor?: string;
+    status?: 'pending' | 'retrying' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'invalid';
+  } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .messages({ id })
+      .deliveries.get({ query })
+  );
+}
+
+export function listDeliveryAttempts(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).deliveries({ id }).attempts.get()
+  ).then((page) => page.items);
+}
+
+export type MessageInput = {
+  to?: string[];
+  topic?: string;
+  channel?: 'push' | 'email';
+  title?: string;
+  body?: string;
+  data?: Record<string, unknown>;
+};
+
+export function sendMessage(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  input: MessageInput
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).messages.post(input)
   );
 }
 
@@ -497,3 +576,6 @@ export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];
 export type CreatedKey = Awaited<ReturnType<typeof createKey>>;
 export type Message = Awaited<ReturnType<typeof listMessages>>['items'][number];
+export type MessageDetail = Awaited<ReturnType<typeof getMessage>>;
+export type MessageDelivery = Awaited<ReturnType<typeof listMessageDeliveries>>['items'][number];
+export type DeliveryAttempt = Awaited<ReturnType<typeof listDeliveryAttempts>>[number];

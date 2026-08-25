@@ -78,7 +78,7 @@ Nine hues: `purple`, `sky`, `blue`, `green`, `amber`, `orange`, `red`, `pink`, `
 <Badge variant='amber'>Pending</Badge>   // bg-amber-1 + text-amber-text
 ```
 
-**Purple is for tags and labels only.** Never accent chrome with it.
+**Purple is for tags, labels and badges only** (tenant keys, Android, a message that is currently sending). Never accent chrome with it.
 
 ### 2.3 Primary — the brand alias
 
@@ -418,6 +418,10 @@ Popover: 288px, `rounded-xl`, title + description with no gap. Tooltip: a 24px d
 ### Toast
 
 `toast.success | error | warning | info | loading` from `@buzzkit/ui/components/sonner`. Firing the same kind+message twice pings the existing toast (shake for error/warning, bump otherwise) instead of stacking a duplicate. `toast.loading` is a promise toast underneath, so settling it by id cross-fades the spinner into the result icon. Toasts are translucent + blurred; their CSS is unlayered so it beats sonner's own stylesheet.
+
+### FilterBar
+
+Every filterable table gets the same row above it: `FilterBar` holding, left to right, one `FilterSelect` per facet whose empty state reads "Any status" / "Any channel" and whose trigger turns `fg-4` once something is picked, a `FilterClear` ghost button that only appears while anything is active, and on the far right a `FilterSearch` (a magnifying-glass input with the debounced `loading` spinner). The bar is `justify-between`: the facets form one group on the left, the search field sits alone on the right. It pulls the table 10px closer (`-mb-2.5` against the page's 20px rhythm, so 10px), because it belongs to the table, not to the page. The components are fully controlled and know nothing about routing: the dashboard's `useFilters` hook keeps the values in the URL (`?q=&status=&…`), drops the page cursor whenever a filter changes, and applies typed search 300ms after the last keystroke. Never invent per-page chips or "Add filter" menus; the facets are few and fixed, so show them.
 
 ### Truncate
 
