@@ -17,6 +17,7 @@ export default [
     route('topics', 'routes/[slug]/topics/index.tsx'),
     route('messages', 'routes/[slug]/messages/index.tsx'),
     route('messages/:id', 'routes/[slug]/messages/[id]/index.tsx'),
+    route('events', 'routes/[slug]/events/index.tsx'),
     route('keys', 'routes/[slug]/keys/index.tsx'),
     route('subscribers/:externalId', 'routes/[slug]/subscribers/[externalId]/index.tsx'),
     route('settings', 'routes/[slug]/settings/layout.tsx', [index('routes/[slug]/settings/index.tsx')]),

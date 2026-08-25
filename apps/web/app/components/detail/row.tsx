@@ -42,7 +42,7 @@ export function DetailRow({
             )}
           >
             <span className='flex min-w-0 items-center gap-1.5 truncate'>{children}</span>
-            <span className='relative size-4 shrink-0'>
+            <span className='-translate-y-[0.5px] relative size-4 shrink-0'>
               <Icon
                 name='IconClipboard2'
                 className={cn(

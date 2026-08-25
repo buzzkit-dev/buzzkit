@@ -1,11 +1,27 @@
 import type { ApiKey } from '@buzzkit/api/api/keys/index';
 import { describeError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
+import { ActorTypeSchema } from '@buzzkit/api/libs/schemas';
 import { decodeSqid, encodeBareId, encodeId, ID_PREFIXES, TARGET_ENTITIES } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { deepEqual } from '@buzzkit/api/utils/equality';
 import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
-import { and, count, type Db, desc, eq, inArray, lt, or, sql, tables } from '@buzzkit/database';
+import {
+  and,
+  count,
+  type Db,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lt,
+  lte,
+  or,
+  sql,
+  tables,
+} from '@buzzkit/database';
+import { t } from 'elysia';
 import type { EventName } from './catalog';
 
 export { EVENT_CATALOG, type EventName, isPublicEvent, PUBLIC_EVENTS } from './catalog';
@@ -29,6 +45,22 @@ export type EventEntry = {
 };
 
 export type EventFn = (entry: EventEntry) => Promise<void>;
+
+export type EventFilters = {
+  q?: string;
+  event?: string;
+  actorType?: 'member' | 'user' | 'key' | 'system';
+  from?: string;
+  to?: string;
+};
+
+export const EventFiltersSchema = t.Object({
+  q: t.Optional(t.String({ maxLength: 200 })),
+  event: t.Optional(t.String({ maxLength: 100 })),
+  actorType: t.Optional(ActorTypeSchema),
+  from: t.Optional(t.String({ format: 'date-time' })),
+  to: t.Optional(t.String({ format: 'date-time' })),
+});
 
 export function diffForEvent<T extends Record<string, unknown>>(
   before: T,
@@ -179,24 +211,33 @@ export function serializeEvent(row: EventRow) {
   };
 }
 
+function resolveEventFilters(workspaceId: number, filters: EventFilters) {
+  const needle = filters.q?.trim();
+  return and(
+    eq(tables.event.workspaceId, workspaceId),
+    filters.event ? eq(tables.event.event, filters.event) : undefined,
+    filters.actorType ? eq(tables.event.actorType, filters.actorType) : undefined,
+    filters.from ? gte(tables.event.createdAt, new Date(filters.from)) : undefined,
+    filters.to ? lte(tables.event.createdAt, new Date(filters.to)) : undefined,
+    needle
+      ? or(
+          ilike(tables.event.event, `%${needle}%`),
+          ilike(tables.event.actorDisplay, `%${needle}%`),
+          ilike(tables.event.targetId, `%${needle.replace(/^[a-z]+_/, '')}%`),
+          ilike(sql`${tables.event.data}->>'externalId'`, `%${needle}%`)
+        )
+      : undefined
+  );
+}
+
 export async function listEvents(
   db: Db,
   workspaceId: number,
-  options: {
-    cursor?: string;
-    limit?: number;
-    event?: string;
-    actorType?: 'member' | 'user' | 'key' | 'system';
-  } = {}
+  options: { cursor?: string; limit?: number } & EventFilters = {}
 ) {
   const limit = clampLimit(options.limit);
   const cursorId = resolveCursor(options.cursor, decodeSqid);
-
-  const filters = and(
-    eq(tables.event.workspaceId, workspaceId),
-    options.event !== undefined ? eq(tables.event.event, options.event) : undefined,
-    options.actorType !== undefined ? eq(tables.event.actorType, options.actorType) : undefined
-  );
+  const filters = resolveEventFilters(workspaceId, options);
 
   const [rows, [counted]] = await Promise.all([
     trace(

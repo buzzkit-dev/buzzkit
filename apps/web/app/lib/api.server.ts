@@ -467,6 +467,25 @@ export function listSubscriberEvents(
   );
 }
 
+export type EventQuery = {
+  limit?: number;
+  cursor?: string;
+  q?: string;
+  event?: string;
+  actorType?: 'member' | 'user' | 'key' | 'system';
+  from?: string;
+  to?: string;
+};
+
+export function listEvents(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  query: EventQuery = {}
+) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).events.get({ query }));
+}
+
 export type MessageQuery = {
   limit?: number;
   cursor?: string;
@@ -571,6 +590,7 @@ export type Topic = Awaited<ReturnType<typeof listTopics>>['items'][number];
 export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
 export type SubscriberDelivery = Awaited<ReturnType<typeof listSubscriberDeliveries>>['items'][number];
 export type SubscriberEvent = Awaited<ReturnType<typeof listSubscriberEvents>>['items'][number];
+export type WorkspaceEvent = Awaited<ReturnType<typeof listEvents>>['items'][number];
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];

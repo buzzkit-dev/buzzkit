@@ -4,7 +4,13 @@ import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
-import { FilterBar, FilterClear, FilterSearch, FilterSelect } from '@buzzkit/ui/components/filter-bar';
+import {
+  FilterBar,
+  FilterClear,
+  FilterRange,
+  FilterSearch,
+  FilterSelect,
+} from '@buzzkit/ui/components/filter-bar';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { Input } from '@buzzkit/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
@@ -25,7 +31,7 @@ import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge } from '@/app/components/badges';
 import { Funnel } from '@/app/components/messages/funnel';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
-import { useFilters } from '@/app/hooks/use-filters';
+import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
 import { listMessages, listTopics, type Message, type MessageQuery, type Topic } from '@/app/lib/api.server';
@@ -44,12 +50,6 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed' },
 ] as const;
 
-const RANGES: Record<string, { label: string; hours: number }> = {
-  '24h': { label: 'Last 24 hours', hours: 24 },
-  '7d': { label: 'Last 7 days', hours: 24 * 7 },
-  '30d': { label: 'Last 30 days', hours: 24 * 30 },
-};
-
 export function meta() {
   return [{ title: 'Messages · BuzzKit' }];
 }
@@ -59,7 +59,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { token } = requireSession(request);
   const ctx = { request, env };
   const search = requestUrl(request).searchParams;
-  const range = RANGES[search.get('range') ?? ''];
   const status = STATUS_OPTIONS.find((option) => option.value === search.get('status'))?.value;
   const channel = CHANNEL_OPTIONS.find((option) => option.value === search.get('channel'))?.value;
   const query: MessageQuery = {
@@ -68,9 +67,9 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     status,
     channel,
     topic: search.get('topic') || undefined,
-    from: range ? new Date(Date.now() - range.hours * 3_600_000).toISOString() : undefined,
+    ...resolveRange(search.get('range')),
   };
-  const filtered = Boolean(query.q || status || channel || query.topic || range);
+  const filtered = Boolean(query.q || status || channel || query.topic || query.from);
 
   const [page, topics] = await Promise.all([
     listMessages(ctx, token, params.slug, 'default', query),
@@ -364,10 +363,9 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
               onValueChange={(value) => filters.set('topic', value)}
             />
           )}
-          <FilterSelect
-            label='Time'
+          <FilterRange
+            presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
             value={filters.values.range}
-            options={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
             onValueChange={(value) => filters.set('range', value)}
           />
           {filters.active && <FilterClear onClick={filters.clear} />}

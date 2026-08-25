@@ -3,6 +3,25 @@ import { useNavigate, useNavigation, useSearchParams } from 'react-router';
 
 const PAGE_PARAMS = ['cursor', 'trail'];
 
+export const RANGES: Record<string, { label: string; hours: number }> = {
+  '24h': { label: 'Last 24 hours', hours: 24 },
+  '7d': { label: 'Last 7 days', hours: 24 * 7 },
+  '30d': { label: 'Last 30 days', hours: 24 * 30 },
+  '90d': { label: 'Last 90 days', hours: 24 * 90 },
+  '12m': { label: 'Last 12 months', hours: 24 * 365 },
+};
+
+export function resolveRange(value: string | null): { from?: string; to?: string } {
+  const preset = RANGES[value ?? ''];
+  if (preset) return { from: new Date(Date.now() - preset.hours * 3_600_000).toISOString() };
+  const custom = value?.match(/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/);
+  if (!custom) return {};
+  const from = new Date(`${custom[1]}T00:00:00.000Z`);
+  const to = new Date(`${custom[2]}T23:59:59.999Z`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) return {};
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 export function useFilters<K extends string>(keys: readonly K[]) {
   const [params] = useSearchParams();
   const navigate = useNavigate();

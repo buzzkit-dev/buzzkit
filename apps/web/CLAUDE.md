@@ -22,7 +22,8 @@ app/
   hooks/                        Client hooks
   components/<feature>/         Only pieces used by more than one route live here, one directory per feature, files named for what they
                                 are (never prefixed, never abbreviated): badges/ (the vocabulary badges: one component per value set, owning label
-                                and colour, so a platform or key kind looks the same on every page) · auth/ (form, providers, password input) · layout/ (the signed-in chrome: sidebar + navigation.ts, the IA;
+                                and colour, so a platform or key kind looks the same on every page) · events/ (describe.ts, the ledger vocabulary:
+                                label, icon and detail per event name, shared by the Events page and the subscriber profile) · auth/ (form, providers, password input) · layout/ (the signed-in chrome: sidebar + navigation.ts, the IA;
                                 account menu, workspace switcher, theme provider) · onboarding/ (layout, transition, progress, catalog,
                                 choice-row, file-drop, connected, provider-guide; guides/ data; illustration/ primitives) · settings/ ·
                                 workspace/ (fields, create dialog) · errors/ (unexpected, no-access, not-found). Anything a single route uses is written in that route file
@@ -48,6 +49,5 @@ app/
 | Command | Description |
 |---|---|
 | `bun dev` | Dev server on 5180 (needs `.dev.vars` with `API_URL`, see `.dev.vars.example`, and the API on 8790) |
-| `VITE_FORCE_THEME=light` in `.env.local` | Dev-only theme pin (`light` or `dark`); git-ignored, ignored in production builds |
 | `bun check-types` | `wrangler types` + `react-router typegen` + `tsc` |
 | `bun build` / `bun deploy` | Build / deploy the Worker |

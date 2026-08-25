@@ -24,12 +24,6 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 const STORAGE_KEY = 'buzzkit-ui-theme';
 
-const FORCED_THEME: Theme | null =
-  import.meta.env.DEV &&
-  (import.meta.env.VITE_FORCE_THEME === 'light' || import.meta.env.VITE_FORCE_THEME === 'dark')
-    ? import.meta.env.VITE_FORCE_THEME
-    : null;
-
 function systemTheme(): 'dark' | 'light' {
   if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -42,7 +36,6 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (FORCED_THEME) return FORCED_THEME;
     if (typeof window === 'undefined') return defaultTheme;
     return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
   });
@@ -75,7 +68,6 @@ export function ThemeProvider({
     theme,
     resolvedTheme: resolved,
     setTheme: (next: Theme) => {
-      if (FORCED_THEME) return;
       localStorage.setItem(storageKey, next);
       setTheme(next);
     },

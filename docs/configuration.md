@@ -46,7 +46,6 @@ Every variable, secret and binding the two Workers read, what it is for, and whe
 | `ENVIRONMENT` | var | yes | `development` or `production`. Controls the `Secure` flag on the session cookie. |
 | `API_URL` | var | yes | Origin of the API this dashboard talks to (`http://localhost:8790` locally). Every `/v1/*` call goes there, and the browser signs in against its `/v1/auth` directly. The dashboard has no secrets of its own. |
 | `GITHUB_CLIENT_ID` | var | optional | The GitHub OAuth app's public client id, the same one the API has. Its presence shows the "Sign in with GitHub" button; the API runs the flow. |
-| `VITE_FORCE_THEME` | `.env.local`, dev only | optional | Pins the theme to `light` or `dark` while working. Ignored in production builds. |
 
 ## Which accounts a self-hoster needs
 

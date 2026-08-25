@@ -6,7 +6,7 @@ One `event` table is the ledger for the workspace audit log and — later — we
 
 ## GET /v1/workspaces/:workspaceSlug/events
 
-Scope `events:read` (admin sessions, or keys granted it). Keyset-paginated newest-first (`{ items, hasMore, nextCursor }`, cursors are `evt_…` ids); filters: `?event=tenant.created`, `?actorType=member|user|key|system`. Each event: `id`, `event`, `tenantId` (null for account/workspace-level events), `actorType`, `actorDisplay`, `actorMemberId` / `actorKeyId` (whichever applies), `targetType`, `targetId` (prefixed id), `data`, `requestId`, `ip`, `userAgent`, `createdAt`. Internal ids (workspace, BetterAuth user) are never exposed.
+Scope `events:read` (admin sessions, or keys granted it). Keyset-paginated newest-first (`{ items, hasMore, nextCursor }`, cursors are `evt_…` ids); filters: `?event=tenant.created` (exact name), `?actorType=member|user|key|system`, `?from=` / `?to=` (ISO date-times on `createdAt`), and `?q=` (case-insensitive substring over the event name, the actor's display, the target id, prefixed or bare, and the subscriber's external id in `data`); `total` counts the filtered ledger for page numbering. Each event: `id`, `event`, `tenantId` (null for account/workspace-level events), `actorType`, `actorDisplay`, `actorMemberId` / `actorKeyId` (whichever applies), `targetType`, `targetId` (prefixed id), `data`, `requestId`, `ip`, `userAgent`, `createdAt`. Internal ids (workspace, BetterAuth user) are never exposed.
 
 ```json
 {

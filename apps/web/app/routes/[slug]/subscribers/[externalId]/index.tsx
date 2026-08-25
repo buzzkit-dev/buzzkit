@@ -40,6 +40,7 @@ import {
   VerifiedBadge,
 } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
+import { actorLabel, describeEvent } from '@/app/components/events/describe';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
@@ -246,7 +247,7 @@ function endpointLabel(subscription: Subscription): string {
 }
 
 const SUBSCRIPTION_ICONS: Record<string, IconName> = {
-  push: 'IconPhone',
+  push: 'IconPhoneFilled',
   email: 'IconEmail2Filled',
   sms: 'IconBubbleTextFilled',
 };
@@ -406,72 +407,6 @@ function localTime(timeZone: string): string | null {
   } catch {
     return null;
   }
-}
-
-function subjectOf(data: Record<string, unknown>): string {
-  if (data.channel === 'email')
-    return typeof data.endpoint === 'string' ? `email ${data.endpoint}` : 'an email address';
-  if (data.platform === 'ios') return 'iOS device';
-  if (data.platform === 'android') return 'Android device';
-  return 'device';
-}
-
-function changesOf(data: Record<string, unknown>): string | null {
-  const changes = data.changes;
-  if (!changes || typeof changes !== 'object') return null;
-  const parts: string[] = [];
-  for (const [topic, channels] of Object.entries(changes as Record<string, Record<string, unknown>>)) {
-    for (const [channel, value] of Object.entries(channels ?? {})) {
-      parts.push(`${topic} ${channel === 'push' ? 'push' : channel} ${value ? 'on' : 'off'}`);
-    }
-  }
-  return parts.length > 0 ? parts.join(', ') : null;
-}
-
-const EVENT_LABELS: Record<
-  string,
-  (data: Record<string, unknown>) => { label: string; icon: IconName; detail?: string | null }
-> = {
-  'subscriber.created': () => ({ label: 'Identified', icon: 'IconFingerPrint1' }),
-  'subscriber.updated': () => ({ label: 'Attributes updated', icon: 'IconParagraph' }),
-  'subscriber.deleted': () => ({ label: 'Deleted', icon: 'IconTrashCan' }),
-  'subscription.created': (data) =>
-    data.channel === 'email'
-      ? { label: `Added ${subjectOf(data)}`, icon: 'IconEmail2Filled' }
-      : { label: `Registered ${subjectOf(data)}`, icon: 'IconPhone' },
-  'subscription.updated': (data) =>
-    data.enabled === false
-      ? { label: `Muted ${subjectOf(data)}`, icon: 'IconBellOff' }
-      : { label: `Unmuted ${subjectOf(data)}`, icon: 'IconBellActive' },
-  'subscription.removed': (data) => ({ label: `Removed ${subjectOf(data)}`, icon: 'IconCircleX' }),
-  'subscription.invalidated': (data) => ({
-    label: `${subjectOf(data)} stopped accepting pushes`,
-    icon: 'IconCircleBanSign',
-    detail: typeof data.reason === 'string' ? data.reason : null,
-  }),
-  'preferences.updated': (data) => ({
-    label: 'Preferences changed',
-    icon: 'IconSettingsSliderHor',
-    detail: changesOf(data),
-  }),
-};
-
-function actorLabel(event: SubscriberEvent): string {
-  switch (event.actorType) {
-    case 'key':
-      return `via ${event.actorDisplay}`;
-    case 'member':
-      return `by ${event.actorDisplay}`;
-    case 'user':
-      return 'by the subscriber';
-    default:
-      return 'by BuzzKit';
-  }
-}
-
-function describeEvent(event: SubscriberEvent): { label: string; icon: IconName; detail?: string | null } {
-  const data = (event.data ?? {}) as Record<string, unknown>;
-  return EVENT_LABELS[event.event]?.(data) ?? { label: event.event, icon: 'IconBell' };
 }
 
 function DeliveryRow({ delivery, params }: { delivery: SubscriberDelivery; params: { slug: string } }) {

@@ -67,7 +67,13 @@ import {
   FieldSeparator,
   FieldSet,
 } from '@buzzkit/ui/components/field';
-import { FilterBar, FilterClear, FilterSearch, FilterSelect } from '@buzzkit/ui/components/filter-bar';
+import {
+  FilterBar,
+  FilterClear,
+  FilterRange,
+  FilterSearch,
+  FilterSelect,
+} from '@buzzkit/ui/components/filter-bar';
 import { GuideStep } from '@buzzkit/ui/components/guide-step';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { ICON_NAMES, Icon } from '@buzzkit/ui/components/icon';
@@ -874,7 +880,7 @@ export default function DesignSystem() {
         <Section
           id='filter-bar'
           title='FilterBar'
-          description='The row above a data table: a search field, one select per facet ("Any status" until something is picked), and a Clear button once anything is active. Controlled by the page, which keeps the state in the URL.'
+          description='The row above a data table: a search field, one select per facet ("Any status" until something is picked), a time facet whose presets reach back a year and whose "Custom range" opens a two-month calendar, and a Clear button once anything is active. Controlled by the page, which keeps the state in the URL.'
           className='flex-col items-start gap-6'
         >
           <Specimen label='nothing active'>
@@ -897,6 +903,15 @@ export default function DesignSystem() {
                 ]}
                 onValueChange={() => {}}
               />
+              <FilterRange
+                presets={[
+                  { value: '7d', label: 'Last 7 days' },
+                  { value: '30d', label: 'Last 30 days' },
+                  { value: '12m', label: 'Last 12 months' },
+                ]}
+                value={null}
+                onValueChange={() => {}}
+              />
               <FilterSearch placeholder='Search messages' aria-label='Search' defaultValue='' />
             </FilterBar>
           </Specimen>
@@ -909,6 +924,14 @@ export default function DesignSystem() {
                   { value: 'queued', label: 'Queued' },
                   { value: 'completed', label: 'Completed' },
                 ]}
+                onValueChange={() => {}}
+              />
+              <FilterRange
+                presets={[
+                  { value: '7d', label: 'Last 7 days' },
+                  { value: '30d', label: 'Last 30 days' },
+                ]}
+                value='2026-06-03..2026-06-17'
                 onValueChange={() => {}}
               />
               <FilterClear />

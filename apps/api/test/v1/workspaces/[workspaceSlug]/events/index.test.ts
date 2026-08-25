@@ -75,6 +75,61 @@ describe('GET /v1/workspaces/:slug/events', () => {
     expect(byActor.body.data?.items.every((item) => item.actorType === 'key')).toBe(true);
   });
 
+  it('searches event names, actors and targets, case-insensitively', async () => {
+    const { owner, workspace, keyBearer, ownerBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer);
+    const externalId = `Search_${uniq()}`;
+    await api(`/v1/subscribers/${externalId}`, { method: 'PUT', headers: keyBearer, body: '{}' });
+
+    const byName = await listEvents(ownerBearer, workspace.slug, '?q=TENANT.');
+    expect(byName.body.data?.items.length).toBeGreaterThan(0);
+    expect(byName.body.data?.items.every((item) => item.event.startsWith('tenant.'))).toBe(true);
+
+    const byActor = await listEvents(ownerBearer, workspace.slug, `?q=${owner.email.toUpperCase()}`);
+    expect(byActor.body.data?.items.length).toBeGreaterThan(0);
+    expect(byActor.body.data?.items.every((item) => item.actorDisplay === owner.email)).toBe(true);
+
+    const byTarget = await listEvents(ownerBearer, workspace.slug, `?q=${tenant.id}`);
+    expect(byTarget.body.data?.items.map((item) => item.event)).toEqual(['tenant.created']);
+
+    const bySubscriber = await listEvents(ownerBearer, workspace.slug, `?q=${externalId.toLowerCase()}`);
+    expect(bySubscriber.body.data?.items.map((item) => item.event)).toEqual(['subscriber.created']);
+
+    const nothing = await listEvents(ownerBearer, workspace.slug, `?q=nope_${uniq()}`);
+    expect(nothing.body.data?.items).toEqual([]);
+  });
+
+  it('limits the list to a time window and reports the filtered total', async () => {
+    const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
+    const before = new Date().toISOString();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await createTenant(keyBearer);
+    await createTenant(keyBearer);
+
+    const since = await api<{ items: EventItem[]; total: number }>(
+      `/v1/workspaces/${workspace.slug}/events?from=${encodeURIComponent(before)}&event=tenant.created`,
+      { headers: ownerBearer }
+    );
+    expect(since.body.data?.items).toHaveLength(2);
+    expect(since.body.data?.total).toBe(2);
+
+    const until = await api<{ items: EventItem[]; total: number }>(
+      `/v1/workspaces/${workspace.slug}/events?to=${encodeURIComponent(before)}&event=tenant.created`,
+      { headers: ownerBearer }
+    );
+    expect(until.body.data?.items).toEqual([]);
+    expect(until.body.data?.total).toBe(0);
+
+    const combined = await api<{ items: EventItem[]; total: number }>(
+      `/v1/workspaces/${workspace.slug}/events?from=${encodeURIComponent(before)}&actorType=member`,
+      { headers: ownerBearer }
+    );
+    expect(combined.body.data?.items).toEqual([]);
+
+    const malformed = await listEvents(ownerBearer, workspace.slug, '?from=yesterday');
+    expect(malformed.status).toBe(400);
+  });
+
   it('paginates newest-first with opaque cursors', async () => {
     const { workspace, keyBearer, ownerBearer } = await setupWorkspace();
     for (let i = 0; i < 3; i++) {
