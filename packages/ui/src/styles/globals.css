@@ -41,6 +41,8 @@
 
 /* ── Light ───────────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
+
   /* Press feedback: backgrounds deflate by a fixed inset, never a ratio,
      so every control presses the same whatever its width. */
   --press-inset-x: 1px;
@@ -234,6 +236,8 @@
 
 /* ── Dark ────────────────────────────────────────────────────────────────── */
 .dark {
+  color-scheme: dark;
+
   --background: oklch(0.174 0.004 285.97);
   --background-subtle: oklch(0.192 0.004 286.02);
 
