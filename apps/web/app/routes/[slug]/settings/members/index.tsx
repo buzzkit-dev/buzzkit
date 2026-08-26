@@ -103,7 +103,7 @@ function MemberAvatar({ member }: { member: Member }) {
       </Avatar>
     );
   }
-  return <Avatar size='sm' name={user.email} label={user.name ?? user.email} />;
+  return <Avatar size='sm' name={user.email} label={user.name ?? user.email} picture='orb' />;
 }
 
 function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {

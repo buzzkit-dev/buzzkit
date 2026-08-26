@@ -4,6 +4,7 @@ Product and architecture documentation — the source of truth for what we're bu
 
 - [overview.md](overview.md) — product vision, goals, scope, and design principles
 - [roadmap.md](roadmap.md) — the phased build plan, tenancy model, and pending decisions
+- [engine.md](engine.md) — the engagement layer: events, segments, campaigns, workflows, webhooks — the model and the phased plan (proposal, awaiting review)
 - [architecture.md](architecture.md) — runtime, API layers, APNs egress findings, testing, secrets
 - [configuration.md](configuration.md) — every variable, secret and binding, what it is for, and what a self-hoster actually needs
 - [authentication.md](authentication.md) — credentials, scopes, workspace addressing, isolation invariants

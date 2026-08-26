@@ -68,6 +68,7 @@ export function AccountMenu({
             <Avatar
               name={profile.email ?? profile.name}
               label={profile.name}
+              picture='orb'
               className={variant === 'row' ? 'size-6' : 'size-7'}
             />
           )}

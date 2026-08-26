@@ -2,6 +2,8 @@
 
 **Status: Phases 0–4 ✅ (the API milestone). Phase 5 in progress: dashboard phase 1 (foundation + onboarding) is built and awaiting review; the dashboard's own phase plan lives in [dashboard.md](dashboard.md).**
 
+**Phases 8–10 (segments, campaigns, workflows, webhooks) are re-planned in [engine.md](engine.md) — a proposal awaiting review that pulls webhooks forward, adds product-event ingestion as its own phase, and recommends a Postgres + Queue workflow runner over Cloudflare Workflows. The sections below stay until it is approved.**
+
 Deviations from the original plan, all deliberate:
 - **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.
 - Observability (OTel + Axiom via `@buzzkit/observability`) landed in Phase 4 instead of Phase 10 — one Worker reports as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler`.

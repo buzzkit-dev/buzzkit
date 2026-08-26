@@ -1764,7 +1764,7 @@ export default function DesignSystem() {
         <Section
           id='avatar'
           title='Avatar'
-          description='Sizes, image with fallback, status badge and overlapping groups. Anything without a picture of its own gets a generated face: `name` draws a deterministic Kodama character that blurs in as it loads, never initials.'
+          description='Sizes, image with fallback, status badge and overlapping groups. Anything without a picture of its own gets a generated one, never initials: `name` draws a deterministic Kodama face for subscribers, `picture="orb"` a pastel orb for signed-in people.'
         >
           <Specimen label='generated · name="user_42" · the same id always gets the same face'>
             <Avatar size='sm' name='user_42' />
@@ -1773,6 +1773,11 @@ export default function DesignSystem() {
             <Avatar size='xl' name='user_42' />
             <Avatar size='lg' name='jane.doe7' />
             <Avatar size='lg' name='usr_c055e203c655' />
+          </Specimen>
+          <Specimen label='picture="orb" · signed-in people (account menu, members)'>
+            <Avatar size='sm' name='jane@acme.com' picture='orb' />
+            <Avatar name='jane@acme.com' picture='orb' />
+            <Avatar size='lg' name='mark@acme.com' picture='orb' />
           </Specimen>
           <Specimen label='sizes'>
             <Avatar size='sm'>
