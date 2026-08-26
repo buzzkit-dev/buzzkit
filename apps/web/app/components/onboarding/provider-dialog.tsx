@@ -77,7 +77,10 @@ export function ProviderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal>
-      <DialogContent showCloseButton className='items-stretch gap-0 p-0 sm:max-w-md'>
+      <DialogContent
+        showCloseButton
+        className='items-stretch gap-0 p-0 sm:max-w-md [&_[data-slot=card-content]]:px-5 [&_[data-slot=card-footer]]:px-5 [&_[data-slot=card-header]]:px-5 [&_[data-slot=card-header]]:pt-5 [&_[data-slot=card-header]]:pr-12 [&_[data-slot=card-header]]:pb-2.5'
+      >
         {slots && (
           <GuideCardBody
             transitionKey={transitionKey}

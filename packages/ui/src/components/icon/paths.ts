@@ -6,6 +6,7 @@ export const ICON_NAMES = [
   'IconAppleFilled',
   'IconArchive',
   'IconArrowBoxRight',
+  'IconArrowDownRight',
   'IconArrowRotateClockwise',
   'IconArrowUpRight',
   'IconBell',
@@ -115,6 +116,9 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   },
   IconArrowBoxRight: {
     '3': '<g><path d="M15 4L17 4C18.6569 4 20 5.34315 20 7V17C20 18.6569 18.6569 20 17 20H15M14.5 12H4M14.5 12L11 15.5M14.5 12L11 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
+  },
+  IconArrowDownRight: {
+    '3': '<g><path d="M18 9V18H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.25 6.25L17 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
   },
   IconArrowRotateClockwise: {
     '3': '<g><path d="M19.5165 14.6667C18.4182 17.7738 15.4549 20 11.9717 20C7.5534 20 3.97168 16.4183 3.97168 12C3.97168 7.58172 7.5534 4 11.9717 4C15.0676 4 17 5.5 19 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4V8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',

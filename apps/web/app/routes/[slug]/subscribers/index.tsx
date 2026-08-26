@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useNavigation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, PlatformBadge, VerifiedBadge } from '@/app/components/badges';
+import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import {
   ApiError,
@@ -31,8 +32,6 @@ import { type Pagination, paginate, readPage } from '@/app/lib/utils/pagination'
 import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
-
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
 export function meta() {
   return [{ title: 'Subscribers · BuzzKit' }];
@@ -84,19 +83,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   }
 
   return { query, ...paginate(request, page), missing: false, clientKey };
-}
-
-function attribute(subscriber: Subscriber, key: string): string | null {
-  const value = (subscriber.attributes as Record<string, unknown>)[key];
-  return typeof value === 'string' && value.trim() ? value : null;
-}
-
-function countryName(code: string): string {
-  try {
-    return regionNames.of(code.toUpperCase()) ?? code.toUpperCase();
-  } catch {
-    return code.toUpperCase();
-  }
 }
 
 function identifySnippet(apiUrl: string, clientKey: string | null) {

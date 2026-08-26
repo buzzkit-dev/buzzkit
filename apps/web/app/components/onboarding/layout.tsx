@@ -1,7 +1,8 @@
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import { SizeAnimator } from '@buzzkit/ui/components/size-animator';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { OnboardingProgress } from '@/app/components/onboarding/progress';
-import { type StepMotion, StepTransition } from '@/app/components/onboarding/transition';
+import { STEP_DURATION_MS, type StepMotion, StepTransition } from '@/app/components/onboarding/transition';
 
 export const ONBOARDING_STEPS = ['Workspace', 'Channel', 'Provider', 'Connect'] as const;
 
@@ -50,10 +51,12 @@ export function GuideCardBody({
 }) {
   return (
     <>
-      <OnboardingCardHeader>
-        <Title>{slots.title}</Title>
-        {slots.description && <Description>{slots.description}</Description>}
-      </OnboardingCardHeader>
+      <SizeAnimator duration={STEP_DURATION_MS}>
+        <OnboardingCardHeader>
+          <Title>{slots.title}</Title>
+          {slots.description && <Description>{slots.description}</Description>}
+        </OnboardingCardHeader>
+      </SizeAnimator>
       <StepTransition id={transitionKey} motion={motion}>
         {slots.content}
       </StepTransition>

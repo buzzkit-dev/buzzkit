@@ -504,6 +504,19 @@ export function listEvents(
   return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).events.get({ query }));
 }
 
+export function getStats(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  query: { from?: string; to?: string; interval?: 'hour' | 'day' | 'week' | 'month' } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).stats.get({ query })
+  );
+}
+
 export type MessageQuery = {
   limit?: number;
   cursor?: string;
@@ -609,6 +622,7 @@ export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPrefer
 export type SubscriberDelivery = Awaited<ReturnType<typeof listSubscriberDeliveries>>['items'][number];
 export type SubscriberEvent = Awaited<ReturnType<typeof listSubscriberEvents>>['items'][number];
 export type WorkspaceEvent = Awaited<ReturnType<typeof listEvents>>['items'][number];
+export type Stats = Awaited<ReturnType<typeof getStats>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];

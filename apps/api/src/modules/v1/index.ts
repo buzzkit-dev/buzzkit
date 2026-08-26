@@ -15,6 +15,7 @@ import { messages } from './messages';
 import { message } from './messages/[id]';
 import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
+import { stats } from './stats';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
 import { subscriberDeliveries } from './subscribers/[externalId]/deliveries';
@@ -178,6 +179,10 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/messages/:id/deliveries
    */
   .use(messageDeliveries)
+  /*
+   * /v1/stats
+   */
+  .use(stats)
   /*
    * /v1/deliveries/:id
    */

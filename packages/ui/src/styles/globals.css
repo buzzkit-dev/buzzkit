@@ -232,6 +232,37 @@
   --sidebar-accent-foreground: var(--fg-4);
   --sidebar-border: var(--bg-3);
   --sidebar-ring: var(--primary-2);
+  --chart-1: var(--fg-4);
+  --chart-2: var(--fg-3);
+  --chart-3: var(--fg-2);
+  --chart-4: var(--fg-1);
+  --chart-5: var(--bg-4);
+  --chart-background: var(--card);
+  --chart-foreground: var(--fg-4);
+  --chart-foreground-muted: var(--fg-2);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-3);
+  --chart-crosshair: var(--fg-1);
+  --chart-grid: var(--bg-3);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: var(--fg-4);
+  --chart-tooltip-foreground: var(--background);
+  --chart-tooltip-muted: var(--fg-1);
+  --chart-marker-background: var(--bg-2);
+  --chart-marker-border: var(--bg-4);
+  --chart-marker-foreground: var(--fg-4);
+  --chart-label: var(--fg-2);
+  --chart-scale-01: var(--bg-2);
+  --chart-scale-02: var(--bg-3);
+  --chart-scale-03: var(--bg-4);
+  --chart-scale-04: var(--fg-1);
+  --chart-scale-05: var(--fg-2);
+  --chart-scale-pattern-color: var(--bg-2);
+  --legend: var(--card);
+  --legend-foreground: var(--fg-4);
+  --legend-muted: var(--bg-2);
+  --legend-muted-foreground: var(--fg-2);
+  --legend-track: var(--bg-3);
 }
 
 /* ── Dark ────────────────────────────────────────────────────────────────── */
@@ -545,6 +576,37 @@
   --shadow-sm: var(--surface-shadow-2);
   --shadow-md: var(--surface-shadow-3);
   --shadow-lg: var(--surface-shadow-4);
+  --color-chart-scale-pattern-color: var(--chart-scale-pattern-color);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-01: var(--chart-scale-01);
+  --color-chart-label: var(--chart-label);
+  --color-chart-marker-foreground: var(--chart-marker-foreground);
+  --color-chart-marker-border: var(--chart-marker-border);
+  --color-chart-marker-background: var(--chart-marker-background);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --chart-brush-border: var(--chart-brush-border);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-crosshair: var(--chart-crosshair);
+  --chart-line-secondary: var(--chart-line-secondary);
+  --chart-line-primary: var(--chart-line-primary);
+  --color-chart-foreground-muted: var(--chart-foreground-muted);
+  --color-chart-foreground: var(--chart-foreground);
+  --color-chart-background: var(--chart-background);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-legend-track: var(--legend-track);
+  --color-legend-muted-foreground: var(--legend-muted-foreground);
+  --color-legend-muted: var(--legend-muted);
+  --color-legend-foreground: var(--legend-foreground);
+  --color-legend: var(--legend);
 }
 
 @utility scrollbar-hide {

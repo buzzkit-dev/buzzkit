@@ -21,6 +21,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@buzzkit/ui/components/card';
+import { Area, AreaChart } from '@buzzkit/ui/components/charts/area-chart';
+import { Grid } from '@buzzkit/ui/components/charts/grid';
+import { ChartTooltip } from '@buzzkit/ui/components/charts/tooltip/chart-tooltip';
 import { Checkbox } from '@buzzkit/ui/components/checkbox';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import {
@@ -161,6 +164,7 @@ const SECTIONS = [
   { id: 'pastel-avatar', label: 'PastelAvatar' },
   { id: 'truncate', label: 'Truncate' },
   { id: 'filter-bar', label: 'FilterBar' },
+  { id: 'charts', label: 'Charts' },
   { id: 'selection', label: 'Selection' },
   { id: 'input', label: 'Input & Textarea' },
   { id: 'field', label: 'Field' },
@@ -406,6 +410,8 @@ const MOCK_WORKSPACE = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
+
+const CHART_DAYS = Array.from({ length: 7 }, (_, index) => new Date(Date.UTC(2026, 7, 19 + index)));
 
 const MOCK_TENANTS = [
   {
@@ -966,6 +972,39 @@ export default function DesignSystem() {
               <FilterClear />
               <FilterSearch placeholder='Search' aria-label='Search' defaultValue='order' loading />
             </FilterBar>
+          </Specimen>
+        </Section>
+        <Section
+          id='charts'
+          title='Charts'
+          description='bklit charts restyled to the tokens: an area sparkline with a fading fill and a stacked column chart with a tooltip. Series colours are the ramp variables; text stays in text tokens.'
+          className='flex-col items-start gap-6'
+        >
+          <Specimen label='sparkline'>
+            <div className='h-16 w-72'>
+              <AreaChart
+                data={CHART_DAYS.map((day, index) => ({
+                  date: day,
+                  value: [3, 5, 4, 9, 7, 12, 10][index] ?? 0,
+                }))}
+                xDataKey='date'
+                margin={{ top: 6, right: 0, bottom: 0, left: 0 }}
+                aspectRatio='auto'
+                className='h-full w-full'
+                style={{ height: '100%' }}
+              >
+                <Area
+                  dataKey='value'
+                  fill='var(--sky-4)'
+                  stroke='var(--sky-4)'
+                  strokeWidth={1.5}
+                  fillOpacity={0.25}
+                  gradientToOpacity={0}
+                  fadeEdges
+                  showHighlight={false}
+                />
+              </AreaChart>
+            </div>
           </Specimen>
         </Section>
         <Section

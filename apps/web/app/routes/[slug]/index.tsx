@@ -1,195 +1,567 @@
+import { Avatar } from '@buzzkit/ui/components/avatar';
 import { Button } from '@buzzkit/ui/components/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
-import { CodeBlock } from '@buzzkit/ui/components/code-block';
-import { GuideStep } from '@buzzkit/ui/components/guide-step';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@buzzkit/ui/components/card';
+import { Area, AreaChart } from '@buzzkit/ui/components/charts/area-chart';
+import { Grid } from '@buzzkit/ui/components/charts/grid';
+import { ChartTooltip } from '@buzzkit/ui/components/charts/tooltip/chart-tooltip';
+import { XAxis } from '@buzzkit/ui/components/charts/x-axis';
+import { EmptyState } from '@buzzkit/ui/components/empty-state';
+import { FilterRange } from '@buzzkit/ui/components/filter-bar';
+import { Flag } from '@buzzkit/ui/components/flag';
+import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
+import { NumberFlow } from '@buzzkit/ui/components/number-flow';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import { Truncate } from '@buzzkit/ui/components/truncate';
+import { cn } from '@buzzkit/ui/lib/utils';
+import { useMemo } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { CredentialStatusBadge } from '@/app/components/badges';
-import { CHANNELS } from '@/app/components/onboarding/catalog';
-import { ApiError, listCredentials, listKeys, listMessages, listSubscribers } from '@/app/lib/api.server';
+import { ChannelBadge, MessageStatusBadge, PlatformBadge } from '@/app/components/badges';
+import { attribute, countryName } from '@/app/components/subscribers/attributes';
+import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
+import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
+import {
+  getStats,
+  listCredentials,
+  listMessages,
+  listSubscribers,
+  type Message,
+  type Stats,
+  type Subscriber,
+} from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
+import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
+
+const DEFAULT_RANGE = '7d';
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
+  const range = requestUrl(request).searchParams.get('range') ?? DEFAULT_RANGE;
+  const window = resolveRange(range);
 
-  const [credentials, keys, subscribers, messages] = await Promise.all([
+  const [credentials, stats, messages, subscribers] = await Promise.all([
     listCredentials(ctx, token, params.slug, tenant),
-    listKeys(ctx, token, params.slug).catch((error) => {
-      if (error instanceof ApiError && error.status === 403)
-        return { items: [], hasMore: false, nextCursor: null };
-      throw error;
-    }),
-    listSubscribers(ctx, token, params.slug, tenant, { limit: 1 }),
-    listMessages(ctx, token, params.slug, tenant, { limit: 1 }),
+    getStats(ctx, token, params.slug, tenant, window.from ? window : resolveRange(DEFAULT_RANGE)),
+    listMessages(ctx, token, params.slug, tenant, { limit: 5 }),
+    listSubscribers(ctx, token, params.slug, tenant, { limit: 5 }),
   ]);
 
   return {
-    credentials,
-    hasKey: keys.items.some((key) => key.kind === 'workspace' && !key.revokedAt),
-    hasSubscriber: subscribers.items.length > 0,
-    hasMessage: messages.items.length > 0,
+    hasChannel: credentials.length > 0,
+    stats,
+    messages: messages.items,
+    subscribers: subscribers.items,
   };
 }
 
-function sendSnippet(apiUrl: string) {
-  return [
-    `curl -X POST ${apiUrl}/v1/messages \\`,
-    `  -H 'Authorization: Bearer bk_ws_your_workspace_key' \\`,
-    `  -H 'Content-Type: application/json' \\`,
-    `  -d '{ "to": ["user_42"], "title": "Hello from BuzzKit", "body": "Your first push." }'`,
-  ].join('\n');
+function dayOf(date: string): Date {
+  return new Date(date.length === 10 ? `${date}T00:00:00Z` : date);
 }
 
-function registerSnippet(apiUrl: string) {
-  return [
-    `curl -X POST ${apiUrl}/v1/subscriptions \\`,
-    `  -H 'Authorization: Bearer bk_ws_your_workspace_key' \\`,
-    `  -H 'Content-Type: application/json' \\`,
-    `  -d '{ "externalId": "user_42", "channel": "push", "platform": "ios", "token": "<device token>" }'`,
-  ].join('\n');
+const UTC = { timeZone: 'UTC' } as const;
+
+const AXIS_FORMATS = {
+  hour: new Intl.DateTimeFormat('en-US', { hour: 'numeric' }),
+  hourDay: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }),
+  weekday: new Intl.DateTimeFormat('en-US', { weekday: 'short', ...UTC }),
+  day: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...UTC }),
+  month: new Intl.DateTimeFormat('en-US', { month: 'short', ...UTC }),
+  monthLong: new Intl.DateTimeFormat('en-US', { month: 'long', ...UTC }),
+};
+
+function shortYear(date: Date): string {
+  return `’${String(date.getUTCFullYear()).slice(-2)}`;
+}
+
+type AxisPlan = {
+  tick: (date: Date, index: number) => boolean;
+  label: (date: Date) => string;
+  title: (date: Date) => React.ReactNode;
+};
+
+function Qualified({ qualifier, children }: { qualifier: string; children: React.ReactNode }) {
+  return (
+    <>
+      <span className='text-chart-tooltip-muted'>{qualifier}</span> {children}
+    </>
+  );
+}
+
+function axisPlan(interval: Stats['interval'], count: number): AxisPlan {
+  const fromEnd = (_: Date, index: number) => (count - 1 - index) % 2 === 0;
+  const monday = (date: Date) => date.getUTCDay() === 1;
+  switch (interval) {
+    case 'hour': {
+      const step = count > 26 ? 8 : 4;
+      return {
+        tick: (date) => date.getHours() % step === 0,
+        label: (date) => AXIS_FORMATS.hour.format(date),
+        title: (date) => (
+          <Qualified qualifier={AXIS_FORMATS.hourDay.format(date)}>
+            {AXIS_FORMATS.hour.format(date)}
+          </Qualified>
+        ),
+      };
+    }
+    case 'day': {
+      const today = new Date().toISOString().slice(0, 10);
+      const tick =
+        count <= 8
+          ? () => true
+          : count <= 16
+            ? fromEnd
+            : count <= 62
+              ? monday
+              : (date: Date) => monday(date) && Math.floor(date.getTime() / (7 * 86_400_000)) % 2 === 0;
+      const label =
+        count <= 8
+          ? (date: Date) =>
+              date.toISOString().slice(0, 10) === today ? 'Today' : AXIS_FORMATS.weekday.format(date)
+          : (date: Date) => AXIS_FORMATS.day.format(date);
+      return {
+        tick,
+        label,
+        title: (date) => (
+          <Qualified qualifier={AXIS_FORMATS.weekday.format(date)}>{AXIS_FORMATS.day.format(date)}</Qualified>
+        ),
+      };
+    }
+    case 'week':
+      return {
+        tick: count <= 10 ? () => true : fromEnd,
+        label: (date) => AXIS_FORMATS.day.format(date),
+        title: (date) => <Qualified qualifier='Week of'>{AXIS_FORMATS.day.format(date)}</Qualified>,
+      };
+    case 'month':
+      return {
+        tick: () => true,
+        label: (date) =>
+          date.getUTCMonth() === 0
+            ? `${AXIS_FORMATS.month.format(date)} ${shortYear(date)}`
+            : AXIS_FORMATS.month.format(date),
+        title: (date) => `${AXIS_FORMATS.monthLong.format(date)} ${shortYear(date)}`,
+      };
+  }
+}
+
+const TONES = {
+  sky: { fill: 'var(--sky-4)', dot: 'bg-sky-4' },
+  purple: { fill: 'var(--purple-4)', dot: 'bg-purple-4' },
+  green: { fill: 'var(--green-4)', dot: 'bg-green-4' },
+  red: { fill: 'var(--red-4)', dot: 'bg-red-4' },
+} as const;
+
+const DELTA_ICONS: Record<'up' | 'down', { icon: IconName }> = {
+  up: { icon: 'IconArrowUpRight' },
+  down: { icon: 'IconArrowDownRight' },
+};
+
+function Delta({ current, previous, upIsGood }: { current: number; previous: number; upIsGood: boolean }) {
+  if (previous === 0 && current === 0) return null;
+  const change = previous === 0 ? null : Math.round(((current - previous) / previous) * 100);
+  const up = current > previous;
+  const flat = current === previous;
+  const count = `${current >= previous ? '+' : '−'}${Math.abs(current - previous).toLocaleString('en-US')}`;
+  const label = change === null ? count : `${Math.abs(change)}% (${count})`;
+  const tone = flat ? 'text-fg-2' : up === upIsGood ? 'text-green-4' : 'text-red-4';
+  return (
+    <span className={cn('flex items-center gap-0.5 font-medium text-sm', tone)}>
+      {!flat && <Icon name={DELTA_ICONS[up ? 'up' : 'down'].icon} className='size-3.5 opacity-100' />}
+      {label}
+    </span>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  delta,
+  tone,
+  points,
+}: {
+  label: string;
+  value: number;
+  delta: { current: number; previous: number; upIsGood: boolean };
+  tone: keyof typeof TONES;
+  points: { date: Date; value: number }[];
+}) {
+  const flat = points.every((point) => point.value === points[0]?.value);
+  return (
+    <Card className='gap-0 overflow-hidden'>
+      <div className='flex flex-col px-4 pt-3.5'>
+        <span className='text-fg-2 text-sm'>{label}</span>
+        <span className='flex items-center gap-2'>
+          <NumberFlow className='font-medium text-2xl text-fg-4 leading-none tracking-tight' value={value} />
+          <Delta {...delta} />
+        </span>
+      </div>
+      <div className='h-14'>
+        {!flat && (
+          <AreaChart
+            data={points}
+            xDataKey='date'
+            margin={{ top: 6, right: 0, bottom: 0, left: 0 }}
+            aspectRatio='auto'
+            animationDuration={700}
+            yDomainTween={false}
+            interactive={false}
+            className='h-full w-full'
+            style={{ height: '100%' }}
+          >
+            <Area
+              dataKey='value'
+              fill={TONES[tone].fill}
+              stroke={TONES[tone].fill}
+              strokeWidth={1.5}
+              fillOpacity={0.25}
+              gradientToOpacity={0}
+              fadeEdges
+              showHighlight={false}
+            />
+          </AreaChart>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function Key({ tone, children }: { tone: keyof typeof TONES; children: React.ReactNode }) {
+  return (
+    <span className='flex items-center gap-1.5 text-fg-2 text-xs'>
+      <span className={cn('size-2 rounded-full', TONES[tone].dot)} />
+      {children}
+    </span>
+  );
+}
+
+function DeliveriesChart({ series, interval }: { series: Stats['series']; interval: Stats['interval'] }) {
+  const plan = useMemo(() => axisPlan(interval, series.length), [interval, series.length]);
+  const data = series.map((day) => ({
+    date: dayOf(day.date),
+    sent: day.sent,
+    failed: day.failed + day.invalid,
+  }));
+  return (
+    <AreaChart
+      data={data}
+      xDataKey='date'
+      xDomain={[data[0]!.date, data[data.length - 1]!.date]}
+      margin={{ top: 12, right: 24, bottom: 28, left: 24 }}
+      aspectRatio='auto'
+      animationDuration={700}
+      yDomainTween={false}
+      className='h-64 w-full'
+      style={{ height: '16rem' }}
+    >
+      <Grid horizontal numTicksRows={3} strokeDasharray='none' />
+      <Area
+        dataKey='sent'
+        fill={TONES.green.fill}
+        stroke={TONES.green.fill}
+        strokeWidth={2}
+        fillOpacity={0.14}
+        gradientToOpacity={0}
+      />
+      <Area
+        dataKey='failed'
+        fill={TONES.red.fill}
+        stroke={TONES.red.fill}
+        strokeWidth={2}
+        fillOpacity={0.14}
+        gradientToOpacity={0}
+      />
+      <XAxis ticks={plan.tick} format={plan.label} tickerHalfWidth={0} offset={6} />
+      <ChartTooltip
+        showDatePill={false}
+        title={(point: Record<string, unknown>) => plan.title(point.date as Date)}
+        rows={(point: Record<string, unknown>) => [
+          { color: TONES.green.fill, label: 'Sent', value: Number(point.sent) },
+          { color: TONES.red.fill, label: 'Failed', value: Number(point.failed) },
+        ]}
+      />
+    </AreaChart>
+  );
+}
+
+function MessageRow({ message, base }: { message: Message; base: string }) {
+  const payload = message.payload as { title?: string; body?: string };
+  return (
+    <TableRow>
+      <TableCell className='max-w-0 py-2'>
+        <Link
+          to={`${base}/messages/${message.id}`}
+          className='flex min-w-0 flex-col outline-none focus-visible:underline'
+        >
+          <Truncate className='font-medium text-fg-4'>{payload.title ?? 'Untitled'}</Truncate>
+          {payload.body && <Truncate className='text-fg-2 text-xs'>{payload.body}</Truncate>}
+        </Link>
+      </TableCell>
+      <TableCell className='w-0'>
+        <MessageStatusBadge status={message.status} />
+      </TableCell>
+      <TableCell className='w-0'>
+        <TimeAgo at={message.createdAt} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function SubscriberRow({ subscriber, base }: { subscriber: Subscriber; base: string }) {
+  const name = attribute(subscriber, 'name');
+  const email = attribute(subscriber, 'email');
+  const country = attribute(subscriber, '$country');
+  const secondary = name && email ? email : (email ?? name);
+  return (
+    <TableRow>
+      <TableCell className='max-w-0 py-2'>
+        <Link
+          to={`${base}/subscribers/${encodeURIComponent(subscriber.externalId)}`}
+          className='flex items-center gap-2.5 outline-none focus-visible:underline'
+        >
+          <Avatar name={subscriber.externalId} label={name ?? subscriber.externalId} />
+          <span className='flex min-w-0 flex-col'>
+            <span className='flex items-center gap-1.5 font-medium text-fg-4'>
+              <Truncate>{name ?? subscriber.externalId}</Truncate>
+              {country && (
+                <Tooltip>
+                  <TooltipTrigger render={<span className='flex' />}>
+                    <Flag code={country} />
+                  </TooltipTrigger>
+                  <TooltipContent>{countryName(country)}</TooltipContent>
+                </Tooltip>
+              )}
+            </span>
+            <Truncate className='text-fg-2 text-xs'>{name ? subscriber.externalId : secondary}</Truncate>
+          </span>
+        </Link>
+      </TableCell>
+      <TableCell className='w-0'>
+        {subscriber.channels.length > 0 ? (
+          <span className='flex items-center gap-1'>
+            {subscriber.platforms.includes('ios') && <PlatformBadge platform='ios' />}
+            {subscriber.platforms.includes('android') && <PlatformBadge platform='android' />}
+            {subscriber.channels.includes('email') && <ChannelBadge channel='email' />}
+          </span>
+        ) : (
+          <span className='text-fg-2'>None</span>
+        )}
+      </TableCell>
+      <TableCell className='w-0'>
+        <Time at={subscriber.createdAt} />
+      </TableCell>
+    </TableRow>
+  );
 }
 
 export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
-  const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { credentials, hasKey, hasSubscriber, hasMessage } = loaderData;
+  const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const { hasChannel, stats, messages, subscribers } = loaderData;
+  const filters = useFilters(['range'] as const);
+  const base = `/${workspace.slug}`;
 
-  const hasChannel = credentials.length > 0;
-  const steps = [hasChannel, hasKey, hasSubscriber, hasMessage];
-  const firstOpen = steps.findIndex((done) => !done);
-  const stateOf = (index: number) => (steps[index] ? 'done' : index === firstOpen ? 'active' : 'upcoming');
-  const allDone = firstOpen === -1;
+  const delivered = stats.deliveries.sent;
+  const failed = stats.deliveries.failed + stats.deliveries.invalid;
+  const points = (pick: (day: Stats['series'][number]) => number) =>
+    stats.series.map((day) => ({ date: dayOf(day.date), value: pick(day) }));
+  let running = 0;
+  const growth = stats.series.map((day) => {
+    running += day.subscribers;
+    return { date: dayOf(day.date), value: running };
+  });
 
   return (
-    <div className='w-full'>
-      <div className='flex w-full flex-col gap-6'>
-        <header className='flex flex-col gap-0.5'>
+    <div className='flex w-full flex-col gap-6'>
+      <header className='flex items-center justify-between gap-4'>
+        <div className='flex flex-col gap-0.5'>
           <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            {workspace.name}
+            Overview
           </h1>
           <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            {allDone
-              ? 'Everything is wired up. Subscribers and messages land here as your app sends them.'
-              : 'Four steps from a blank workspace to a notification on a phone.'}
+            Track subscribers, messages and deliveries over time.
           </p>
-        </header>
+        </div>
+        <FilterRange
+          presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
+          value={filters.values.range ?? DEFAULT_RANGE}
+          onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
+        />
+      </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Channels</CardTitle>
-            <CardDescription>Provider keys connected to this workspace.</CardDescription>
-          </CardHeader>
-          <CardContent className='gap-0 pb-3'>
-            <ul className='-mx-4 flex flex-col divide-y divide-bg-3'>
-              {CHANNELS.filter((channel) => channel.available).map((channel) => {
-                const connected = credentials.filter((credential) => credential.channel === channel.id);
-                return (
-                  <li key={channel.id} className='flex min-h-12 items-center gap-3 px-4 py-2'>
-                    <IconTile icon={channel.icon} size='sm' />
-                    <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                      <span className='truncate font-medium text-fg-4 text-sm'>{channel.name}</span>
-                      <span className='truncate text-fg-2 text-xs'>
-                        {connected.length === 0
-                          ? 'Not connected'
-                          : connected
-                              .map((credential) => {
-                                const provider = channel.providers.find((p) => p.id === credential.provider);
-                                return provider?.name ?? credential.provider;
-                              })
-                              .join(' · ')}
-                      </span>
-                    </span>
-                    <span className='flex shrink-0 items-center gap-2'>
-                      {(['active', 'unvalidated', 'invalid'] as const)
-                        .filter((status) => connected.some((credential) => credential.status === status))
-                        .map((status) => (
-                          <CredentialStatusBadge key={status} status={status} />
-                        ))}
-                      <Button
-                        variant='elevated'
-                        size='xs'
-                        nativeButton={false}
-                        render={<Link to={`/${workspace.slug}/settings/channels`} />}
-                      >
-                        {connected.length === 0 ? 'Connect' : 'Manage'}
-                      </Button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </CardContent>
+      {!hasChannel && (
+        <Card className='flex-row items-center gap-3 px-4 py-3'>
+          <IconTile icon='IconPaperPlaneTopRightFilled' size='sm' className='text-fg-2' />
+          <span className='flex min-w-0 flex-1 flex-col'>
+            <span className='font-medium text-fg-4 text-sm'>No channel connected</span>
+            <span className='text-pretty text-fg-2 text-sm'>
+              Connect a channel before this tenant can send.
+            </span>
+          </span>
+          <Button size='sm' nativeButton={false} render={<Link to={`${base}/settings/channels`} />}>
+            Connect channel
+          </Button>
         </Card>
+      )}
 
-        {!allDone && (
-          <Card className='px-6 py-7'>
-            <ol className='flex flex-col gap-7'>
-              <li>
-                <GuideStep number={1} title='Connect a channel' state={stateOf(0)}>
-                  <div className='flex flex-col gap-2'>
-                    <p className='text-pretty text-fg-2 text-sm'>
-                      Upload an APNs key, a Firebase service account or a Resend key. BuzzKit checks it live.
-                    </p>
-                    {!hasChannel && (
-                      <div className='flex'>
-                        <Button
-                          size='sm'
-                          nativeButton={false}
-                          render={<Link to={`/${workspace.slug}/settings/channels`} />}
-                        >
-                          Connect a channel
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </GuideStep>
-              </li>
-              <li>
-                <GuideStep number={2} title='Create an API key' state={stateOf(1)}>
-                  <p className='text-pretty text-fg-2 text-sm'>
-                    A workspace key (bk_ws_…) is the one secret your backend stores. Key management lands in
-                    Settings with the next dashboard phase.
-                  </p>
-                </GuideStep>
-              </li>
-              <li>
-                <GuideStep
-                  number={3}
-                  title='Register a device'
-                  state={stateOf(2)}
-                  waiting='Waiting for a device'
-                >
-                  <div className='flex flex-col gap-1.5'>
-                    <CodeBlock code={registerSnippet(apiUrl)} />
-                    <p className='text-pretty text-fg-2 text-xs'>
-                      Creates the subscriber and its push subscription in one call.
-                    </p>
-                  </div>
-                </GuideStep>
-              </li>
-              <li>
-                <GuideStep
-                  number={4}
-                  title='Send your first message'
-                  state={stateOf(3)}
-                  waiting='Waiting for a send'
-                >
-                  <div className='flex flex-col gap-1.5'>
-                    <CodeBlock code={sendSnippet(apiUrl)} />
-                    <p className='text-pretty text-fg-2 text-xs'>
-                      Returns a message id right away. Delivery is async.
-                    </p>
-                  </div>
-                </GuideStep>
-              </li>
-            </ol>
-          </Card>
+      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-4'>
+        <Tile
+          label='Subscribers'
+          value={stats.subscribers.total}
+          tone='sky'
+          points={growth}
+          delta={{
+            current: stats.subscribers.total,
+            previous: stats.subscribers.total - stats.subscribers.added,
+            upIsGood: true,
+          }}
+        />
+        <Tile
+          label='Messages'
+          value={stats.messages.total}
+          tone='purple'
+          points={points((day) => day.messages)}
+          delta={{ current: stats.messages.total, previous: stats.previous.messages.total, upIsGood: true }}
+        />
+        <Tile
+          label='Delivered'
+          value={delivered}
+          tone='green'
+          points={points((day) => day.sent)}
+          delta={{ current: delivered, previous: stats.previous.deliveries.sent, upIsGood: true }}
+        />
+        <Tile
+          label='Failed'
+          value={failed}
+          tone='red'
+          points={points((day) => day.failed + day.invalid)}
+          delta={{
+            current: failed,
+            previous: stats.previous.deliveries.failed + stats.previous.deliveries.invalid,
+            upIsGood: false,
+          }}
+        />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Deliveries</CardTitle>
+          <CardDescription>Sent and failed deliveries per {stats.interval}.</CardDescription>
+          {stats.deliveries.total > 0 && (
+            <CardAction className='flex items-center gap-3 self-center'>
+              <Key tone='green'>Sent</Key>
+              <Key tone='red'>Failed</Key>
+            </CardAction>
+          )}
+        </CardHeader>
+        {stats.deliveries.total === 0 ? (
+          <EmptyState
+            size='sm'
+            className='pt-0'
+            icon='IconPaperPlaneTopRightFilled'
+            title='No deliveries in this period'
+            description='Send a message and its deliveries appear here day by day.'
+          />
+        ) : (
+          <CardContent className='pt-1 pb-3'>
+            <DeliveriesChart series={stats.series} interval={stats.interval} />
+          </CardContent>
         )}
+      </Card>
+
+      <div className='grid gap-5 lg:grid-cols-2'>
+        <Card>
+          <CardHeader className='gap-0 py-3'>
+            <CardTitle>Recent messages</CardTitle>
+            {messages.length > 0 && (
+              <CardAction className='-my-1.5 self-center'>
+                <Button
+                  variant='ghost'
+                  size='xs'
+                  nativeButton={false}
+                  render={<Link to={`${base}/messages`} />}
+                >
+                  View all
+                </Button>
+              </CardAction>
+            )}
+          </CardHeader>
+          {messages.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconPaperPlaneTopRightFilled'
+              title='No messages yet'
+              description='Send one from your backend and it appears here.'
+            />
+          ) : (
+            <Table className='border-bg-3 border-t'>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Message</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Sent</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {messages.map((message) => (
+                  <MessageRow key={message.id} message={message} base={base} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+        <Card>
+          <CardHeader className='gap-0 py-3'>
+            <CardTitle>New subscribers</CardTitle>
+            {subscribers.length > 0 && (
+              <CardAction className='-my-1.5 self-center'>
+                <Button
+                  variant='ghost'
+                  size='xs'
+                  nativeButton={false}
+                  render={<Link to={`${base}/subscribers`} />}
+                >
+                  View all
+                </Button>
+              </CardAction>
+            )}
+          </CardHeader>
+          {subscribers.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconTeamFilled'
+              title='No subscribers yet'
+              description='Identify a user from your app and they appear here.'
+            />
+          ) : (
+            <Table className='border-bg-3 border-t'>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subscriber</TableHead>
+                  <TableHead>Channels</TableHead>
+                  <TableHead>Subscribed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {subscribers.map((subscriber) => (
+                  <SubscriberRow key={subscriber.id} subscriber={subscriber} base={base} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
       </div>
     </div>
   );

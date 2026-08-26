@@ -11,4 +11,4 @@ Product and architecture documentation — the source of truth for what we're bu
 - [design.md](design.md) — the design system: tokens, components, motion, writing, the dashboard conventions (served at `/design.md`)
 - [dashboard.md](dashboard.md) — `apps/web`: auth architecture, route map, the onboarding flow, and the dashboard phase plan
 - [api/conventions.md](api/conventions.md) — envelope, ids, verbs, lists, errors, idempotency, headers — the contract every endpoint follows
-- api/ — one file per API resource: [health](api/health.md), [workspaces](api/workspaces.md), [tenants](api/tenants.md), [keys](api/keys.md), [credentials](api/credentials.md), [events](api/events.md), [subscribers](api/subscribers.md), [topics](api/topics.md), [messages](api/messages.md), [client](api/client.md)
+- api/ — one file per API resource: [health](api/health.md), [workspaces](api/workspaces.md), [tenants](api/tenants.md), [keys](api/keys.md), [credentials](api/credentials.md), [events](api/events.md), [subscribers](api/subscribers.md), [topics](api/topics.md), [messages](api/messages.md), [stats](api/stats.md), [client](api/client.md)
