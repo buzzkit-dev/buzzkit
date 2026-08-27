@@ -1,127 +1,233 @@
 # Engine
 
-Events, segments, campaigns, workflows and webhooks — the engagement layer on top of the send API. **Status: proposal (2026-08-26), awaiting review.** Once approved it supersedes roadmap Phases 8–10 (the roadmap keeps the phase numbering and points here).
+Events, workflows, segments, campaigns — the engagement layer over the send API. **Status: design (2026-08-26), decided stack, no phases yet.** Part 1 is the architecture, part 2 is the developer and product experience through real apps. Roadmap Phases 8–10 are superseded by this.
 
-## The model
+> **Events are facts about a user. Workflows react to them with time and state. Segments are filters over users. Campaigns send to a segment on a schedule. Every send goes through the same preferences, providers and ledger.**
 
-> **Events are facts about a subscriber. Workflows react to them with time and state. Segments are saved filters over subscribers. Campaigns send to a segment on a schedule. Webhooks tell your server what buzzkit did. Only workflows are an engine.**
+---
 
-buzzkit is an open-source notification orchestration layer over your own providers. iOS first, and on iOS the SDK does everything: registration, preferences, *and events*. `Buzzkit.track("workout.completed")` from the app, `buzzkit.events.track(...)` from the server, and the timing, state, preferences and delivery live in buzzkit. Where the logic needs data only your backend has, a workflow asks your server one signed question (a `fetch` step) instead of your backend running the schedule.
+## Part 1 — The stack
 
-Three objects, two of them thin:
+### 1.1 Four systems, each doing the one thing it is best at
 
-| Object | What it is | Engine? |
+```
+ iOS SDK · server SDK · integrations
+              │  POST /v1/events · /v1/client/events
+              ▼
+      ┌─────────────────┐    RPC     ┌────────────────────────────────┐
+      │ API (Worker)    │ ─────────► │ Subscriber actor (DO, Agents   │  ← durable ack, order, projections,
+      │ Elysia, global  │            │ SDK) — one per subscriber      │    triggers, waits, timers
+      └─────────────────┘            └───────┬───────────────┬────────┘
+              │                              │ create/send   │ outbox
+              │ definitions (Postgres)       ▼               ▼
+              │ pushed to KV        ┌──────────────┐   ┌────────────┐   Events API   ┌──────────────┐
+              │                     │ Cloudflare   │   │ Queue      │ ─────────────► │ Tinybird     │
+              │                     │ Workflows    │   │ (batching) │                │ (ClickHouse) │
+              │                     │ = runs       │   └────────────┘                └──────┬───────┘
+              │                     └──────┬───────┘                                        │ endpoints
+              ▼                            ▼ send                                            ▼
+      ┌─────────────────┐          ┌──────────────┐                            segments · explorer · timelines
+      │ Postgres        │ ◄─────── │ messages →   │                            run history · analytics
+      │ (what *is*)     │          │ deliveries   │  (existing pipeline)
+      └─────────────────┘          └──────────────┘
+```
+
+| System | Owns | Why this one |
 |---|---|---|
-| **Segment** | A saved filter over subscribers: attributes, subscriptions, event history. A *target* (`POST /v1/messages { segment }`), never a thing that runs | no — compiles to SQL at use time |
-| **Campaign** | Send this message (later: start this workflow) to this segment, now, at a time, or on a cron. Each run is a `message` row with a segment target | no — a schedule over the send API |
-| **Workflow** | `trigger (event) → steps` with waits, branches, event waits, fetches and sends. One **run** per triggering event per subscriber | **yes** |
+| **Postgres** (existing) | *What is*: tenancy, credentials, subscribers, subscriptions, topics, preferences, messages/deliveries, the audit ledger, and the **definitions** (workflow / segment / campaign + immutable versions) | Relational, transactional, modest volume. Unchanged. |
+| **Subscriber actor** — a Durable Object per subscriber, built on the Agents SDK | *What is true for this user this instant*: ordered inbox (rolling window), projections (`count(name)`, `last(name)`, last seen, timezone), active runs, pending waits/cancels, per-user timers, the flush watermark. **The durable ack for an event.** | Single-threaded per user → ordering and exactly-once trigger decisions for free; located near the device; hibernates when idle; scales to tens of millions of instances because nothing is shared. |
+| **Cloudflare Workflows** | *Runs*: one durable instance per (workflow, subscriber, trigger) | Native `sleep` to 365 days, `waitForEvent`, retried steps, `terminate`, idempotent `createBatch`; idle instances cost nothing. |
+| **Tinybird** | *Everything that happened*: every product and engine event, forever-ish; segments, the Events explorer, timelines, run history, analytics | ClickHouse with an ingest API, materialized views, typed endpoints, JWT row-level isolation, local Docker runtime, and a code-first project that lives in the monorepo. |
 
-Events don't replace direct sends. A price drop is `POST /v1/messages` from your server, no workflow needed. A three-day trial sequence is a workflow. Use whichever is simpler; both go through the same fan-out, preferences and ledger.
+The rule that keeps it fast: **nobody queries the wrong store.** A workflow condition never scans Tinybird (the actor already holds the count); a segment never touches actors (one Tinybird query); the dashboard never reads actor state for lists (Tinybird); the runtime never reads Postgres per event (definitions are pushed to KV).
 
-Deliberately **not** objects: policies, audiences, journeys, templates. Frequency caps and quiet hours arrive later as *settings* on a topic or a `send` step, never as a fourth engine.
+### 1.2 The Agents SDK, and why the actor is built on it
 
-## Two event streams
+Cloudflare's `agents` package is a class, `Agent`, that *is* a Durable Object with batteries: an embedded SQLite (`this.sql`), persisted state, **`schedule(when, method, payload)`** — a delay, a date or a cron, tens of thousands per instance, multiplexed over the DO's single alarm slot — plus `runWorkflow()` with `onWorkflowComplete / onWorkflowError` callbacks, routing by name (`getAgentByName(env.ACTOR, id)`), and WebSockets we don't need. It was built for AI agents; underneath it is exactly "a per-entity actor with a scheduler and a database", which is what a per-subscriber engine is. It runs wherever Durable Objects run — Cloudflare's network — with each instance pinned to one location, active only while handling a call or an alarm. We pin the version and use it as a runtime, not a framework.
 
-The ledger that exists today records what buzzkit and operators did (`tenant.created`, `message.completed`, `subscription.invalidated`). Product events record what the customer's users did (`trial.started`, `workout.completed`). They have different shapes, volumes, readers and retention, so they are two tables:
-
-| | Audit ledger | Product events |
-|---|---|---|
-| Table | `audit_event` (today's `event`, renamed — nothing is deployed yet, and `tables.event` must mean the product stream once it exists) | `event` |
-| Scope | workspace (+ tenant) | tenant + subscriber |
-| Written by | every mutation endpoint, queues, crons | `POST /v1/events`, `POST /v1/client/events`, the SDK's `$` events |
-| Read by | audit log (`GET /workspaces/:slug/events` → dashboard **Settings → Audit log**), webhooks | workflows, segments, subscriber timeline, dashboard **Events** |
-| Names | catalog, closed (`object.verb`) | customer-defined, open; `$`-prefixed names reserved for the SDK |
-
-### Event shape
+### 1.3 The event
 
 ```json
-POST /v1/events                      (tenant context, secret key; source = "server")
-POST /v1/client/events               (client key; source = ios | android | web; batched, ≤100 per call)
 {
-  "id": "evt_client_9f1c…",          // optional idempotency id, chosen by the sender; a replay is a 200 no-op
+  "id": "01J6…",  "sequence": 4127,           // uuidv7 at ingest; per-subscriber sequence from the actor = the order
+  "name": "workout.completed",           // yours; `$…` is reserved for buzzkit
+  "source": "ios",                       // server | ios | android | web | system
   "externalId": "user_42",
-  "name": "workout.completed",
-  "occurredAt": "2026-08-26T14:02:11Z",   // optional, defaults to receivedAt; the SDK preserves the original time
-  "data": { "workoutId": "w_1", "duration": 42 }
+  "timestamp": "…", "receivedAt": "…",
+  "data": { "workoutId": "w_1", "duration": 42 },
+  "run": null, "message": null           // set on engine events
 }
 ```
 
-- Columns: `id` (bigint identity, the global order), `tenant_id`, `subscriber_id`, `name`, `source` (enum `server | ios | android | web | system`), `idempotency_key`, `occurred_at`, `received_at`, `data` JSONB (object-typed, ≤8KB). Unique `(tenant_id, idempotency_key)` where not null. Indexes `(tenant_id, subscriber_id, id)` for timelines and counts, `(tenant_id, name, id)` for catalogs, BRIN on `received_at` for retention. Append-only, no soft delete.
-- An unknown `externalId` creates the subscriber (like `POST /v1/subscriptions` does). Names are `[a-z0-9_.-]`, ≤100 chars; names starting with `$` are refused from `POST /v1/events` and accepted from the client route only for the reserved list.
-- **Reserved SDK events** (the `$` convention of system attributes): `$app.opened`, `$notification.delivered` (from the Notification Service Extension — real delivery receipts for push, which APNs never confirms), `$notification.opened` (tap), `$permission.changed` (`{ status }`). Each carries `messageId` where it applies. These are what let a workflow say "on the next app open" or "if they opened the welcome push".
-- **Trust is declared, not assumed.** A trigger names the sources it accepts: `sources: ["server"]` for anything financial or security-relevant, the default (all sources) for behavioral events. A client-sourced `trial.started` never starts a server-only workflow. Identity verification (`identityHash`) applies to `/v1/client/events` exactly as to every client call.
-- **Order is the id.** Two `workout.completed` events for the same subscriber arriving together must not both see "four so far": counts and "since trigger" conditions are computed in SQL against `event.id <= trigger event id` (a count at the moment of *that* event), never "now". Runs for one subscriber execute one at a time (lease per run, `concurrency` below).
-- Mobile SDK contract: queue offline, batch on launch and every N seconds, one UUID per event, keep `occurredAt`, drop after the API acknowledges. Buzzkit dedupes on the id, so a retry after a lost response is harmless.
+- `POST /v1/events` (secret key, `source: server`, ≤100 per call) · `POST /v1/client/events` (client key, `source` from the platform, ≤100 per call, identity verification as everywhere). Unknown `externalId` → the subscriber is created. Optional `idempotencyKey` per event; a replay is a 200 no-op. `data` ≤8KB; names `[a-z0-9_.-]{1,100}`; `timestamp` may be up to 7 days in the past (offline queue).
+- **Reserved SDK events**: `$app.opened`, **`$app.backgrounded`** (the quiet moment — a push waiting on `$app.opened` lands while the app is foregrounded and iOS suppresses the banner, so "background + 5 min" is the useful anchor), `$session.ended`, `$notification.delivered` (from the Notification Service Extension: real receipts that APNs never provides), `$notification.opened` (`{ messageId, action }`), `$permission.changed`, `$identify` (attributes snapshot). **Engine events**: `$run.started / step / completed / cancelled / failed`, `$send`, `$campaign.sent`, and the **subscriber lifecycle** that today lives in the audit ledger: `$subscriber.created`, `$subscription.registered / muted / removed / invalidated`, `$preferences.updated`, `$delivery.sent / failed / invalid`. Rule: **the actor is the source of truth for anything about a subscriber; Postgres for anything about the workspace or tenant.** The audit ledger keeps control-plane facts only (who did what: tenants, keys, members, credentials, webhooks, definitions published) plus tenant-level `message.completed` for API and campaign messages — workflow sends are per-subscriber `$send` + receipts, never a million `message.completed` rows.
+- **Trust is declared on the trigger**: `sources: ["server"]` for anything financial or security-relevant; behavioral events accept any source.
 
-The dashboard **Events** page becomes the product stream (catalog of names with volume and last seen, recent events, the workflows listening to each); the subscriber profile's Activity feed merges both streams into one timeline (`14:02 workout.completed · 14:02 workflow "review-ask" started · 17:31 $app.opened · 17:31 push sent`).
+### 1.4 Ingestion: the actor acks, Tinybird follows
 
-## Segments
+1. The API validates, resolves the subscriber (Postgres, cached), and makes **one RPC to the subscriber's actor** with the batch.
+2. The actor, in one SQLite transaction: dedupes on `idempotencyKey`, assigns `sequence`, appends to the inbox, updates projections. The **outbox is a watermark** (`last_flushed_seq`): everything above it is unflushed, so an event costs one row write, not two. Then it evaluates triggers, waits, cancels (below). **The 202 goes out after this** — the actor's SQLite is the durability point, exactly as "the ledger insert is awaited before the response" is today.
+3. Rows above the watermark flush to **Queue `buzzkit-events`** (`waitUntil`, alarm-driven retry until the queue accepts, then the watermark advances); the consumer takes up to 100 messages, each a batch, gzips one NDJSON body and POSTs it to Tinybird's **Events API** (`/v0/events?name=events`, 202 = accepted, `successful_rows` / `quarantined_rows` checked; a malformed row lands in quarantine, never poisons the batch). At-least-once end to end; Tinybird dedupes on `id` (`ReplacingMergeTree`, `ENGINE_VER sequence`).
+4. Why the queue: the Events API allows 100 requests/s per data source (100MB each, best-effort beyond — plenty once batched); a million actors POSTing individually is the one thing not to do. Ingest-to-queryable latency is seconds.
 
-A segment is a versioned filter spec, compiled to one SQL query over `subscriber` (+ `subscription`, + `event` aggregates), evaluated **when it is used** — sending, previewing, a campaign run. No membership tables in v1.
+Ordering is free: a DO is single-threaded, so two `workout.completed` for one user are processed one after the other, the second sees five and the first saw four. `sequence` is the order everywhere downstream. Definitions reach the actor through KV (`defs:{tenantId}` → active workflows' trigger/concurrency/cancel/schedule metadata + a version stamp; the actor reloads on change); the spec body is fetched once per run at create time.
 
-```json
-{
-  "slug": "engaged-free",
-  "where": { "all": [
-    { "attribute": "plan", "eq": "free" },
-    { "event": "workout.completed", "count": { "gte": 5 }, "within": "30d" },
-    { "event": "subscription.started", "never": true },
-    { "lastSeen": { "within": "7d" } },
-    { "channel": "push" }
-  ]}
-}
-```
+### 1.5 Runs: the actor decides, Workflows execute
 
-- Leaves: `attribute` (`eq | neq | in | gt | gte | lt | lte | exists | contains`, on `attributes` incl. `$country` etc.), `event` (`count` within a window, `never`, `last` within/olderThan), `lastSeen`, `channel` / `platform` (has a live subscription), `verified`, `createdAt`. Combinators `all | any | not`, nesting allowed. The **same expression module** serves workflow conditions.
-- API: `POST|GET|PATCH|DELETE /v1/segments`, `GET /v1/segments/:slug/preview` (count + sample page; keyset-paginated members with `total`). Tables `segment` (tenant, slug, name, `current_version_id`) and `segment_version` (immutable spec, checksum, created_by). A campaign run pins the version it used.
-- **`POST /v1/messages { segment: "engaged-free" }`** — the third target kind next to `to` and `topic`, filterable by topic like `to` is. Fan-out pages the segment's query by `subscription.id` exactly like a topic; `message.targets` stores `{ segment, segmentVersionId }`.
-- Dashboard **Segments**: list with live count, a builder over the leaves (rows, not a canvas), preview table, "Send to segment" opening the message dialog.
-- Later: maintained membership (`segment_member` projection updated from event/attribute writes) unlocks `onSegmentEnter` as a workflow trigger ("live audiences"). Not before real usage asks for it.
+On every accepted event the actor does four lookups against its own SQLite:
 
-## Campaigns
+1. **Triggers** — workflows whose `trigger.event` matches, whose `sources` allow, whose `where` passes against `{ trigger, subscriber, projections }`; `concurrency` (`per-event` | `one-per-subscriber`, with `restart`) checked against `runs`. Then `env.ENGINE.createBatch([{ id, params }])` with the deterministic id `${tenant}:${workflow}:${subscriber}:${sequence}` (idempotent: an existing id is skipped) and `params = { versionId, spec, subscriber, trigger, projections }`. `$run.started` to the outbox.
+2. **Waits** — `waits(runId, event, where, expiresAt)`: a match → `env.ENGINE.get(runId).sendEvent({ type: "evt:<path>", payload })` (Workflows buffers it if the instance has not reached the wait yet).
+3. **Cancels** — `cancelOn` match → `instance.terminate()`, `$run.cancelled`.
+4. **Schedules** — `trigger: { schedule: { daily: "19:00", timezone: "subscriber" } }` registers one `this.schedule()` per active subscriber; on fire the actor evaluates `where` and creates a run like an event would.
 
-```json
-{ "slug": "summer-offer", "segment": "engaged-free", "topic": "marketing",
-  "message": { "title": "…", "body": "…", "data": {} },
-  "schedule": null | { "at": "2026-09-01T12:00:00Z" } | { "cron": "0 10 * * MON", "timezone": "Europe/Berlin" },
-  "status": "draft | scheduled | active | paused | completed" }
-```
+**`EngineWorkflow` is one class that interprets the spec pinned in its params**, so a redeploy never touches an in-flight run:
 
-- `POST /v1/campaigns/:slug/run` sends now; the scheduler (the existing 5-minute cron, or a per-minute one) starts due runs. A **run is a `message`** (`campaign_run`: campaign, message id, segment version, scheduled/started/finished) and shows up in Messages with a campaign badge; the campaign page lists runs with their funnels. Idempotent per (campaign, scheduled tick).
-- Once workflows exist, `"workflow": "summer-upgrade"` is an alternative to `"message"`: the run starts one workflow run per member.
-- Dashboard **Campaigns**: list, the create dialog (segment, topic, message, schedule), the campaign page with runs. Templates over subscriber attributes (`{{ subscriber.attributes.name }}`) arrive with the workflow templating module.
+| Spec step | Workflows primitive |
+|---|---|
+| `wait: "2h"` | `step.sleep(path, "2 hours")` — free while sleeping, to 365 days |
+| `waitUntil: { after: "trigger", plus: "2d", at: "09:00", timezone: "subscriber" }` | `step.do` reads `$timezone` fresh → `step.sleepUntil(path, t)`; anchored, so chains never drift |
+| `waitFor: { event, as, until, where }` | `step.do("register")` → actor · `step.waitForEvent(path, { type, timeout })` in try/catch · `step.do("deregister")` on timeout; `Promise.race` for "whichever first" |
+| `fetch: { as, url, onError }` | `step.do(path, { retries: { limit: 3, delay: "10s", backoff: "exponential" }, timeout: "30s" }, signedPost)` → `variables[as]` (≤64KB) |
+| `branch: { if, then, else }` | `step.do` evaluates and records which way; recurse |
+| `send: { name, topic, channel, title, body, data, deliver }` | `step.do(path, () => createMessage({ to: [externalId], idempotencyKey: runId + path, … }))` — the existing pipeline, untouched. `deliver: "local"` → see 1.7 |
+| `set: { attribute | variable }` · `exit` | `step.do` · return |
 
-## Workflows
+Every step reports to the actor (`record(runId, path, status, summary)`) → `$run.step` → Tinybird holds the complete timeline. Expressions (shared with segments): `ref` paths with `eq | neq | gt | gte | lt | lte | in | exists | contains`, projection conditions (`{ count: "workout.completed", within: "30d", gte: 5 }`, `{ occurred: "$app.opened", since: "trigger" }`, `{ opened: "welcome" }`), `all | any | not`. Templates: path lookups, a few filters, a ternary. No loops, no code; `fetch` is the escape hatch.
 
-### Spec
+**Limits that shape the product, not the code**: instance creation is 100/s per workflow — event triggers never notice; a campaign that starts a workflow for a million people takes ~3 hours by design, so broadcasts are messages (the existing fan-out) and workflows are per-user timing. 50k *running* instances at once; sleeping and waiting ones do not count. Steps are metered (~$45 per million six-step runs).
 
-The source of truth is a **versioned JSON spec stored in buzzkit** (`workflow` + immutable `workflow_version`). Every client produces the same document and calls the same API: the `buzzkit` SDK's builder (`defineWorkflow` → spec → `POST /v1/workflows`), `buzzkit push` (diff + apply of a directory of definitions), the dashboard, an agent. There is no deploy step; a workflow exists the moment the API accepts it. The builder is DX; the spec is the contract.
+### 1.6 Tinybird: the project, the tables, the endpoints
 
-```json
-{
-  "slug": "trial",
-  "trigger": { "event": "trial.started", "sources": ["server"], "where": { "ref": "trigger.data.plan", "neq": "lifetime" } },
-  "concurrency": "one-per-subscriber",
-  "cancelOn": [{ "event": "subscription.started" }],
-  "steps": [
-    { "type": "wait", "for": "2h" },
-    { "type": "fetch", "as": "status", "url": "https://api.example.com/buzzkit/trial-status" },
-    { "type": "branch", "if": { "ref": "status.checks", "gt": 0 },
-      "then": [{ "type": "send", "name": "progress", "topic": "trial", "title": "Already {{ status.checks }} checks", "body": "We're watching {{ status.product }} for you." }] },
-    { "type": "waitFor", "event": "trial.cancelled", "as": "cancel", "until": { "after": "trigger", "plus": "1d" } },
-    { "type": "branch", "if": { "ref": "cancel", "exists": true },
-      "then": [{ "type": "send", "title": "Your trial is cancelled", "body": "You keep access until {{ trigger.data.endsAt | date }}." }],
-      "else": [{ "type": "fetch", "as": "status", "url": "https://api.example.com/buzzkit/trial-status" },
-               { "type": "send", "body": "We checked {{ status.product }} {{ status.checks }} times so far." }] },
-    { "type": "waitUntil", "after": "trigger", "plus": "2d", "at": "09:00", "timezone": "subscriber" },
-    { "type": "send", "title": "Your trial ends tomorrow", "body": "{{ cancel ? 'Resubscribe to keep watching.' : 'Nothing to do — you keep everything.' }}" }
-  ]
-}
-```
+Tinybird is a **code-first project inside the monorepo** — `packages/tinybird`, defined with the TypeScript SDK (`defineDatasource`, `defineMaterializedView`, `defineEndpoint`, with `InferRow` / `InferParams` giving the API Worker typed rows and parameters — the same end-to-end typing we have through Eden), deployed with `tb deploy` from CI, developed against **`tb local`** in Docker (also in docker compose next to Postgres, and in the test suite), with a **branch per PR** and `FORWARD_QUERY` for schema migrations. Tinybird's agent skills and MCP server plug into the same workflow we already use for the rest of the repo.
 
-The same thing from code, which is what most people will write:
+One Tinybird workspace serves the whole hosted product; every row carries `tenant_id` (and `workspace_id`), every endpoint takes `tenant_id` as a parameter, and **JWTs with `fixed_params`** pin it: the API mints a short-lived JWT per dashboard session (`GET /v1/events/token`, a public API feature customers can use to embed the same explorer), and the browser queries Tinybird endpoints directly with the tenant filter that cannot be overridden — no proxy hop for charts and live tails. Ingest uses a static `DATASOURCE:APPEND` token held only by the queue consumer.
 
 ```ts
+// packages/tinybird/events.ts (TypeScript SDK; the CLI emits the .datasource/.pipe files)
+export const events = defineDatasource('events', {
+  schema: { tenant_id: t.uint64(), subscriber_id: t.uint64(), external_id: t.string(),
+            id: t.string(), sequence: t.uint64(), name: t.lowCardinality(t.string()), source: t.lowCardinality(t.string()),
+            timestamp: t.dateTime64(3), received_at: t.dateTime64(3), data: t.json(), data_raw: t.string(),
+            run_id: t.nullable(t.string()), message_id: t.nullable(t.string()), step: t.nullable(t.string()) },
+  engine: engine.replacingMergeTree({ ver: 'sequence',
+    sortingKey: ['tenant_id', 'name', 'subscriber_id', 'timestamp', 'id'],
+    partitionKey: 'toYYYYMM(timestamp)', ttl: 'timestamp + toIntervalMonth(13)' }),
+});
+```
+
+Materialized views (incremental, on ingest — "insert triggers"): `events_by_subscriber` (sorted by subscriber then time: the timeline), `event_names_hourly` (`AggregatingMergeTree`: tenant × name × source × hour → count, uniq subscribers, sources: the catalog and the charts), `subscribers_current` (`ReplacingMergeTree` fed by `$identify`: the **attribute mirror**, so a segment never joins Postgres), `runs_current` (fed by `$run.*`: the runs list), `sends_current` (fed by `$send` + `$notification.delivered/opened`: per-message engagement, the fatigue signal). Endpoints, each a typed pipe with parameters, for the fixed shapes: `subscriber_timeline`, `event_catalog`, `event_volume`, `runs`, `run_steps`, `live_tail`. **Segments are not static pipes** — an arbitrary boolean tree cannot be a templated endpoint — so the segment compiler emits ClickHouse SQL (attribute predicates on `subscribers_current`, event predicates as `GROUP BY subscriber_id HAVING`, keyset-paged by `subscriber_id`) and runs it through Tinybird's **Query API** (`POST /v0/sql`, a `DATASOURCES:READ` token held by the API only). Queries time out at 10s and return ≤100MB — segment previews answer in tens of milliseconds.
+
+A campaign run pages `segment_members` (500 ids at a time), resolves subscriptions in Postgres, and hands them to the existing fan-out; the message stores `{ segment, segmentVersionId, campaignRunId }`. Tinybird is seconds behind the actor; segments and dashboards accept that, and anything that must be exact and immediate (conditions, concurrency, caps) asks the actor. Sinks (S3 / GCS / Kafka) give customers their own events back later without us building an export.
+
+Self-hosting: the OSS deploy needs a Tinybird workspace (free tier for small deployments; `tb local` for development). The two seams — `append(batch)` through the Events API and reads through published endpoints — are deliberately narrow so a plain ClickHouse adapter could exist one day; nothing is built for it now.
+
+### 1.7 The iOS side: quiet moments and local notifications
+
+The Swift SDK is not a token registrar with a `track()` bolted on; it is half the engine.
+
+- **Quiet-moment delivery.** `w.waitFor('$app.backgrounded'); w.wait('5m')` (sugar: `w.afterBackground('5m')`) is the right way to say "the next time the user is not looking", and a foreground-arriving push can be shown as a banner only if the delegate opts in, which the SDK exposes as `showWhileActive: true` per message.
+- **`deliver: "local"`.** A `send` can be delivered **as an on-device local notification**: the cloud sends a silent push (`content-available`) carrying the content plus a fire time (or a local-time rule); the SDK schedules it with `UNCalendarNotificationTrigger` — exact to the second, in the device's own timezone, and it fires with the radio off. The SDK cancels pending local notifications tagged with a run when the run is cancelled (a cancel push) or when a local event the rule names occurs (`cancelOnLocal: ["workout.completed"]`) — the streak reminder disappears the moment the workout is logged, no round trip. Delivered/opened still flow back as `$notification.delivered/opened`.
+- **Device runtime (later, same spec).** The subset `schedule → where (on-device projections) → send local → cancelOn` needs no cloud at all; the SDK can interpret it from a rules bundle fetched at identify, so the streak reminder works in airplane mode and the server sees the events when the device is back. One spec, two runtimes.
+
+### 1.8 Scale and cost, decisively
+
+Everything runs on Cloudflare's network; nothing is a single box. The API Worker is stateless and global. **One actor per subscriber means a million users are a million independent single-threaded state machines** — no hot table, no lock, no shard key to choose; the Agents SDK is documented to "tens of millions of instances". Workflows: unbounded sleeping instances, 50k running, 100 creates/s per workflow. Queues: 5,000 msg/s per queue, each message a batch; shard when the numbers say so. Tinybird: 100 Events API requests/s × up to 100MB per data source — with batching, effectively unbounded events/s; endpoint queries interactive. Postgres keeps only the hot paths it already has (subscriber upsert, message create).
+
+**The cost model, re-based on real event volume.** With the reserved SDK events a normal app produces ~100 events per MAU per month (≈15 sessions × `$app.opened` / `$app.backgrounded` / `$session.ended`, ~30 custom events, ~10 notification receipts). Session boundaries only, no heartbeats — the SDK never emits a `$` event that is not a fact. Per 1M MAU / 100M events / 5M runs a month, list prices:
+
+| Line | Driver | Estimate |
+|---|---|---|
+| Workers requests | ~45M API calls (events arrive batched per session) | ~$10 |
+| Actor requests + duration | ~45M RPCs + flush alarms, milliseconds each | ~$15 |
+| Actor SQLite rows written | one row per event; the outbox is a **watermark** (`last_flushed_seq`, one write per flush), not a row per event | ~$50–100 |
+| Queues | ~20M batch messages × 3 ops | ~$25 |
+| Workflows | 5M runs × ~4 steps = 20M steps; invocations within the included 10M | ~$160 |
+| Tinybird | Developer base $49; storage ~25GB/month compressed, 13-month TTL → ~$20/month; **compute is the variable** — 100M rows/month is ~40 inserts/s for ClickHouse, so 1 vCPU (≈$500/month at the burst rate) should carry ingest, MVs and dashboard queries; budget 0.5–1.5 | ~$250–800 |
+| **Total** | | **≈ $500–1,100 / month**, i.e. **$0.0005–0.001 per MAU** and **≈ $5–10 per million events**, all-in |
+
+Workflows cost scales with *runs*, not events — most events trigger nothing. What a single customer costs at the margin: a **20k-MAU app (2M events, 100k runs)** is ~$10–20/month of infrastructure; a 5k-MAU app is a few dollars; the two fixed bases (Workers Paid $5, Tinybird $49) are shared by every tenant on the hosted platform. A free tier of 10k MAU / 1M events costs us under $10 per free customer per month. For reference, the same 1M MAU is five figures a month at Customer.io or Braze, and 100M events is five to six figures at Novu Cloud (which meters triggers) or Segment (which meters tracked users); analytics-priced products (PostHog) land at low thousands for 100M events. The levers if a line surprises us: the watermark outbox (rows written), batch size (queue ops), folding branch evaluation into the following step (Workflow steps), and MV design + TTL (Tinybird compute and storage).
+
+---
+
+## Part 2 — How it feels
+
+### 2.1 The surfaces
+
+**iOS SDK** (Swift):
+
+```swift
+Buzzkit.configure(clientKey: "bk_pk_…")
+Buzzkit.identify("user_42", identityHash: session.buzzkitHash)   // hash from your backend
+Buzzkit.registerForPush()                                          // permission → token → subscription; $permission.changed
+Buzzkit.track("workout.completed", ["duration": 42, "kind": "run"])
+// automatic: $app.opened, $app.backgrounded, $session.ended, $notification.opened (UNUserNotificationCenter hook)
+// NotificationServiceExtension: `final class NSE: BuzzkitNotificationService {}` → $notification.delivered, rich media, local scheduling
+BuzzkitPreferencesView()                                           // the settings screen: topics × channels
+```
+
+Events queue in SQLite offline, batch on foreground and every 30s, carry a UUID and the original time, and are dropped once acked. A replay is a no-op on our side.
+
+**Server SDK** (`buzzkit`, TypeScript, typed over the contract):
+
+```ts
+const buzz = new Buzzkit({ apiKey });
+await buzz.events.track({ externalId: 'user_42', name: 'trial.started', data: { plan: 'monthly', endsAt } });
+await buzz.send({ to: 'user_42', topic: 'price-alerts', title: 'Price drop', body: '…' });   // direct, no workflow
+```
+
+**Definitions** — one JSON spec from whichever door: `defineWorkflow` in a `buzzkit/` folder and `bunx buzzkit push` (diff, then apply); `buzz.workflows.upsert(spec)` from any script or agent; the dashboard's step editor. A workflow exists when the API accepts it. There is no deploy.
+
+**Dashboard**:
+
+- **Events** — the catalog: every name with 24h / 7d volume, unique users, sources, last seen, listening workflows; a live tail; a per-name page with the volume chart, sample payloads and the inferred field list (what `where` and templates can reference). Backed by `event_names_hourly`; charts and tail query Tinybird directly with the session's JWT.
+- **Workflows** — list with active / sleeping / waiting counts; the workflow page renders the spec as a **vertical step list** with live numbers per row ("1,204 sleeping here · 87 waiting for `trial.cancelled`"), a code tab, versions, runs. The run page is a timeline: trigger, every step with its recorded output ("branch → else", "fetch → 200 in 340ms", "send → msg_… delivered 17:31, opened 17:32"), variables, subscriber. **Test** runs the spec against a pasted event with waits collapsed and sends stubbed.
+- **Subscriber profile** — one timeline merging product events, engine events and deliveries; active runs ("`trial` · sleeping until Thu 09:00 local · step 5 of 7"). Recent rows from the actor, history from Tinybird.
+- **Segments** — a builder of rows (attribute · event count · never · last seen · channel), the count updating as you edit; a members preview; "Send to segment". **Campaigns** — segment + topic + message + schedule, runs with funnels.
+
+### 2.2 Real apps
+
+Each: what the developer runs today without buzzkit, and what they write with it.
+
+#### Fitness app — streak at risk, and rate-us at the next quiet moment
+
+*Without*: a `streaks` table; a cron every 15 minutes bucketing users by a timezone you have to collect and keep fresh; "no workout today and streak ≥ 3"; a `sent_today` guard; quiet hours for travellers; an APNs client with token invalidation; and a client-side counter for the review ask that needs an app release to change "fifth" to "third".
+
+*With*:
+
+```ts
+export const streak = defineWorkflow('streak-at-risk', {
+  trigger: schedule({ daily: '19:00', timezone: 'subscriber' }),
+  where: all(count('workout.completed', { since: 'localMidnight' }).eq(0), attribute('streakDays').gte(3)),
+  steps: (w) => w.send({ topic: 'reminders', deliver: 'local', cancelOnLocal: ['workout.completed'],
+                         title: '{{ subscriber.attributes.streakDays }}-day streak at risk', body: 'Ten minutes keeps it alive.' }),
+});
+
+export const review = defineWorkflow('review-ask', {
+  trigger: onEvent('workout.completed', { where: count('workout.completed').eq(5) }),
+  concurrency: 'one-per-subscriber',
+  steps: (w) => { w.afterBackground('5m'); w.send({ data: { prompt: 'review' }, silent: true }); },
+});
+```
+
+The actor holds `streakDays` and the workout count and owns the 19:00 timer; the reminder is scheduled *on the phone*, exact to the second, and vanishes the moment the workout is logged. The review ask waits, for free, until the user has put the phone down for five minutes. Changing "five" is a `push`.
+
+#### Price tracker — the three-day trial (your app)
+
+*Without*: a `trial_sequences` table with `step` and `next_at`; a worker polling it every minute; an App Store Server Notifications handler updating rows on cancellation; three message builders that count checks per watched product; APNs; a dedupe key per step; a cleanup for converted users.
+
+*With*: the Apple webhook handler tracks two server events, one endpoint answers one question, one definition.
+
+```ts
+// backend, on App Store Server Notifications
+await buzz.events.track({ externalId, name: 'trial.started', data: { endsAt } });
+await buzz.events.track({ externalId, name: 'trial.cancelled' });
+await buzz.events.track({ externalId, name: 'subscription.started' });
+
+// the one question buzzkit will ask, verified like a webhook
+app.post('/buzzkit/trial-status', verifyBuzzkitSignature, async ({ subscriber }) =>
+  ({ checks: await countChecks(subscriber.externalId), product: await firstWatchedProduct(subscriber.externalId) }));
+
 export const trial = defineWorkflow('trial', {
   trigger: onEvent('trial.started', { sources: ['server'] }),
   concurrency: 'one-per-subscriber',
@@ -129,84 +235,114 @@ export const trial = defineWorkflow('trial', {
   steps: (w) => {
     w.wait('2h');
     const status = w.fetch('status', 'https://api.example.com/buzzkit/trial-status');
-    w.branch(status.get('checks').gt(0), (w) => w.send('progress', { topic: 'trial', title: 'Already {{ status.checks }} checks' }));
+    w.branch(status.get('checks').gt(0), (w) =>
+      w.send({ topic: 'trial', title: 'Already {{ status.checks }} price checks', body: 'We are watching {{ status.product }} for you.' }));
     const cancel = w.waitFor('trial.cancelled', { as: 'cancel', until: w.trigger.plus('1d') });
-    w.branch(cancel.exists(), (w) => w.send({ title: 'Your trial is cancelled' }), (w) => { /* … */ });
+    w.branch(cancel.exists(),
+      (w) => w.send({ title: 'Your trial is cancelled', body: 'Alerts continue until {{ trigger.data.endsAt | date }}.' }),
+      (w) => { const s = w.fetch('status', '…/trial-status'); w.send({ body: 'We have checked {{ s.product }} {{ s.checks }} times so far.' }); });
     w.waitUntil(w.trigger.plus('2d'), { at: '09:00', timezone: 'subscriber' });
-    w.send({ title: 'Your trial ends tomorrow', body: '…' });
+    w.send({ title: 'Your trial ends tomorrow', body: "{{ cancel ? 'Resubscribe to keep your alerts.' : 'Nothing to do — your alerts continue.' }}" });
   },
 });
 ```
 
-### The closed set of steps
+`trial.started` → actor → run created → the instance sleeps two hours → `fetch` asks your server, retried on failure → branch → `waitFor` parks the instance while the actor watches for `trial.cancelled`; Apple's cancellation eighteen hours later is forwarded and the cancelled branch runs, otherwise the wait times out at exactly trigger + 1 day → the final wait snaps to 09:00 in the user's timezone → send. `subscription.started` at any point terminates the run. The run page shows every step including both fetch responses. Price drops are `buzz.send(...)` from the scraper: no timing, no workflow.
 
-| Step | Semantics |
-|---|---|
-| `wait` | Sleep a duration. |
-| `waitUntil` | Sleep until an **anchored** time (`after: trigger | step:<name>`, `plus`, optional `at` local time via `$timezone`) so a chain of waits never drifts. The 9am-local send is this. |
-| `waitFor` | Suspend until an event for this subscriber arrives (filterable) or `until` passes; stores the event (or `null`) under `as`. Multiple `waitFor` steps per run, one pending at a time. |
-| `fetch` | Signed `POST` to your URL with `{ workflow, run, subscriber, trigger, variables }`; the JSON response (≤64KB) is stored under `as`. 30s timeout, 3 attempts with backoff, then `onError: fail | skip` (default fail). This is how a workflow reads data that lives in your database. |
-| `branch` | `if` (expression) → `then` / `else` step lists. Nested freely. |
-| `send` | Creates a `message` for this subscriber (`to: [externalId]`, optional `topic`, channel), rendered from templates over `trigger`, `subscriber`, `variables`. Idempotent per (run, step index). Records the message id so later conditions can ask `opened("welcome")`. |
-| `set` | Write a variable or a subscriber attribute (`attributes.trialState = "reminded"`). |
-| `exit` | End the run (optionally with a reason). |
+#### E-commerce — abandoned checkout
 
-Expressions: the segment leaf grammar plus `ref` (`trigger.data.x`, `subscriber.attributes.plan`, `status.checks`, `cancel`) with `eq | neq | gt | gte | lt | lte | in | exists | contains`, event conditions relative to the run (`{ event: "$app.opened", since: "trigger" }`, `{ opened: "welcome" }`), and `all | any | not`. Templates are path lookups with a handful of filters (`date`, `number`, `default`) and a ternary; no loops, no code.
+*Without*: a `carts` table with `updated_at`; a cron for carts older than an hour joined against `orders`; a `reminded_at` column; the item name denormalized for the copy; APNs; a rule not to nag twice a day.
 
-Triggers: `event` only. Schedules belong to campaigns (a campaign can start a workflow per member), so nothing is expressible two ways. `cancelOn` ends the run from any wait. `concurrency`: `per-event` (default; a run per triggering event) or `one-per-subscriber` (a second trigger while a run is active is ignored, or `restart`).
+*With*: `Buzzkit.track("checkout.started", ["itemName": item.name, "total": cart.total])` in the app, and:
 
-### Runner: Postgres + Queue, like deliveries
+```ts
+export const abandoned = defineWorkflow('abandoned-checkout', {
+  trigger: onEvent('checkout.started', { where: ref('trigger.data.total').gt(20) }),
+  concurrency: 'one-per-subscriber',
+  cancelOn: [onEvent('order.placed', { sources: ['server'] })],       // only your server can say "bought"
+  steps: (w) => { w.wait('1h'); w.send({ topic: 'reminders', title: 'Still thinking about it?',
+                  body: '{{ trigger.data.itemName }} is waiting in your cart.', data: { deepLink: 'app://cart' }, skipIfSentWithin: '1d' }); },
+});
+```
 
-The roadmap's pending decision leaned towards Cloudflare Workflows. Recommendation: **run workflows the way deliveries already run** — rows in Postgres are the truth, a queue carries the work, delays are `delaySeconds` on the queue message *and* a `wake_at` column, and the reconcile cron re-drives anything due, stale or lost.
+#### Transactional with preferences — "your order shipped"
 
-Why not Cloudflare Workflows: its state would have to be mirrored into Postgres anyway for the dashboard (run timeline, variables, which runs are waiting for which event), event routing needs a Postgres index of pending waits regardless, instance retention is 30 days, plan limits (100 concurrent on free) bind self-hosters, and the interpreter we'd put inside a Workflow step is the same interpreter either way. The Postgres runner is one more queue consumer in a shape the codebase has already proven, and a self-hoster needs nothing beyond what they have. The runner sits behind a small interface (`start`, `resume`, `wake`) so Cloudflare Workflows can be swapped in later if precision or scale ever demands it.
+*Without*: a settings screen, a `notification_preferences` table, an endpoint, a check on every send path. Most teams ship an all-or-nothing toggle.
 
-- Tables: `workflow` (tenant, slug, name, status `active | paused | archived`, `current_version_id`, `trigger_event` denormalized for matching, `concurrency`), `workflow_version` (spec JSONB, checksum, created_by, immutable), `workflow_run` (tenant, workflow, version, subscriber, `trigger_event_id`, status `queued | running | sleeping | waiting | completed | cancelled | failed`, `cursor` (step path), `variables` JSONB, `wake_at`, `waiting_event`, `concurrency_key`, `lease_expires_at`, timestamps, `error`), `workflow_run_step` (append-only: run, path, type, status, input/output, `message_id`, started/finished — the timeline). Unique `(workflow_id, trigger_event_id)`; partial unique `(workflow_id, concurrency_key) where status in (queued, running, sleeping, waiting)` for `one-per-subscriber`; partial indexes on `wake_at` (due), `(tenant_id, subscriber_id, waiting_event) where status = 'waiting'` (event routing), `coalesce(lease_expires_at, updated_at)` (stale).
-- Queue `buzzkit-workflows`: `{ type: "run", runId, eventId? }`. Consumer: claim the lease, interpret from `cursor` until the next wait or the end, persist each step, on `wait`/`waitUntil` set `wake_at` and enqueue with `delaySeconds` (≤12h per hop, chained), on `waitFor` set `waiting_event` + `wake_at` (the timeout). Duplicate jobs lose the lease and are no-ops.
-- On event insert (awaited, in the request): match active workflows by `(tenant_id, trigger_event)` → evaluate `where` + `sources` → insert runs (`ON CONFLICT DO NOTHING`) → enqueue (`waitUntil`); match waiting runs by `(tenant, subscriber, waiting_event)` → enqueue resume with the event id; match `cancelOn` → cancel. The reconcile cron re-drives `queued` runs never picked up, due `wake_at`, and expired leases — the same loss-proof construction as webhooks.
-- Versioning: a run pins its version; publishing a new version affects new triggers only. `paused` stops new runs and freezes sleeping ones; `archived` cancels them.
-- Every `send` is a normal `message` (targets `{ to, workflowRunId }`), so preferences, kill-switches, TTLs, retries and the attempt ledger apply unchanged and the Messages page shows workflow sends with a badge.
+*With*: topic `orders`, `BuzzkitPreferencesView()` in the app, `buzz.send({ to, topic: 'orders', title: 'Shipped', body: 'Arrives Thursday.' })`. No event, no workflow. "Remind about delivery only if it wasn't opened" later is a workflow on `$notification.delivered` with `opened("shipped")` — the event the app never had.
 
-### Visibility
+#### Re-engagement — segments, campaigns, and knowing when to stop
 
-`GET /v1/workflows/:slug/runs` (status filter, per subscriber), `GET /v1/runs/:id` with its steps, `POST /v1/workflows/:slug/test` (run against a synthetic event with waits collapsed; no sends, returns the step trace — the simulator, minimal). Dashboard **Workflows**: list with active/waiting counts, the workflow page (spec rendered as a vertical step list — the same rows-not-canvas language as segments — code tab with the JSON, versions, runs), the run page (timeline of steps, variables, the messages it sent), and the subscriber profile showing their runs.
+*Without*: an analytics export for 14-day-inactive users, a Monday script in their timezone, and no way to know a push was delivered, let alone that the last three were ignored.
 
-## Webhooks
+*With*:
 
-A port of feedbase's delivery engine over the **audit ledger** (`docs/webhooks.md` there is the spec): endpoint + delivery tables, `waitUntil` enqueue after the awaited ledger insert, idempotent consumer (one delivery row per (event, endpoint)), Stripe-schedule retries over ~3 days, 3-day auto-disable, hourly reconciliation diff, standardwebhooks.com signing (`webhook-id/-timestamp/-signature`, `whsec_` secrets, rotate), snapshot payloads with `data.object` hydrated and `previousAttributes` on `*.updated`. Routes `GET|POST /v1/workspaces/:slug/webhooks`, `GET|PATCH|DELETE …/:id`, `…/rotate`, `…/deliveries`, `…/deliveries/:id/replay`; scopes `webhooks:read` (member) / `webhooks:write` (admin), key-grantable; `wh_` ids.
+```ts
+export const dormant = defineSegment('dormant', { where: all(channel('push'), lastSeen().olderThan('14d'), attribute('marketingFatigue').neq(true)) });
+export const winback = defineCampaign('winback', { segment: dormant, topic: 'marketing', schedule: cron('0 10 * * MON', { timezone: 'subscriber' }),
+  message: { title: 'We kept your spot', body: 'Three new routes near {{ subscriber.attributes.$city }}.' } });
+export const fatigue = defineWorkflow('marketing-fatigue', {
+  trigger: onEvent('$notification.delivered', { where: ref('trigger.data.topic').eq('marketing') }),
+  steps: (w) => w.branch(all(count('$notification.delivered', { where: { topic: 'marketing' }, within: '30d' }).gte(3),
+                             count('$notification.opened',    { where: { topic: 'marketing' }, within: '30d' }).eq(0)),
+                         (w) => w.set({ attribute: 'marketingFatigue', value: true })),
+});
+```
 
-What differs from feedbase: endpoints are workspace-level with an optional `tenant` filter (a platform can route one customer's events to one URL); every payload carries `tenant { id, slug }`; the public catalog is today's `webhook: true` flags (`message.completed`, `subscription.invalidated`, `subscriber.*`, `preferences.updated`, …) plus, from the engine phases, `workflow.run.completed | failed`, `campaign.run.completed`. Product events are never webhooked (they are the customer's own data; they'd echo). Later, `fetch` steps reuse the signing and the secret model.
+The segment is one Tinybird endpoint (the builder's count updates as you toggle rows); the campaign pages ids into the normal fan-out at each user's 10:00; `$notification.delivered` from the NSE makes the third definition possible at all; `set` removes the user from the segment next Monday.
+
+#### A platform — one app builder, a thousand tenant apps
+
+*Without*: per-customer APNs keys, a pipeline that picks the right one, and every workflow above multiplied by every customer.
+
+*With*: each customer's app is a tenant with its own key (as today); provisioning creates its definitions from a code template:
+
+```ts
+await buzz.tenant('acme-pod').workflows.upsert(newEpisode({ topic: 'new-episodes' }));
+
+export const newEpisode = ({ topic }) => defineWorkflow('new-episode', {
+  trigger: onEvent('episode.published', { sources: ['server'] }),
+  steps: (w) => {
+    w.send({ topic, title: '{{ trigger.data.show }}', body: 'New: {{ trigger.data.title }}', data: { episodeId: '{{ trigger.data.id }}' } });
+    w.wait('3d');
+    w.branch(not(occurred('episode.played', { since: 'trigger', where: { episodeId: ref('trigger.data.id') } })),
+             (w) => w.send({ topic, title: 'Missed one?', body: '{{ trigger.data.title }} is {{ trigger.data.minutes }} minutes.' }));
+  },
+});
+```
+
+One server event per publish; each listener's app tracks `episode.played`; a thousand tenants share one engine, one dashboard, one bill.
+
+### 2.3 In one line
+
+> **buzzkit turns your app's events into perfectly timed notifications — on your own providers, open source, iOS-native first.** Track from the app or the server; define timing once; buzzkit keeps the state, the clocks, the preferences and the receipts.
+
+---
+
+## Decisions taken (2026-08-26)
+
+- **Actor window**: 90 days or 10k events, whichever is smaller; `within` on conditions is bounded by it, longer windows are answered by a Tinybird query inside a `step.do`.
+- **Schedules belong to workflows** (per-user, conditional, in the actor); **crons belong to campaigns** (audience-wide). Nothing is expressible twice.
+- **`deliver: "local"`** ships with the iOS SDK phase (E7), designed in from E5 (the `send` step carries `deliver`).
+- **Retention**: events and run history 13 months in Tinybird (TTL); delivery attempts stay in Postgres for now.
+- **Audit log stays in Postgres; subscriber lifecycle moves to the stream** (1.3). Webhooks read both sources.
+- **OSS floor**: a Tinybird free workspace; `tb local` for development.
 
 ## Phases
 
-Each phase ships its API, docs (`docs/api/<resource>.md`), tests and its dashboard page, and is reviewed before the next starts. Order follows dependencies: webhooks need nothing, events feed everything else, segments need events, campaigns need segments, workflows need events and (for `send`) nothing new.
+**E1 is implemented** (2026-08-26): `packages/tinybird` (TypeScript SDK project, `bun run build` into Tinybird Local, `bun run deploy` to the cloud), the subscriber actor (`apps/api/src/actor/subscriber.ts`, Agents SDK, ingest → watermark → `buzzkit-events` queue → gzipped Events API batches), `POST /v1/events`, `POST /v1/client/events`, `GET /v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`), `GET /v1/subscribers/:id/timeline`, the subscriber lifecycle as `$` events, the audit ledger narrowed to the control plane (`GET /v1/workspaces/:slug/audit`, `aud_` ids, `audit:read`), and the dashboard's Events pages (catalog, volume, live tail through the JWT), Settings → Audit log and the profile timeline. Details in [api/events.md](api/events.md), [api/audit.md](api/audit.md), [configuration.md](configuration.md). Deviations from the table: Tinybird's build validates endpoint SQL with placeholder parameters, so time parameters are `DateTime64` and the API formats them (`YYYY-MM-DD HH:MM:SS.mmm`); the dashboard JWT is self-signed (HS256 with the workspace admin token, the workspace id read from the token's claims) because Tinybird Forward's token API does not mint JWTs on Local; the actor keeps one write per event and a single `flushed_sequence` watermark, exactly as costed in 1.8.
+
+Each phase ships API, docs (`docs/api/*`, this file, `data-model.md`), tests (vitest over HTTP against `wrangler dev` — Durable Objects and Workflows run locally — plus `tb local` in docker compose) and its dashboard page, and is reviewed before the next starts.
 
 | # | Phase | Build | Done when |
 |---|---|---|---|
-| **E1** | **Webhooks** | Port from feedbase as above; `EVENT_CATALOG` gains `workflow.*` / `campaign.*` names later. Dashboard **Developers → Webhooks** (endpoints, secret reveal/rotate, deliveries with replay) | An endpoint receives `message.completed` for a real send, retries on a 500, auto-disables after the streak, replays from the dashboard |
-| **E2** | **Events** | Rename `event` → `audit_event`; new `event` table; `POST|GET /v1/events`, `GET /v1/events/names` (catalog with counts), `POST /v1/client/events` (batched, dedupe, sources, `$` names); events in the subscriber timeline; **Events** page becomes the product stream, the audit log moves to **Settings → Audit log**; iOS SDK contract documented (`$app.opened`, `$notification.delivered/opened`, `$permission.changed`) | 100 client events with duplicates land once, in order, on the right subscriber; the profile timeline shows them; docs describe what the Swift SDK must send |
-| **E3** | **Segments** | Expression module (shared with workflows), `segment` + versions, compile-to-SQL, preview/members, `POST /v1/messages { segment }` through fan-out; **Segments** page with the builder and "Send to segment" | A five-leaf segment (attribute + event count + never + lastSeen + channel) previews the right people and a send reaches exactly them |
-| **E4** | **Campaigns** | `campaign` + `campaign_run`, run-now / at / cron via the scheduler, runs as messages with a badge; **Campaigns** page | A cron campaign fires on schedule, once per tick, and its run funnel is visible in both Campaigns and Messages |
-| **E5** | **Workflows I — time and events** | Spec + versions + API, the runner (`buzzkit-workflows` queue, leases, wake/reconcile), steps `wait`, `waitUntil`, `waitFor`, `branch`, `send`, `exit`, `cancelOn`, `concurrency`, trigger `where` + `sources`; runs API; **Workflows** page (list, workflow page with the step list and versions, run timeline) | The trial workflow minus `fetch` runs end to end against real events with real waits (compressed clocks in tests); a cancel event cancels a sleeping run; a redeploy mid-run changes nothing for in-flight runs; a duplicate trigger is one run |
-| **E6** | **Workflows II — data** | `fetch` (signed, retried), templates over `trigger` / `subscriber` / variables, `set`, `opened(step)` and `since: trigger` conditions, local-time `waitUntil`, `POST …/test` (dry run), `campaign.workflow` | The full trial workflow above, including the two fetches, delivers the right three pushes to a phone in the right local hour; the dry run reproduces the trace without sending |
-| **E7** | **Code** | `buzzkit` SDK: `defineWorkflow` / `defineSegment` / `defineCampaign` builders compiling to specs, `buzzkit.workflows.create/…` typed over the contract; `buzzkit push` / `diff` (directory of definitions → API); then the Swift SDK's `track`, offline queue, `$` events and the Notification Service Extension for `$notification.delivered` | The trial workflow defined in a demo repo, `buzzkit push`, phones buzz; a changed body shows a real diff and a new version |
+| **E1** ✅ built, awaiting review | **Events** — the foundation | `packages/tinybird` (TypeScript SDK): `events` data source, MVs `events_by_subscriber`, `event_names_hourly`, `subscribers_current`; endpoints `subscriber_timeline`, `event_catalog`, `event_volume`, `live_tail`; `tb local` in docker compose and CI, `tb deploy` from CI. **Actor**: `SubscriberActor extends Agent` (inbox, projections, watermark, runs, waits, schedules tables), `ingest()` RPC, flush → `buzzkit-events` queue → consumer → Events API. **API**: `POST /v1/events`, `POST /v1/client/events` (batched, dedupe, sources, `$` names), `GET /v1/events` (catalog), `GET /v1/events/:name`, `GET /v1/subscribers/:id/timeline`, `GET /v1/events/token` (JWT with `fixed_params`). Subscriber lifecycle moves from the audit ledger to `$` events; the profile Activity feed reads the stream. **Dashboard**: Events → the product stream (catalog, volume chart, live tail through the JWT); audit log → Settings → Audit log. **SDK contract** documented (what the Swift SDK sends, batching, offline). | 100 client events with duplicates land once, in order, on the right actor and are queryable in Tinybird within seconds; killing the queue consumer mid-flush loses nothing; catalog, per-name page and timeline render; the audit log shows only control-plane rows |
+| **E2** | **Webhooks** | Feedbase port over two sources: control-plane from the Postgres ledger (awaited insert → `waitUntil` enqueue → idempotent consumer → hourly reconciliation diff) and data-plane from the actor (`$` public events, a second watermark, payload on the queue message). Standard-webhooks signing, `whsec_` rotate, Stripe retry schedule, 3-day auto-disable, replay; endpoints workspace-level with optional `tenant` filter. **Dashboard**: Developers → Webhooks | An endpoint receives `tenant.created` and `$subscription.invalidated` for real actions, retries on a 500, auto-disables after the streak, replays from the dashboard; the reconciliation sweep re-enqueues a deliberately dropped event |
+| **E3** | **Segments** | Expression module (shared with workflow conditions); `segment` + `segment_version` in Postgres; compiler → ClickHouse SQL via the Query API (`segment_count`, `segment_members` keyset-paged); `POST /v1/messages { segment }` through fan-out (page ids → Postgres subscriptions); `GET /v1/segments/:slug/preview`. **Dashboard**: Segments (row builder with the count updating as you edit, members preview, Send to segment) | A five-leaf segment (attribute + event count + never + last seen + channel) previews the right people and a send reaches exactly them; a 500k-subscriber segment fans out at the existing rate |
+| **E4** | **Campaigns** | `campaign` + `campaign_run` in Postgres; a per-minute scheduler (partial index on due runs; `timezone: subscriber` runs once per timezone bucket as each reaches the hour); run-now / at / cron; runs are messages with a badge; `$campaign.sent` per subscriber. **Dashboard**: Campaigns (create dialog, campaign page with runs and funnels) | A cron campaign fires once per tick, at 10:00 in three timezones, and its run funnel is visible in Campaigns and Messages |
+| **E5** | **Workflows I — time and events** | Spec + `workflow` / `workflow_version` in Postgres, `POST|GET|PATCH /v1/workflows`, publish → KV `defs:{tenant}`; `EngineWorkflow` with `wait`, `waitUntil`, `waitFor`, `branch`, `send`, `exit`; actor trigger matching (`where`, `sources`, `concurrency`), waits, `cancelOn`; `$run.*` events, Tinybird `runs_current` + `runs` / `run_steps` endpoints; `GET /v1/workflows/:slug/runs`, `GET /v1/runs/:id`. **Dashboard**: Workflows (list with live counts, workflow page as a step list with per-step numbers, code tab, versions, runs; run timeline), active runs on the profile | The trial workflow minus `fetch` runs end to end against real events with real waits (compressed clocks in tests); a cancel event terminates a sleeping run; a redeploy mid-run changes nothing; a duplicate trigger is one run; 10k concurrent runs create without hitting the per-workflow rate limit |
+| **E6** | **Workflows II — data and time** | `fetch` (signed, retried, `onError`), templates, `set`, `opened(step)` / `since: trigger` / `count` conditions, local-time `waitUntil`, **schedule triggers** (actor `schedule()`), `afterBackground`, `skipIfSentWithin`, `POST …/test` (dry run), `campaign.workflow` | The full trial workflow (both fetches) and the streak workflow deliver the right pushes to a phone in the right local hour; the dry run reproduces the trace without sending |
+| **E7** | **iOS SDK + local delivery** | Swift package: `configure` / `identify` / `registerForPush` / `track`, automatic `$app.opened` / `$app.backgrounded` / `$session.ended` / `$notification.opened` / `$permission.changed`, SQLite offline queue with batching, `BuzzkitNotificationService` (NSE: `$notification.delivered`, rich media, **`deliver: "local"` scheduling with `cancelOnLocal`**), `BuzzkitPreferencesView`; SDK docs and a sample app | The streak reminder is scheduled on the phone at 19:00 local, is cancelled by a workout logged in airplane mode, and receipts flow back when online; a foreground push shows with `showWhileActive` |
+| **E8** | **Code** | `buzzkit` builders (`defineWorkflow` / `defineSegment` / `defineCampaign` → spec), `buzz.workflows.upsert`, `bunx buzzkit push` / `diff` over a definitions directory | The trial and streak workflows defined in a demo repo, `buzzkit push`, phones buzz; a changed body shows a real diff and a new version |
 
-After E7, the things below are worth revisiting, in this order, and only with usage behind them.
-
-## Explicitly later
-
-- **Frequency caps and quiet hours** — as a topic setting (`maxPerDay`, `quietHours` in `$timezone`) enforced at fan-out, and `send { skipIfSentWithin }` on a step. One atomic reservation before delivery, not a policy object hierarchy.
-- **Batch / debounce / digest** — a `collect` step (`{ event, window | quietPeriod, by }`) that accumulates events into a run variable. The run model already supports it (a waiting run that keeps absorbing events); it needs the templating loop it was deliberately left without.
-- **Aggregates beyond count** — `sum`, `distinctCount`, `crosses` on the expression module.
-- **Maintained segment membership** and `onSegmentEnter` triggers ("live audiences"); recurring-audience campaigns become a special case.
-- **Code steps** — a sandboxed transform (`inputs → JSON`) with no network and no provider access. The `fetch` step covers the real need (your data) without running your code in our workers; Cloudflare's Dynamic Workflows make this feasible for the hosted product but not for a self-hoster, which is the reason to keep it last.
-- **Anonymous ids / aliasing**, device attestation, an agent-facing management surface (the API already is one; MCP is a thin wrapper).
-
-## Decisions to confirm
-
-1. **Runner** — Postgres + Queue (recommended, above) vs Cloudflare Workflows. Changes the roadmap's leaning.
-2. **Rename `event` → `audit_event`** so the product stream owns `event` / `/v1/events`. Mechanical, pre-launch; the alternative (`subscriber_event` and a forever-confusing `tables.event`) costs more later.
-3. **The API is the source of truth, code is a client.** `defineWorkflow` compiles to the spec the API stores; the dashboard may create the same objects. The CLI is diff + apply, built last (E7), not a gate. `overview.md`'s "code is the source of truth" becomes "the spec is the source of truth; code is the best way to write it".
-4. **`fetch` is the answer to "my data lives in my database"**, not code execution inside buzzkit. Your endpoint answers one signed question per step; buzzkit keeps the clock, the retries, the preferences and the ledger.
-5. **Names**: segments (a filter; "audience" is the list, which is the subscriber table), campaigns, workflows (not journeys). The sidebar already says so.
-6. **Cut for now**: policies, batching, digests, aggregates beyond count, code steps, live audiences, a simulator beyond the dry run.
+Later, only with usage behind it: frequency caps and quiet hours as topic settings (the actor already sees every `$send`), `collect` (batch / debounce / digest), aggregates beyond count, maintained segment membership and `onSegmentEnter`, the device runtime for the simple subset of the spec, sandboxed code steps.

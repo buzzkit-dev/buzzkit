@@ -26,7 +26,7 @@ export const member = new Elysia()
   )
   .patch(
     '/workspaces/:workspaceSlug/members/:id',
-    async ({ body, db, params, workspace, scopes, event }) => {
+    async ({ body, db, params, workspace, scopes, audit }) => {
       const target = await findMember(db, workspace.id, params.id);
 
       if (body.role === 'owner' || target.role === 'owner') {
@@ -39,7 +39,7 @@ export const member = new Elysia()
 
       const updated = await updateMemberRole(db, target.id, body.role);
 
-      await event({
+      await audit({
         event: 'member.role_changed',
         target: { type: 'member', id: target.id },
         data: { from: target.role, to: body.role },
@@ -56,7 +56,7 @@ export const member = new Elysia()
   )
   .delete(
     '/workspaces/:workspaceSlug/members/:id',
-    async ({ db, params, workspace, scopes, event }) => {
+    async ({ db, params, workspace, scopes, audit }) => {
       const target = await findMember(db, workspace.id, params.id);
 
       if (target.role === 'owner') {
@@ -66,7 +66,7 @@ export const member = new Elysia()
 
       const removed = await removeMember(db, target.id);
 
-      await event({
+      await audit({
         event: 'member.removed',
         target: { type: 'member', id: target.id },
         data: { role: target.role },

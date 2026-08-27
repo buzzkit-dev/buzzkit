@@ -18,6 +18,8 @@ export default [
     route('messages', 'routes/[slug]/messages/index.tsx'),
     route('messages/:id', 'routes/[slug]/messages/[id]/index.tsx'),
     route('events', 'routes/[slug]/events/index.tsx'),
+    route('events/stream', 'routes/[slug]/events/stream/index.tsx'),
+    route('events/:name', 'routes/[slug]/events/[name]/index.tsx'),
     route('keys', 'routes/[slug]/keys/index.tsx'),
     route('subscribers/:externalId', 'routes/[slug]/subscribers/[externalId]/index.tsx'),
     route('settings', 'routes/[slug]/settings/layout.tsx', [
@@ -25,6 +27,7 @@ export default [
       route('channels', 'routes/[slug]/settings/channels/index.tsx'),
       route('members', 'routes/[slug]/settings/members/index.tsx'),
       route('tenants', 'routes/[slug]/settings/tenants/index.tsx'),
+      route('audit-log', 'routes/[slug]/settings/audit-log/index.tsx'),
     ]),
     route('*', 'routes/[slug]/planned/index.tsx'),
   ]),

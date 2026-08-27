@@ -10,6 +10,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableDetail,
   TableHead,
   TableHeader,
   TablePagination,
@@ -172,47 +173,45 @@ function AttemptLedger({ attempts }: { attempts: DeliveryAttempt[] }) {
   const response = selected.response as unknown;
 
   return (
-    <tr>
-      <td colSpan={5} className='border-bg-3 border-b p-0'>
-        <table className='w-full table-fixed border-separate border-spacing-0 text-sm'>
-          <thead>
-            <tr>
-              <SubHead className='w-28'>Attempt</SubHead>
-              <SubHead className='w-24'>Outcome</SubHead>
-              <SubHead>Error</SubHead>
-              <SubHead className='w-36'>Time</SubHead>
-            </tr>
-          </thead>
-          <tbody className='[&_tr:last-child_td]:border-b-0'>
-            {attempts.map((attempt) => (
-              <AttemptRow
-                key={attempt.id}
-                attempt={attempt}
-                selected={attempt.id === selected.id}
-                selectable={attempts.length > 1}
-                onSelect={() => setSelectedId(attempt.id)}
-              />
-            ))}
-          </tbody>
-        </table>
-        {(request !== null || response !== null) && (
-          <div className='grid gap-3 border-bg-3 border-t p-4 md:grid-cols-2'>
-            {request !== null && (
-              <div className='flex min-w-0 flex-col gap-1.5'>
-                <span className='text-fg-2 text-xs'>Request</span>
-                <CodeBlock code={JSON.stringify(request, null, 2)} className='w-full' />
-              </div>
-            )}
-            {response !== null && (
-              <div className='flex min-w-0 flex-col gap-1.5'>
-                <span className='text-fg-2 text-xs'>Response</span>
-                <CodeBlock code={JSON.stringify(response, null, 2)} className='w-full' />
-              </div>
-            )}
-          </div>
-        )}
-      </td>
-    </tr>
+    <>
+      <table className='w-full table-fixed border-separate border-spacing-0 text-sm'>
+        <thead>
+          <tr>
+            <SubHead className='w-28'>Attempt</SubHead>
+            <SubHead className='w-24'>Outcome</SubHead>
+            <SubHead>Error</SubHead>
+            <SubHead className='w-36'>Time</SubHead>
+          </tr>
+        </thead>
+        <tbody className='[&_tr:last-child_td]:border-b-0'>
+          {attempts.map((attempt) => (
+            <AttemptRow
+              key={attempt.id}
+              attempt={attempt}
+              selected={attempt.id === selected.id}
+              selectable={attempts.length > 1}
+              onSelect={() => setSelectedId(attempt.id)}
+            />
+          ))}
+        </tbody>
+      </table>
+      {(request !== null || response !== null) && (
+        <div className='grid gap-3 border-bg-3 border-t p-4 md:grid-cols-2'>
+          {request !== null && (
+            <div className='flex min-w-0 flex-col gap-1.5'>
+              <span className='text-fg-2 text-xs'>Request</span>
+              <CodeBlock code={JSON.stringify(request, null, 2)} className='w-full' />
+            </div>
+          )}
+          {response !== null && (
+            <div className='flex min-w-0 flex-col gap-1.5'>
+              <span className='text-fg-2 text-xs'>Response</span>
+              <CodeBlock code={JSON.stringify(response, null, 2)} className='w-full' />
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -286,25 +285,22 @@ function DeliveryRow({
           />
         </TableCell>
       </TableRow>
-      {expanded &&
-        (attempts.length === 0 ? (
-          <tr>
-            <td colSpan={5} className='border-bg-3 border-b p-0'>
-              <EmptyState
-                size='sm'
-                icon='IconPaperPlaneTopRightFilled'
-                title={settledWithoutAttempt ? 'Never attempted' : 'No attempts yet'}
-                description={
-                  settledWithoutAttempt
-                    ? `It failed before reaching the provider${delivery.lastErrorCode ? ` with ${delivery.lastErrorCode}` : ''}.`
-                    : 'This delivery is queued and has not reached the provider.'
-                }
-              />
-            </td>
-          </tr>
+      <TableDetail open={expanded} colSpan={5}>
+        {attempts.length === 0 ? (
+          <EmptyState
+            size='sm'
+            icon='IconPaperPlaneTopRightFilled'
+            title={settledWithoutAttempt ? 'Never attempted' : 'No attempts yet'}
+            description={
+              settledWithoutAttempt
+                ? `It failed before reaching the provider${delivery.lastErrorCode ? ` with ${delivery.lastErrorCode}` : ''}.`
+                : 'This delivery is queued and has not reached the provider.'
+            }
+          />
         ) : (
           <AttemptLedger attempts={attempts} />
-        ))}
+        )}
+      </TableDetail>
     </>
   );
 }
@@ -463,7 +459,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                     <TableHead className='w-24'>Status</TableHead>
                     <TableHead className='w-28'>Error</TableHead>
                     <TableHead className='w-16'>Sent</TableHead>
-                    <TableHead className='w-9'>
+                    <TableHead className='w-12'>
                       <span className='sr-only'>Attempts</span>
                     </TableHead>
                   </TableRow>

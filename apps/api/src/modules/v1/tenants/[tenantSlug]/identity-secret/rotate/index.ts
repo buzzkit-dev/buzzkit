@@ -12,12 +12,12 @@ export const tenantIdentitySecretRotate = new Elysia()
   .guard({ detail: { tags: ['Tenants'] } })
   .post(
     '/tenants/:tenantSlug/identity-secret/rotate',
-    async ({ db, params, workspace, event }) => {
+    async ({ db, params, workspace, audit }) => {
       const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
 
       const rotated = await rotateTenantIdentitySecret(db, tenant);
 
-      await event({
+      await audit({
         event: 'tenant.identity_secret_rotated',
         tenantId: tenant.id,
         target: { type: 'tenant', id: tenant.id },

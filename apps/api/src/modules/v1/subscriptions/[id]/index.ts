@@ -1,3 +1,4 @@
+import { recordSystemEvents } from '@buzzkit/api/api/events/index';
 import {
   findSubscriberById,
   findSubscription,
@@ -28,18 +29,18 @@ export const subscription = new Elysia()
   )
   .patch(
     '/subscriptions/:id',
-    async ({ body, db, params, tenant, event }) => {
+    async ({ body, db, params, tenant }) => {
       const target = await findSubscription(db, tenant.id, params.id);
       const subscriber = await findSubscriberById(db, tenant.id, target.subscriberId);
 
       const updated = await updateSubscriptionEnabled(db, target.id, body.enabled);
 
-      await event({
-        event: 'subscription.updated',
-        tenantId: tenant.id,
-        target: { type: 'subscription', id: target.id },
-        data: { ...resolveSubscriptionEventData(target, subscriber.externalId), enabled: body.enabled },
-      });
+      await recordSystemEvents(tenant.id, subscriber, [
+        {
+          name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
+          data: resolveSubscriptionEventData(target, subscriber.externalId),
+        },
+      ]);
 
       return Response.success(
         { ...serializeSubscription(updated), subscriberId: encodeId('subscriber', updated.subscriberId) },
@@ -53,18 +54,15 @@ export const subscription = new Elysia()
   )
   .delete(
     '/subscriptions/:id',
-    async ({ db, params, tenant, event }) => {
+    async ({ db, params, tenant }) => {
       const target = await findSubscription(db, tenant.id, params.id);
       const subscriber = await findSubscriberById(db, tenant.id, target.subscriberId);
 
       const deleted = await softDeleteSubscription(db, target.id);
 
-      await event({
-        event: 'subscription.removed',
-        tenantId: tenant.id,
-        target: { type: 'subscription', id: target.id },
-        data: resolveSubscriptionEventData(target, subscriber.externalId),
-      });
+      await recordSystemEvents(tenant.id, subscriber, [
+        { name: 'subscription.removed', data: resolveSubscriptionEventData(target, subscriber.externalId) },
+      ]);
 
       return Response.success(
         markDeleted({

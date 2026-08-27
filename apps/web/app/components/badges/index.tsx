@@ -89,6 +89,19 @@ export function DeliveryStatusBadge({ status }: { status: string }) {
   return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;
 }
 
+const SOURCES: Record<string, Entry> = {
+  server: { label: 'Server', tone: 'blue' },
+  ios: { label: 'iOS', tone: 'sky' },
+  android: { label: 'Android', tone: 'purple' },
+  web: { label: 'Web', tone: 'amber' },
+  system: { label: 'System', tone: 'default' },
+};
+
+export function SourceBadge({ source }: { source: string }) {
+  const entry = SOURCES[source];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{source}</Badge>;
+}
+
 export function VerifiedBadge({ verified }: { verified: boolean }) {
   return verified ? <Typed entry={{ label: 'Verified', tone: 'green' }} /> : null;
 }

@@ -12,12 +12,12 @@ export const credentialValidate = new Elysia()
   .guard({ detail: { tags: ['Credentials'] } })
   .post(
     '/credentials/:id/validate',
-    async ({ db, params, tenant, event }) => {
+    async ({ db, params, tenant, audit }) => {
       const target = await findCredential(db, tenant.id, params.id);
 
       const validated = await revalidateCredential(db, target);
 
-      await event({
+      await audit({
         event: 'credential.validated',
         tenantId: tenant.id,
         target: { type: 'credential', id: target.id },

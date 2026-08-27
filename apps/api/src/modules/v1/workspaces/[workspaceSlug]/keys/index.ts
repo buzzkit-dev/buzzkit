@@ -38,7 +38,7 @@ export const keys = new Elysia()
   )
   .post(
     '/workspaces/:workspaceSlug/keys',
-    async ({ body, db, set, workspace, user, event }) => {
+    async ({ body, db, set, workspace, user, audit }) => {
       const kind = body.kind ?? 'workspace';
       const scopes = body.scopes ?? [];
 
@@ -75,7 +75,7 @@ export const keys = new Elysia()
         user!.id
       );
 
-      await event({
+      await audit({
         event: 'key.created',
         target: { type: 'key', id: key.id },
         data: { name: key.name, kind: key.kind, scopes: key.scopes },

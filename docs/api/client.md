@@ -20,6 +20,10 @@ Headers: `BuzzKit-Subscriber: <externalId>` (+ `BuzzKit-Identity: <hash>` when e
 
 Same headers; unregisters the caller's own subscription and returns it with `deleted: true`.
 
+## POST /v1/client/events
+
+`{ externalId, identityHash?, source: "ios" | "android" | "web", events: [{ name, data?, timestamp?, id? }] }` — up to 100 events per call, batched by the SDK (offline queue, one UUID per event as `id`, the original `timestamp`). Custom names are yours; of the reserved `$` names only the SDK's own are accepted here (`$app.opened`, `$app.backgrounded`, `$session.ended`, `$notification.delivered`, `$notification.opened`, `$permission.changed`, `$identify`). Returns the tracked events with `status: "accepted" | "duplicate"`. See [events.md](events.md).
+
 ## GET / PATCH /v1/client/preferences
 
 Headers: `BuzzKit-Subscriber: <externalId>` (+ `BuzzKit-Identity: <hash>` when enforcement is on). GET returns the resolved topic list ([topics.md](topics.md)); PATCH takes `{ "preferences": { "gym-reminders": false } }`. This pair IS the notification-settings screen.

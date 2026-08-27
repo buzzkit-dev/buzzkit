@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
+import { eventually } from '../../utils/eventually';
 import { createClientKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
+
+async function timelineNames(headers: Record<string, string>, externalId: string, atLeast: number) {
+  return await eventually(
+    async () => {
+      const { body } = await api<{ items: Array<{ name: string }> }>(
+        `/v1/subscribers/${encodeURIComponent(externalId)}/timeline`,
+        { headers }
+      );
+      const names = body.data?.items.map((item) => item.name) ?? [];
+      return names.length >= atLeast ? names : undefined;
+    },
+    { label: `timeline of ${externalId}` }
+  );
+}
 
 async function identify(headers: Record<string, string>, externalId: string, attributes?: object) {
   return api<{ id: string; externalId: string; attributes: Record<string, unknown> }>(
@@ -273,7 +288,7 @@ describe('PUT /v1/subscribers/:externalId', () => {
     const externalId = `user_${uniq()}`;
 
     const first = await identify(keyBearer, externalId, { plan: 'free', tags: ['a', 'b'], nested: { x: 1 } });
-    const sqid = first.body.data!.id.replace(/^sub_/, '');
+    const _sqid = first.body.data!.id.replace(/^sub_/, '');
     const [before] = await db
       .select({ updatedAt: tables.subscriber.updatedAt })
       .from(tables.subscriber)
@@ -290,11 +305,8 @@ describe('PUT /v1/subscribers/:externalId', () => {
       .where(eq(tables.subscriber.externalId, externalId));
     expect(after?.updatedAt.toISOString()).toBe(before?.updatedAt.toISOString());
 
-    const eventsBefore = await db
-      .select({ event: tables.event.event })
-      .from(tables.event)
-      .where(eq(tables.event.targetId, sqid));
-    expect(eventsBefore.map((row) => row.event)).toEqual(['subscriber.created']);
+    const timelineBefore = await timelineNames(keyBearer, externalId, 1);
+    expect(timelineBefore).toEqual(['$subscriber.created']);
 
     const changed = await identify(keyBearer, externalId, {
       plan: 'pro',
@@ -308,11 +320,8 @@ describe('PUT /v1/subscribers/:externalId', () => {
       .where(eq(tables.subscriber.externalId, externalId));
     expect(afterChange?.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
 
-    const eventsAfter = await db
-      .select({ event: tables.event.event })
-      .from(tables.event)
-      .where(eq(tables.event.targetId, sqid));
-    expect(eventsAfter.map((row) => row.event)).toEqual(['subscriber.created', 'subscriber.updated']);
+    const timelineAfter = await timelineNames(keyBearer, externalId, 2);
+    expect(timelineAfter).toEqual(['$subscriber.updated', '$subscriber.created']);
   });
 
   it('concurrent first identifies create exactly one subscriber and one created event', async () => {
@@ -332,11 +341,8 @@ describe('PUT /v1/subscribers/:externalId', () => {
       .where(eq(tables.subscriber.externalId, externalId));
     expect(rows).toHaveLength(1);
 
-    const events = await db
-      .select({ event: tables.event.event })
-      .from(tables.event)
-      .where(eq(tables.event.targetId, results[0]!.body.data!.id.replace(/^sub_/, '')));
-    expect(events.filter((row) => row.event === 'subscriber.created')).toHaveLength(1);
+    const names = await timelineNames(keyBearer, externalId, 1);
+    expect(names.filter((name) => name === '$subscriber.created')).toHaveLength(1);
   });
 
   it('email on identify creates an email subscription', async () => {
@@ -544,7 +550,7 @@ describe('cross-tenant and email-only updates', () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
     const first = await identify(keyBearer, externalId, { plan: 'free' });
-    const sqid = first.body.data!.id.replace(/^sub_/, '');
+    const _sqid = first.body.data!.id.replace(/^sub_/, '');
     const address = `${externalId}@acme.com`;
 
     const withEmail = await api(`/v1/subscribers/${externalId}`, {
@@ -553,22 +559,9 @@ describe('cross-tenant and email-only updates', () => {
       body: JSON.stringify({ attributes: { plan: 'free' }, email: address }),
     });
     expect(withEmail.status).toBe(200);
-    const events = await db
-      .select({ event: tables.event.event })
-      .from(tables.event)
-      .where(
-        eq(
-          tables.event.tenantId,
-          (
-            await db
-              .select({ id: tables.subscriber.tenantId })
-              .from(tables.subscriber)
-              .where(eq(tables.subscriber.externalId, externalId))
-          )[0]!.id
-        )
-      );
-    expect(events.map((row) => row.event)).toContain('subscription.created');
-    expect(events.filter((row) => row.event === 'subscriber.updated')).toHaveLength(0);
+    const names = await timelineNames(keyBearer, externalId, 2);
+    expect(names).toContain('$subscription.registered');
+    expect(names).not.toContain('$subscriber.updated');
 
     const [before] = await db
       .select({ updatedAt: tables.subscriber.updatedAt })
@@ -585,10 +578,7 @@ describe('cross-tenant and email-only updates', () => {
       .from(tables.subscriber)
       .where(eq(tables.subscriber.externalId, externalId));
     expect(after?.updatedAt.toISOString()).toBe(before?.updatedAt.toISOString());
-    const subscriberEvents = await db
-      .select({ event: tables.event.event })
-      .from(tables.event)
-      .where(eq(tables.event.targetId, sqid));
-    expect(subscriberEvents.map((row) => row.event)).toEqual(['subscriber.created']);
+    const namesAfter = await timelineNames(keyBearer, externalId, 2);
+    expect(namesAfter.filter((name) => name.startsWith('$subscriber.'))).toEqual(['$subscriber.created']);
   });
 });

@@ -2,7 +2,7 @@
 
 **Status: Phases 0–4 ✅ (the API milestone). Phase 5 in progress: dashboard phase 1 (foundation + onboarding) is built and awaiting review; the dashboard's own phase plan lives in [dashboard.md](dashboard.md).**
 
-**Phases 8–10 (segments, campaigns, workflows, webhooks) are re-planned in [engine.md](engine.md) — a proposal awaiting review that pulls webhooks forward, adds product-event ingestion as its own phase, and recommends a Postgres + Queue workflow runner over Cloudflare Workflows. The sections below stay until it is approved.**
+**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E8 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) is built and awaiting review.**
 
 Deviations from the original plan, all deliberate:
 - **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.
@@ -211,70 +211,9 @@ The framework's public face. This is where "feels like a framework, not a platfo
 
 ---
 
-## Phase 8 — Code-first campaigns & segments + `@buzzkit/cli`
+## Phases 8–9 — The engine (events, webhooks, segments, campaigns, workflows, iOS SDK, code)
 
-Config as code, pushed like a deploy. The sst/Alchemy moment.
-
-**Build**
-
-- **Definition primitives** in `buzzkit/config`:
-
-  ```ts
-  export const dormant = defineSegment('dormant-users', {
-    where: (u) => u.attribute('plan').eq('free').and(u.lastSeen().olderThan('7d')),
-  });
-
-  export const winback = defineCampaign('winback', {
-    segment: dormant,
-    schedule: cron('0 10 * * MON'),
-    message: { title: 'We miss you', body: '…' },
-  });
-  ```
-
-  Definitions compile to a **versioned, serializable spec** (JSON) — the builder API is DX; the spec is the contract the server executes. This split is what keeps everything generic across channels.
-- Tables: `segment`, `campaign` — each with immutable versions (definition JSONB, checksum, deployed_by, deployed_at); the dashboard will only ever *read* these.
-- **CLI (`@buzzkit/cli`):** `buzzkit login` (or key via env), `buzzkit push` (build definitions → diff against deployed versions → apply), `buzzkit diff`, `buzzkit list`. Deploys are atomic per tenant.
-- Execution: segment evaluation compiles to SQL over subscribers/attributes/`last_seen_at`; campaign runs fan out through the existing Phase 4 queue pipeline (a campaign run is just a big message); scheduled campaigns via cron trigger scanning due schedules.
-- `event` table + `POST /v1/events` (track API): name, subscriber, properties — needed by workflows next phase and by event-based segments.
-
-**Key decisions:** spec versioning semantics (in-flight campaign runs pin their version); CLI folding into the main `buzzkit` package as its `bin` (sst-style, `bunx buzzkit push`) vs staying separate — decide when the CLI takes shape, lean toward folding in.
-
-**Done when:** define a segment + scheduled campaign in a demo repo, `buzzkit push`, watch the cron fire and phones buzz; a second push with a changed message shows a real diff and bumps the version.
-
----
-
-## Phase 9 — Workflow engine
-
-The deep end: multi-step, long-running, conditional engagement logic — fully code-defined, channel-generic.
-
-**Build**
-
-- **Definition API** (same compile-to-spec approach):
-
-  ```ts
-  export const onboarding = defineWorkflow('onboarding', {
-    trigger: onEvent('user.signed_up'),
-    steps: (w) => {
-      w.wait('10m');
-      w.send({ title: 'Welcome!', … });
-      w.wait('1d');
-      w.branch(w.subscriber.event('app.opened').within('3d'), {
-        then: (w) => w.send({ title: 'Pro tip…', … }),
-        else: (w) => w.send({ title: 'Need a hand?', … }),
-      });
-    },
-  });
-  ```
-
-  Triggers: `onEvent(...)` (with property filters), `cron(...)`, subscriber-created. Steps: `wait` (duration or until-condition with timeout), `send`, `branch`/conditions (event happened / attribute check / interacted-with-previous-message), `cancelIf` (exit early on event).
-- **Durable execution:** one run per (workflow version, subscriber). Preferred engine: **Cloudflare Workflows** (durable steps + sleeps built in); fallback design: Durable Object per run with alarms. Spike both at phase start, pick once, wrap behind our own runner interface either way — self-hosters on plain Workers must not be locked out.
-- `workflow`, `workflow_run` tables (state, current step, wake_at, history). Event ingestion routes events → trigger matching → run creation/resumption.
-- Versioning semantics: in-flight runs finish on their pinned version; new triggers use the latest.
-- Run visibility API: list runs, inspect a run's step history (dashboard reads this later).
-
-**Key decisions:** the runner engine (Workflows vs DO) — the one real architecture decision left; condition language power (start with the closed set above, no arbitrary code server-side).
-
-**Done when:** the signup→wait→send→branch flow from the definition above runs end-to-end against real events with real waits (compressed clocks in tests); a redeploy mid-run doesn't break in-flight runs; runs are inspectable via API.
+Superseded by [engine.md](engine.md), which carries the design and the phase table **E1 Events → E2 Webhooks → E3 Segments → E4 Campaigns → E5/E6 Workflows → E7 iOS SDK + local delivery → E8 Code (builders, `buzzkit push`)**. What changed from the original Phases 8–9: the stored, versioned spec is the source of truth and the API is the way in (the CLI is diff + apply on top, last); product events are a stream through a per-subscriber Durable Object actor into Tinybird, not rows in Postgres; runs execute on Cloudflare Workflows; segments compile to ClickHouse SQL; campaigns are scheduled sends to a segment; webhooks move up from Phase 10 to E2.
 
 ---
 
@@ -284,7 +223,6 @@ Everything the hosted version needs to take real traffic, all of it useful to se
 
 **Build**
 
-- **Webhooks:** delivery events (`message.completed`, `device.invalidated`, `workflow.run.completed`) to customer endpoints — queue-backed with signed payloads, retries, reconciliation cron (feedbase webhook pattern).
 - Quotas & rate limits per workspace/tenant (hosted free tier needs ceilings); usage counters; an app-level KV/DO-backed limiter for `/v1/auth/*` and `/v1/client/*` (WAF rules are the deployment requirement until then).
 - Credential re-encryption sweep: re-seal every credential under the current master-key version so old versions can be retired.
 - Observability: ✅ OTel tracing + Axiom logging landed in Phase 4 (`@buzzkit/observability`: api/queue/scheduler services, drizzle + better-auth spans, per-invocation logs). Remaining: delivery metrics dashboards, queue-depth visibility, alerting on provider error spikes.
@@ -331,6 +269,6 @@ Ship the framework to the world; the hosted product becomes deployment #1.
 | Decision | Phase | Leaning |
 |---|---|---|
 | APNs egress from Workers (HTTP/2) | 0 | Spike decides; fallback = minimal delivery sidecar |
-| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | 7 | Fold into `buzzkit` (sst-style) |
-| Workflow runner: CF Workflows vs Durable Objects | 8 | CF Workflows, wrapped behind our own runner interface |
+| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | E8 | Fold into `buzzkit` (sst-style); `push` is diff + apply over the definitions API |
+| Workflow runner: CF Workflows vs Durable Objects | 8 | **Decided** (engine.md): Cloudflare Workflows for runs, a Durable Object actor per subscriber for state, ordering and timers; Tinybird for the event log |
 | App sub-entity under tenant | 2 | No — tenant ≈ app; multiple apps = multiple tenants |

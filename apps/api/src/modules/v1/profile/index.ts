@@ -16,10 +16,10 @@ export const profile = new Elysia()
   )
   .patch(
     '/profile',
-    async ({ body, db, user, event }) => {
+    async ({ body, db, user, audit }) => {
       const updated = await updateProfile(db, user.id, body);
 
-      await event({
+      await audit({
         event: 'profile.updated',
         data: { changes: ['name'], previousAttributes: { name: user.name } },
       });

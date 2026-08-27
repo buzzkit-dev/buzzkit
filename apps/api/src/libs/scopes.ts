@@ -27,7 +27,10 @@ export const SCOPE_CATALOG = {
   'tenants:write': { context: 'workspace', role: 'admin', key: true },
   'tenants:secrets': { context: 'workspace', role: 'admin', key: false },
 
-  'events:read': { context: 'workspace', role: 'admin', key: true },
+  'audit:read': { context: 'workspace', role: 'admin', key: true },
+
+  'events:read': { context: 'tenant', role: 'member', key: true },
+  'events:write': { context: 'tenant', role: 'member', key: true },
 
   'credentials:read': { context: 'tenant', role: 'member', key: true },
   'credentials:write': { context: 'tenant', role: 'admin', key: true },

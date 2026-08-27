@@ -15,7 +15,8 @@
   "vars": {
     "ENVIRONMENT": "development",
     "DASHBOARD_URL": "http://localhost:5180",
-    "TRACE_SAMPLE_RATIO": "1"
+    "TRACE_SAMPLE_RATIO": "1",
+    "TINYBIRD_URL": "http://localhost:7181"
   },
 
   // Cloudflare Email Service. `remote: true` sends real email even in local
@@ -49,7 +50,10 @@
   ],
 
   "queues": {
-    "producers": [{ "queue": "buzzkit-deliveries", "binding": "DELIVERIES" }],
+    "producers": [
+      { "queue": "buzzkit-deliveries", "binding": "DELIVERIES" },
+      { "queue": "buzzkit-events", "binding": "EVENTS" }
+    ],
     "consumers": [
       {
         "queue": "buzzkit-deliveries",
@@ -58,9 +62,23 @@
         "max_concurrency": 40,
         "max_retries": 8,
         "dead_letter_queue": "buzzkit-deliveries-dlq"
+      },
+      {
+        "queue": "buzzkit-events",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_concurrency": 20,
+        "max_retries": 10,
+        "dead_letter_queue": "buzzkit-events-dlq"
       }
     ]
   },
+
+  "durable_objects": {
+    "bindings": [{ "name": "SUBSCRIBER_ACTOR", "class_name": "SubscriberActor" }]
+  },
+
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SubscriberActor"] }],
 
   "triggers": {
     "crons": ["*/5 * * * *"]

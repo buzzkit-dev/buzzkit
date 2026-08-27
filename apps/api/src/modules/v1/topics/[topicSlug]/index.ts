@@ -1,5 +1,5 @@
+import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import { assertChannelsConnected, listConnectedChannels } from '@buzzkit/api/api/credentials/index';
-import { diffForEvent } from '@buzzkit/api/api/events/index';
 import {
   assertTopicSlugAvailable,
   assertValidChannelDefaults,
@@ -31,7 +31,7 @@ export const topic = new Elysia()
   )
   .patch(
     '/topics/:topicSlug',
-    async ({ body, db, params, tenant, event }) => {
+    async ({ body, db, params, tenant, audit }) => {
       const topic = await findTopicBySlug(db, tenant.id, params.topicSlug);
       const channels = body.channels ?? topic.channels;
 
@@ -61,7 +61,7 @@ export const topic = new Elysia()
         channelDefaults: resolveChannelDefaults(body.channelDefaults ?? topic.channelDefaults, channels),
       });
 
-      await event({
+      await audit({
         event: 'topic.updated',
         tenantId: tenant.id,
         target: { type: 'topic', id: topic.id },
@@ -84,12 +84,12 @@ export const topic = new Elysia()
   )
   .delete(
     '/topics/:topicSlug',
-    async ({ db, params, tenant, event }) => {
+    async ({ db, params, tenant, audit }) => {
       const topic = await findTopicBySlug(db, tenant.id, params.topicSlug);
 
       const deleted = await softDeleteTopic(db, topic.id);
 
-      await event({
+      await audit({
         event: 'topic.deleted',
         tenantId: tenant.id,
         target: { type: 'topic', id: topic.id },

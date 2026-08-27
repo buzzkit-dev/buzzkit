@@ -104,10 +104,10 @@ export function serializeSubscriber(subscriber: Subscriber) {
 
 export function resolveSubscriptionEventData(
   subscription: Pick<Subscription, 'channel' | 'platform' | 'endpoint'>,
-  externalId?: string
+  externalId: string
 ) {
   return {
-    ...(externalId !== undefined ? { externalId } : {}),
+    externalId,
     channel: subscription.channel,
     platform: subscription.platform,
     endpoint: subscription.endpoint,

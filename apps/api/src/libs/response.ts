@@ -59,7 +59,7 @@ const FIELD_ENTITIES: Record<string, IdEntity> = {
   topicId: 'topic',
   messageId: 'message',
   deliveryId: 'delivery',
-  eventId: 'event',
+  auditId: 'audit',
   segmentId: 'segment',
   campaignId: 'campaign',
   workflowId: 'workflow',

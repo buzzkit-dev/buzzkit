@@ -1,3 +1,4 @@
+import { recordSystemEvents } from '@buzzkit/api/api/events/index';
 import { findSubscriberByExternalId } from '@buzzkit/api/api/subscribers/index';
 import { listPreferences, PreferenceChangesSchema, updatePreferences } from '@buzzkit/api/api/topics/index';
 import { auth } from '@buzzkit/api/libs/auth';
@@ -22,18 +23,15 @@ export const clientPreferences = new Elysia()
   )
   .patch(
     '/client/preferences',
-    async ({ body, db, headers, tenant, clientEvent }) => {
+    async ({ body, db, headers, tenant }) => {
       const externalId = await verifyClientIdentity(tenant, headers);
 
       const subscriber = await findSubscriberByExternalId(db, tenant.id, externalId);
       const preferences = await updatePreferences(db, tenant.id, subscriber.id, body.preferences);
 
-      await clientEvent(externalId)({
-        event: 'preferences.updated',
-        tenantId: tenant.id,
-        target: { type: 'subscriber', id: subscriber.id },
-        data: { externalId, changes: body.preferences },
-      });
+      await recordSystemEvents(tenant.id, subscriber, [
+        { name: 'preferences.updated', data: { changes: body.preferences } },
+      ]);
 
       return Response.list(preferences).send();
     },

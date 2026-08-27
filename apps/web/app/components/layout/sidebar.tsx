@@ -36,7 +36,9 @@ export function Sidebar({
   const isExact = (page: NavigationPage) => pathname === `${base}${page.path}`;
   const isActive = (page: NavigationPage) =>
     page.path === '' ? pathname === base : isExact(page) || pathname.startsWith(`${base}${page.path}/`);
-  const isWithin = (page: NavigationPage) => page.children?.some(isExact) ?? isActive(page);
+  const isWithin = (page: NavigationPage) => isActive(page);
+  const isCurrent = (page: NavigationPage, child: NavigationPage) =>
+    isExact(child) || (child.path === page.path && isActive(page) && !page.children?.some(isExact));
 
   return (
     <aside className='flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
@@ -126,10 +128,10 @@ export function Sidebar({
                           <div className='ml-4.75 flex flex-col gap-0.5 border-bg-3 border-l pl-1.5'>
                             {page.children.map((child) => {
                               const childHighlighted =
-                                hovered !== null ? hovered === child.path : isExact(child);
+                                hovered !== null ? hovered === child.path : isCurrent(page, child);
                               const childClass = cn(
                                 'corner-superellipse/1.125 flex h-7.5 items-center gap-2 rounded-[10px] px-2.5 font-medium text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
-                                isExact(child) ? 'text-fg-4' : 'text-fg-2',
+                                isCurrent(page, child) ? 'text-fg-4' : 'text-fg-2',
                                 child.soon && 'cursor-default text-fg-1'
                               );
                               return child.soon ? (
@@ -141,7 +143,7 @@ export function Sidebar({
                                 <Link
                                   key={child.path}
                                   to={`${base}${child.path}`}
-                                  aria-current={isExact(child) ? 'page' : undefined}
+                                  aria-current={isCurrent(page, child) ? 'page' : undefined}
                                   data-highlighted={childHighlighted ? '' : undefined}
                                   onPointerEnter={() => setHovered(child.path)}
                                   className={childClass}

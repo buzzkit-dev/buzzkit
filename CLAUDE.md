@@ -24,18 +24,19 @@ packages/database/       → @buzzkit/database       Drizzle ORM, PostgreSQL sch
 packages/auth/           → @buzzkit/auth           BetterAuth configuration (email/password, bearer tokens)
 packages/eden/           → @buzzkit/eden           Typed Eden Treaty API client (envelope-unwrapping, inferred from the contract)
 packages/observability/  → @buzzkit/observability  Buffered logging (Axiom), OpenTelemetry tracing
+packages/tinybird/       → @buzzkit/tinybird       The event log: Tinybird data sources, materialized views and endpoints as TypeScript (`bun run build` → Tinybird Local, `bun run deploy` → cloud)
 packages/ui/             → @buzzkit/ui             Design system: shadcn (Base UI style) + Tailwind v4 tokens, Central Icons
 ```
 
 **`buzzkit` is one package, not core + sdk.** The main package IS the framework (like `sst`): channel-agnostic primitives (connectors, workflows, campaigns, segments), the send client, and device token APIs all live in `packages/buzzkit`, organized by subpath exports (`buzzkit/channels`, `buzzkit/workflows`, …) as it grows — never split into separate npm packages for organization's sake. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
 
-The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side).
+The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side). `bun db:up` starts Postgres (5460) and Tinybird Local (7181); after a fresh Tinybird container, `bun run build` in `packages/tinybird` pushes the event tables and endpoints into it.
 
 ## Tech Stack
 
 - **Runtime**: Cloudflare Workers (Wrangler)
 - **API Framework**: Elysia with `CloudflareAdapter` — NOT a Node.js server, no `app.listen()`
-- **Database**: PostgreSQL via Drizzle ORM
+- **Database**: PostgreSQL via Drizzle ORM (what *is*); Tinybird for the event stream (what *happened*); a Durable Object per subscriber for what is true right now (`docs/engine.md`)
 - **Dashboard**: deliberately **not Next.js** — Vite + React Router 8 SSR via `@cloudflare/vite-plugin`
 - **Package Manager**: Bun with workspaces
 - **Code Quality**: Biome (lint + format), Husky pre-commit hooks, lint-staged, Sherif

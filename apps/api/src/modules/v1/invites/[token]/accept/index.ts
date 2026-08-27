@@ -9,14 +9,14 @@ export const inviteAccept = new Elysia()
   .guard({ detail: { tags: ['Invites'] } })
   .post(
     '/invites/:token/accept',
-    async ({ db, params, set, user, event }) => {
+    async ({ db, params, set, user, audit }) => {
       const invite = await findInviteByToken(db, params.token);
 
       const { member } = await acceptInvite(db, invite, { id: user.id, email: user.email });
 
       const workspace = await findInviteWorkspace(db, invite);
 
-      await event({
+      await audit({
         event: 'invite.accepted',
         workspaceId: invite.workspaceId,
         target: { type: 'invite', id: invite.id },

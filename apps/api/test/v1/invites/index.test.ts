@@ -330,7 +330,7 @@ describe('member management', () => {
     expect(demoted.status).toBe(403);
 
     const events = await api<{ items: Array<{ event: string; data: { from: string; to: string } }> }>(
-      `/v1/workspaces/${workspace.slug}/events?event=member.role_changed`,
+      `/v1/workspaces/${workspace.slug}/audit?event=member.role_changed`,
       { headers: ownerBearer }
     );
     expect(events.body.data?.items.length).toBe(2);
@@ -493,7 +493,7 @@ describe('invite edges', () => {
     expect(revoked.status).toBe(200);
     expect(revoked.body.data?.deleted).toBe(true);
     const events = await api<{ items: Array<{ event: string; targetId: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events?event=invite.revoked`,
+      `/v1/workspaces/${workspace.slug}/audit?event=invite.revoked`,
       { headers: ownerBearer }
     );
     expect(events.body.data?.items.some((item) => item.targetId === inviteId)).toBe(true);

@@ -23,12 +23,12 @@ export const credentials = new Elysia()
   )
   .post(
     '/credentials',
-    async ({ body, db, set, tenant, event }) => {
+    async ({ body, db, set, tenant, audit }) => {
       const upload = resolveCredentialUpload(body);
       const created = await replaceCredentials(db, tenant.id, upload);
 
       for (const credential of created) {
-        await event({
+        await audit({
           event: 'credential.created',
           tenantId: tenant.id,
           target: { type: 'credential', id: credential.id },

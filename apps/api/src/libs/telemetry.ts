@@ -1,5 +1,19 @@
-import { createInstrument, createTraceRunner, getActiveSpan, type Span } from '@buzzkit/observability';
+import {
+  createActorInstrument,
+  createInstrument,
+  createTraceRunner,
+  getActiveSpan,
+  type Span,
+} from '@buzzkit/observability';
 import { Elysia } from 'elysia';
+
+export {
+  activeTraceId,
+  currentTraceparent,
+  flushSpans,
+  runInvocation,
+  withTraceparent,
+} from '@buzzkit/observability';
 
 export type { Span };
 
@@ -10,6 +24,8 @@ export const instrument = createInstrument({
   queue: 'buzzkit-queue',
   scheduled: 'buzzkit-scheduler',
 });
+
+export const instrumentActor = createActorInstrument('buzzkit-actor');
 
 type AuthAttributes = {
   user?: { id: string } | null;

@@ -101,11 +101,11 @@ describe('/v1/topics', () => {
     });
     expect(prefs.body.data?.items?.some((p) => p.slug === slug)).toBe(false);
 
-    const events = await api<{ items: Array<{ event: string }> }>(`/v1/workspaces/${workspace.slug}/events`, {
+    const events = await api<{ items: Array<{ event: string }> }>(`/v1/workspaces/${workspace.slug}/audit`, {
       headers: ownerBearer,
     });
     const names = events.body.data?.items.map((i) => i.event);
-    for (const expected of ['topic.created', 'topic.deleted', 'preferences.updated']) {
+    for (const expected of ['topic.created', 'topic.deleted']) {
       expect(names, expected).toContain(expected);
     }
   });

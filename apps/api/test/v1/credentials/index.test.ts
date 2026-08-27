@@ -371,7 +371,7 @@ describe('credential lifecycle edges', () => {
     const p8 = await generateP8();
     await uploadApns(keyBearer, { p8, bundleId: `dev.buzzkit.ledger${uniq()}` });
 
-    const events = await api(`/v1/workspaces/${workspace.slug}/events`, { headers: ownerBearer });
+    const events = await api(`/v1/workspaces/${workspace.slug}/audit`, { headers: ownerBearer });
     const serialized = JSON.stringify(events.body);
     expect(serialized).not.toContain('PRIVATE KEY');
     expect(serialized).not.toContain(p8.split('\n')[1] ?? 'never');
@@ -404,7 +404,7 @@ describe('credential lifecycle', () => {
     expect(list.body.data?.items).toHaveLength(0);
 
     const events = await api<{ items: Array<{ event: string; targetId: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events`,
+      `/v1/workspaces/${workspace.slug}/audit`,
       { headers: ownerBearer }
     );
     const names = events.body.data?.items.map((item) => item.event);

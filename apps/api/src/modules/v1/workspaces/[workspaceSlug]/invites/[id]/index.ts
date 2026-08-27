@@ -17,12 +17,12 @@ export const invite = new Elysia()
   )
   .delete(
     '/workspaces/:workspaceSlug/invites/:id',
-    async ({ db, params, workspace, event }) => {
+    async ({ db, params, workspace, audit }) => {
       const target = await findInvite(db, workspace.id, params.id);
 
       const revoked = await revokeInvite(db, target.id);
 
-      await event({
+      await audit({
         event: 'invite.revoked',
         target: { type: 'invite', id: target.id },
         data: { email: target.email },

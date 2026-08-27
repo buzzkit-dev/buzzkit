@@ -21,12 +21,12 @@ export const credential = new Elysia()
   )
   .delete(
     '/credentials/:id',
-    async ({ db, params, tenant, event }) => {
+    async ({ db, params, tenant, audit }) => {
       const target = await findCredential(db, tenant.id, params.id);
 
       const deleted = await softDeleteCredential(db, target.id);
 
-      await event({
+      await audit({
         event: 'credential.revoked',
         tenantId: tenant.id,
         target: { type: 'credential', id: target.id },

@@ -98,6 +98,7 @@ const TENANT_PAGES = [
   '/segments',
   '/topics',
   '/messages',
+  '/events',
   '/settings/channels',
 ];
 

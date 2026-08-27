@@ -130,6 +130,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableDetail,
   TableHead,
   TableHeader,
   TablePagination,
@@ -141,7 +142,7 @@ import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { OAuthProviders } from '@/app/components/auth/providers';
 import { Sidebar } from '@/app/components/layout/sidebar';
 import { useTheme } from '@/app/components/layout/theme-provider';
@@ -255,6 +256,7 @@ function SectionNav() {
 }
 
 function TableDemo() {
+  const [expanded, setExpanded] = useState<string | null>(null);
   const rows = [
     ['Production backend', 'bk_ws_QkqhGT…clVF', 'Workspace', 'blue', 'Aug 24, 2026'],
     ['Acme server', 'bk_tn_tbaAGQ…28cw', 'Tenant', 'purple', 'Aug 24, 2026'],
@@ -269,20 +271,44 @@ function TableDemo() {
             <TableHead>Key</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Last used</TableHead>
+            <TableHead className='w-12' />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map(([name, key, type, tone, used]) => (
-            <TableRow key={name}>
-              <TableCell className='font-medium text-fg-4'>{name}</TableCell>
-              <TableCell className='font-mono text-xs'>{key}</TableCell>
-              <TableCell>
-                <Badge size='sm' variant={tone as 'blue' | 'purple' | 'green'}>
-                  {type}
-                </Badge>
-              </TableCell>
-              <TableCell>{used === 'Never' ? <span className='text-fg-2'>Never</span> : used}</TableCell>
-            </TableRow>
+          {rows.map(([name = '', key, type, tone, used]) => (
+            <Fragment key={name}>
+              <TableRow
+                onClick={() => setExpanded((current) => (current === name ? null : name))}
+                aria-expanded={expanded === name}
+                className='cursor-pointer hover:bg-bg-a1 [&_*]:cursor-pointer'
+              >
+                <TableCell className='font-medium text-fg-4'>{name}</TableCell>
+                <TableCell className='font-mono text-xs'>{key}</TableCell>
+                <TableCell>
+                  <Badge size='sm' variant={tone as 'blue' | 'purple' | 'green'}>
+                    {type}
+                  </Badge>
+                </TableCell>
+                <TableCell>{used === 'Never' ? <span className='text-fg-2'>Never</span> : used}</TableCell>
+                <TableCell className='w-0 pr-4 text-right'>
+                  <Icon
+                    name='IconChevronDownMedium'
+                    className={cn(
+                      'size-4 transition-transform duration-150',
+                      expanded === name && 'rotate-180'
+                    )}
+                  />
+                </TableCell>
+              </TableRow>
+              <TableDetail open={expanded === name} colSpan={5}>
+                <div className='flex flex-col gap-1.5 px-4 py-3'>
+                  <span className='text-fg-2 text-sm'>Scopes</span>
+                  <span className='font-mono text-xs'>
+                    subscribers:read · subscribers:write · messages:write
+                  </span>
+                </div>
+              </TableDetail>
+            </Fragment>
           ))}
         </TableBody>
         <TablePagination page={2} pageCount={3} total={131} previous='#table' next='#table' />

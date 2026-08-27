@@ -469,7 +469,7 @@ export function listSubscriberDeliveries(
   );
 }
 
-export function listSubscriberEvents(
+export function listSubscriberTimeline(
   ctx: RequestContext,
   token: string,
   workspaceSlug: string,
@@ -481,11 +481,11 @@ export function listSubscriberEvents(
     ctx,
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
       .subscribers({ externalId })
-      .events.get({ query })
+      .timeline.get({ query })
   );
 }
 
-export type EventQuery = {
+export type AuditQuery = {
   limit?: number;
   cursor?: string;
   q?: string;
@@ -495,13 +495,89 @@ export type EventQuery = {
   to?: string;
 };
 
+export function listAuditEvents(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  query: AuditQuery = {}
+) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).audit.get({ query }));
+}
+
+export type EventQuery = {
+  limit?: number;
+  cursor?: string;
+  name?: string;
+  source?: 'server' | 'ios' | 'android' | 'web' | 'system';
+  after?: string;
+};
+
 export function listEvents(
   ctx: RequestContext,
   token: string,
   workspaceSlug: string,
+  tenantSlug: string,
   query: EventQuery = {}
 ) {
-  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).events.get({ query }));
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).events.get({ query })
+  );
+}
+
+export function listEventNames(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).events.names.get()
+  ).then((page) => page.items);
+}
+
+export type EventRange = '24h' | '7d' | '30d';
+
+export function getEventName(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  name: string,
+  query: { range?: EventRange } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .events.names({ name })
+      .get({ query })
+  );
+}
+
+export function getEventVolume(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  query: { range?: EventRange; name?: string } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).events.volume.get({ query })
+  );
+}
+
+export function getEventsToken(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).events.token.get()
+  );
 }
 
 export function getStats(
@@ -620,8 +696,13 @@ export type Subscription = SubscriberDetail['subscriptions'][number];
 export type Topic = Awaited<ReturnType<typeof listTopics>>['items'][number];
 export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
 export type SubscriberDelivery = Awaited<ReturnType<typeof listSubscriberDeliveries>>['items'][number];
-export type SubscriberEvent = Awaited<ReturnType<typeof listSubscriberEvents>>['items'][number];
-export type WorkspaceEvent = Awaited<ReturnType<typeof listEvents>>['items'][number];
+export type TimelineEvent = Awaited<ReturnType<typeof listSubscriberTimeline>>['items'][number];
+export type AuditEvent = Awaited<ReturnType<typeof listAuditEvents>>['items'][number];
+export type StreamEvent = Awaited<ReturnType<typeof listEvents>>['items'][number];
+export type EventName = Awaited<ReturnType<typeof listEventNames>>[number];
+export type EventNameDetail = Awaited<ReturnType<typeof getEventName>>;
+export type EventVolume = Awaited<ReturnType<typeof getEventVolume>>;
+export type EventsToken = Awaited<ReturnType<typeof getEventsToken>>;
 export type Stats = Awaited<ReturnType<typeof getStats>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];

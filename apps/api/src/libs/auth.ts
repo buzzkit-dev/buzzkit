@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { type Actor, createEventLogger, type EventFn } from '@buzzkit/api/api/events/index';
+import { type Actor, type AuditFn, createAuditLogger } from '@buzzkit/api/api/audit/index';
 import {
   type ApiKey,
   findActiveApiKeyByHash,
@@ -176,7 +176,7 @@ const workspaceMiddleware = (request: Request, params: Record<string, string>, d
       apiKey: null,
       scopes,
       actor,
-      event: createEventLogger(db, actor, request, result.workspace.id),
+      audit: createAuditLogger(db, actor, request, result.workspace.id),
     };
   });
 
@@ -222,7 +222,7 @@ const apiKeyMiddleware = (request: Request, params: Record<string, string>, db: 
       keyTenant: result.tenant,
       scopes,
       actor,
-      event: createEventLogger(db, actor, request, result.workspace.id),
+      audit: createAuditLogger(db, actor, request, result.workspace.id),
     };
   });
 
@@ -288,7 +288,7 @@ type WorkspaceAuth = {
   apiKey: ApiKey | null;
   scopes: readonly string[];
   actor: Actor;
-  event: EventFn;
+  audit: AuditFn;
 };
 
 type TenantAuth = WorkspaceAuth & { tenant: Tenant };
@@ -386,14 +386,10 @@ export const auth = new Elysia({ name: 'auth/service' })
           t.set('auth.method', 'client_key');
           setAuthSpanAttributes({ apiKey: result.key, workspace: result.workspace, tenant: result.tenant });
 
-          const clientEvent = (display: string) =>
-            createEventLogger(db, { type: 'user', subscriber: { display } }, request, result.workspace.id);
-
           return {
             workspace: result.workspace,
             tenant: result.tenant as Tenant,
             apiKey: result.key,
-            clientEvent,
           };
         });
       },
@@ -417,7 +413,7 @@ export const auth = new Elysia({ name: 'auth/service' })
           apiKey: null,
           scopes: SESSION_SCOPES as readonly string[],
           actor,
-          event: createEventLogger(db, actor, request, null),
+          audit: createAuditLogger(db, actor, request, null),
         };
       },
     }),

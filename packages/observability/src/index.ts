@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   createSampler,
+  exportSpans,
+  instrumentDO,
   isHeadSampled,
   isMessageBatch,
   isRequest,
@@ -11,7 +13,13 @@ import {
   type TraceConfig,
   type Trigger,
 } from '@microlabs/otel-cf-workers';
-import { context, type Span as OtelSpan, trace as otelTrace, ROOT_CONTEXT } from '@opentelemetry/api';
+import {
+  context,
+  type Span as OtelSpan,
+  trace as otelTrace,
+  ROOT_CONTEXT,
+  TraceFlags,
+} from '@opentelemetry/api';
 
 export type ObservabilityEnv = {
   ENVIRONMENT?: string;
@@ -244,30 +252,77 @@ function traceSink(env: ObservabilityEnv): TraceSink {
   return { spanProcessors: [noopSpanProcessor] };
 }
 
+function resolveTraceConfig(
+  env: ObservabilityEnv,
+  service: string,
+  options: { version?: string; acceptRemote: boolean }
+): TraceConfig {
+  return {
+    ...traceSink(env),
+    service: { name: service, namespace: 'buzzkit', version: options.version },
+    sampling: {
+      headSampler: createSampler({ acceptRemote: options.acceptRemote, ratio: sampleRatio(env) }),
+      tailSampler: multiTailSampler([isHeadSampled, isRootErrorSpan]),
+    },
+  } as TraceConfig;
+}
+
+export function runInvocation<T>(
+  service: string,
+  env: ObservabilityEnv,
+  ctx: { waitUntil(promise: Promise<unknown>): void },
+  fn: () => Promise<T>
+): Promise<T> {
+  return invocations.run({ service, entries: [] }, async () => {
+    try {
+      return await fn();
+    } finally {
+      ctx.waitUntil(flush(env));
+    }
+  });
+}
+
+export function activeTraceId(): string | undefined {
+  return otelTrace.getActiveSpan()?.spanContext().traceId;
+}
+
+export function flushSpans(traceId: string): Promise<void> {
+  return exportSpans(traceId);
+}
+
+export function currentTraceparent(): string | undefined {
+  const span = otelTrace.getActiveSpan();
+  if (!span) return undefined;
+  const { traceId, spanId, traceFlags } = span.spanContext();
+  return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`;
+}
+
+export function withTraceparent<T>(traceparent: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const match = traceparent?.match(/^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/);
+  if (!match) return fn();
+  const parent = otelTrace.setSpanContext(context.active(), {
+    traceId: match[1]!,
+    spanId: match[2]!,
+    traceFlags: Number.parseInt(match[3]!, 16) & TraceFlags.SAMPLED ? TraceFlags.SAMPLED : TraceFlags.NONE,
+    isRemote: true,
+  });
+  return context.with(parent, fn);
+}
+
+export function createActorInstrument(service: string, options: { version?: string } = {}) {
+  return <T>(actorClass: T): T =>
+    instrumentDO(
+      actorClass as never,
+      ((env: ObservabilityEnv) =>
+        resolveTraceConfig(env, service, { version: options.version, acceptRemote: true })) as never
+    ) as T;
+}
+
 export function createInstrument(names: ServiceNames, options: { version?: string } = {}) {
   const resolveConfig: ResolveConfigFn<ObservabilityEnv> = (env, trigger) =>
-    ({
-      ...traceSink(env),
-      service: { name: serviceFor(names, trigger), namespace: 'buzzkit', version: options.version },
-      sampling: {
-        headSampler: createSampler({ acceptRemote: false, ratio: sampleRatio(env) }),
-        tailSampler: multiTailSampler([isHeadSampled, isRootErrorSpan]),
-      },
-    }) as TraceConfig;
+    resolveTraceConfig(env, serviceFor(names, trigger), { version: options.version, acceptRemote: false });
 
-  const withInvocation = <T>(
-    service: string,
-    env: ObservabilityEnv,
-    ctx: ExecutionContext,
-    fn: () => Promise<T>
-  ): Promise<T> =>
-    invocations.run({ service, entries: [] }, async () => {
-      try {
-        return await fn();
-      } finally {
-        ctx.waitUntil(flush(env));
-      }
-    });
+  const withInvocation = runInvocation;
 
   return <Env extends ObservabilityEnv, Message>(
     handler: ExportedHandler<Env, Message>

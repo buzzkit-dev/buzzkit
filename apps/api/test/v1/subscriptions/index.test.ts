@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
+import { eventually } from '../../utils/eventually';
 import { fakeToken } from '../../utils/fixtures';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
+
+async function timelineNames(headers: Record<string, string>, externalId: string, atLeast: number) {
+  return await eventually(
+    async () => {
+      const { body } = await api<{ items: Array<{ name: string }> }>(
+        `/v1/subscribers/${encodeURIComponent(externalId)}/timeline`,
+        { headers }
+      );
+      const names = body.data?.items.map((item) => item.name) ?? [];
+      return names.length >= atLeast ? names : undefined;
+    },
+    { label: `timeline of ${externalId}` }
+  );
+}
 
 type SubscriptionBody = {
   id: string;
@@ -113,11 +128,8 @@ describe('POST /v1/subscriptions', () => {
     expect(after[0]?.updatedAt.toISOString()).toBe(before[0]?.updatedAt.toISOString());
     expect(after[0]?.lastSeenAt.toISOString()).toBe(before[0]?.lastSeenAt.toISOString());
 
-    const events = await db
-      .select({ event: tables.event.event })
-      .from(tables.event)
-      .where(eq(tables.event.targetId, refreshed.body.data!.id.replace(/^sbn_/, '')));
-    expect(events.filter((row) => row.event === 'subscription.created')).toHaveLength(1);
+    const names = await timelineNames(keyBearer, externalId, 2);
+    expect(names.filter((name) => name === '$subscription.registered')).toHaveLength(1);
   });
 
   it('a changed relaunch writes: stale lastSeenAt, platform change, or a moved endpoint', async () => {
@@ -188,9 +200,10 @@ describe('POST /v1/subscriptions', () => {
     expect(tooLong.status).toBe(400);
   });
 
-  it('audits mute and removal', async () => {
+  it('records mute and removal on the timeline', async () => {
     const { keyBearer, ownerBearer, workspace } = await setupWorkspace();
-    const registered = await register(keyBearer, {});
+    const externalId = `user_${uniq()}`;
+    const registered = await register(keyBearer, { externalId });
 
     await api(`/v1/subscriptions/${registered.body.data?.id}`, {
       method: 'PATCH',
@@ -199,16 +212,13 @@ describe('POST /v1/subscriptions', () => {
     });
     await api(`/v1/subscriptions/${registered.body.data?.id}`, { method: 'DELETE', headers: keyBearer });
 
-    const events = await api<{
-      items: Array<{ event: string; targetId: string; data: { enabled?: boolean } }>;
-    }>(`/v1/workspaces/${workspace.slug}/events`, { headers: ownerBearer });
-    const mine = events.body.data?.items.filter((i) => i.targetId === registered.body.data?.id) ?? [];
-    expect(mine.map((i) => i.event).sort()).toEqual([
-      'subscription.created',
-      'subscription.removed',
-      'subscription.updated',
+    const names = await timelineNames(keyBearer, externalId, 4);
+    expect(names).toEqual([
+      '$subscription.removed',
+      '$subscription.muted',
+      '$subscription.registered',
+      '$subscriber.created',
     ]);
-    expect(mine.find((i) => i.event === 'subscription.updated')?.data.enabled).toBe(false);
   });
 
   it('the same endpoint can exist in different tenants independently', async () => {
@@ -321,7 +331,7 @@ describe('subscription ids, listing, and ledger', () => {
     expect(moved.body.data?.externalId).toBe(movedTo);
   });
 
-  it('logs subscription.created once per endpoint, not per refresh', async () => {
+  it('records one registration per endpoint, not per refresh', async () => {
     const { keyBearer, ownerBearer, workspace } = await setupWorkspace();
     const token = fakeToken();
     const externalId = `user_${uniq()}`;
@@ -330,12 +340,8 @@ describe('subscription ids, listing, and ledger', () => {
     await register(keyBearer, { externalId, token });
     await register(keyBearer, { externalId, token });
 
-    const events = await api<{ items: Array<{ event: string; data: { externalId: string } }> }>(
-      `/v1/workspaces/${workspace.slug}/events?event=subscription.created`,
-      { headers: ownerBearer }
-    );
-    const mine = events.body.data?.items.filter((item) => item.data.externalId === externalId);
-    expect(mine).toHaveLength(1);
+    const names = await timelineNames(keyBearer, externalId, 2);
+    expect(names.filter((name) => name === '$subscription.registered')).toHaveLength(1);
   });
 });
 

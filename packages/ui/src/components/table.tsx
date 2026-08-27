@@ -4,7 +4,11 @@ import { Button } from '@buzzkit/ui/components/button';
 import { useLink } from '@buzzkit/ui/components/link';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { cn } from '@buzzkit/ui/lib/utils';
+import { AnimatePresence, motion } from 'motion/react';
 import * as React from 'react';
+
+const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
+const fold = { type: 'spring', duration: 0.2, bounce: 0 } as const;
 
 function Table({ className, children, ...props }: React.ComponentProps<'table'>) {
   const parts = React.Children.toArray(children);
@@ -80,6 +84,38 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
       )}
       {...props}
     />
+  );
+}
+
+function TableDetail({
+  open,
+  colSpan,
+  className,
+  children,
+}: {
+  open: boolean;
+  colSpan: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.tr key='detail' data-slot='table-detail'>
+          <td colSpan={colSpan} className={cn('border-bg-3 border-b p-0', className)}>
+            <motion.div
+              className='overflow-hidden'
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0, transition: fold }}
+              transition={unfold}
+            >
+              {children}
+            </motion.div>
+          </td>
+        </motion.tr>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -161,6 +197,7 @@ export {
   TableBody,
   TableCaption,
   TableCell,
+  TableDetail,
   TableFooter,
   TableHead,
   TableHeader,

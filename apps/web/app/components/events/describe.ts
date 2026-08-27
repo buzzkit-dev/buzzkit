@@ -32,25 +32,6 @@ function changedFields(data: Data): string | null {
   return changes.length > 0 ? `Changed ${changes.join(', ')}` : null;
 }
 
-function subjectOf(data: Data): string {
-  if (data.channel === 'email') return text(data, 'endpoint') ?? 'Email address';
-  if (data.platform === 'ios') return 'iOS device';
-  if (data.platform === 'android') return 'Android device';
-  return 'Device';
-}
-
-function preferenceChanges(data: Data): string | null {
-  const changes = data.changes;
-  if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return null;
-  const parts: string[] = [];
-  for (const [topic, channels] of Object.entries(changes as Record<string, Record<string, unknown>>)) {
-    for (const [channel, value] of Object.entries(channels ?? {})) {
-      parts.push(`${topic} ${channel} ${value ? 'on' : 'off'}`);
-    }
-  }
-  return parts.length > 0 ? parts.join(', ') : null;
-}
-
 export const EVENT_GROUPS: { label: string; events: Record<string, Definition> }[] = [
   {
     label: 'Workspace',
@@ -168,48 +149,6 @@ export const EVENT_GROUPS: { label: string; events: Record<string, Definition> }
         describe: (data) => ({
           detail: [text(data, 'provider'), text(data, 'environment')].filter(Boolean).join(' · '),
         }),
-      },
-    },
-  },
-  {
-    label: 'Subscribers',
-    events: {
-      'subscriber.created': { label: 'Subscriber identified', icon: 'IconFingerPrint1Filled' },
-      'subscriber.updated': { label: 'Subscriber updated', icon: 'IconParagraphFilled' },
-      'subscriber.deleted': { label: 'Subscriber deleted', icon: 'IconTrashCanFilled' },
-      'subscription.created': {
-        label: 'Subscription created',
-        icon: 'IconPhoneFilled',
-        describe: (data) =>
-          data.channel === 'email'
-            ? { label: 'Email address added', icon: 'IconEmail2Filled', detail: text(data, 'endpoint') }
-            : { label: `${subjectOf(data)} registered` },
-      },
-      'subscription.updated': {
-        label: 'Subscription updated',
-        icon: 'IconBellActiveFilled',
-        describe: (data) =>
-          data.enabled === false
-            ? { label: `${subjectOf(data)} muted`, icon: 'IconBellOffFilled' }
-            : { label: `${subjectOf(data)} unmuted`, icon: 'IconBellActiveFilled' },
-      },
-      'subscription.removed': {
-        label: 'Subscription removed',
-        icon: 'IconCircleXFilled',
-        describe: (data) => ({ label: `${subjectOf(data)} removed` }),
-      },
-      'subscription.invalidated': {
-        label: 'Subscription invalidated',
-        icon: 'IconCircleBanSignFilled',
-        describe: (data) => ({
-          label: `${subjectOf(data)} stopped accepting pushes`,
-          detail: text(data, 'reason'),
-        }),
-      },
-      'preferences.updated': {
-        label: 'Preferences changed',
-        icon: 'IconSettingsSliderHorFilled',
-        describe: (data) => ({ detail: preferenceChanges(data) }),
       },
     },
   },

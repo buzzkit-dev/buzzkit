@@ -45,6 +45,7 @@ export const NotFoundError = createErrorClass('not_found');
 export const ConflictError = createErrorClass('conflict');
 export const GoneError = createErrorClass('gone');
 export const InternalError = createErrorClass('internal');
+export const UnavailableError = createErrorClass('unavailable');
 export const MissingPermissionError = createErrorClass('missing_permission');
 
 type ValidationIssue = { param: string; message: string };

@@ -15,7 +15,7 @@ export const inviteResend = new Elysia()
   .guard({ detail: { tags: ['Invites'] } })
   .post(
     '/workspaces/:workspaceSlug/invites/:id/resend',
-    async ({ db, params, workspace, user, event }) => {
+    async ({ db, params, workspace, user, audit }) => {
       const existing = await findInvite(db, workspace.id, params.id);
       const refreshed = await resendInvite(db, existing);
 
@@ -32,7 +32,7 @@ export const inviteResend = new Elysia()
         }),
       });
 
-      await event({
+      await audit({
         event: 'invite.resent',
         target: { type: 'invite', id: refreshed.id },
         data: { email: refreshed.email, emailSent },

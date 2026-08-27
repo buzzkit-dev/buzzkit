@@ -834,24 +834,24 @@ export async function processDeliveryBatch(
       });
     }
 
-    await recordSystemEvents(
-      db,
-      applications
-        .filter((application) => application.invalidatedSubscription)
-        .map((application) => {
-          const row = rows.get(application.deliveryId)!;
-          const outcome = outcomes.find((candidate) => candidate.deliveryId === application.deliveryId)!;
-          return {
-            event: 'subscription.invalidated' as const,
-            tenantId: row.delivery.tenantId,
-            target: { type: 'subscription', id: row.subscription.id },
+    for (const application of applications.filter((entry) => entry.invalidatedSubscription)) {
+      const row = rows.get(application.deliveryId)!;
+      const outcome = outcomes.find((candidate) => candidate.deliveryId === application.deliveryId)!;
+
+      await recordSystemEvents(
+        row.delivery.tenantId,
+        { id: row.delivery.subscriberId, externalId: row.subscriber.externalId },
+        [
+          {
+            name: 'subscription.invalidated',
             data: {
               ...resolveSubscriptionEventData(row.subscription, row.subscriber.externalId),
               reason: outcome.result.ok ? null : outcome.result.reason,
             },
-          };
-        })
-    );
+          },
+        ]
+      );
+    }
 
     for (const outcome of ['sent', 'retrying', 'failed', 'invalid', 'skipped'] as const) {
       t.set(`deliveries.${outcome}`, processed.filter((entry) => entry.outcome === outcome).length);

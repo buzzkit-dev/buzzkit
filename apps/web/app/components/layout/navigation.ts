@@ -18,15 +18,15 @@ export const NAVIGATION: NavigationSection[] = [
   {
     label: 'Engage',
     pages: [
-      { label: 'Campaigns', path: '/campaigns', icon: 'IconMegaphoneFilled', planned: 'Phase 8' },
-      { label: 'Workflows', path: '/workflows', icon: 'IconAgentsFilled', planned: 'Phase 9' },
+      { label: 'Campaigns', path: '/campaigns', icon: 'IconMegaphoneFilled', planned: 'engine phase E4' },
+      { label: 'Workflows', path: '/workflows', icon: 'IconAgentsFilled', planned: 'engine phase E5' },
     ],
   },
   {
     label: 'Audience',
     pages: [
       { label: 'Subscribers', path: '/subscribers', icon: 'IconTeamFilled' },
-      { label: 'Segments', path: '/segments', icon: 'IconTargetFilled', planned: 'Phase 8' },
+      { label: 'Segments', path: '/segments', icon: 'IconTargetFilled', planned: 'engine phase E3' },
       { label: 'Topics', path: '/topics', icon: 'IconTagFilled' },
     ],
   },
@@ -34,14 +34,22 @@ export const NAVIGATION: NavigationSection[] = [
     label: 'Activity',
     pages: [
       { label: 'Messages', path: '/messages', icon: 'IconPaperPlaneTopRightFilled' },
-      { label: 'Events', path: '/events', icon: 'IconHistoryFilled' },
+      {
+        label: 'Events',
+        path: '/events',
+        icon: 'IconZapFilled',
+        children: [
+          { label: 'Catalog', path: '/events' },
+          { label: 'Stream', path: '/events/stream' },
+        ],
+      },
     ],
   },
   {
     label: 'Developers',
     pages: [
       { label: 'API keys', path: '/keys', icon: 'IconKeyholeFilled' },
-      { label: 'Webhooks', path: '/webhooks', icon: 'IconWebhooksFilled', planned: 'Phase 10' },
+      { label: 'Webhooks', path: '/webhooks', icon: 'IconWebhooksFilled', planned: 'engine phase E2' },
     ],
   },
   {
@@ -56,6 +64,7 @@ export const NAVIGATION: NavigationSection[] = [
           { label: 'Channels', path: '/settings/channels' },
           { label: 'Tenants', path: '/settings/tenants' },
           { label: 'Members', path: '/settings/members' },
+          { label: 'Audit log', path: '/settings/audit-log' },
           { label: 'Billing', path: '/settings/billing', soon: true },
         ],
       },

@@ -16,5 +16,22 @@ services:
       timeout: 3s
       retries: 10
 
+  tinybird:
+    image: tinybirdco/tinybird-local:latest
+    container_name: buzzkit-tinybird
+    ports:
+      - '7181:7181'
+    volumes:
+      - buzzkit-tinybird-data:/var/lib/clickhouse
+      - buzzkit-tinybird-metadata:/redis-data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:7181/tokens > /dev/null']
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
 volumes:
   buzzkit-postgres-data:
+  buzzkit-tinybird-data:
+  buzzkit-tinybird-metadata:

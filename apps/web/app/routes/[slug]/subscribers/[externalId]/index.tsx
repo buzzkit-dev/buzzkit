@@ -40,7 +40,7 @@ import {
   VerifiedBadge,
 } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
-import { actorLabel, describeEvent } from '@/app/components/events/describe';
+import { describeStreamEvent, SOURCE_LABELS, type StreamSource } from '@/app/components/events/stream';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
@@ -50,11 +50,11 @@ import {
   getSubscriber,
   getSubscriberPreferences,
   listSubscriberDeliveries,
-  listSubscriberEvents,
+  listSubscriberTimeline,
   type SubscriberDelivery,
-  type SubscriberEvent,
   type SubscriberPreference,
   type Subscription,
+  type TimelineEvent,
 } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
@@ -73,7 +73,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     getSubscriber(ctx, token, params.slug, tenant, params.externalId),
     getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
     listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
-    listSubscriberEvents(ctx, token, params.slug, tenant, params.externalId, { limit: 12 }),
+    listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, { limit: 12 }),
   ]);
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const name = typeof attributes.name === 'string' && attributes.name.trim() ? attributes.name : null;
@@ -439,19 +439,20 @@ function DeliveryRow({ delivery, params }: { delivery: SubscriberDelivery; param
   );
 }
 
-function EventRow({ event }: { event: SubscriberEvent }) {
-  const { label, icon, detail } = describeEvent(event);
+function EventRow({ event }: { event: TimelineEvent }) {
+  const { label, icon, detail } = describeStreamEvent(event);
+  const source = SOURCE_LABELS[event.source as StreamSource] ?? event.source;
   return (
     <li className='flex items-center gap-3 px-4 py-2.5'>
       <IconTile icon={icon} size='sm' />
       <div className='flex min-w-0 flex-1 flex-col items-start'>
         <Truncate className='max-w-full font-medium text-fg-4 text-sm'>{label}</Truncate>
         <Truncate className='max-w-full text-fg-2 text-xs'>
-          {[detail, actorLabel(event)].filter(Boolean).join(' · ')}
+          {[detail, `from ${source}`].filter(Boolean).join(' · ')}
         </Truncate>
       </div>
       <div className='shrink-0 text-fg-2 text-xs'>
-        <TimeAgo at={event.createdAt} />
+        <TimeAgo at={event.timestamp} />
       </div>
     </li>
   );
@@ -479,7 +480,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
   const messages = [...deliveries.items].sort((a, b) =>
     (b.sentAt ?? b.createdAt).localeCompare(a.sentAt ?? a.createdAt)
   );
-  const activity = [...events.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const activity = events.items;
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
   useLinkedScroll(mainRef, asideRef);
@@ -599,7 +600,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 size='sm'
                 icon='IconBellFilled'
                 title='No activity yet'
-                description='Identifies, device registrations and preference changes appear here.'
+                description='Events from the app and your server appear here, newest first.'
               />
             ) : (
               <ul className='flex flex-col divide-y divide-bg-3 border-bg-3 border-t'>

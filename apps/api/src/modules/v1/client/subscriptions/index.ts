@@ -1,3 +1,4 @@
+import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
   ClientIdentitySchema,
   findSubscriptionOwnedBy,
@@ -21,7 +22,7 @@ export const clientSubscriptions = new Elysia()
   .guard({ detail: { tags: ['Client'] } })
   .post(
     '/client/subscriptions',
-    async ({ body, db, request, set, tenant, clientEvent }) => {
+    async ({ body, db, request, set, tenant }) => {
       const verified = await verifyIdentity(tenant, body.externalId, body.identityHash);
       const resolved = resolveSubscriptionInput(body);
 
@@ -37,14 +38,23 @@ export const clientSubscriptions = new Elysia()
         }
       );
 
-      if (subscriptionCreated) {
-        await clientEvent(subscriber.externalId)({
-          event: 'subscription.created',
-          tenantId: tenant.id,
-          target: { type: 'subscription', id: subscription.id },
-          data: { ...resolveSubscriptionEventData(subscription, subscriber.externalId), subscriberCreated },
+      const events: SystemEvent[] = [];
+
+      if (subscriberCreated) {
+        events.push({
+          name: 'subscriber.created',
+          data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
         });
       }
+
+      if (subscriptionCreated) {
+        events.push({
+          name: 'subscription.registered',
+          data: resolveSubscriptionEventData(subscription, subscriber.externalId),
+        });
+      }
+
+      await recordSystemEvents(tenant.id, subscriber, events);
 
       return Response.success(
         {
@@ -64,18 +74,18 @@ export const clientSubscriptions = new Elysia()
   )
   .patch(
     '/client/subscriptions/:id',
-    async ({ body, db, headers, params, tenant, clientEvent }) => {
+    async ({ body, db, headers, params, tenant }) => {
       const externalId = await verifyClientIdentity(tenant, headers);
       const subscription = await findSubscriptionOwnedBy(db, tenant.id, externalId, params.id);
 
       const updated = await updateSubscriptionEnabled(db, subscription.id, body.enabled);
 
-      await clientEvent(externalId)({
-        event: 'subscription.updated',
-        tenantId: tenant.id,
-        target: { type: 'subscription', id: subscription.id },
-        data: { ...resolveSubscriptionEventData(subscription, externalId), enabled: body.enabled },
-      });
+      await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
+        {
+          name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
+          data: resolveSubscriptionEventData(subscription, externalId),
+        },
+      ]);
 
       return Response.success(
         { ...serializeSubscription(updated), subscriberId: encodeId('subscriber', updated.subscriberId) },
@@ -86,18 +96,15 @@ export const clientSubscriptions = new Elysia()
   )
   .delete(
     '/client/subscriptions/:id',
-    async ({ db, headers, params, tenant, clientEvent }) => {
+    async ({ db, headers, params, tenant }) => {
       const externalId = await verifyClientIdentity(tenant, headers);
       const subscription = await findSubscriptionOwnedBy(db, tenant.id, externalId, params.id);
 
       const deleted = await softDeleteSubscription(db, subscription.id);
 
-      await clientEvent(externalId)({
-        event: 'subscription.removed',
-        tenantId: tenant.id,
-        target: { type: 'subscription', id: subscription.id },
-        data: resolveSubscriptionEventData(subscription, externalId),
-      });
+      await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
+        { name: 'subscription.removed', data: resolveSubscriptionEventData(subscription, externalId) },
+      ]);
 
       return Response.success(
         markDeleted({

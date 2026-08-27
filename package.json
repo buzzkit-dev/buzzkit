@@ -4,7 +4,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "db:up": "docker compose up -d postgres",
+    "db:up": "docker compose up -d postgres tinybird",
     "db:down": "docker compose down",
     "lint": "biome lint .",
     "format": "biome check .",

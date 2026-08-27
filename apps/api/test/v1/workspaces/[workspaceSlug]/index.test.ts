@@ -148,7 +148,7 @@ describe('audit payloads', () => {
         event: string;
         data: { changes: string[]; previousAttributes: Record<string, unknown> };
       }>;
-    }>(`/v1/workspaces/${workspace.slug}/events?event=workspace.updated`, { headers: ownerBearer });
+    }>(`/v1/workspaces/${workspace.slug}/audit?event=workspace.updated`, { headers: ownerBearer });
     const item = updated.body.data?.items[0];
     expect(item?.data.changes).toEqual(['name']);
     expect(item?.data.previousAttributes.name).toBe(workspace.name);

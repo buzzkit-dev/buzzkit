@@ -14,12 +14,12 @@ type EventItem = {
 
 async function listEvents(headers: Record<string, string>, slug: string, query = '') {
   return api<{ items: EventItem[]; hasMore: boolean; nextCursor: string | null }>(
-    `/v1/workspaces/${slug}/events${query}`,
+    `/v1/workspaces/${slug}/audit${query}`,
     { headers }
   );
 }
 
-describe('GET /v1/workspaces/:slug/events', () => {
+describe('GET /v1/workspaces/:slug/audit', () => {
   it('records every mutation with the right actor', async () => {
     const { owner, workspace, keyBearer, ownerBearer } = await setupWorkspace();
     const tenant = await createTenant(keyBearer);
@@ -55,7 +55,7 @@ describe('GET /v1/workspaces/:slug/events', () => {
     const tenant = await createTenant(keyBearer);
 
     const events = await api<{ items: Array<{ event: string; tenantId: string | null; targetId: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events?event=tenant.created`,
+      `/v1/workspaces/${workspace.slug}/audit?event=tenant.created`,
       { headers: ownerBearer }
     );
     const created = events.body.data?.items.find((i) => i.targetId === tenant.id);
@@ -93,7 +93,7 @@ describe('GET /v1/workspaces/:slug/events', () => {
     expect(byTarget.body.data?.items.map((item) => item.event)).toEqual(['tenant.created']);
 
     const bySubscriber = await listEvents(ownerBearer, workspace.slug, `?q=${externalId.toLowerCase()}`);
-    expect(bySubscriber.body.data?.items.map((item) => item.event)).toEqual(['subscriber.created']);
+    expect(bySubscriber.body.data?.items).toEqual([]);
 
     const nothing = await listEvents(ownerBearer, workspace.slug, `?q=nope_${uniq()}`);
     expect(nothing.body.data?.items).toEqual([]);
@@ -107,21 +107,21 @@ describe('GET /v1/workspaces/:slug/events', () => {
     await createTenant(keyBearer);
 
     const since = await api<{ items: EventItem[]; total: number }>(
-      `/v1/workspaces/${workspace.slug}/events?from=${encodeURIComponent(before)}&event=tenant.created`,
+      `/v1/workspaces/${workspace.slug}/audit?from=${encodeURIComponent(before)}&event=tenant.created`,
       { headers: ownerBearer }
     );
     expect(since.body.data?.items).toHaveLength(2);
     expect(since.body.data?.total).toBe(2);
 
     const until = await api<{ items: EventItem[]; total: number }>(
-      `/v1/workspaces/${workspace.slug}/events?to=${encodeURIComponent(before)}&event=tenant.created`,
+      `/v1/workspaces/${workspace.slug}/audit?to=${encodeURIComponent(before)}&event=tenant.created`,
       { headers: ownerBearer }
     );
     expect(until.body.data?.items).toEqual([]);
     expect(until.body.data?.total).toBe(0);
 
     const combined = await api<{ items: EventItem[]; total: number }>(
-      `/v1/workspaces/${workspace.slug}/events?from=${encodeURIComponent(before)}&actorType=member`,
+      `/v1/workspaces/${workspace.slug}/audit?from=${encodeURIComponent(before)}&actorType=member`,
       { headers: ownerBearer }
     );
     expect(combined.body.data?.items).toEqual([]);

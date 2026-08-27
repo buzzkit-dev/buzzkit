@@ -1,4 +1,4 @@
-import { diffForEvent } from '@buzzkit/api/api/events/index';
+import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import {
   assertTenantSlugAvailable,
   assertValidTenantSettings,
@@ -29,7 +29,7 @@ export const tenant = new Elysia()
   )
   .patch(
     '/tenants/:tenantSlug',
-    async ({ body, db, params, workspace, event }) => {
+    async ({ body, db, params, workspace, audit }) => {
       if (body.settings !== undefined) {
         assertValidTenantSettings(body.settings);
       }
@@ -51,7 +51,7 @@ export const tenant = new Elysia()
 
       const updated = await updateTenant(db, tenant, body);
 
-      await event({
+      await audit({
         event: 'tenant.updated',
         tenantId: tenant.id,
         target: { type: 'tenant', id: tenant.id },
@@ -72,12 +72,12 @@ export const tenant = new Elysia()
   )
   .delete(
     '/tenants/:tenantSlug',
-    async ({ db, params, workspace, event }) => {
+    async ({ db, params, workspace, audit }) => {
       const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
 
       const deleted = await softDeleteTenant(db, tenant);
 
-      await event({
+      await audit({
         event: 'tenant.deleted',
         tenantId: tenant.id,
         target: { type: 'tenant', id: tenant.id },

@@ -564,7 +564,7 @@ describe('GET /v1/messages, deliveries', () => {
     ).toBe(404);
 
     const events = await api<{ items: Array<{ event: string; actorType: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events`,
+      `/v1/workspaces/${workspace.slug}/audit`,
       { headers: ownerBearer }
     );
     const names = events.body.data?.items.map((i) => i.event) ?? [];

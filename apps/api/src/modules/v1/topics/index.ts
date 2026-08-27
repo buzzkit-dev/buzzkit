@@ -40,7 +40,7 @@ export const topics = new Elysia()
   )
   .post(
     '/topics',
-    async ({ body, db, set, tenant, event }) => {
+    async ({ body, db, set, tenant, audit }) => {
       const connected = await listConnectedChannels(db, tenant.id);
       const channels = body.channels ?? connected;
 
@@ -51,7 +51,7 @@ export const topics = new Elysia()
 
       const topic = await createTopic(db, tenant.id, { ...body, channels });
 
-      await event({
+      await audit({
         event: 'topic.created',
         tenantId: tenant.id,
         target: { type: 'topic', id: topic.id },

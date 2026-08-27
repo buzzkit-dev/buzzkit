@@ -23,3 +23,8 @@ AXIOM_API_TOKEN=
 AXIOM_LOGS_DATASET=
 AXIOM_TRACES_DATASET=
 
+
+# Tinybird: the event log (docs/engine.md). Locally `bun db:up` starts Tinybird Local next to Postgres and
+# `bun run --cwd packages/tinybird token` prints its workspace token; deployed, a workspace admin token
+# (ingest, queries and short-lived dashboard JWTs). TINYBIRD_URL is a wrangler var (http://localhost:7181 locally).
+TINYBIRD_TOKEN=

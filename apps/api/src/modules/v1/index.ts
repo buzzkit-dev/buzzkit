@@ -1,5 +1,6 @@
 import { response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
+import { clientEvents } from './client/events';
 import { clientIdentify } from './client/identify';
 import { clientPreferences } from './client/preferences';
 import { clientSubscriptions } from './client/subscriptions';
@@ -7,7 +8,13 @@ import { credentials } from './credentials';
 import { credential } from './credentials/[id]';
 import { credentialValidate } from './credentials/[id]/validate';
 import { delivery } from './deliveries/[id]';
+
 import { deliveryAttempts } from './deliveries/[id]/attempts';
+import { events } from './events';
+import { eventNames } from './events/names';
+import { eventName } from './events/names/[name]';
+import { eventsToken } from './events/token';
+import { eventVolume } from './events/volume';
 import { health } from './health';
 import { invitePreview } from './invites/[token]';
 import { inviteAccept } from './invites/[token]/accept';
@@ -19,9 +26,9 @@ import { stats } from './stats';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
 import { subscriberDeliveries } from './subscribers/[externalId]/deliveries';
-import { subscriberEvents } from './subscribers/[externalId]/events';
 import { subscriberPreferences } from './subscribers/[externalId]/preferences';
 import { subscriberSubscriptions } from './subscribers/[externalId]/subscriptions';
+import { subscriberTimeline } from './subscribers/[externalId]/timeline';
 import { subscriptions } from './subscriptions';
 import { subscription } from './subscriptions/[id]';
 import { tenants } from './tenants';
@@ -32,7 +39,7 @@ import { topics } from './topics';
 import { topic } from './topics/[topicSlug]';
 import { workspaces } from './workspaces';
 import { workspace } from './workspaces/[workspaceSlug]';
-import { events } from './workspaces/[workspaceSlug]/events';
+import { auditLog } from './workspaces/[workspaceSlug]/audit';
 import { invites } from './workspaces/[workspaceSlug]/invites';
 import { invite } from './workspaces/[workspaceSlug]/invites/[id]';
 import { inviteResend } from './workspaces/[workspaceSlug]/invites/[id]/resend';
@@ -96,9 +103,9 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(key)
   /*
-   * /v1/workspaces/:slug/events
+   * /v1/workspaces/:slug/audit
    */
-  .use(events)
+  .use(auditLog)
   /*
    * /v1/tenants
    */
@@ -148,9 +155,9 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(subscriberDeliveries)
   /*
-   * /v1/subscribers/:externalId/events
+   * /v1/subscribers/:externalId/timeline
    */
-  .use(subscriberEvents)
+  .use(subscriberTimeline)
   /*
    * /v1/subscriptions
    */
@@ -180,6 +187,26 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(messageDeliveries)
   /*
+   * /v1/events
+   */
+  .use(events)
+  /*
+   * /v1/events/names
+   */
+  .use(eventNames)
+  /*
+   * /v1/events/names/:name
+   */
+  .use(eventName)
+  /*
+   * /v1/events/token
+   */
+  .use(eventsToken)
+  /*
+   * /v1/events/volume
+   */
+  .use(eventVolume)
+  /*
    * /v1/stats
    */
   .use(stats)
@@ -202,4 +229,8 @@ export const v1 = new Elysia({ prefix: '/v1' })
   /*
    * /v1/client/preferences
    */
-  .use(clientPreferences);
+  .use(clientPreferences)
+  /*
+   * /v1/client/events
+   */
+  .use(clientEvents);

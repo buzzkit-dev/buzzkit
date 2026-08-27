@@ -17,12 +17,12 @@ export const key = new Elysia()
   )
   .delete(
     '/workspaces/:workspaceSlug/keys/:id',
-    async ({ db, params, workspace, event }) => {
+    async ({ db, params, workspace, audit }) => {
       const target = await findApiKey(db, workspace.id, params.id);
 
       const revoked = await revokeApiKey(db, target.id);
 
-      await event({
+      await audit({
         event: 'key.revoked',
         target: { type: 'key', id: target.id },
         data: { name: target.name, kind: target.kind },

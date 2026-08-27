@@ -22,7 +22,7 @@ export const ID_PREFIXES = {
   topic: 'tpc',
   message: 'msg',
   delivery: 'dlv',
-  event: 'evt',
+  audit: 'aud',
   segment: 'seg',
   campaign: 'cmp',
   workflow: 'wf',
@@ -43,7 +43,7 @@ export const TARGET_ENTITIES: Record<string, IdEntity> = {
   subscription: 'subscription',
   topic: 'topic',
   message: 'message',
-  event: 'event',
+  audit: 'audit',
 };
 
 export function encodeBareId(entity: IdEntity | undefined, id: number): string {

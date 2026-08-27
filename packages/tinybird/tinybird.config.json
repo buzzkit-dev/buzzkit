@@ -1,0 +1,6 @@
+{
+  "include": ["src/datasources/*.ts", "src/materializations/*.ts", "src/endpoints/*.ts"],
+  "token": "${TINYBIRD_TOKEN}",
+  "baseUrl": "${TINYBIRD_URL}",
+  "devMode": "local"
+}

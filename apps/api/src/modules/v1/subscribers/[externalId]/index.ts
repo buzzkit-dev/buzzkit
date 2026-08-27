@@ -1,4 +1,5 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
+import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
   AttributesSchema,
   assertNoSystemAttributes,
@@ -43,7 +44,7 @@ export const subscriber = new Elysia()
   )
   .put(
     '/subscribers/:externalId',
-    async ({ body, db, params, set, tenant, event }) => {
+    async ({ body, db, params, set, tenant }) => {
       assertNoSystemAttributes(body?.attributes);
       if (body?.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
@@ -61,26 +62,22 @@ export const subscriber = new Elysia()
           })
         : null;
 
-      if (registered?.subscriptionCreated) {
-        await event({
-          event: 'subscription.created',
-          tenantId: tenant.id,
-          target: { type: 'subscription', id: registered.subscription.id },
-          data: {
-            ...resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
-            subscriberCreated: created,
-          },
+      const events: SystemEvent[] = [];
+
+      if (created || changed) {
+        events.push({
+          name: created ? 'subscriber.created' : 'subscriber.updated',
+          data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
         });
       }
 
-      if (created || changed) {
-        await event({
-          event: created ? 'subscriber.created' : 'subscriber.updated',
-          tenantId: tenant.id,
-          target: { type: 'subscriber', id: subscriber.id },
-          data: { externalId: subscriber.externalId },
+      if (registered?.subscriptionCreated) {
+        events.push({
+          name: 'subscription.registered',
+          data: resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
         });
       }
+      await recordSystemEvents(tenant.id, subscriber, events);
 
       return Response.success(serializeSubscriber(subscriber), {
         entity: 'subscriber',
@@ -102,17 +99,14 @@ export const subscriber = new Elysia()
   )
   .delete(
     '/subscribers/:externalId',
-    async ({ db, params, tenant, event }) => {
+    async ({ db, params, tenant }) => {
       const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
 
       const deleted = await softDeleteSubscriber(db, subscriber);
 
-      await event({
-        event: 'subscriber.deleted',
-        tenantId: tenant.id,
-        target: { type: 'subscriber', id: subscriber.id },
-        data: { externalId: subscriber.externalId },
-      });
+      await recordSystemEvents(tenant.id, subscriber, [
+        { name: 'subscriber.deleted', data: { externalId: subscriber.externalId } },
+      ]);
 
       return Response.success(markDeleted(serializeSubscriber(deleted)), {
         entity: 'subscriber',

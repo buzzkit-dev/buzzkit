@@ -1,4 +1,4 @@
-import { diffForEvent } from '@buzzkit/api/api/events/index';
+import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import {
   assertSlugAvailable,
   SlugSchema,
@@ -27,7 +27,7 @@ export const workspace = new Elysia()
   )
   .patch(
     '/workspaces/:workspaceSlug',
-    async ({ body, db, workspace, event }) => {
+    async ({ body, db, workspace, audit }) => {
       if (body.name === undefined && body.slug === undefined && body.avatarUrl === undefined) {
         return Response.success(serializeWorkspace(workspace), { entity: 'workspace' }).send();
       }
@@ -38,7 +38,7 @@ export const workspace = new Elysia()
 
       const updated = await updateWorkspace(db, workspace.id, body);
 
-      await event({
+      await audit({
         event: 'workspace.updated',
         target: { type: 'workspace', id: workspace.id },
         data: diffForEvent(workspace, updated),
@@ -57,10 +57,10 @@ export const workspace = new Elysia()
   )
   .delete(
     '/workspaces/:workspaceSlug',
-    async ({ db, workspace, event }) => {
+    async ({ db, workspace, audit }) => {
       const deleted = await softDeleteWorkspace(db, workspace.id);
 
-      await event({
+      await audit({
         event: 'workspace.deleted',
         target: { type: 'workspace', id: workspace.id },
         data: { name: workspace.name, slug: workspace.slug },

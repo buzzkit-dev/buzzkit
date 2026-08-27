@@ -1,4 +1,4 @@
-import { createEventLogger } from '@buzzkit/api/api/events/index';
+import { createAuditLogger } from '@buzzkit/api/api/audit/index';
 import { NotFoundError } from '@buzzkit/api/libs/error';
 import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -524,12 +524,12 @@ export async function listUnfinalizedMessages(db: Db, limit: number): Promise<Ar
 }
 
 export function systemEvent(db: Db, tenantId: number) {
-  return async (entry: Parameters<ReturnType<typeof createEventLogger>>[0]) => {
+  return async (entry: Parameters<ReturnType<typeof createAuditLogger>>[0]) => {
     const [tenant] = await db
       .select({ workspaceId: tables.tenant.workspaceId })
       .from(tables.tenant)
       .where(eq(tables.tenant.id, tenantId));
-    await createEventLogger(db, { type: 'system' }, null, tenant?.workspaceId ?? null)(entry);
+    await createAuditLogger(db, { type: 'system' }, null, tenant?.workspaceId ?? null)(entry);
   };
 }
 

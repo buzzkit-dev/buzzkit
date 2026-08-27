@@ -1,0 +1,24 @@
+{
+  "name": "@buzzkit/tinybird",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun scripts/local.ts build",
+    "dev": "bun scripts/local.ts dev",
+    "token": "bun scripts/local.ts token",
+    "deploy": "tinybird deploy",
+    "deploy:check": "tinybird deploy --check",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tinybirdco/sdk": "^0.0.82"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2"
+  }
+}

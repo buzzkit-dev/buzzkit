@@ -16,10 +16,15 @@ src/
 │   ├── encoding.ts       hex / base64 / base64url helpers (the only byte↔string code)
 │   ├── cache.ts          Best-effort KV read/write/delete with date revival
 │   ├── telemetry.ts      trace() spans, route/auth span attributes, instrument() binding
+│   ├── tinybird.ts       Tinybird client (typed endpoints), Events API ingest, local token resolution, dashboard JWT signing
+│   ├── actor.ts          `subscriberActor(tenantId, subscriberId)` — the Durable Object stub
 │   └── sqids.ts          Sqids encoder/decoder + ID_PREFIXES catalog
 ├── utils/errorCodes.ts   Error code → HTTP status mapping (includes PostgreSQL codes)
 ├── providers/            Provider registry: one module per provider (validate + send), aggregated in index.ts
-├── queue/                Queue consumer (fan-out pages + batched delivery pipeline: select → claim → send → settle) and the reconciliation cron
+├── actor/                The subscriber actor (Durable Object on the Agents SDK): subscriber.ts (the class: ingest, flush), store.ts (typed
+│                         SQLite access), schema.ts (DDL), types.ts, constants.ts. Exported instrumented from index.ts (`instrumentActor`)
+├── queue/                Queue consumers (deliveries: fan-out pages + batched delivery pipeline: select → claim → send → settle;
+│                         events: actor flushes → gzipped Events API batches) and the reconciliation cron
 └── modules/              File-based routes
     ├── contract.ts       `api` — the v1 router without runtime adapters; `@buzzkit/api/contract` for Eden clients
     ├── index.ts          App: CloudflareAdapter + CORS + logger + error + OpenAPI + v1
@@ -38,15 +43,17 @@ src/
 - **Soft delete only**, every read filters `isNull(deletedAt)`.
 - **Tenant scoping:** every data-plane query filters by `tenantId` from resolved auth context — there must be no code path that touches tenant data without one.
 - **A channel exists only once it is connected:** topics (`channels`), subscriptions (every registration route, including the client ones and the `email` field on `PUT /v1/subscribers/:id`) and sends check `listConnectedChannels` (live credentials) first and answer 400 `channel_not_connected`; deleting a credential keeps existing topics and subscriptions. Helpers live in `api/credentials`.
-- **Cloudflare:** env via `import { env } from 'cloudflare:workers'`; `bun cf-typegen` after wrangler.jsonc changes; Web Crypto only (no `node:crypto`); no `fs`.
+- **Cloudflare:** env via `import { env } from 'cloudflare:workers'`; `bun cf-typegen` after wrangler.jsonc changes; Web Crypto only (no `node:crypto`); no `fs`. Secrets must have a line in `.dev.vars` (even empty) or `wrangler types` drops them from `Env`.
 
-## Event ledger — every mutation records one event
+## Two ledgers — the audit log and the event stream
 
-Every mutation endpoint calls the context-bound `event()` exactly once — always `await`ed (the ledger INSERT is synchronous; the row is durable before the response; failures are logged, never thrown). Names follow Stripe's convention (`tenant.created`, `member.role_changed`) and MUST exist in `EVENT_CATALOG` (`api/events/catalog.ts`) — calls are type-checked against it. The ledger powers the audit log (`GET /v1/workspaces/:workspaceSlug/events`) and future webhook delivery (the catalog's `webhook` flag). Never recorded: reads, auth denials.
+**Control-plane mutations record one audit entry** via the context-bound `audit()` — always `await`ed (the INSERT is synchronous; the row is durable before the response; failures are logged, never thrown). Names follow Stripe's convention (`tenant.created`, `member.role_changed`) and MUST exist in `AUDIT_CATALOG` (`api/audit/catalog.ts`) — calls are type-checked against it. The ledger powers the audit log (`GET /v1/workspaces/:workspaceSlug/audit`) and future webhook delivery (the catalog's `webhook` flag). Never recorded: reads, auth denials.
+
+**Anything about a subscriber goes on the event stream**, never the audit ledger: registrations, mutes, removals, invalidations, preference changes and attribute writes call `recordSystemEvents(tenantId, subscriber, [{ name: 'subscription.registered', data }])` (`api/events/track.ts`; names and `data` are typed by `SYSTEM_EVENTS` in `api/events/catalog.ts` and the `$` prefix is applied inside), tracked events go through `trackEvents`. Both reach the subscriber's actor (`libs/actor.ts` → `actor/subscriber.ts`), which is the durability point, and flow to Tinybird through the `buzzkit-events` queue. `$` names are buzzkit's (`SDK_EVENTS`, `SYSTEM_EVENTS`); customers' names never start with `$`. Reads (catalog, recent, volume, timeline) query Tinybird through `libs/tinybird.ts`, never Postgres. Docs: `docs/api/events.md`, `docs/engine.md`.
 
 ## Observability — every unit of work is a span
 
-Traces and logs come from `@buzzkit/observability` (`packages/observability`). Wrap domain operations, provider calls, and queue/cron work in `trace('resource.verb', attrs?, fn)` and stamp outcomes with `t.set()`; log with `log.info/warn/error(message, fields)` — never `console`. Services report as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler` from one Worker. Caches live in KV only (`AUTH_CACHE`, `PROVIDER_CACHE`) — never in isolate memory — and only through `libs/cache.ts` (`readCache`/`writeCache`/`deleteCache`): a cache failure is logged and swallowed, it must never fail a request. Details: `docs/architecture.md` → Observability.
+Traces and logs come from `@buzzkit/observability` (`packages/observability`). Wrap domain operations, provider calls, and queue/cron work in `trace('resource.verb', attrs?, fn)` and stamp outcomes with `t.set()`; log with `log.info/warn/error(message, fields)` — never `console`. Services report as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler` / `buzzkit-actor` from one Worker; the actor's spans join the API request's trace through the `traceparent` the ingest RPC carries. Caches live in KV only (`AUTH_CACHE`, `PROVIDER_CACHE`) — never in isolate memory — and only through `libs/cache.ts` (`readCache`/`writeCache`/`deleteCache`): a cache failure is logged and swallowed, it must never fail a request. Details: `docs/architecture.md` → Observability.
 
 ## Testing
 
@@ -56,7 +63,7 @@ Integration over HTTP in the plain Node vitest pool (NEVER `@cloudflare/vitest-p
 
 Pure modules get unit tests mirroring `src/` (`test/api/...`, `test/libs/...`, `test/providers/...`, `test/utils/...`, `test/packages/...`); the `@buzzkit/api` alias plus the `cloudflare:workers` stub in `vitest.config.mts` resolve them without the Worker runtime. Shared integration helpers live in `test/utils/` (`setup.ts` for accounts/keys/tenants, `fixtures.ts` for tokens, APNs uploads and the `APNS_REACHABLE` gate that flips APNs expectations between local `retrying` and deployed `failed`, `db.ts` for direct reads, `ids.ts` for sqids built from `wrangler.jsonc`).
 
-Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `docs/architecture.md`; APNs delivery is only testable deployed. Queues run locally in `wrangler dev` — fan-out, targeting, retry accounting, and `no_credential` outcomes are fully tested locally.
+Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `docs/architecture.md`; APNs delivery is only testable deployed. Queues and Durable Objects run locally in `wrangler dev` — fan-out, targeting, retry accounting, `no_credential` outcomes and the event stream are fully tested locally; the stream needs Tinybird Local (`bun db:up`, then `bun run build` in `packages/tinybird` once per fresh container) and tests poll with `eventually()` (`test/utils/eventually.ts`) because Tinybird is seconds behind the actor.
 
 ## Code conventions
 
@@ -80,7 +87,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `events` · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `events`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/messages` (+ `/:id`, `/:id/deliveries`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences — client keys only) — see `docs/api/`.
+`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit` · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/deliveries`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
 
 ## Commands
 

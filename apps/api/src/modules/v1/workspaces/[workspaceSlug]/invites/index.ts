@@ -25,7 +25,7 @@ export const invites = new Elysia()
   )
   .post(
     '/workspaces/:workspaceSlug/invites',
-    async ({ body, db, set, workspace, membership, user, event }) => {
+    async ({ body, db, set, workspace, membership, user, audit }) => {
       const invite = await createInvite(db, workspace.id, {
         email: body.email,
         role: body.role ?? 'member',
@@ -45,7 +45,7 @@ export const invites = new Elysia()
         }),
       });
 
-      await event({
+      await audit({
         event: 'invite.created',
         target: { type: 'invite', id: invite.id },
         data: { email: invite.email, role: invite.role, emailSent },

@@ -53,14 +53,14 @@ export const messages = new Elysia()
   )
   .post(
     '/messages',
-    async ({ body, db, headers, set, tenant, event }) => {
+    async ({ body, db, headers, set, tenant, audit }) => {
       const { message, created } = await createMessage(db, tenant, {
         ...body,
         idempotencyKey: headers['idempotency-key'] ?? body.idempotencyKey,
       });
 
       if (created) {
-        await event({
+        await audit({
           event: 'message.created',
           tenantId: tenant.id,
           target: { type: 'message', id: message.id },

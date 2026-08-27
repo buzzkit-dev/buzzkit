@@ -2,8 +2,23 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { db, eq, tables } from '../../utils/db';
+import { eventually } from '../../utils/eventually';
 import { fakeToken } from '../../utils/fixtures';
 import { createClientKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
+
+async function timelineNames(headers: Record<string, string>, externalId: string, atLeast: number) {
+  return await eventually(
+    async () => {
+      const { body } = await api<{ items: Array<{ name: string }> }>(
+        `/v1/subscribers/${encodeURIComponent(externalId)}/timeline`,
+        { headers }
+      );
+      const names = body.data?.items.map((item) => item.name) ?? [];
+      return names.length >= atLeast ? names : undefined;
+    },
+    { label: `timeline of ${externalId}` }
+  );
+}
 
 async function setupClient() {
   const base = await setupWorkspace();
@@ -51,7 +66,8 @@ describe('client keys', () => {
       { path: '/v1/credentials', method: 'GET' },
       { path: '/v1/subscribers', method: 'GET' },
       { path: '/v1/subscribers/user_1/deliveries', method: 'GET' },
-      { path: '/v1/subscribers/user_1/events', method: 'GET' },
+      { path: '/v1/subscribers/user_1/timeline', method: 'GET' },
+      { path: '/v1/events', method: 'GET' },
       { path: `/v1/workspaces/${workspace.slug}`, method: 'GET' },
       { path: '/v1/profile', method: 'GET' },
     ]) {
@@ -245,7 +261,7 @@ describe('client registration flow', () => {
   });
 
   it('records client actions in the ledger as the subscriber (actor type user)', async () => {
-    const { clientBearer, ownerBearer, workspace } = await setupClient();
+    const { clientBearer, keyBearer } = await setupClient();
     const externalId = `user_${uniq()}`;
 
     await api('/v1/client/subscriptions', {
@@ -254,12 +270,8 @@ describe('client registration flow', () => {
       body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token: fakeToken() }),
     });
 
-    const events = await api<{ items: Array<{ event: string; actorType: string; actorDisplay: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events?event=subscription.created`,
-      { headers: ownerBearer }
-    );
-    const created = events.body.data?.items.find((item) => item.actorDisplay === externalId);
-    expect(created?.actorType).toBe('user');
+    const names = await timelineNames(keyBearer, externalId, 2);
+    expect(names).toContain('$subscription.registered');
   });
 
   it('the app registers, mutes, and unregisters its own subscription', async () => {
@@ -592,7 +604,7 @@ describe('client surface hardening', () => {
     expect(rotated.body.data?.identitySecret).not.toBe(before.body.data?.identitySecret);
 
     const events = await api<{ items: Array<{ event: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events?event=tenant.identity_secret_rotated`,
+      `/v1/workspaces/${workspace.slug}/audit?event=tenant.identity_secret_rotated`,
       { headers: ownerBearer }
     );
     expect(events.body.data?.items.length).toBeGreaterThanOrEqual(1);
@@ -758,23 +770,16 @@ describe('ledger attribution and identity throttling', () => {
     });
     await api(`/v1/client/subscriptions/${registered.body.data?.id}`, { method: 'DELETE', headers: own });
 
-    const events = await api<{ items: Array<{ event: string; actorType: string; actorDisplay: string }> }>(
-      `/v1/workspaces/${workspace.slug}/events?actorType=user&limit=100`,
-      { headers: ownerBearer }
-    );
-    const mine =
-      events.body.data?.items.filter((item) => item.actorDisplay === externalId).map((item) => item.event) ??
-      [];
+    const names = await timelineNames(keyBearer, externalId, 5);
     for (const expected of [
-      'subscriber.created',
-      'subscription.created',
-      'preferences.updated',
-      'subscription.updated',
-      'subscription.removed',
+      '$subscriber.created',
+      '$subscription.registered',
+      '$preferences.updated',
+      '$subscription.muted',
+      '$subscription.removed',
     ]) {
-      expect(mine, expected).toContain(expected);
+      expect(names, expected).toContain(expected);
     }
-    expect(events.body.data?.items.every((item) => item.actorType === 'user')).toBe(true);
   });
 
   it('re-verification is throttled: a fresh proof within five minutes writes nothing', async () => {

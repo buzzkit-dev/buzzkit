@@ -12,7 +12,7 @@ This is the load-bearing constraint: if the platform ever needs something the fr
 ## Core goals
 
 - Fully open source and free to self-host
-- Code-first: campaigns, segments, triggers, and workflow logic are defined in code and pushed via CLI — code is the source of truth, even for what shows in the dashboard
+- Code-first: campaigns, segments, triggers, and workflow logic are versioned specs stored in buzzkit; code (`defineWorkflow` + `buzzkit push`, or the SDK) is the best way to write them, and the dashboard, an agent or the API create the very same objects — there is no deploy step
 - Multi-tenant by design: workspaces with full credential and data isolation
 - Excellent DX for both one-off sends and complex workflows
 - Support platforms offering push to *their* customers (each tenant brings their own APNs keys / FCM projects)
@@ -24,7 +24,7 @@ v1 ships **mobile push only** (APNs + FCM), but channels are a first-class gener
 
 ## Workflows (direction)
 
-Complex engagement logic fully defined as code and pushed via CLI: cron-based rules, event triggers (e.g. signup), delays (10 minutes / 1 day after), conditions (opened the previous message, used the product within 3 days), branching. Generic across channels, fully customizable and extensible.
+Event-based: the app (native iOS SDK) and the server track events; workflows react with time and state — delays, local-time and quiet-moment delivery, event waits, conditions (opened the previous message, used the product within 3 days), branching, a signed `fetch` for data that lives in your database — and buzzkit keeps the clocks, the preferences and the receipts. Generic across channels. The design is in [engine.md](engine.md).
 
 ## v1 scope
 
@@ -43,7 +43,7 @@ Complex engagement logic fully defined as code and pushed via CLI: cron-based ru
 
 ## Design principles
 
-- **Code as source of truth** — the dashboard reflects code-pushed config, it doesn't own it
+- **The spec is the source of truth** — versioned definitions in buzzkit; code is the best way to write them, the dashboard shows and edits the same objects
 - **Multi-tenancy first** — isolation per workspace is the core primitive, not an afterthought
 - **Start narrow, stay simple** — mobile push first; channels stay pluggable
 - **Framework, not platform** — composability and developer control over opinionated UI

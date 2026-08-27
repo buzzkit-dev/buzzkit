@@ -1,4 +1,4 @@
-import { diffForEvent } from '@buzzkit/api/api/events/index';
+import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import { describe, expect, it } from 'vitest';
 
 describe('diffForEvent', () => {

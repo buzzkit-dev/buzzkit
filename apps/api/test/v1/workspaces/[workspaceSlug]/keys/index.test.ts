@@ -66,7 +66,7 @@ describe('POST /v1/workspaces/:slug/keys', () => {
     const { workspace, ownerBearer, keyBearer } = await setupWorkspace();
     const tenant = await createTenant(keyBearer);
 
-    for (const scopes of [['tenants:read'], ['workspace:read'], ['events:read'], ['members:read']]) {
+    for (const scopes of [['tenants:read'], ['workspace:read'], ['audit:read'], ['members:read']]) {
       const { status } = await api(`/v1/workspaces/${workspace.slug}/keys`, {
         method: 'POST',
         headers: ownerBearer,
@@ -99,7 +99,7 @@ describe('POST /v1/workspaces/:slug/keys', () => {
     for (const path of [
       '/v1/tenants',
       `/v1/workspaces/${workspace.slug}`,
-      `/v1/workspaces/${workspace.slug}/events`,
+      `/v1/workspaces/${workspace.slug}/audit`,
     ]) {
       const { status } = await api(path, { headers: bearer });
       expect(status, `wildcard tenant key at ${path}`).toBe(403);

@@ -23,8 +23,8 @@ Secrets are stored as SHA-256 hashes (of the post-prefix portion) and shown exac
 Every route declares exactly one scope; the scope's context decides authentication (catalog in `apps/api/src/libs/scopes.ts`):
 
 - **user context** (`account:read|write`) — session-only.
-- **workspace context** (control plane) — session membership (scopes from the role bundle) or workspace API key (scopes from its grants; wildcards `*` / `resource:*` supported). Tenant keys are rejected.
-- **tenant context** (data plane: `credentials:*`, `subscribers:*`, `subscriptions:*`, `topics:*`, `messages:*`) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
+- **workspace context** (control plane, incl. `audit:read`) — session membership (scopes from the role bundle) or workspace API key (scopes from its grants; wildcards `*` / `resource:*` supported). Tenant keys are rejected.
+- **tenant context** (data plane: `credentials:*`, `subscribers:*`, `subscriptions:*`, `topics:*`, `messages:*`, `events:*`) — additionally accepts tenant keys; the tenant resolves per the addressing rules above. Tenant keys can only ever be granted tenant-context scopes.
 - **client context** (`/v1/client/*`) — client keys ONLY (secret keys and sessions are refused); the key implies workspace + tenant. Subscriber identity comes from the request (`externalId` in bodies, `BuzzKit-Subscriber` header on preferences), optionally proven by `identityHash` / `BuzzKit-Identity` (HMAC-SHA256 of the externalId with the tenant's identity secret) when the tenant enforces verification.
 
 Role bundles: `member` → read scopes + members:read; `admin` → + workspace:write, members:write, invites:*, tenants:write, tenants:secrets, keys:*; `owner` → + workspace:delete.

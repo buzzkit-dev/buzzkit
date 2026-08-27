@@ -1,4 +1,5 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
+import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
   ClientIdentitySchema,
   EmailAddressSchema,
@@ -19,12 +20,12 @@ export const clientIdentify = new Elysia()
   .guard({ detail: { tags: ['Client'] } })
   .post(
     '/client/identify',
-    async ({ body, db, request, set, tenant, clientEvent }) => {
+    async ({ body, db, request, set, tenant }) => {
       const verified = await verifyIdentity(tenant, body.externalId, body.identityHash);
 
       if (body.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
-      const { subscriber, created } = await upsertSubscriber(db, tenant.id, body.externalId, {
+      const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, body.externalId, {
         verifiedNow: verified,
         systemAttributes: resolveSystemAttributes(request),
       });
@@ -40,26 +41,26 @@ export const clientIdentify = new Elysia()
           })
         : null;
 
-      if (registered?.subscriptionCreated) {
-        await clientEvent(subscriber.externalId)({
-          event: 'subscription.created',
-          tenantId: tenant.id,
-          target: { type: 'subscription', id: registered.subscription.id },
-          data: {
-            ...resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
-            subscriberCreated: created,
-          },
+      const events: SystemEvent[] = [];
+
+      if (created) {
+        events.push({
+          name: 'subscriber.created',
+          data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
         });
       }
 
-      if (created) {
-        await clientEvent(subscriber.externalId)({
-          event: 'subscriber.created',
-          tenantId: tenant.id,
-          target: { type: 'subscriber', id: subscriber.id },
-          data: { externalId: subscriber.externalId },
+      if (created || changed) {
+        events.push({ name: 'identify', data: { attributes: subscriberAttributes(subscriber) } });
+      }
+
+      if (registered?.subscriptionCreated) {
+        events.push({
+          name: 'subscription.registered',
+          data: resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
         });
       }
+      await recordSystemEvents(tenant.id, subscriber, events);
 
       return Response.success(
         {
