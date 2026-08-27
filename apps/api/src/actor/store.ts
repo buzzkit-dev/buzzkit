@@ -64,8 +64,13 @@ export class ActorStore {
     return this.sql<ActorProjection>`SELECT * FROM projections ORDER BY name ASC`;
   }
 
-  listRecent(limit: number): ActorEventRow[] {
-    return this.sql<ActorEventRow>`SELECT * FROM events ORDER BY sequence DESC LIMIT ${limit}`;
+  listRecent(limit: number, beforeSequence?: number): ActorEventRow[] {
+    if (beforeSequence === undefined) {
+      return this.sql<ActorEventRow>`SELECT * FROM events ORDER BY sequence DESC LIMIT ${limit}`;
+    }
+    return this.sql<ActorEventRow>`
+      SELECT * FROM events WHERE sequence < ${beforeSequence} ORDER BY sequence DESC LIMIT ${limit}
+    `;
   }
 
   listUnflushed(limit: number): ActorEventRow[] {
@@ -86,8 +91,8 @@ export class ActorStore {
   prune(retained: number): number {
     const flushed = this.readFlushedSequence();
     const [newest] = this.sql<{ sequence: number | null }>`SELECT max(sequence) AS sequence FROM events`;
-    const keepFrom = (newest?.sequence ?? 0) - retained;
-    if (keepFrom <= 0) return 0;
+    const keepFrom = (newest?.sequence ?? 0) - retained + 1;
+    if (keepFrom <= 1) return 0;
     const [count] = this.sql<{ count: number }>`
       SELECT count(*) AS count FROM events WHERE sequence <= ${flushed} AND sequence < ${keepFrom}
     `;

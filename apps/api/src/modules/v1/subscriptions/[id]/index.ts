@@ -35,12 +35,14 @@ export const subscription = new Elysia()
 
       const updated = await updateSubscriptionEnabled(db, target.id, body.enabled);
 
-      await recordSystemEvents(tenant.id, subscriber, [
-        {
-          name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
-          data: resolveSubscriptionEventData(target, subscriber.externalId),
-        },
-      ]);
+      if (target.enabled !== body.enabled) {
+        await recordSystemEvents(tenant.id, subscriber, [
+          {
+            name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
+            data: resolveSubscriptionEventData(target, subscriber.externalId),
+          },
+        ]);
+      }
 
       return Response.success(
         { ...serializeSubscription(updated), subscriberId: encodeId('subscriber', updated.subscriberId) },

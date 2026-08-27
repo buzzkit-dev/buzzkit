@@ -1,11 +1,11 @@
+import { BadRequestError } from '@buzzkit/api/libs/error';
 import { IdentityHashSchema, literalUnion } from '@buzzkit/api/libs/schemas';
 import { t } from 'elysia';
 import { CLIENT_SOURCES, EVENT_SOURCES, MAX_EVENTS_PER_REQUEST } from './constants';
-import type { EventInput } from './types';
 
 export const EventNameSchema = t.String({ pattern: '^\\$?[a-z0-9][a-z0-9_.-]{0,99}$', maxLength: 100 });
 
-export const EventDataSchema = t.Record(t.String(), t.Any());
+export const EventDataSchema = t.Object({}, { additionalProperties: t.Any() });
 
 export const EventTimestampSchema = t.String({ format: 'date-time' });
 
@@ -25,10 +25,9 @@ export const TrackEventSchema = t.Object({
   data: t.Optional(EventDataSchema),
 });
 
-export const TrackEventsSchema = t.Union([
-  TrackEventSchema,
-  t.Object({ events: t.Array(TrackEventSchema, { minItems: 1, maxItems: MAX_EVENTS_PER_REQUEST }) }),
-]);
+export const TrackEventsSchema = t.Object({
+  events: t.Array(TrackEventSchema, { minItems: 1, maxItems: MAX_EVENTS_PER_REQUEST }),
+});
 
 export const ClientTrackEventsSchema = t.Object({
   externalId: t.String({ minLength: 1, maxLength: 256 }),
@@ -45,6 +44,26 @@ export const ClientTrackEventsSchema = t.Object({
   ),
 });
 
-export function resolveEventInputs(body: typeof TrackEventsSchema.static): EventInput[] {
-  return 'events' in body ? body.events : [body];
+export function resolveEventsBody(body: unknown): unknown {
+  const wrapped =
+    body && typeof body === 'object' && !Array.isArray(body) && !('events' in body)
+      ? { events: [body] }
+      : body;
+  assertEventDataObjects(wrapped);
+  return wrapped;
+}
+
+export function assertEventDataObjects(body: unknown): void {
+  const events = (body as { events?: unknown } | null)?.events;
+  if (!Array.isArray(events)) return;
+  events.forEach((event, index) => {
+    const data = (event as { data?: unknown } | null)?.data;
+    if (data === undefined) return;
+    if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+      throw new BadRequestError('data must be an object', {
+        code: 'validation',
+        param: `events.${index}.data`,
+      });
+    }
+  });
 }

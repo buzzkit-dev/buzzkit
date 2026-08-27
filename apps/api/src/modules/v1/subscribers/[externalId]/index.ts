@@ -7,6 +7,7 @@ import {
   ExternalIdSchema,
   findSubscriberByExternalId,
   listSubscriptions,
+  recordRegistration,
   registerSubscription,
   resolveSubscriptionEventData,
   serializeSubscriber,
@@ -71,13 +72,8 @@ export const subscriber = new Elysia()
         });
       }
 
-      if (registered?.subscriptionCreated) {
-        events.push({
-          name: 'subscription.registered',
-          data: resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
-        });
-      }
-      await recordSystemEvents(tenant.id, subscriber, events);
+      if (registered) await recordRegistration(tenant.id, registered, events);
+      else await recordSystemEvents(tenant.id, subscriber, events);
 
       return Response.success(serializeSubscriber(subscriber), {
         entity: 'subscriber',
@@ -105,10 +101,16 @@ export const subscriber = new Elysia()
       const deleted = await softDeleteSubscriber(db, subscriber);
 
       await recordSystemEvents(tenant.id, subscriber, [
+        ...deleted.subscriptions.map(
+          (subscription): SystemEvent => ({
+            name: 'subscription.removed',
+            data: resolveSubscriptionEventData(subscription, subscriber.externalId),
+          })
+        ),
         { name: 'subscriber.deleted', data: { externalId: subscriber.externalId } },
       ]);
 
-      return Response.success(markDeleted(serializeSubscriber(deleted)), {
+      return Response.success(markDeleted(serializeSubscriber(deleted.subscriber)), {
         entity: 'subscriber',
         ignoreTransform: ['attributes'],
       }).send();

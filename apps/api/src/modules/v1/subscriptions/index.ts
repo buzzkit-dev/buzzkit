@@ -1,8 +1,7 @@
-import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
   ExternalIdSchema,
+  recordRegistration,
   registerSubscription,
-  resolveSubscriptionEventData,
   resolveSubscriptionInput,
   SubscriptionInputSchema,
   serializeSubscription,
@@ -20,32 +19,14 @@ export const subscriptions = new Elysia()
     async ({ body, db, set, tenant }) => {
       const resolved = resolveSubscriptionInput(body);
 
-      const { subscription, subscriptionCreated, subscriberCreated, subscriber } = await registerSubscription(
-        db,
-        tenant.id,
-        {
-          externalId: body.externalId,
-          ...resolved,
-        }
-      );
+      const registered = await registerSubscription(db, tenant.id, {
+        externalId: body.externalId,
+        ...resolved,
+      });
 
-      const events: SystemEvent[] = [];
+      const { subscription, subscriptionCreated, subscriber } = registered;
 
-      if (subscriberCreated) {
-        events.push({
-          name: 'subscriber.created',
-          data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
-        });
-      }
-
-      if (subscriptionCreated) {
-        events.push({
-          name: 'subscription.registered',
-          data: resolveSubscriptionEventData(subscription, subscriber.externalId),
-        });
-      }
-
-      await recordSystemEvents(tenant.id, subscriber, events);
+      await recordRegistration(tenant.id, registered);
 
       return Response.success(
         {

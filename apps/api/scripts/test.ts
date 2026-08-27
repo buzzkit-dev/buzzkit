@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 
 const port = Number(process.env.TEST_API_PORT ?? 8791);
+const stateDir = process.env.TEST_STATE_DIR ?? '../../.wrangler/test-state';
 const baseUrl = `http://localhost:${port}`;
 
 const server = spawn(
@@ -17,7 +18,7 @@ const server = spawn(
     '--inspector-port',
     String(port + 1000),
     '--persist-to',
-    '../../.wrangler/test-state',
+    stateDir,
   ],
   { stdio: ['ignore', 'pipe', 'pipe'] }
 );
@@ -52,7 +53,11 @@ await waitForServer();
 
 const vitest = spawn('bunx', ['vitest', 'run', ...process.argv.slice(2)], {
   stdio: 'inherit',
-  env: { ...process.env, API_URL: baseUrl },
+  env: {
+    ...process.env,
+    API_URL: baseUrl,
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, '--no-warnings=ExperimentalWarning'].filter(Boolean).join(' '),
+  },
 });
 
 const code: number = await new Promise((resolve) => vitest.on('exit', (exitCode) => resolve(exitCode ?? 1)));

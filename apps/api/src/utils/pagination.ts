@@ -5,7 +5,7 @@ export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 
 export const PaginationQuerySchema = t.Object({
-  limit: t.Optional(t.Numeric({ minimum: 1, maximum: MAX_PAGE_SIZE })),
+  limit: t.Optional(t.Integer({ minimum: 1, maximum: MAX_PAGE_SIZE })),
   cursor: t.Optional(t.String()),
 });
 

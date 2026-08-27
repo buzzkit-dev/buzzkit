@@ -9,6 +9,7 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
       '@buzzkit/api': path.resolve(import.meta.dirname, './src'),
       'cloudflare:workers': path.resolve(import.meta.dirname, './test/utils/cloudflareWorkersStub.ts'),
+      agents: path.resolve(import.meta.dirname, './test/utils/agentsStub.ts'),
       '@buzzkit/database': path.resolve(import.meta.dirname, '../../packages/database/src/index.ts'),
     },
   },

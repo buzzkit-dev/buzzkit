@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import type { ActorEventRow } from '@buzzkit/api/actor/types';
 import { createDb } from '@buzzkit/api/libs/database';
 import { describeError } from '@buzzkit/api/libs/error';
@@ -11,9 +12,12 @@ export type EventsQueueMessage = {
   subscriberId: number;
   externalId: string;
   rows: ActorEventRow[];
+  firstFailedAt?: string;
 };
 
 const RETRY_DELAY_SECONDS = 30;
+const REDRIVE_DELAY_SECONDS = 600;
+const REDRIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function listWorkspaceIds(db: Db, tenantIds: number[]): Promise<Map<number, number>> {
   if (tenantIds.length === 0) return new Map();
@@ -62,6 +66,8 @@ export async function handleEventsBatch(batch: MessageBatch<EventsQueueMessage>)
     try {
       const result = await appendEvents(rows);
       t.set('tinybird.committed', result.successful);
+      t.set('tinybird.quarantined', result.quarantined);
+      if (result.quarantined > 0) await isolateQuarantine(batch.messages, workspaces);
       batch.ackAll();
     } catch (error) {
       log.error('[Events] Tinybird did not commit the batch, retrying', {
@@ -70,5 +76,66 @@ export async function handleEventsBatch(batch: MessageBatch<EventsQueueMessage>)
       });
       batch.retryAll({ delaySeconds: RETRY_DELAY_SECONDS });
     }
+  });
+}
+
+async function isolateQuarantine(
+  messages: readonly Message<EventsQueueMessage>[],
+  workspaces: Map<number, number>
+): Promise<void> {
+  for (const item of messages) {
+    const rows = item.body.rows.map((row) =>
+      resolveEventRow(item.body, row, workspaces.get(item.body.tenantId) ?? 0)
+    );
+    const result = messages.length === 1 ? { quarantined: rows.length } : await appendEvents(rows);
+    if (result.quarantined > 0) {
+      log.error('[Events] Tinybird quarantined rows of one subscriber', {
+        ...describeMessage(item.body),
+        quarantined: result.quarantined,
+      });
+    }
+  }
+}
+
+function describeMessage(message: EventsQueueMessage) {
+  return {
+    tenantId: message.tenantId,
+    subscriberId: message.subscriberId,
+    rows: message.rows.length,
+    fromSequence: message.rows[0]?.sequence ?? null,
+    toSequence: message.rows[message.rows.length - 1]?.sequence ?? null,
+  };
+}
+
+export async function handleEventsDeadLetterBatch(batch: MessageBatch<EventsQueueMessage>): Promise<void> {
+  await trace('queue.events.redrive', { 'queue.batch_size': batch.messages.length }, async (t) => {
+    let rows = 0;
+    for (const item of batch.messages) {
+      rows += item.body.rows.length;
+      const firstFailedAt = item.body.firstFailedAt ?? new Date().toISOString();
+      if (Date.now() - new Date(firstFailedAt).getTime() > REDRIVE_WINDOW_MS) {
+        log.error('[Events] Batch failed for seven days, dropping it', {
+          ...describeMessage(item.body),
+          firstFailedAt,
+        });
+        item.ack();
+        continue;
+      }
+      try {
+        await env.EVENTS.send({ ...item.body, firstFailedAt }, { delaySeconds: REDRIVE_DELAY_SECONDS });
+        log.error('[Events] Batch exhausted its retries, re-driving it', {
+          ...describeMessage(item.body),
+          firstFailedAt,
+        });
+        item.ack();
+      } catch (error) {
+        log.error('[Events] Could not re-drive a batch, retrying', {
+          ...describeMessage(item.body),
+          error: describeError(error),
+        });
+        item.retry({ delaySeconds: RETRY_DELAY_SECONDS });
+      }
+    }
+    t.set('queue.rows', rows);
   });
 }

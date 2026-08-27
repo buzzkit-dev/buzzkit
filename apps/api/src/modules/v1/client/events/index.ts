@@ -1,4 +1,4 @@
-import { ClientTrackEventsSchema, trackEvents } from '@buzzkit/api/api/events/index';
+import { assertEventDataObjects, ClientTrackEventsSchema, trackEvents } from '@buzzkit/api/api/events/index';
 import { resolveSystemAttributes } from '@buzzkit/api/api/subscribers/index';
 import { auth } from '@buzzkit/api/libs/auth';
 import { verifyIdentity } from '@buzzkit/api/libs/identity';
@@ -24,5 +24,13 @@ export const clientEvents = new Elysia()
         .status(202)
         .send(set);
     },
-    { client: true, body: ClientTrackEventsSchema }
+    {
+      client: true,
+      body: ClientTrackEventsSchema,
+      parse: async ({ request }) => {
+        const body: unknown = await request.json();
+        assertEventDataObjects(body);
+        return body;
+      },
+    }
   );

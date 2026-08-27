@@ -42,4 +42,4 @@ export type ActorProjection = {
   last_at: string;
 };
 
-export type ActorFlushOutcome = { flushed: number; batches: number; retryScheduled: boolean };
+export type ActorFlushOutcome = { flushed: number; batches: number; retryScheduled: boolean; pruned: number };

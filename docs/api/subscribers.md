@@ -25,7 +25,7 @@ Subscriber ids (`sub_…`) are 32-char sqids (the most exposed id class).
 { "externalId": "user_42", "channel": "email", "address": "jane@acme.com" }
 ```
 
-A subscription's channel must be connected to the tenant (a live credential), otherwise 400 `channel_not_connected`. Idempotent by (tenant, channel, endpoint): re-registering refreshes `lastSeenAt`, reactivates an invalidated endpoint, and **moves it** if the externalId changed (device changed hands) → 201 on create, 200 on refresh. A refresh never resets `enabled` — a muted subscription stays muted.
+A subscription's channel must be connected to the tenant (a live credential), otherwise 400 `channel_not_connected`. Idempotent by (tenant, channel, endpoint): re-registering refreshes `lastSeenAt`, reactivates an invalidated endpoint, and **moves it** if the externalId changed (device changed hands) → 201 on create, 200 on refresh. A refresh never resets `enabled` — a muted subscription stays muted. On the stream, every write that is more than a `lastSeenAt` refresh is a `$subscription.registered`, and a move also writes `$subscription.removed` for the previous owner ([events.md](events.md)).
 
 - `PATCH /v1/subscriptions/:id` — `{ enabled: bool }`. **Per-subscription control**: mute one device (the work iPhone) while every other subscription keeps receiving. Composes with topic×channel preferences: a send goes out only via subscriptions that are `enabled`, `active`, AND whose topic×channel preference is opted in.
 - `DELETE /v1/subscriptions/:id` — soft delete; the endpoint can re-register fresh.

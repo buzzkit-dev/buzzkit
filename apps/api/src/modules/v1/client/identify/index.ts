@@ -3,8 +3,8 @@ import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buz
 import {
   ClientIdentitySchema,
   EmailAddressSchema,
+  recordRegistration,
   registerSubscription,
-  resolveSubscriptionEventData,
   resolveSystemAttributes,
   serializeSubscriber,
   upsertSubscriber,
@@ -54,13 +54,8 @@ export const clientIdentify = new Elysia()
         events.push({ name: 'identify', data: { attributes: subscriberAttributes(subscriber) } });
       }
 
-      if (registered?.subscriptionCreated) {
-        events.push({
-          name: 'subscription.registered',
-          data: resolveSubscriptionEventData(registered.subscription, subscriber.externalId),
-        });
-      }
-      await recordSystemEvents(tenant.id, subscriber, events);
+      if (registered) await recordRegistration(tenant.id, registered, events);
+      else await recordSystemEvents(tenant.id, subscriber, events);
 
       return Response.success(
         {

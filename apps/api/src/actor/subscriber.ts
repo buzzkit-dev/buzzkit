@@ -16,9 +16,10 @@ import {
   ACTOR_RETAINED_ROWS,
   ACTOR_SERVICE,
 } from './constants';
+import { flushEvents } from './flush';
+import { acceptEvents } from './ingest';
 import { ActorStore } from './store';
 import type {
-  ActorEventInput,
   ActorEventRow,
   ActorFlushOutcome,
   ActorIdentity,
@@ -45,7 +46,7 @@ export class SubscriberActor extends Agent<Env> {
       this.spanAttributes(input, { 'events.count': input.events.length }),
       async (t) => {
         this.store.writeIdentity(input);
-        const outcomes = input.events.map((event) => this.accept(event));
+        const outcomes = acceptEvents(this.store, input.events);
 
         t.set('events.accepted', outcomes.filter((outcome) => outcome.status === 'accepted').length);
         t.set('events.duplicates', outcomes.filter((outcome) => outcome.status === 'duplicate').length);
@@ -58,27 +59,19 @@ export class SubscriberActor extends Agent<Env> {
 
   async flush(): Promise<ActorFlushOutcome> {
     const identity = this.store.readIdentity();
-    if (!identity) return { flushed: 0, batches: 0, retryScheduled: false };
+    if (!identity) return { flushed: 0, batches: 0, retryScheduled: false, pruned: 0 };
 
     return await this.invoke('actor.flush', undefined, this.spanAttributes(identity), async (t) => {
-      const outcome: ActorFlushOutcome = { flushed: 0, batches: 0, retryScheduled: false };
+      const outcome = await flushEvents(
+        this.store,
+        {
+          enqueue: (rows) => this.enqueue(identity, rows),
+          scheduleRetry: () => this.scheduleFlush(ACTOR_FLUSH_RETRY_SECONDS),
+        },
+        { batchRows: ACTOR_FLUSH_ROWS, retainedRows: ACTOR_RETAINED_ROWS }
+      );
 
-      let batch = this.store.listUnflushed(ACTOR_FLUSH_ROWS);
-      while (batch.length > 0) {
-        if (!(await this.enqueue(identity, batch))) {
-          await this.scheduleFlush(ACTOR_FLUSH_RETRY_SECONDS);
-          outcome.retryScheduled = true;
-          break;
-        }
-        this.store.advanceFlushedSequence(batch[batch.length - 1]!.sequence);
-        outcome.flushed += batch.length;
-        outcome.batches += 1;
-        batch = batch.length < ACTOR_FLUSH_ROWS ? [] : this.store.listUnflushed(ACTOR_FLUSH_ROWS);
-      }
-
-      if (!outcome.retryScheduled) {
-        t.set('events.pruned', this.store.prune(ACTOR_RETAINED_ROWS));
-      }
+      t.set('events.pruned', outcome.pruned);
       t.set('events.flushed', outcome.flushed);
       t.set('flush.batches', outcome.batches);
       t.set('flush.retry_scheduled', outcome.retryScheduled);
@@ -86,23 +79,12 @@ export class SubscriberActor extends Agent<Env> {
     });
   }
 
-  listRecent(limit = 50): ActorEventRow[] {
-    return this.store.listRecent(limit);
+  listRecent(limit = 50, beforeSequence?: number): ActorEventRow[] {
+    return this.store.listRecent(limit, beforeSequence);
   }
 
   listProjections(): ActorProjection[] {
     return this.store.listProjections();
-  }
-
-  private accept(event: ActorEventInput): ActorIngestOutcome {
-    const existing = event.idempotencyKey ? this.store.findByIdempotencyKey(event.idempotencyKey) : null;
-    if (existing) {
-      return { id: existing.id, sequence: existing.sequence, status: 'duplicate' };
-    }
-
-    const sequence = this.store.insertEvent(event);
-    this.store.recordProjection(event.name, sequence, event.timestamp);
-    return { id: event.id, sequence, status: 'accepted' };
   }
 
   private async enqueue(identity: ActorIdentity, rows: ActorEventRow[]): Promise<boolean> {

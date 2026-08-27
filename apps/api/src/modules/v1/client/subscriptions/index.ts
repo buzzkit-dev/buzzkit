@@ -1,7 +1,8 @@
-import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
+import { recordSystemEvents } from '@buzzkit/api/api/events/index';
 import {
   ClientIdentitySchema,
   findSubscriptionOwnedBy,
+  recordRegistration,
   registerSubscription,
   resolveSubscriptionEventData,
   resolveSubscriptionInput,
@@ -26,35 +27,17 @@ export const clientSubscriptions = new Elysia()
       const verified = await verifyIdentity(tenant, body.externalId, body.identityHash);
       const resolved = resolveSubscriptionInput(body);
 
-      const { subscription, subscriptionCreated, subscriberCreated, subscriber } = await registerSubscription(
-        db,
-        tenant.id,
-        {
-          externalId: body.externalId,
-          ...resolved,
-          verifiedNow: verified,
-          systemAttributes: resolveSystemAttributes(request),
-          rebind: verified,
-        }
-      );
+      const registered = await registerSubscription(db, tenant.id, {
+        externalId: body.externalId,
+        ...resolved,
+        verifiedNow: verified,
+        systemAttributes: resolveSystemAttributes(request),
+        rebind: verified,
+      });
 
-      const events: SystemEvent[] = [];
+      const { subscription, subscriptionCreated, subscriber } = registered;
 
-      if (subscriberCreated) {
-        events.push({
-          name: 'subscriber.created',
-          data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
-        });
-      }
-
-      if (subscriptionCreated) {
-        events.push({
-          name: 'subscription.registered',
-          data: resolveSubscriptionEventData(subscription, subscriber.externalId),
-        });
-      }
-
-      await recordSystemEvents(tenant.id, subscriber, events);
+      await recordRegistration(tenant.id, registered);
 
       return Response.success(
         {
@@ -80,12 +63,14 @@ export const clientSubscriptions = new Elysia()
 
       const updated = await updateSubscriptionEnabled(db, subscription.id, body.enabled);
 
-      await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
-        {
-          name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
-          data: resolveSubscriptionEventData(subscription, externalId),
-        },
-      ]);
+      if (subscription.enabled !== body.enabled) {
+        await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
+          {
+            name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
+            data: resolveSubscriptionEventData(subscription, externalId),
+          },
+        ]);
+      }
 
       return Response.success(
         { ...serializeSubscription(updated), subscriberId: encodeId('subscriber', updated.subscriberId) },

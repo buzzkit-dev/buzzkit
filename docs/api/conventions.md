@@ -20,7 +20,7 @@ camelCase fields; every object carries `id`, `createdAt`, `updatedAt`; absent va
 
 ## Lists
 
-Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginated lists take `limit` (default 50, max 100) and `cursor` (the `nextCursor` of the previous page, opaque) and are ordered **newest first**. An invalid cursor is a 400 `invalid_cursor`. Every paginated list also carries `total`, the number of items across every page under the same filters, so a client can show "Page 2 / 5 (231)".
+Every list — paginated or not — is `{ items, hasMore, nextCursor }`. Paginated lists take `limit` (default 50, max 100) and `cursor` (the `nextCursor` of the previous page, opaque) and are ordered **newest first**. An invalid cursor is a 400 `invalid_cursor`. Every paginated list over Postgres also carries `total`, the number of items across every page under the same filters, so a client can show "Page 2 / 5 (231)"; lists over the event stream (`GET /v1/events`, timelines) do not, they are keysets over Tinybird.
 
 ## Errors
 

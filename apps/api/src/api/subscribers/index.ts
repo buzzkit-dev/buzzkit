@@ -1,4 +1,5 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
+import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import {
   ChannelSchema,
@@ -382,7 +383,10 @@ export async function countSubscribers(db: Db, tenantId: number): Promise<number
   return Number(row?.total ?? 0);
 }
 
-export async function softDeleteSubscriber(db: Db, subscriber: Subscriber): Promise<Subscriber> {
+export async function softDeleteSubscriber(
+  db: Db,
+  subscriber: Subscriber
+): Promise<{ subscriber: Subscriber; subscriptions: Subscription[] }> {
   return await trace('subscribers.softDelete', async () =>
     db.transaction(async (tx) => {
       const [deleted] = await tx
@@ -391,16 +395,25 @@ export async function softDeleteSubscriber(db: Db, subscriber: Subscriber): Prom
         .where(eq(tables.subscriber.id, subscriber.id))
         .returning();
 
-      await tx
+      const subscriptions = await tx
         .update(tables.subscription)
         .set({ deletedAt: new Date() })
         .where(
           and(eq(tables.subscription.subscriberId, subscriber.id), isNull(tables.subscription.deletedAt))
-        );
+        )
+        .returning();
 
-      return deleted!;
+      return { subscriber: deleted!, subscriptions };
     })
   );
+}
+
+async function selectSubscriberById(db: Db, tenantId: number, id: number): Promise<Subscriber | null> {
+  const [subscriber] = await db
+    .select()
+    .from(tables.subscriber)
+    .where(and(eq(tables.subscriber.tenantId, tenantId), eq(tables.subscriber.id, id)));
+  return subscriber ?? null;
 }
 
 function isSubscriptionCurrent(
@@ -439,6 +452,15 @@ async function findExistingSubscription(
   return subscription ?? null;
 }
 
+export type SubscriptionRegistration = {
+  subscription: Subscription;
+  subscriptionCreated: boolean;
+  subscriptionRegistered: boolean;
+  movedFrom: { subscriber: Subscriber; subscription: Subscription } | null;
+  subscriberCreated: boolean;
+  subscriber: Subscriber;
+};
+
 export async function registerSubscription(
   db: Db,
   tenantId: number,
@@ -453,14 +475,27 @@ export async function registerSubscription(
     subscriber?: Subscriber;
     rebind?: boolean;
   }
-): Promise<{
-  subscription: Subscription;
-  subscriptionCreated: boolean;
-  subscriberCreated: boolean;
-  subscriber: Subscriber;
-}> {
+): Promise<SubscriptionRegistration> {
   await assertChannelConnected(db, tenantId, input.channel, 'channel');
   return await trace('subscriptions.register', async (t) => {
+    const existing = await findExistingSubscription(db, tenantId, input.channel, input.endpoint);
+    const owner = existing ? await selectSubscriberById(db, tenantId, existing.subscriberId) : null;
+
+    if (existing && input.rebind === false) {
+      const ownedByCaller = input.subscriber
+        ? existing.subscriberId === input.subscriber.id
+        : owner?.externalId === input.externalId;
+      if (!ownedByCaller) {
+        throw new ConflictError(
+          'This endpoint belongs to another subscriber; a verified identity is required to move it',
+          {
+            code: 'endpoint_owned',
+            param: 'endpoint',
+          }
+        );
+      }
+    }
+
     const { subscriber, created: subscriberCreated } = input.subscriber
       ? { subscriber: input.subscriber, created: false }
       : await upsertSubscriber(db, tenantId, input.externalId, {
@@ -469,24 +504,20 @@ export async function registerSubscription(
         });
 
     const now = new Date();
-    const existing = await findExistingSubscription(db, tenantId, input.channel, input.endpoint);
 
     if (
       existing &&
       isSubscriptionCurrent(existing, subscriber.id, input.platform, input.environment ?? 'production', now)
     ) {
       t.set('subscription.written', false);
-      return { subscription: existing, subscriptionCreated: false, subscriberCreated, subscriber };
-    }
-
-    if (existing && existing.subscriberId !== subscriber.id && input.rebind === false) {
-      throw new ConflictError(
-        'This endpoint belongs to another subscriber; a verified identity is required to move it',
-        {
-          code: 'endpoint_owned',
-          param: 'endpoint',
-        }
-      );
+      return {
+        subscription: existing,
+        subscriptionCreated: false,
+        subscriptionRegistered: false,
+        movedFrom: null,
+        subscriberCreated,
+        subscriber,
+      };
     }
 
     const [row] = await db
@@ -518,8 +549,55 @@ export async function registerSubscription(
 
     t.set('subscription.written', true);
     const { inserted, ...subscription } = row!;
-    return { subscription, subscriptionCreated: inserted, subscriberCreated, subscriber };
+    const moved = existing !== null && existing.subscriberId !== subscriber.id;
+    const subscriptionRegistered =
+      inserted ||
+      moved ||
+      existing!.platform !== subscription.platform ||
+      existing!.environment !== subscription.environment ||
+      existing!.status !== 'active';
+
+    return {
+      subscription,
+      subscriptionCreated: inserted,
+      subscriptionRegistered,
+      movedFrom: moved && owner ? { subscriber: owner, subscription: existing! } : null,
+      subscriberCreated,
+      subscriber,
+    };
   });
+}
+
+export async function recordRegistration(
+  tenantId: number,
+  registration: SubscriptionRegistration,
+  preceding: SystemEvent[] = []
+): Promise<void> {
+  const { subscriber, subscription } = registration;
+  const events: SystemEvent[] = [...preceding];
+  if (registration.subscriberCreated) {
+    events.unshift({
+      name: 'subscriber.created',
+      data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
+    });
+  }
+  if (registration.subscriptionRegistered) {
+    events.push({
+      name: 'subscription.registered',
+      data: resolveSubscriptionEventData(subscription, subscriber.externalId),
+    });
+  }
+  await recordSystemEvents(tenantId, subscriber, events);
+
+  if (registration.movedFrom) {
+    const previous = registration.movedFrom;
+    await recordSystemEvents(tenantId, previous.subscriber, [
+      {
+        name: 'subscription.removed',
+        data: resolveSubscriptionEventData(previous.subscription, previous.subscriber.externalId),
+      },
+    ]);
+  }
 }
 
 export async function findSubscriptionOwnedBy(

@@ -8,6 +8,8 @@ export type { EventRow };
 
 const LOCAL_TOKEN_CACHE_SECONDS = 300;
 
+const INGEST_CHUNK_UNITS = 3_000_000;
+
 export async function resolveTinybirdToken(): Promise<string> {
   if (env.TINYBIRD_TOKEN) return env.TINYBIRD_TOKEN;
   if (!env.TINYBIRD_URL.includes('localhost')) {
@@ -50,10 +52,49 @@ export function parseClickHouseTime(value: string): string {
 }
 
 export async function appendEvents(rows: EventRow[]): Promise<{ successful: number; quarantined: number }> {
+  const totals = { successful: 0, quarantined: 0 };
+  if (rows.length === 0) return totals;
+
   const token = await resolveTinybirdToken();
-  const body = rows.map((row) => JSON.stringify(row)).join('\n');
+
+  for (const chunk of chunkLines(
+    rows.map((row) => JSON.stringify(row)),
+    INGEST_CHUNK_UNITS
+  )) {
+    const result = await postEvents(token, chunk);
+    totals.successful += result.successful;
+    totals.quarantined += result.quarantined;
+  }
+
+  return totals;
+}
+
+export function chunkLines(lines: string[], maxBytes: number): string[][] {
+  const chunks: string[][] = [];
+  let current: string[] = [];
+  let bytes = 0;
+
+  for (const line of lines) {
+    const size = line.length + 1;
+    if (current.length > 0 && bytes + size > maxBytes) {
+      chunks.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(line);
+    bytes += size;
+  }
+  if (current.length > 0) chunks.push(current);
+
+  return chunks;
+}
+
+async function postEvents(
+  token: string,
+  lines: string[]
+): Promise<{ successful: number; quarantined: number }> {
   const compressed = await new Response(
-    new Blob([body]).stream().pipeThrough(new CompressionStream('gzip'))
+    new Blob([lines.join('\n')]).stream().pipeThrough(new CompressionStream('gzip'))
   ).arrayBuffer();
 
   const response = await fetch(`${env.TINYBIRD_URL}/v0/events?name=events&wait=true`, {
@@ -74,9 +115,6 @@ export async function appendEvents(rows: EventRow[]): Promise<{ successful: numb
   }
 
   const result = (await response.json()) as { successful_rows: number; quarantined_rows: number };
-  if (result.quarantined_rows > 0) {
-    throw new UnavailableError(`Tinybird quarantined ${result.quarantined_rows} of ${rows.length} rows`);
-  }
   return { successful: result.successful_rows, quarantined: result.quarantined_rows };
 }
 
@@ -86,10 +124,18 @@ export async function resolveTinybirdWorkspaceId(): Promise<string> {
   if (!payload) {
     throw new UnavailableError('TINYBIRD_TOKEN is not a workspace token');
   }
-  const claims = JSON.parse(new TextDecoder().decode(fromBase64(payload))) as { u?: string };
+  let claims: { u?: string };
+
+  try {
+    claims = JSON.parse(new TextDecoder().decode(fromBase64(payload))) as { u?: string };
+  } catch {
+    throw new UnavailableError('TINYBIRD_TOKEN is not a workspace token');
+  }
+
   if (!claims.u) {
     throw new UnavailableError('TINYBIRD_TOKEN does not name a workspace');
   }
+
   return claims.u;
 }
 

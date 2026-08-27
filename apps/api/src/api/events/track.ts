@@ -63,27 +63,31 @@ export async function trackEvents(
       }
 
       const outcomes = new Map<ActorEventInput, ActorIngestOutcome>();
-      for (const [externalId, events] of byExternalId) {
-        const { subscriber, created } = await upsertSubscriber(db, tenant.id, externalId, {
-          verifiedNow: input.verifiedNow,
-          systemAttributes: input.systemAttributes,
-        });
-        if (created) {
-          events.unshift(
-            resolveSystemEvent(
-              {
-                name: 'subscriber.created',
-                data: { externalId, attributes: subscriberAttributes(subscriber) },
-              },
-              now
-            )
-          );
-        }
-        const results = await ingestEvents(tenant.id, subscriber, events);
-        for (const [index, event] of events.entries()) {
-          outcomes.set(event, results[index]!);
-        }
-      }
+      const settled = await Promise.allSettled(
+        [...byExternalId].map(async ([externalId, events]) => {
+          const { subscriber, created } = await upsertSubscriber(db, tenant.id, externalId, {
+            verifiedNow: input.verifiedNow,
+            systemAttributes: input.systemAttributes,
+          });
+          if (created) {
+            events.unshift(
+              resolveSystemEvent(
+                {
+                  name: 'subscriber.created',
+                  data: { externalId, attributes: subscriberAttributes(subscriber) },
+                },
+                now
+              )
+            );
+          }
+          const results = await ingestEvents(tenant.id, subscriber, events);
+          for (const [index, event] of events.entries()) {
+            outcomes.set(event, results[index]!);
+          }
+        })
+      );
+      const failure = settled.find((entry) => entry.status === 'rejected');
+      if (failure) throw failure.reason;
 
       return prepared.map(({ externalId, actor }) => {
         const outcome = outcomes.get(actor)!;

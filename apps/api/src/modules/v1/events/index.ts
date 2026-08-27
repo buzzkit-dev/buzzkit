@@ -1,8 +1,10 @@
 import {
   EVENT_SOURCES,
+  EventIdSchema,
   EventNameSchema,
   listRecentEvents,
-  resolveEventInputs,
+  resolveEventCursor,
+  resolveEventsBody,
   TrackEventsSchema,
   trackEvents,
 } from '@buzzkit/api/api/events/index';
@@ -21,8 +23,8 @@ export const events = new Elysia()
       const { items, hasMore, nextCursor } = await listRecentEvents(tenant.id, {
         name: query.name,
         source: query.source,
-        before: query.cursor,
-        after: query.after,
+        before: resolveEventCursor(query.cursor),
+        after: query.after ? { receivedAt: query.after, id: query.afterId } : undefined,
         limit: clampLimit(query.limit),
       });
 
@@ -37,21 +39,22 @@ export const events = new Elysia()
         name: t.Optional(EventNameSchema),
         source: t.Optional(literalUnion(EVENT_SOURCES)),
         after: t.Optional(t.String({ format: 'date-time' })),
+        afterId: t.Optional(EventIdSchema),
       }),
     }
   )
   .post(
     '/events',
     async ({ body, db, set, tenant }) => {
-      const tracked = await trackEvents(db, tenant, { source: 'server', events: resolveEventInputs(body) });
+      const tracked = await trackEvents(db, tenant, { source: 'server', events: body.events });
 
-      return (
-        'events' in body
-          ? Response.list(tracked, { ignoreTransform: ['data'] })
-          : Response.success(tracked[0], { ignoreTransform: ['data'] })
-      )
+      return Response.list(tracked, { ignoreTransform: ['data'] })
         .status(202)
         .send(set);
     },
-    { tenant: 'events:write', body: TrackEventsSchema }
+    {
+      tenant: 'events:write',
+      body: TrackEventsSchema,
+      parse: async ({ request }) => resolveEventsBody(await request.json()),
+    }
   );

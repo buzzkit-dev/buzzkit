@@ -313,7 +313,7 @@ export async function updatePreferences(
   tenantId: number,
   subscriberId: number,
   changes: PreferenceChanges
-): Promise<SubscriberPreference[]> {
+): Promise<{ preferences: SubscriberPreference[]; changed: boolean }> {
   const slugs = Object.keys(changes);
   if (slugs.length === 0) {
     throw new BadRequestError('Nothing to update');
@@ -379,6 +379,30 @@ export async function updatePreferences(
         optedIn,
       }))
     );
+
+    const current = await db
+      .select({
+        topicId: tables.subscriberPreference.topicId,
+        channel: tables.subscriberPreference.channel,
+        optedIn: tables.subscriberPreference.optedIn,
+      })
+      .from(tables.subscriberPreference)
+      .where(
+        and(
+          eq(tables.subscriberPreference.subscriberId, subscriberId),
+          inArray(
+            tables.subscriberPreference.topicId,
+            rows.map((row) => row.topicId)
+          )
+        )
+      );
+
+    const changed = rows.some(
+      (row) =>
+        current.find((entry) => entry.topicId === row.topicId && entry.channel === row.channel)?.optedIn !==
+        row.optedIn
+    );
+
     await db
       .insert(tables.subscriberPreference)
       .values(rows)
@@ -391,6 +415,6 @@ export async function updatePreferences(
         set: { optedIn: sql`excluded.opted_in` },
       });
 
-    return listPreferences(db, tenantId, subscriberId);
+    return { preferences: await listPreferences(db, tenantId, subscriberId), changed };
   });
 }

@@ -52,6 +52,8 @@ export type EventRecord = {
 
 export type EventPage = { items: EventRecord[]; hasMore: boolean; nextCursor: string | null };
 
+export type EventCursor = { receivedAt: string; id?: string };
+
 export type EventRow = {
   id: string;
   sequence: number;

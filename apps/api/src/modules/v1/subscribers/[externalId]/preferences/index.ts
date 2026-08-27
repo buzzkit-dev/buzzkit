@@ -22,11 +22,18 @@ export const subscriberPreferences = new Elysia()
     '/subscribers/:externalId/preferences',
     async ({ body, db, params, tenant }) => {
       const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
-      const preferences = await updatePreferences(db, tenant.id, subscriber.id, body.preferences);
+      const { preferences, changed } = await updatePreferences(
+        db,
+        tenant.id,
+        subscriber.id,
+        body.preferences
+      );
 
-      await recordSystemEvents(tenant.id, subscriber, [
-        { name: 'preferences.updated', data: { changes: body.preferences } },
-      ]);
+      if (changed) {
+        await recordSystemEvents(tenant.id, subscriber, [
+          { name: 'preferences.updated', data: { changes: body.preferences } },
+        ]);
+      }
 
       return Response.list(preferences).send();
     },

@@ -47,7 +47,7 @@ export function isReservedEventName(name: string): boolean {
 }
 
 export function isSdkEventName(name: string): boolean {
-  return isReservedEventName(name) && name.slice(RESERVED_EVENT_PREFIX.length) in SDK_EVENTS;
+  return isReservedEventName(name) && Object.hasOwn(SDK_EVENTS, name.slice(RESERVED_EVENT_PREFIX.length));
 }
 
 export function assertEventNameAllowed(name: string, source: EventSource): void {

@@ -110,12 +110,13 @@ function isoTime(value: string): string {
 
 async function fetchNewer(
   token: EventsToken,
-  after: string,
+  after: { receivedAt: string; id: string | null },
   filter: { name: string | null; source: string | null }
 ): Promise<LiveEvent[]> {
   const url = new URL(`${token.url}/v0/pipes/event_recent.json`);
   url.searchParams.set('tenant_id', '0');
-  url.searchParams.set('after', clickHouseTime(after));
+  url.searchParams.set('after', clickHouseTime(after.receivedAt));
+  if (after.id) url.searchParams.set('after_id', after.id);
   url.searchParams.set('limit', String(PAGE_SIZE));
   if (filter.name) url.searchParams.set('name', filter.name);
   if (filter.source) url.searchParams.set('source', filter.source);
@@ -137,17 +138,24 @@ async function fetchNewer(
   }));
 }
 
+function newestOf(events: { receivedAt: string; id: string }[]): { receivedAt: string; id: string | null } {
+  const first = events[0];
+  return first
+    ? { receivedAt: first.receivedAt, id: first.id }
+    : { receivedAt: new Date(0).toISOString(), id: null };
+}
+
 function useLiveEvents(
   initial: StreamEvent[],
   token: EventsToken | null,
   filter: { name: string | null; source: string | null }
 ) {
   const [events, setEvents] = useState<LiveEvent[]>(initial);
-  const newest = useRef(initial[0]?.receivedAt ?? new Date(0).toISOString());
+  const newest = useRef(newestOf(initial));
 
   useEffect(() => {
     setEvents(initial);
-    newest.current = initial[0]?.receivedAt ?? new Date(0).toISOString();
+    newest.current = newestOf(initial);
   }, [initial]);
 
   useEffect(() => {
@@ -156,7 +164,7 @@ function useLiveEvents(
     const tick = async () => {
       const fresh = await fetchNewer(token, newest.current, filter);
       if (!active || fresh.length === 0) return;
-      newest.current = fresh[0]!.receivedAt;
+      newest.current = newestOf(fresh);
       setEvents((current) => {
         const seen = new Set(current.map((event) => event.id));
         return [...fresh.filter((event) => !seen.has(event.id)), ...current].slice(0, PAGE_SIZE);

@@ -1,13 +1,15 @@
 import { defineEndpoint, node, p, t } from '@tinybirdco/sdk';
 
 export const eventRecent = defineEndpoint('event_recent', {
-  description: 'Newest events for a tenant, optionally one name, keyset-paged by received_at',
+  description: 'Newest events for a tenant, optionally one name, keyset-paged by (received_at, id)',
   params: {
     tenant_id: p.uint64(),
     name: p.string().optional(),
     source: p.string().optional(),
     before: p.dateTime64().optional(),
+    before_id: p.string().optional(),
     after: p.dateTime64().optional(),
+    after_id: p.string().optional(),
     limit: p.int32().optional(50),
   },
   nodes: [
@@ -21,8 +23,16 @@ export const eventRecent = defineEndpoint('event_recent', {
         WHERE tenant_id = {{UInt64(tenant_id)}}
           {% if defined(name) %} AND name = {{String(name)}} {% end %}
           {% if defined(source) %} AND source = {{String(source)}} {% end %}
-          {% if defined(before) %} AND received_at < {{DateTime64(before)}} {% end %}
-          {% if defined(after) %} AND received_at > {{DateTime64(after)}} {% end %}
+          {% if defined(before) and defined(before_id) %}
+            AND (received_at, id) < ({{DateTime64(before)}}, {{String(before_id)}})
+          {% elif defined(before) %}
+            AND received_at < {{DateTime64(before)}}
+          {% end %}
+          {% if defined(after) and defined(after_id) %}
+            AND (received_at, id) > ({{DateTime64(after)}}, {{String(after_id)}})
+          {% elif defined(after) %}
+            AND received_at > {{DateTime64(after)}}
+          {% end %}
         ORDER BY received_at DESC, id DESC
         LIMIT {{Int32(limit, 50)}}
       `,
