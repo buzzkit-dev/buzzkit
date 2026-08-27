@@ -35,6 +35,13 @@ export const AUDIT_CATALOG = {
   'message.completed': { webhook: true },
 
   'profile.updated': { webhook: false },
+
+  'webhook.created': { webhook: false },
+  'webhook.updated': { webhook: false },
+  'webhook.deleted': { webhook: false },
+  'webhook.secret_rotated': { webhook: false },
+  'webhook.replayed': { webhook: false },
+  'webhook.disabled': { webhook: false },
 } as const satisfies Record<string, EventDefinition>;
 
 export type AuditEventName = keyof typeof AUDIT_CATALOG;

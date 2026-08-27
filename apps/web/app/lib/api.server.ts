@@ -288,6 +288,104 @@ export function revokeKey(ctx: RequestContext, token: string, workspaceSlug: str
   return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys({ id }).delete());
 }
 
+export type WebhookInput = {
+  url: string;
+  description?: string;
+  events?: string[];
+  tenant?: string;
+};
+
+export type WebhookDeliveryQuery = {
+  limit?: number;
+  cursor?: string;
+  status?: 'pending' | 'success' | 'failed' | 'exhausted';
+};
+
+export function listWebhooks(ctx: RequestContext, token: string, workspaceSlug: string) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks.get()).then(
+    (page) => page.items
+  );
+}
+
+export function getWebhookCatalog(ctx: RequestContext, token: string, workspaceSlug: string) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks.catalog.get());
+}
+
+export function createWebhook(ctx: RequestContext, token: string, workspaceSlug: string, body: WebhookInput) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks.post(body));
+}
+
+export function getWebhook(ctx: RequestContext, token: string, workspaceSlug: string, id: string) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks({ id }).get());
+}
+
+export function updateWebhook(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  id: string,
+  body: {
+    url?: string;
+    description?: string | null;
+    events?: string[];
+    tenant?: string | null;
+    enabled?: boolean;
+  }
+) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks({ id }).patch(body));
+}
+
+export function deleteWebhook(ctx: RequestContext, token: string, workspaceSlug: string, id: string) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks({ id }).delete());
+}
+
+export function rotateWebhookSecret(ctx: RequestContext, token: string, workspaceSlug: string, id: string) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).webhooks({ id }).rotate.post());
+}
+
+export function listWebhookDeliveries(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  id: string,
+  query: WebhookDeliveryQuery = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token).workspaces({ workspaceSlug }).webhooks({ id }).deliveries.get({ query })
+  );
+}
+
+export function getWebhookDelivery(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  id: string,
+  deliveryId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token).workspaces({ workspaceSlug }).webhooks({ id }).deliveries({ deliveryId }).get()
+  );
+}
+
+export function replayWebhookDelivery(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  id: string,
+  deliveryId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token)
+      .workspaces({ workspaceSlug })
+      .webhooks({ id })
+      .deliveries({ deliveryId })
+      .replay.post()
+  );
+}
+
 export function listSubscribers(
   ctx: RequestContext,
   token: string,
@@ -707,6 +805,11 @@ export type Stats = Awaited<ReturnType<typeof getStats>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];
+export type Webhook = Awaited<ReturnType<typeof listWebhooks>>[number];
+export type WebhookDetail = Awaited<ReturnType<typeof getWebhook>>;
+export type WebhookCatalog = Awaited<ReturnType<typeof getWebhookCatalog>>;
+export type WebhookDelivery = Awaited<ReturnType<typeof listWebhookDeliveries>>['items'][number];
+export type WebhookDeliveryDetail = Awaited<ReturnType<typeof getWebhookDelivery>>;
 export type CreatedKey = Awaited<ReturnType<typeof createKey>>;
 export type Message = Awaited<ReturnType<typeof listMessages>>['items'][number];
 export type MessageDetail = Awaited<ReturnType<typeof getMessage>>;

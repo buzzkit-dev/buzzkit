@@ -2,7 +2,7 @@
 
 **Status: Phases 0–4 ✅ (the API milestone). Phase 5 in progress: dashboard phase 1 (foundation + onboarding) is built and awaiting review; the dashboard's own phase plan lives in [dashboard.md](dashboard.md).**
 
-**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E8 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) is built and awaiting review.**
+**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E8 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) and E2 (Webhooks) are built.**
 
 Deviations from the original plan, all deliberate:
 - **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.

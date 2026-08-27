@@ -89,7 +89,11 @@ export class SubscriberActor extends Agent<Env> {
 
   private async enqueue(identity: ActorIdentity, rows: ActorEventRow[]): Promise<boolean> {
     try {
-      await this.env.EVENTS.send({ ...identity, rows } satisfies EventsQueueMessage);
+      const message = { ...identity, rows } satisfies EventsQueueMessage;
+      await Promise.all([
+        this.env.EVENTS.send(message),
+        this.env.WEBHOOKS.send({ kind: 'stream', ...message }),
+      ]);
       return true;
     } catch (error) {
       log.warn('[Actor] Queue refused a flush batch, retrying later', {

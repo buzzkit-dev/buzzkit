@@ -9,6 +9,7 @@ import { messageTables } from './schema/message';
 import { subscriberTables } from './schema/subscriber';
 import { tenantTables } from './schema/tenant';
 import { topicTables } from './schema/topic';
+import { webhookTables } from './schema/webhook';
 import { workspaceTables } from './schema/workspace';
 
 export const tables = {
@@ -22,6 +23,7 @@ export const tables = {
   ...subscriberTables,
   ...topicTables,
   ...messageTables,
+  ...webhookTables,
 };
 
 export type DrizzleOptions = { max?: number };
@@ -51,4 +53,5 @@ export { apiKeyKind } from './schema/key';
 export { deliveryAttemptOutcome, deliveryStatus, messageStatus } from './schema/message';
 export { channel, environment, provider } from './schema/shared';
 export { subscriptionPlatform, subscriptionStatus } from './schema/subscriber';
+export { webhookDeliveryStatus, webhookEventSource } from './schema/webhook';
 export { workspaceMemberRole } from './schema/workspace';

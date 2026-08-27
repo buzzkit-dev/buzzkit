@@ -1,3 +1,4 @@
+import { env, waitUntil } from 'cloudflare:workers';
 import type { ApiKey } from '@buzzkit/api/api/keys/index';
 import { describeError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
@@ -22,7 +23,7 @@ import {
   tables,
 } from '@buzzkit/database';
 import { t } from 'elysia';
-import type { AuditEventName } from './catalog';
+import { type AuditEventName, isPublicEvent } from './catalog';
 
 export { AUDIT_CATALOG, type AuditEventName, isPublicEvent, PUBLIC_EVENTS } from './catalog';
 
@@ -117,23 +118,27 @@ export function createAuditLogger(
 
   return async (entry: AuditEntry) => {
     try {
-      await trace('audit.write', async () =>
-        db.insert(tables.event).values({
-          workspaceId: entry.workspaceId !== undefined ? entry.workspaceId : boundWorkspaceId,
-          tenantId: entry.tenantId,
-          event: entry.event,
-          ...actorColumns(actor),
-          targetType: entry.target?.type,
-          targetId:
-            entry.target !== undefined
-              ? typeof entry.target.id === 'number'
-                ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
-                : entry.target.id
-              : undefined,
-          data: entry.data,
-          ...requestMeta,
-        })
+      const [row] = await trace('audit.write', async () =>
+        db
+          .insert(tables.event)
+          .values({
+            workspaceId: entry.workspaceId !== undefined ? entry.workspaceId : boundWorkspaceId,
+            tenantId: entry.tenantId,
+            event: entry.event,
+            ...actorColumns(actor),
+            targetType: entry.target?.type,
+            targetId:
+              entry.target !== undefined
+                ? typeof entry.target.id === 'number'
+                  ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
+                  : entry.target.id
+                : undefined,
+            data: entry.data,
+            ...requestMeta,
+          })
+          .returning({ id: tables.event.id })
       );
+      if (row && isPublicEvent(entry.event)) enqueueWebhookEvents([row.id]);
     } catch (error) {
       log.error('[Audit] Failed to write event', {
         event: entry.event,
@@ -156,30 +161,46 @@ export async function recordSystemAudit(
   const workspaceOf = new Map(tenants.map((tenant) => [tenant.id, tenant.workspaceId]));
 
   try {
-    await trace('audit.writeMany', { 'audit.count': entries.length }, async () =>
-      db.insert(tables.event).values(
-        entries.map((entry) => ({
-          workspaceId: workspaceOf.get(entry.tenantId) ?? null,
-          tenantId: entry.tenantId,
-          event: entry.event,
-          ...actorColumns({ type: 'system' }),
-          targetType: entry.target?.type,
-          targetId:
-            entry.target !== undefined
-              ? typeof entry.target.id === 'number'
-                ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
-                : entry.target.id
-              : undefined,
-          data: entry.data,
-        }))
-      )
+    const rows = await trace('audit.writeMany', { 'audit.count': entries.length }, async () =>
+      db
+        .insert(tables.event)
+        .values(
+          entries.map((entry) => ({
+            workspaceId: workspaceOf.get(entry.tenantId) ?? null,
+            tenantId: entry.tenantId,
+            event: entry.event,
+            ...actorColumns({ type: 'system' }),
+            targetType: entry.target?.type,
+            targetId:
+              entry.target !== undefined
+                ? typeof entry.target.id === 'number'
+                  ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
+                  : entry.target.id
+                : undefined,
+            data: entry.data,
+          }))
+        )
+        .returning({ id: tables.event.id, event: tables.event.event })
     );
+    enqueueWebhookEvents(rows.filter((row) => isPublicEvent(row.event)).map((row) => row.id));
   } catch (error) {
     log.error('[Audit] Failed to write events', {
       count: entries.length,
       error: describeError(error),
     });
   }
+}
+
+function enqueueWebhookEvents(auditIds: number[]): void {
+  if (auditIds.length === 0 || !env.WEBHOOKS) return;
+  waitUntil(
+    Promise.all(auditIds.map((auditId) => env.WEBHOOKS.send({ kind: 'audit', auditId }))).catch((error) => {
+      log.error('[Audit] Could not enqueue webhook events, the sweep will pick them up', {
+        auditIds,
+        error: describeError(error),
+      });
+    })
+  );
 }
 
 export function serializeAuditEvent(row: AuditRow) {

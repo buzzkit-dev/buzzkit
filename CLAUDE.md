@@ -49,6 +49,7 @@ The API dev server runs on port **8790**, the web dev server on port **5180** (o
 | `bun lint`        | Biome lint                                   |
 | `bun format:fix`  | Biome auto-fix formatting                    |
 | `bun check-types` | TypeScript type checking across all packages |
+| `bun run test`    | The `buzzkit` package's unit tests (the API's suite is `bun run test` inside `apps/api`, it boots its own server) |
 
 ## Key Conventions (inherited from feedbase)
 

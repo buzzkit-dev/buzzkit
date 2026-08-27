@@ -41,7 +41,9 @@ function Truncate({ children, className, ...props }: React.ComponentProps<'span'
             </span>
           }
         />
-        <TooltipContent className='max-w-72 whitespace-normal text-pretty'>{children}</TooltipContent>
+        <TooltipContent className='max-w-72 whitespace-normal text-pretty [overflow-wrap:anywhere]'>
+          {children}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

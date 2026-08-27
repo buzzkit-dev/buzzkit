@@ -4,6 +4,7 @@ import { app } from './modules';
 import { handleQueueBatch, type QueueMessage } from './queue';
 import { reconcileDeliveries } from './queue/reconcile';
 import { rewrapCredentialsSweep } from './queue/rewrap';
+import { reconcileWebhooks } from './queue/webhooks';
 
 const compiled = app.compile();
 
@@ -12,6 +13,7 @@ export default instrument<Env, QueueMessage>({
   queue: handleQueueBatch,
   scheduled: async () => {
     await reconcileDeliveries();
+    await reconcileWebhooks();
     await rewrapCredentialsSweep();
   },
 });

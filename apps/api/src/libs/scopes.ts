@@ -29,6 +29,9 @@ export const SCOPE_CATALOG = {
 
   'audit:read': { context: 'workspace', role: 'admin', key: true },
 
+  'webhooks:read': { context: 'workspace', role: 'member', key: true },
+  'webhooks:write': { context: 'workspace', role: 'admin', key: true },
+
   'events:read': { context: 'tenant', role: 'member', key: true },
   'events:write': { context: 'tenant', role: 'member', key: true },
 

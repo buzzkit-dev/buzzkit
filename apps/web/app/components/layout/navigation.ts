@@ -49,7 +49,7 @@ export const NAVIGATION: NavigationSection[] = [
     label: 'Developers',
     pages: [
       { label: 'API keys', path: '/keys', icon: 'IconKeyholeFilled' },
-      { label: 'Webhooks', path: '/webhooks', icon: 'IconWebhooksFilled', planned: 'engine phase E2' },
+      { label: 'Webhooks', path: '/webhooks', icon: 'IconWebhooksFilled' },
     ],
   },
   {

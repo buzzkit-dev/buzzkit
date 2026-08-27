@@ -47,6 +47,14 @@ import { keys } from './workspaces/[workspaceSlug]/keys';
 import { key } from './workspaces/[workspaceSlug]/keys/[id]';
 import { members } from './workspaces/[workspaceSlug]/members';
 import { member } from './workspaces/[workspaceSlug]/members/[id]';
+import { webhooks } from './workspaces/[workspaceSlug]/webhooks';
+import { webhook } from './workspaces/[workspaceSlug]/webhooks/[id]';
+import { webhookDeliveries } from './workspaces/[workspaceSlug]/webhooks/[id]/deliveries';
+import { webhookDelivery } from './workspaces/[workspaceSlug]/webhooks/[id]/deliveries/[deliveryId]';
+import { webhookReplay } from './workspaces/[workspaceSlug]/webhooks/[id]/deliveries/[deliveryId]/replay';
+import { webhookRotate } from './workspaces/[workspaceSlug]/webhooks/[id]/rotate';
+import { webhookCatalog } from './workspaces/[workspaceSlug]/webhooks/catalog';
+import { webhookEvent } from './workspaces/[workspaceSlug]/webhooks/events/[id]';
 
 export const v1 = new Elysia({ prefix: '/v1' })
   .use(response)
@@ -106,6 +114,38 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/workspaces/:slug/audit
    */
   .use(auditLog)
+  /*
+   * /v1/workspaces/:slug/webhooks
+   */
+  .use(webhooks)
+  /*
+   * /v1/workspaces/:slug/webhooks/catalog
+   */
+  .use(webhookCatalog)
+  /*
+   * /v1/workspaces/:slug/webhooks/events/:id
+   */
+  .use(webhookEvent)
+  /*
+   * /v1/workspaces/:slug/webhooks/:id
+   */
+  .use(webhook)
+  /*
+   * /v1/workspaces/:slug/webhooks/:id/rotate
+   */
+  .use(webhookRotate)
+  /*
+   * /v1/workspaces/:slug/webhooks/:id/deliveries
+   */
+  .use(webhookDeliveries)
+  /*
+   * /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId
+   */
+  .use(webhookDelivery)
+  /*
+   * /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId/replay
+   */
+  .use(webhookReplay)
   /*
    * /v1/tenants
    */

@@ -2,7 +2,10 @@ import { toast } from '@buzzkit/ui/components/sonner';
 import { useEffect, useRef } from 'react';
 import { useFetcher } from 'react-router';
 
-export type SettingsActionData = { ok?: boolean; error?: string } & Record<string, unknown>;
+export type SettingsActionData = { ok?: boolean; error?: string; description?: string } & Record<
+  string,
+  unknown
+>;
 
 export function useActionFetcher(onDone?: (data: SettingsActionData) => void, options?: { action?: string }) {
   const fetcher = useFetcher<SettingsActionData>();
@@ -13,7 +16,7 @@ export function useActionFetcher(onDone?: (data: SettingsActionData) => void, op
   useEffect(() => {
     if (fetcher.state !== 'idle' || !fetcher.data || handled.current === fetcher.data) return;
     handled.current = fetcher.data;
-    if (fetcher.data.error) toast.error(fetcher.data.error);
+    if (fetcher.data.error) toast.error(fetcher.data.error, { description: fetcher.data.description });
     else onDoneRef.current?.(fetcher.data);
   }, [fetcher.state, fetcher.data]);
 

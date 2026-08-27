@@ -133,8 +133,8 @@ export function PillTabs<V extends string>({
   const leftSource = useMotionValue(0);
   const rightSource = useMotionValue(0);
   const pressSource = useMotionValue(0);
-  const left = useSpring(leftSource, { visualDuration: 0.3, bounce: 0 });
-  const right = useSpring(rightSource, { visualDuration: 0.3, bounce: 0 });
+  const left = useSpring(leftSource, { visualDuration: 0.2, bounce: 0 });
+  const right = useSpring(rightSource, { visualDuration: 0.2, bounce: 0 });
   const press = useSpring(pressSource, { visualDuration: 0.15, bounce: 0 });
   const sizeRef = React.useRef({ width: 0, height: 0 });
   const placedValue = React.useRef<V | null>(null);

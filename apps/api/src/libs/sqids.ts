@@ -28,6 +28,10 @@ export const ID_PREFIXES = {
   workflow: 'wf',
   run: 'run',
   invite: 'inv',
+  webhook: 'whk',
+  webhookEvent: 'whe',
+  webhookDelivery: 'whd',
+  webhookAttempt: 'wha',
 } as const;
 
 export type IdEntity = keyof typeof ID_PREFIXES;
@@ -44,6 +48,7 @@ export const TARGET_ENTITIES: Record<string, IdEntity> = {
   topic: 'topic',
   message: 'message',
   audit: 'audit',
+  webhook: 'webhook',
 };
 
 export function encodeBareId(entity: IdEntity | undefined, id: number): string {

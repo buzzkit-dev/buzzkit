@@ -28,6 +28,7 @@
         "@opentelemetry/api": "^1.9.1",
         "agents": "^0.21.0",
         "better-auth": "1.6.25",
+        "buzzkit": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "elysia": "^1.4.29",
         "sqids": "^0.3.0",
@@ -95,6 +96,7 @@
       "version": "0.0.0",
       "devDependencies": {
         "typescript": "^7.0.2",
+        "vitest": "~4.1.10",
       },
     },
     "packages/cli": {

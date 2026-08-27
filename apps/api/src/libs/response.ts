@@ -60,6 +60,8 @@ const FIELD_ENTITIES: Record<string, IdEntity> = {
   messageId: 'message',
   deliveryId: 'delivery',
   auditId: 'audit',
+  endpointId: 'webhook',
+  webhookEventId: 'webhookEvent',
   segmentId: 'segment',
   campaignId: 'campaign',
   workflowId: 'workflow',

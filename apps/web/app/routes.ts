@@ -21,6 +21,8 @@ export default [
     route('events/stream', 'routes/[slug]/events/stream/index.tsx'),
     route('events/:name', 'routes/[slug]/events/[name]/index.tsx'),
     route('keys', 'routes/[slug]/keys/index.tsx'),
+    route('webhooks', 'routes/[slug]/webhooks/index.tsx'),
+    route('webhooks/:id', 'routes/[slug]/webhooks/[id]/index.tsx'),
     route('subscribers/:externalId', 'routes/[slug]/subscribers/[externalId]/index.tsx'),
     route('settings', 'routes/[slug]/settings/layout.tsx', [
       index('routes/[slug]/settings/index.tsx'),

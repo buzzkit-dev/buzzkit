@@ -52,7 +52,8 @@
   "queues": {
     "producers": [
       { "queue": "buzzkit-deliveries", "binding": "DELIVERIES" },
-      { "queue": "buzzkit-events", "binding": "EVENTS" }
+      { "queue": "buzzkit-events", "binding": "EVENTS" },
+      { "queue": "buzzkit-webhooks", "binding": "WEBHOOKS" }
     ],
     "consumers": [
       {
@@ -78,6 +79,14 @@
         "max_concurrency": 1,
         "max_retries": 100,
         "dead_letter_queue": "buzzkit-events"
+      },
+      {
+        "queue": "buzzkit-webhooks",
+        "max_batch_size": 20,
+        "max_batch_timeout": 2,
+        "max_concurrency": 20,
+        "max_retries": 5,
+        "dead_letter_queue": "buzzkit-webhooks-dlq"
       }
     ]
   },

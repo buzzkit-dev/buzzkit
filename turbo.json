@@ -31,6 +31,10 @@
     "@buzzkit/api#types:emit": {
       "inputs": ["src/**/*.ts", "tsconfig.json", "worker-configuration.d.ts"],
       "outputs": [".types/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

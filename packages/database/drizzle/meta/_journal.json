@@ -15,6 +15,13 @@
       "when": 1787611620219,
       "tag": "0001_petite_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787830014225,
+      "tag": "0002_loud_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

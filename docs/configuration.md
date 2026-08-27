@@ -40,6 +40,7 @@ Every variable, secret and binding the two Workers read, what it is for, and whe
 | `PROVIDER_CACHE` (KV) | yes | Short-lived provider tokens (APNs JWTs, FCM OAuth tokens). |
 | `DELIVERIES` (Queue) | yes | Queue-backed message delivery with per-attempt leases. |
 | `EVENTS` (Queue) | yes | Subscriber actors flush their unsent events here in batches of up to 100 rows; the consumer posts a queue batch to Tinybird as one gzipped Events API request. |
+| `WEBHOOKS` (Queue) | yes | Webhook work: audit ids from the audit logger, event batches from the actors, and delayed retry messages; `buzzkit-webhooks-dlq` has no consumer, the delivery ledger and the five-minute sweep recover its work ([webhooks.md](webhooks.md)). Queues are not created on deploy: `wrangler queues create buzzkit-webhooks` and `buzzkit-webhooks-dlq`, like the deliveries and events queues and their DLQs. |
 | `SUBSCRIBER_ACTOR` (Durable Object, SQLite) | yes | One actor per subscriber (`SubscriberActor`, built on the Agents SDK): the ordered event inbox, projections and the Tinybird watermark; later, workflow runs and per-user timers. Declared with a `new_sqlite_classes` migration. |
 | `EMAIL` (Email Sending) | yes for invites | Sends invite email from `mail@tm.buzzkit.dev` (hardcoded in `libs/email.ts`; the domain must be onboarded to Cloudflare Email Sending). `remote: true` means real email even in local dev. |
 
