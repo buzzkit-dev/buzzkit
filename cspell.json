@@ -2,14 +2,18 @@
   "version": "0.2",
   "language": "en",
   "words": [
+    "berl",
+    "Brien",
     "buzzkit",
-    "whsec",
+    "clickhouse",
+    "hyperdrive",
+    "keyset",
+    "sgv",
     "sqids",
     "tinybird",
+    "unmuted",
+    "whsec",
     "workerd",
-    "wrangler",
-    "clickhouse",
-    "keyset",
-    "hyperdrive"
+    "wrangler"
   ]
 }

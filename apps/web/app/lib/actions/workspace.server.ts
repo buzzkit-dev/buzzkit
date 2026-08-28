@@ -13,7 +13,7 @@ import { lastWorkspaceCookie, signOut } from '@/app/lib/session.server';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export type WorkspaceFormResult =
+type WorkspaceFormResult =
   | { ok: true; workspace: Awaited<ReturnType<typeof createWorkspace>> }
   | { ok: false; errors: FormErrors; status: number };
 

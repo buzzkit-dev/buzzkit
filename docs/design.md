@@ -332,6 +332,10 @@ Fields that fetch as you type (the subscribers lookup) take `loading`: the spinn
 
 One trigger size, matching the default button (32px, `rounded-xl`). The popup aligns the selected item over the trigger (`alignItemWithTrigger`), takes the trigger's width via `w-(--anchor-width)`, and `SelectValue` mirrors the selected item's icon. Only the popup's surface animates in (it lives on `::before`; the list itself is the scroll container and its text lands instantly): over the trigger (Base UI's `data-side="none"`) the surface grows 0.975 → 1 from its centre in 150ms ease-out, picking up exactly where the trigger's press scale (`0.975`) let go; beside the trigger it fades in while growing from 95%. Closing is instant, no exit animation. Item padding is tuned so the aligned popup sits exactly over the trigger (list 4px + item 6px = trigger 10px).
 
+### Combobox
+
+`@buzzkit/ui/components/combobox`, a Select you can type into: `ComboboxInput` is the field language of an input (`bg-bg-2`, `rounded-xl`, the same focus ring) with the chevron as the trigger inside it (`showTrigger={false}` drops it where the field should feel like a plain input, as in the segment builder); the popup is the Select's surface at least the field's width and as wide as its longest item, its height animating through `SizeAnimator` as the list filters, the list capped at 288px with `ScrollFade` and the sliding highlight (`useAnimatedIndicator`) inside it. Base UI filters the items as you type; the popup simply disappears when nothing matches (pass `empty` to show a line instead), and a caller that owns `inputValue` keeps typed text on blur by only accepting `input-change` / `item-press` / `clear-press` reasons, so a picker over a catalog (event names in the segment builder) works as a plain input for names the catalog has not seen yet. Long values overflow like any input's. Rows that must stay 32px pass `h-8 px-2.5` like every other row input.
+
 ### ScopePicker
 
 `@buzzkit/ui/components/scope-picker`, the one picker for permission-like strings (API key scopes, webhook events, later agent scopes): a search field over collapsible groups. A group row carries a checkbox that stands for the group's wildcard (`subscribers:*`; groups without one select every option), the wildcard or label in mono, a count (`all`, `2`), and a chevron that rotates 90° in 150ms; its options fold open and closed with the sidebar's springs (unfold 0.3s, fold 0.2s, bounce 0, height auto + opacity). Picking every option of a group collapses the selection back into its wildcard; searching expands every matching group. Rows press with the shared inset tokens.
@@ -416,7 +420,7 @@ Popover: 288px, `rounded-xl`, title + description with no gap. Tooltip: a 24px d
 
 ### Card
 
-`rounded-2xl`, `px-4 py-4`. Header drops to `pb-[13px]` when a `CardContent` follows (the onboarding card tightens that to `pb-2.5`). `CardAction` puts a control top-right; `CardFooter` is a bordered 48px strip; a ghost button at its left edge takes `-ml-2` so its label aligns with the card content.
+`rounded-2xl`, `px-4 py-4`. Header drops to `pb-[13px]` when a `CardContent` follows (the onboarding card tightens that to `pb-2.5`). `CardAction` puts a control at the right; Only the title and the description set a header's height: every sibling that follows `CardTitle` (a `CardAction`, pill tabs, a button, a live count) is taken out of flow (absolutely positioned at the header's right edge, vertically centered), so controls keep their own size, sit centered on the title block, and the header is exactly as tall as its title (and description) alone, with no per-page margin hacks. `CardFooter` is a bordered 48px strip; a ghost button at its left edge takes `-ml-2` so its label aligns with the card content.
 
 ### Toast
 

@@ -5,6 +5,14 @@ import { useState } from 'react';
 import type { FormErrors } from '@/app/hooks/use-focus-first-error';
 import { useFocusFirstError } from '@/app/hooks/use-focus-first-error';
 
+export function describeSlugProblem(slug: string): string | null {
+  if (slug.length === 0) return null;
+  if (slug.length < 3 || slug.length > 48 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    return 'Use 3 to 48 lowercase letters, numbers and single hyphens.';
+  }
+  return null;
+}
+
 export function slugify(name: string): string {
   return name
     .toLowerCase()

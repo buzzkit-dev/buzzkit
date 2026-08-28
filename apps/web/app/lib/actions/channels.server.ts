@@ -14,7 +14,7 @@ export async function channelsAction(args: ActionFunctionArgs) {
 
   if (intent === 'connect' || intent === 'validate') {
     const provider = PROVIDERS.find((entry) => entry === form.get('provider'));
-    if (!provider) return { ok: false, error: 'Pick a provider.' };
+    if (!provider) return { error: 'Pick a provider.' };
     return connectProvider(ctx, token, slug, tenant, provider, form, intent);
   }
 

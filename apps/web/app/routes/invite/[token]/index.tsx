@@ -10,11 +10,6 @@ import { ApiError, getInvitePreview, getProfile } from '@/app/lib/api.server';
 import { readSessionToken } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
-function maskEmail(email: string): string {
-  const [local = '', domain = ''] = email.split('@');
-  return `${local.slice(0, 1)}***@${domain}`;
-}
-
 export function meta({ loaderData }: Route.MetaArgs) {
   const name = loaderData?.preview?.workspace.name;
   return [{ title: name ? `Join ${name} · BuzzKit` : 'Invite · BuzzKit' }];
@@ -45,6 +40,11 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 }
 
 export const action = inviteAction;
+
+function maskEmail(email: string): string {
+  const [local = '', domain = ''] = email.split('@');
+  return `${local.slice(0, 1)}***@${domain}`;
+}
 
 function InviteCard({
   title,

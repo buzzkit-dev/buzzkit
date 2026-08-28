@@ -20,6 +20,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  inArray,
   isNull,
   lt,
   sql,
@@ -104,7 +105,7 @@ export function serializeSubscriber(subscriber: Subscriber) {
 }
 
 export function resolveSubscriptionEventData(
-  subscription: Pick<Subscription, 'channel' | 'platform' | 'endpoint'>,
+  subscription: Pick<Subscription, 'channel' | 'platform' | 'endpoint' | 'enabled'>,
   externalId: string
 ) {
   return {
@@ -112,6 +113,7 @@ export function resolveSubscriptionEventData(
     channel: subscription.channel,
     platform: subscription.platform,
     endpoint: subscription.endpoint,
+    enabled: subscription.enabled,
   };
 }
 
@@ -332,7 +334,7 @@ export function serializeSubscriberListItem(item: SubscriberListItem) {
 export async function listSubscribers(
   db: Db,
   tenantId: number,
-  options: { limit: number; beforeId?: number }
+  options: { limit: number; beforeId?: number; ids?: number[] }
 ): Promise<SubscriberListItem[]> {
   const live = sql`${tables.subscription.subscriberId} = ${tables.subscriber.id} and ${tables.subscription.deletedAt} is null`;
   const rows = await trace(
@@ -356,7 +358,8 @@ export async function listSubscribers(
           and(
             eq(tables.subscriber.tenantId, tenantId),
             isNull(tables.subscriber.deletedAt),
-            options.beforeId ? lt(tables.subscriber.id, options.beforeId) : undefined
+            options.beforeId ? lt(tables.subscriber.id, options.beforeId) : undefined,
+            options.ids ? inArray(tables.subscriber.id, options.ids) : undefined
           )
         )
         .orderBy(desc(tables.subscriber.id))

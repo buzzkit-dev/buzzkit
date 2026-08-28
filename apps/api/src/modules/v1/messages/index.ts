@@ -67,6 +67,7 @@ export const messages = new Elysia()
           data: {
             channel: message.channel,
             topic: message.topic,
+            segment: (message.targets as { segment?: string }).segment ?? null,
             recipients: (message.targets as { to?: string[] }).to?.length ?? null,
           },
         });

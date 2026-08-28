@@ -4,7 +4,7 @@ buzzkit is an open-source, self-hostable, **code-first push notification framewo
 
 ## The two-layer model
 
-1. **The framework** — fully headless, everything defined in code. Multi-tenant workspaces, per-tenant APNs/FCM credentials, device token lifecycle, sending, and code-defined campaigns/segments/workflows pushed via the CLI.
+1. **The framework** — fully headless, everything defined in code. Multi-tenant workspaces, per-tenant APNs/FCM credentials, device token lifecycle, sending, and code-defined campaigns/segments/workflows created from code through the `buzzkit` package, the server-side TypeScript SDK.
 2. **The platform** — a full product (dashboard + hosted version) that under the hood is *just a deployment of the framework's multi-tenant core*. The hosted version is a free OneSignal alternative; each hosted customer is a tenant/workspace of the same architecture a self-hoster runs.
 
 This is the load-bearing constraint: if the platform ever needs something the framework doesn't expose, the framework is wrong.

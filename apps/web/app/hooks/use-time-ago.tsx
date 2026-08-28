@@ -24,12 +24,12 @@ function currentMinute() {
   return Math.floor(Date.now() / 60_000);
 }
 
-export function useTimeAgo(iso: string): string {
+function useTimeAgo(iso: string): string {
   useSyncExternalStore(subscribe, currentMinute, currentMinute);
   return timeAgo(iso);
 }
 
-export function exactTime(iso: string): string {
+function exactTime(iso: string): string {
   return new Date(iso).toLocaleString('en', {
     month: 'short',
     day: 'numeric',

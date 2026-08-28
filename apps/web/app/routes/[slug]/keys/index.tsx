@@ -157,16 +157,6 @@ function KeyDialog({
     else onOpenChange(false);
   });
 
-  useEffect(() => {
-    if (!open) return;
-    setName('');
-    setKind('workspace');
-    setTenant(defaultTenant);
-    setPreset('full');
-    setScopes([]);
-    setCreated(null);
-  }, [open, defaultTenant]);
-
   const groups = groupsFor(kind);
   const selected =
     kind === 'client'
@@ -180,6 +170,16 @@ function KeyDialog({
   const canCreate = trimmed.length > 0 && (kind === 'client' || selected.length > 0) && !pending;
 
   const create = () => submit('create', { name: trimmed, kind, tenant, scopes: JSON.stringify(selected) });
+
+  useEffect(() => {
+    if (!open) return;
+    setName('');
+    setKind('workspace');
+    setTenant(defaultTenant);
+    setPreset('full');
+    setScopes([]);
+    setCreated(null);
+  }, [open, defaultTenant]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -404,11 +404,11 @@ function KeyRow({
 export default function KeysRoute({ loaderData }: Route.ComponentProps) {
   const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
   const { items: keys, pagination, tenants } = loaderData;
+  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [open, setOpen] = useState(false);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const { submit, pending } = useActionFetcher(() => setRevokeOpen(false));
-  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const tenantName = (tenantId: string | null) =>
     tenants.find((entry) => entry.id === tenantId)?.name ?? null;
 

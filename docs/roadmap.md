@@ -25,7 +25,7 @@ The full build plan, staged into phases. Each phase ends in something shippable 
 ```
                     ┌─────────────────────────────────────┐
   buzzkit SDK ──────┤                                     │
-  @buzzkit/cli ─────┤  apps/api (CF Worker, Elysia)       │──── PostgreSQL (Drizzle, Hyperdrive)
+  buzzkit (SDK) ────┤  apps/api (CF Worker, Elysia)       │──── PostgreSQL (Drizzle, Hyperdrive)
   mobile apps ──────┤  /v1/* — tenant-scoped everywhere   │──── KV (provider token cache, sessions)
   apps/web ─────────┤                                     │──── Queues (send fan-out, retries)
                     └──────────────┬──────────────────────┘──── Workflows/DO (durable workflow runs)
@@ -247,7 +247,7 @@ Ship the framework to the world; the hosted product becomes deployment #1.
 
 - **Self-host guide:** wrangler-based deploy (own Cloudflare account), Postgres options (docker compose / Neon / Supabase), secret setup, one-command bootstrap script.
 - Config split: everything hosted-specific (quotas, billing hooks) behind env config so the OSS deploy is the same code with different config.
-- npm publishing: `buzzkit` (+ CLI bin) via changesets; API versioning policy (`/v1` stability statement).
+- npm publishing: `buzzkit` via changesets; API versioning policy (`/v1` stability statement).
 - Public docs site (can start as the `docs/` folder rendered), README polish, examples repo (simple app + multi-tenant platform demo), LICENSE, contribution guide.
 - Launch checklist: seed demo, landing page on `apps/web` index.
 
@@ -269,6 +269,6 @@ Ship the framework to the world; the hosted product becomes deployment #1.
 | Decision | Phase | Leaning |
 |---|---|---|
 | APNs egress from Workers (HTTP/2) | 0 | Spike decides; fallback = minimal delivery sidecar |
-| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | E8 | Fold into `buzzkit` (sst-style); `push` is diff + apply over the definitions API |
+| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | E8 | No CLI at all (2026-08-28): the `buzzkit` package is the server SDK and applies definitions from code; `upsert` is diff + apply over the definitions API |
 | Workflow runner: CF Workflows vs Durable Objects | 8 | **Decided** (engine.md): Cloudflare Workflows for runs, a Durable Object actor per subscriber for state, ordering and timers; Tinybird for the event log |
 | App sub-entity under tenant | 2 | No — tenant ≈ app; multiple apps = multiple tenants |

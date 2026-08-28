@@ -52,6 +52,15 @@ const AVAILABLE_CHANNELS = CHANNELS.filter((channel) => channel.available);
 
 const COLUMN_LABELS: Record<string, string> = { push: 'Push' };
 
+const CHOICES: { value: ChannelChoice; label: string }[] = [
+  { value: 'default', label: 'Follow topic default' },
+  { value: 'in', label: 'Opted in' },
+  { value: 'out', label: 'Opted out' },
+  { value: 'off', label: 'Not offered' },
+];
+
+type ChannelChoice = 'off' | 'default' | 'in' | 'out';
+
 export function meta() {
   return [{ title: 'Topics · BuzzKit' }];
 }
@@ -65,15 +74,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 }
 
 export const action = topicsAction;
-
-type ChannelChoice = 'off' | 'default' | 'in' | 'out';
-
-const CHOICES: { value: ChannelChoice; label: string }[] = [
-  { value: 'default', label: 'Follow topic default' },
-  { value: 'in', label: 'Opted in' },
-  { value: 'out', label: 'Opted out' },
-  { value: 'off', label: 'Not offered' },
-];
 
 function offers(topic: Topic | null, channel: string): boolean {
   return topic?.channels.includes(channel as Topic['channels'][number]) ?? false;
@@ -111,24 +111,14 @@ function TopicDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { submit, pending } = useActionFetcher(() => onOpenChange(false));
+  const channels = channelsFor(connected, topic);
   const [name, setName] = useState(topic?.name ?? '');
   const [slug, setSlug] = useState(topic?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(Boolean(topic));
   const [description, setDescription] = useState(topic?.description ?? '');
   const [optedIn, setOptedIn] = useState(topic?.defaultOptedIn ?? true);
-  const channels = channelsFor(connected, topic);
   const [choices, setChoices] = useState<Record<string, ChannelChoice>>(() => choicesFor(channels, topic));
-
-  useEffect(() => {
-    if (!open) return;
-    setName(topic?.name ?? '');
-    setSlug(topic?.slug ?? '');
-    setSlugTouched(Boolean(topic));
-    setDescription(topic?.description ?? '');
-    setOptedIn(topic?.defaultOptedIn ?? true);
-    setChoices(choicesFor(channelsFor(connected, topic), topic));
-  }, [open, topic, connected]);
+  const { submit, pending } = useActionFetcher(() => onOpenChange(false));
 
   const slugValue = slugTouched ? slug : slugify(name);
   const offered = Object.entries(choices).filter(([, choice]) => choice !== 'off');
@@ -146,6 +136,16 @@ function TopicDialog({
     if (topic) fields.topic = topic.slug;
     submit(topic ? 'update' : 'create', fields);
   };
+
+  useEffect(() => {
+    if (!open) return;
+    setName(topic?.name ?? '');
+    setSlug(topic?.slug ?? '');
+    setSlugTouched(Boolean(topic));
+    setDescription(topic?.description ?? '');
+    setOptedIn(topic?.defaultOptedIn ?? true);
+    setChoices(choicesFor(channelsFor(connected, topic), topic));
+  }, [open, topic, connected]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

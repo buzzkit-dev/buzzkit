@@ -132,7 +132,13 @@ describe('catalog keys', () => {
   });
 });
 
-const subscription = { externalId: 'user_1', channel: 'push', platform: 'ios', endpoint: 'abc' };
+const subscription = {
+  externalId: 'user_1',
+  channel: 'push',
+  platform: 'ios',
+  endpoint: 'abc',
+  enabled: true,
+};
 
 const systemPayloads: Record<keyof typeof SYSTEM_EVENTS, { valid: unknown; invalid: unknown }> = {
   'subscriber.created': {

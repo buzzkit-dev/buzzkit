@@ -9,7 +9,7 @@ export type NavigationPage = {
   children?: NavigationPage[];
 };
 
-export type NavigationSection = { label?: string; pages: NavigationPage[] };
+type NavigationSection = { label?: string; pages: NavigationPage[] };
 
 export const NAVIGATION: NavigationSection[] = [
   {
@@ -26,7 +26,7 @@ export const NAVIGATION: NavigationSection[] = [
     label: 'Audience',
     pages: [
       { label: 'Subscribers', path: '/subscribers', icon: 'IconTeamFilled' },
-      { label: 'Segments', path: '/segments', icon: 'IconTargetFilled', planned: 'engine phase E3' },
+      { label: 'Segments', path: '/segments', icon: 'IconTargetFilled' },
       { label: 'Topics', path: '/topics', icon: 'IconTagFilled' },
     ],
   },

@@ -17,7 +17,7 @@ const tenantChoices = createCookie('buzzkit.tenants', {
   maxAge: 60 * 60 * 24 * 365,
 });
 
-export const DEFAULT_TENANT = 'default';
+const DEFAULT_TENANT = 'default';
 
 async function readTenantChoices(request: Request): Promise<Record<string, string>> {
   const value = await tenantChoices.parse(request.headers.get('Cookie'));

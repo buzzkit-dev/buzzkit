@@ -45,6 +45,35 @@ import type { Route } from './+types/index';
 
 const DEFAULT_RANGE = '7d';
 
+const UTC = { timeZone: 'UTC' } as const;
+
+const AXIS_FORMATS = {
+  hour: new Intl.DateTimeFormat('en-US', { hour: 'numeric' }),
+  hourDay: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }),
+  weekday: new Intl.DateTimeFormat('en-US', { weekday: 'short', ...UTC }),
+  day: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...UTC }),
+  month: new Intl.DateTimeFormat('en-US', { month: 'short', ...UTC }),
+  monthLong: new Intl.DateTimeFormat('en-US', { month: 'long', ...UTC }),
+};
+
+const TONES = {
+  sky: { fill: 'var(--sky-4)', dot: 'bg-sky-4' },
+  purple: { fill: 'var(--purple-4)', dot: 'bg-purple-4' },
+  green: { fill: 'var(--green-4)', dot: 'bg-green-4' },
+  red: { fill: 'var(--red-4)', dot: 'bg-red-4' },
+} as const;
+
+const DELTA_ICONS: Record<'up' | 'down', { icon: IconName }> = {
+  up: { icon: 'IconArrowUpRight' },
+  down: { icon: 'IconArrowDownRight' },
+};
+
+type AxisPlan = {
+  tick: (date: Date, index: number) => boolean;
+  label: (date: Date) => string;
+  title: (date: Date) => React.ReactNode;
+};
+
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
@@ -72,26 +101,9 @@ function dayOf(date: string): Date {
   return new Date(date.length === 10 ? `${date}T00:00:00Z` : date);
 }
 
-const UTC = { timeZone: 'UTC' } as const;
-
-const AXIS_FORMATS = {
-  hour: new Intl.DateTimeFormat('en-US', { hour: 'numeric' }),
-  hourDay: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }),
-  weekday: new Intl.DateTimeFormat('en-US', { weekday: 'short', ...UTC }),
-  day: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...UTC }),
-  month: new Intl.DateTimeFormat('en-US', { month: 'short', ...UTC }),
-  monthLong: new Intl.DateTimeFormat('en-US', { month: 'long', ...UTC }),
-};
-
 function shortYear(date: Date): string {
   return `’${String(date.getUTCFullYear()).slice(-2)}`;
 }
-
-type AxisPlan = {
-  tick: (date: Date, index: number) => boolean;
-  label: (date: Date) => string;
-  title: (date: Date) => React.ReactNode;
-};
 
 function Qualified({ qualifier, children }: { qualifier: string; children: React.ReactNode }) {
   return (
@@ -157,18 +169,6 @@ function axisPlan(interval: Stats['interval'], count: number): AxisPlan {
       };
   }
 }
-
-const TONES = {
-  sky: { fill: 'var(--sky-4)', dot: 'bg-sky-4' },
-  purple: { fill: 'var(--purple-4)', dot: 'bg-purple-4' },
-  green: { fill: 'var(--green-4)', dot: 'bg-green-4' },
-  red: { fill: 'var(--red-4)', dot: 'bg-red-4' },
-} as const;
-
-const DELTA_ICONS: Record<'up' | 'down', { icon: IconName }> = {
-  up: { icon: 'IconArrowUpRight' },
-  down: { icon: 'IconArrowDownRight' },
-};
 
 function Delta({ current, previous, upIsGood }: { current: number; previous: number; upIsGood: boolean }) {
   if (previous === 0 && current === 0) return null;
@@ -370,8 +370,8 @@ function SubscriberRow({ subscriber, base }: { subscriber: Subscriber; base: str
 export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const { hasChannel, stats, messages, subscribers } = loaderData;
-  const filters = useFilters(['range'] as const);
   const base = `/${workspace.slug}`;
+  const filters = useFilters(['range'] as const);
 
   const delivered = stats.deliveries.sent;
   const failed = stats.deliveries.failed + stats.deliveries.invalid;
@@ -460,7 +460,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           <CardTitle>Deliveries</CardTitle>
           <CardDescription>Sent and failed deliveries per {stats.interval}.</CardDescription>
           {stats.deliveries.total > 0 && (
-            <CardAction className='flex items-center gap-3 self-center'>
+            <CardAction className='gap-3'>
               <Key tone='green'>Sent</Key>
               <Key tone='red'>Failed</Key>
             </CardAction>
@@ -486,7 +486,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           <CardHeader className='gap-0 py-3'>
             <CardTitle>Recent messages</CardTitle>
             {messages.length > 0 && (
-              <CardAction className='-my-1.5 self-center'>
+              <CardAction>
                 <Button
                   variant='ghost'
                   size='xs'
@@ -526,7 +526,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           <CardHeader className='gap-0 py-3'>
             <CardTitle>New subscribers</CardTitle>
             {subscribers.length > 0 && (
-              <CardAction className='-my-1.5 self-center'>
+              <CardAction>
                 <Button
                   variant='ghost'
                   size='xs'

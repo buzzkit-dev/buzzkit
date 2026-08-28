@@ -111,8 +111,6 @@ export function useProviderGuide({
   slots: OnboardingSlots | null;
 } {
   const fetcher = useFetcher<ConnectActionData>({ key: `connect:${providerId}` });
-  const pending = fetcher.state !== 'idle';
-
   const navigate = useNavigate();
   const [state, setState] = useState<GuideState>(() => initialState(providerId, initialStep));
   if (state.providerId !== providerId) setState(initialState(providerId, initialStep));
@@ -131,8 +129,24 @@ export function useProviderGuide({
   const allValid = steps.every((_, index) => stepValid(index));
   const canContinue = stepValid(current);
 
+  const pending = fetcher.state !== 'idle';
   const serverError = fetcher.data && !fetcher.data.ok ? fetcher.data : null;
   const connected = fetcher.data?.ok ? fetcher.data.credentials : null;
+  const errorField = serverError?.param
+    ? (guide?.steps ?? [])
+        .flatMap((entry) => entry.fields ?? [])
+        .find((field) => field.name === serverError.param)
+    : undefined;
+
+  const go = (index: number) => patch({ current: Math.max(0, Math.min(index, total - 1)) });
+  const next = () => {
+    if (!canContinue || last) return;
+    go(current + 1);
+  };
+  const submit = () => {
+    if (!allValid || pending) return;
+    (document.getElementById(CONNECT_FORM) as HTMLFormElement | null)?.requestSubmit();
+  };
 
   useEffect(() => {
     if (!guide) return;
@@ -171,12 +185,6 @@ export function useProviderGuide({
     navigate(`${url.pathname}${url.search}`, { replace: true, preventScrollReset: true });
   }, [guide, trackStep, current, navigate]);
 
-  const errorField = serverError?.param
-    ? (guide?.steps ?? [])
-        .flatMap((entry) => entry.fields ?? [])
-        .find((field) => field.name === serverError.param)
-    : undefined;
-
   useEffect(() => {
     if (!guide || !errorField) return;
     setState((previous) => {
@@ -190,16 +198,6 @@ export function useProviderGuide({
       return { ...previous, derived: unskipped, current: index >= 0 ? index : previous.current };
     });
   }, [guide, errorField]);
-
-  const go = (index: number) => patch({ current: Math.max(0, Math.min(index, total - 1)) });
-  const next = () => {
-    if (!canContinue || last) return;
-    go(current + 1);
-  };
-  const submit = () => {
-    if (!allValid || pending) return;
-    (document.getElementById(CONNECT_FORM) as HTMLFormElement | null)?.requestSubmit();
-  };
 
   if (!guide || !step) return { current, total, connected, fetcher, slots: null };
 

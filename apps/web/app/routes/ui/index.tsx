@@ -22,10 +22,9 @@ import {
   CardTitle,
 } from '@buzzkit/ui/components/card';
 import { Area, AreaChart } from '@buzzkit/ui/components/charts/area-chart';
-import { Grid } from '@buzzkit/ui/components/charts/grid';
-import { ChartTooltip } from '@buzzkit/ui/components/charts/tooltip/chart-tooltip';
 import { Checkbox } from '@buzzkit/ui/components/checkbox';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem } from '@buzzkit/ui/components/combobox';
 import {
   Dialog,
   DialogContent,
@@ -151,10 +150,6 @@ import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop
 import { apnsGuide } from '@/app/components/onboarding/guides/apns';
 import { OnboardingProgress } from '@/app/components/onboarding/progress';
 
-export function meta() {
-  return [{ title: 'Design System · BuzzKit' }];
-}
-
 const SECTIONS = [
   { id: 'colors', label: 'Colors' },
   { id: 'typography', label: 'Typography' },
@@ -170,6 +165,7 @@ const SECTIONS = [
   { id: 'input', label: 'Input & Textarea' },
   { id: 'field', label: 'Field' },
   { id: 'select', label: 'Select' },
+  { id: 'combobox', label: 'Combobox' },
   { id: 'scope-picker', label: 'ScopePicker' },
   { id: 'controls', label: 'Checkbox, Radio, Switch' },
   { id: 'tabs', label: 'Tabs' },
@@ -193,6 +189,183 @@ const SECTIONS = [
   { id: 'scroll', label: 'Scrolling' },
   { id: 'motion', label: 'Size animator' },
 ];
+
+const DEMO_SCOPES = [
+  { label: 'subscribers', wildcard: 'subscribers:*', options: ['subscribers:read', 'subscribers:write'] },
+  { label: 'topics', wildcard: 'topics:*', options: ['topics:read', 'topics:write'] },
+  { label: 'messages', wildcard: 'messages:*', options: ['messages:read', 'messages:send'] },
+  { label: 'events', wildcard: 'events:*', options: ['events:read'] },
+];
+
+const MOCK_WORKSPACE = {
+  id: 'ws_1',
+  name: 'Acme',
+  slug: 'acme',
+  avatarUrl: null,
+  role: 'owner' as const,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const CHART_DAYS = Array.from({ length: 7 }, (_, index) => new Date(Date.UTC(2026, 7, 19 + index)));
+
+const MOCK_TENANTS = [
+  {
+    id: 'tnt_default',
+    name: 'Default',
+    slug: 'default',
+    isDefault: true,
+    metadata: {},
+    settings: {
+      channels: { email: { enabled: true }, push: { enabled: true } },
+      identity: { requireVerification: false },
+    },
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  },
+  {
+    id: 'tnt_acme',
+    name: 'Acme Corp',
+    slug: 'acme-corp',
+    isDefault: false,
+    metadata: {},
+    settings: {
+      channels: { email: { enabled: true }, push: { enabled: true } },
+      identity: { requireVerification: false },
+    },
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  },
+];
+
+const MOCK_PROFILE = {
+  id: 'usr_1',
+  name: 'Ada Lovelace',
+  email: 'ada@acme.dev',
+  image: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const SURFACES = [
+  { name: 'bg-1', cls: 'bg-bg-1' },
+  { name: 'bg-2', cls: 'bg-bg-2' },
+  { name: 'bg-3', cls: 'bg-bg-3' },
+  { name: 'bg-4', cls: 'bg-bg-4' },
+];
+const FOREGROUNDS = [
+  { name: 'fg-1', cls: 'bg-fg-1' },
+  { name: 'fg-2', cls: 'bg-fg-2' },
+  { name: 'fg-3', cls: 'bg-fg-3' },
+  { name: 'fg-4', cls: 'bg-fg-4' },
+];
+const ALPHAS = [
+  { name: 'bg-a1', cls: 'bg-bg-a1' },
+  { name: 'bg-a2', cls: 'bg-bg-a2' },
+  { name: 'bg-a3', cls: 'bg-bg-a3' },
+  { name: 'bg-a4', cls: 'bg-bg-a4' },
+  { name: 'fg-a1', cls: 'bg-fg-a1' },
+  { name: 'fg-a2', cls: 'bg-fg-a2' },
+  { name: 'fg-a3', cls: 'bg-fg-a3' },
+  { name: 'fg-a4', cls: 'bg-fg-a4' },
+];
+const RAMPS = [
+  {
+    name: 'primary, an alias, currently neutral',
+    steps: ['bg-primary-1', 'bg-primary-2', 'bg-primary-3', 'bg-primary-4'],
+    chip: null,
+  },
+  {
+    name: 'purple',
+    steps: ['bg-purple-1', 'bg-purple-2', 'bg-purple-3', 'bg-purple-4'],
+    chip: 'bg-purple-1 text-purple-text',
+  },
+  { name: 'sky', steps: ['bg-sky-1', 'bg-sky-2', 'bg-sky-3', 'bg-sky-4'], chip: 'bg-sky-1 text-sky-text' },
+  {
+    name: 'blue',
+    steps: ['bg-blue-1', 'bg-blue-2', 'bg-blue-3', 'bg-blue-4'],
+    chip: 'bg-blue-1 text-blue-text',
+  },
+  {
+    name: 'green',
+    steps: ['bg-green-1', 'bg-green-2', 'bg-green-3', 'bg-green-4'],
+    chip: 'bg-green-1 text-green-text',
+  },
+  {
+    name: 'amber',
+    steps: ['bg-amber-1', 'bg-amber-2', 'bg-amber-3', 'bg-amber-4'],
+    chip: 'bg-amber-1 text-amber-text',
+  },
+  {
+    name: 'orange',
+    steps: ['bg-orange-1', 'bg-orange-2', 'bg-orange-3', 'bg-orange-4'],
+    chip: 'bg-orange-1 text-orange-text',
+  },
+  { name: 'red', steps: ['bg-red-1', 'bg-red-2', 'bg-red-3', 'bg-red-4'], chip: 'bg-red-1 text-red-text' },
+  {
+    name: 'pink',
+    steps: ['bg-pink-1', 'bg-pink-2', 'bg-pink-3', 'bg-pink-4'],
+    chip: 'bg-pink-1 text-pink-text',
+  },
+  {
+    name: 'yellow',
+    steps: ['bg-yellow-1', 'bg-yellow-2', 'bg-yellow-3', 'bg-yellow-4'],
+    chip: 'bg-yellow-1 text-yellow-text',
+  },
+];
+const SHADOWS = ['shadow-1', 'shadow-2', 'shadow-3', 'shadow-4'];
+const BADGE_VARIANTS = [
+  'default',
+  'purple',
+  'sky',
+  'blue',
+  'green',
+  'amber',
+  'orange',
+  'red',
+  'pink',
+  'solid',
+] as const;
+
+const EVENT_NAMES = [
+  'workout.completed',
+  'order.completed',
+  'order.shipped',
+  'cart.item_added',
+  'checkout.started',
+  '$app.opened',
+  '$notification.opened',
+];
+
+const STATUS_ITEMS = [
+  { label: 'Queued', value: 'queued', icon: 'IconInboxEmpty' },
+  { label: 'Processing', value: 'processing', icon: 'IconBell' },
+  { label: 'Completed', value: 'completed', icon: 'IconCheckCircle2' },
+] as const;
+
+const CHANNEL_ITEMS = [
+  { label: 'Push', value: 'push' },
+  { label: 'Email', value: 'email' },
+  { label: 'SMS', value: 'sms' },
+];
+
+const ACTIVITY_ROWS = Array.from({ length: 12 }, (_, i) => ({
+  id: `activity-${i + 1}`,
+  initial: String.fromCharCode(97 + i),
+  title: `Delivery ${i + 1}`,
+}));
+const SCROLL_ROWS = Array.from({ length: 16 }, (_, i) => ({
+  id: `row-${i + 1}`,
+  label: `Message #${i + 1}`,
+}));
+const FADE_ROWS = Array.from({ length: 16 }, (_, i) => ({
+  id: `fade-${i + 1}`,
+  label: `Plain container #${i + 1}`,
+}));
+
+export function meta() {
+  return [{ title: 'Design System · BuzzKit' }];
+}
 
 function SectionNav() {
   const [hovered, setHovered] = useState<string | null>(null);
@@ -317,13 +490,6 @@ function TableDemo() {
   );
 }
 
-const DEMO_SCOPES = [
-  { label: 'subscribers', wildcard: 'subscribers:*', options: ['subscribers:read', 'subscribers:write'] },
-  { label: 'topics', wildcard: 'topics:*', options: ['topics:read', 'topics:write'] },
-  { label: 'messages', wildcard: 'messages:*', options: ['messages:read', 'messages:send'] },
-  { label: 'events', wildcard: 'events:*', options: ['events:read'] },
-];
-
 function ScopePickerDemo() {
   const [selected, setSelected] = useState<string[]>(['subscribers:*', 'messages:read']);
   return (
@@ -427,56 +593,6 @@ function ProgressDemo() {
   );
 }
 
-const MOCK_WORKSPACE = {
-  id: 'ws_1',
-  name: 'Acme',
-  slug: 'acme',
-  avatarUrl: null,
-  role: 'owner' as const,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-};
-
-const CHART_DAYS = Array.from({ length: 7 }, (_, index) => new Date(Date.UTC(2026, 7, 19 + index)));
-
-const MOCK_TENANTS = [
-  {
-    id: 'tnt_default',
-    name: 'Default',
-    slug: 'default',
-    isDefault: true,
-    metadata: {},
-    settings: {
-      channels: { email: { enabled: true }, push: { enabled: true } },
-      identity: { requireVerification: false },
-    },
-    createdAt: '2026-08-01T00:00:00.000Z',
-    updatedAt: '2026-08-01T00:00:00.000Z',
-  },
-  {
-    id: 'tnt_acme',
-    name: 'Acme Corp',
-    slug: 'acme-corp',
-    isDefault: false,
-    metadata: {},
-    settings: {
-      channels: { email: { enabled: true }, push: { enabled: true } },
-      identity: { requireVerification: false },
-    },
-    createdAt: '2026-08-01T00:00:00.000Z',
-    updatedAt: '2026-08-01T00:00:00.000Z',
-  },
-];
-
-const MOCK_PROFILE = {
-  id: 'usr_1',
-  name: 'Ada Lovelace',
-  email: 'ada@acme.dev',
-  image: null,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-};
-
 function StepCounterDemo() {
   const [step, setStep] = useState(1);
   return (
@@ -493,8 +609,8 @@ function StepCounterDemo() {
 }
 
 function TextSwapDemo() {
-  const labels = ['Next', 'Connect Apple', 'Checking'];
   const [index, setIndex] = useState(0);
+  const labels = ['Next', 'Connect Apple', 'Checking'];
   return (
     <Button size='xs' onClick={() => setIndex((index + 1) % labels.length)}>
       <TextSwap>{labels[index] ?? 'Next'}</TextSwap>
@@ -520,112 +636,6 @@ function IllustrationDemo() {
     </div>
   );
 }
-
-const SURFACES = [
-  { name: 'bg-1', cls: 'bg-bg-1' },
-  { name: 'bg-2', cls: 'bg-bg-2' },
-  { name: 'bg-3', cls: 'bg-bg-3' },
-  { name: 'bg-4', cls: 'bg-bg-4' },
-];
-const FOREGROUNDS = [
-  { name: 'fg-1', cls: 'bg-fg-1' },
-  { name: 'fg-2', cls: 'bg-fg-2' },
-  { name: 'fg-3', cls: 'bg-fg-3' },
-  { name: 'fg-4', cls: 'bg-fg-4' },
-];
-const ALPHAS = [
-  { name: 'bg-a1', cls: 'bg-bg-a1' },
-  { name: 'bg-a2', cls: 'bg-bg-a2' },
-  { name: 'bg-a3', cls: 'bg-bg-a3' },
-  { name: 'bg-a4', cls: 'bg-bg-a4' },
-  { name: 'fg-a1', cls: 'bg-fg-a1' },
-  { name: 'fg-a2', cls: 'bg-fg-a2' },
-  { name: 'fg-a3', cls: 'bg-fg-a3' },
-  { name: 'fg-a4', cls: 'bg-fg-a4' },
-];
-const RAMPS = [
-  {
-    name: 'primary, an alias, currently neutral',
-    steps: ['bg-primary-1', 'bg-primary-2', 'bg-primary-3', 'bg-primary-4'],
-    chip: null,
-  },
-  {
-    name: 'purple',
-    steps: ['bg-purple-1', 'bg-purple-2', 'bg-purple-3', 'bg-purple-4'],
-    chip: 'bg-purple-1 text-purple-text',
-  },
-  { name: 'sky', steps: ['bg-sky-1', 'bg-sky-2', 'bg-sky-3', 'bg-sky-4'], chip: 'bg-sky-1 text-sky-text' },
-  {
-    name: 'blue',
-    steps: ['bg-blue-1', 'bg-blue-2', 'bg-blue-3', 'bg-blue-4'],
-    chip: 'bg-blue-1 text-blue-text',
-  },
-  {
-    name: 'green',
-    steps: ['bg-green-1', 'bg-green-2', 'bg-green-3', 'bg-green-4'],
-    chip: 'bg-green-1 text-green-text',
-  },
-  {
-    name: 'amber',
-    steps: ['bg-amber-1', 'bg-amber-2', 'bg-amber-3', 'bg-amber-4'],
-    chip: 'bg-amber-1 text-amber-text',
-  },
-  {
-    name: 'orange',
-    steps: ['bg-orange-1', 'bg-orange-2', 'bg-orange-3', 'bg-orange-4'],
-    chip: 'bg-orange-1 text-orange-text',
-  },
-  { name: 'red', steps: ['bg-red-1', 'bg-red-2', 'bg-red-3', 'bg-red-4'], chip: 'bg-red-1 text-red-text' },
-  {
-    name: 'pink',
-    steps: ['bg-pink-1', 'bg-pink-2', 'bg-pink-3', 'bg-pink-4'],
-    chip: 'bg-pink-1 text-pink-text',
-  },
-  {
-    name: 'yellow',
-    steps: ['bg-yellow-1', 'bg-yellow-2', 'bg-yellow-3', 'bg-yellow-4'],
-    chip: 'bg-yellow-1 text-yellow-text',
-  },
-];
-const SHADOWS = ['shadow-1', 'shadow-2', 'shadow-3', 'shadow-4'];
-const BADGE_VARIANTS = [
-  'default',
-  'purple',
-  'sky',
-  'blue',
-  'green',
-  'amber',
-  'orange',
-  'red',
-  'pink',
-  'solid',
-] as const;
-
-const STATUS_ITEMS = [
-  { label: 'Queued', value: 'queued', icon: 'IconInboxEmpty' },
-  { label: 'Processing', value: 'processing', icon: 'IconBell' },
-  { label: 'Completed', value: 'completed', icon: 'IconCheckCircle2' },
-] as const;
-
-const CHANNEL_ITEMS = [
-  { label: 'Push', value: 'push' },
-  { label: 'Email', value: 'email' },
-  { label: 'SMS', value: 'sms' },
-];
-
-const ACTIVITY_ROWS = Array.from({ length: 12 }, (_, i) => ({
-  id: `activity-${i + 1}`,
-  initial: String.fromCharCode(97 + i),
-  title: `Delivery ${i + 1}`,
-}));
-const SCROLL_ROWS = Array.from({ length: 16 }, (_, i) => ({
-  id: `row-${i + 1}`,
-  label: `Message #${i + 1}`,
-}));
-const FADE_ROWS = Array.from({ length: 16 }, (_, i) => ({
-  id: `fade-${i + 1}`,
-  label: `Plain container #${i + 1}`,
-}));
 
 function ModeToggle() {
   const { theme, setTheme } = useTheme();
@@ -1280,6 +1290,26 @@ export default function DesignSystem() {
                 ))}
               </SelectContent>
             </Select>
+          </Specimen>
+        </Section>
+
+        <Section
+          id='combobox'
+          title='Combobox'
+          description='A Select you can type into: the field language of an input, the same popup and sliding highlight, filtered as you type. Free text stays when nothing matches.'
+          className='flex-col items-start gap-6'
+        >
+          <Specimen label='filters the catalog, keeps custom names'>
+            <Combobox items={EVENT_NAMES}>
+              <ComboboxInput placeholder='workout.completed' className='w-64' />
+              <ComboboxContent empty='No event with that name yet.'>
+                {(name: string) => (
+                  <ComboboxItem key={name} value={name}>
+                    {name}
+                  </ComboboxItem>
+                )}
+              </ComboboxContent>
+            </Combobox>
           </Specimen>
         </Section>
 

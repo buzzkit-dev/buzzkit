@@ -24,6 +24,8 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 const STORAGE_KEY = 'buzzkit-ui-theme';
 
+const LOCKED_THEME: 'dark' | 'light' | null = 'light';
+
 function systemTheme(): 'dark' | 'light' {
   if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -36,13 +38,23 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
+    if (LOCKED_THEME) return LOCKED_THEME;
     if (typeof window === 'undefined') return defaultTheme;
     return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
   });
 
-  const [resolved, setResolved] = useState<'dark' | 'light'>(() =>
-    theme === 'system' ? systemTheme() : theme
+  const [resolved, setResolved] = useState<'dark' | 'light'>(
+    () => LOCKED_THEME ?? (theme === 'system' ? systemTheme() : theme)
   );
+
+  const value = {
+    theme,
+    resolvedTheme: resolved,
+    setTheme: (next: Theme) => {
+      localStorage.setItem(storageKey, next);
+      if (!LOCKED_THEME) setTheme(next);
+    },
+  };
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -64,15 +76,6 @@ export function ThemeProvider({
     return () => query.removeEventListener('change', sync);
   }, [theme]);
 
-  const value = {
-    theme,
-    resolvedTheme: resolved,
-    setTheme: (next: Theme) => {
-      localStorage.setItem(storageKey, next);
-      setTheme(next);
-    },
-  };
-
   return (
     <ThemeProviderContext.Provider {...props} value={value}>
       {children}
@@ -80,10 +83,4 @@ export function ThemeProvider({
   );
 }
 
-export const useTheme = () => {
-  const context = useContext(ThemeProviderContext);
-
-  if (context === undefined) throw new Error('useTheme must be used within a ThemeProvider');
-
-  return context;
-};
+export const useTheme = () => useContext(ThemeProviderContext);

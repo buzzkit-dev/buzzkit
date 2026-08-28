@@ -10,6 +10,7 @@ const SubscriptionEventDataSchema = t.Object({
   channel: t.String(),
   platform: t.Union([t.String(), t.Null()]),
   endpoint: t.String(),
+  enabled: t.Boolean(),
 });
 
 export const SYSTEM_EVENTS = {

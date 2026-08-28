@@ -7,8 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@buzzkit/ui/components/card';
-import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import type { IconName } from '@buzzkit/ui/components/icon';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 
@@ -74,8 +72,4 @@ export function SettingsRow({
       {end && <span className='flex shrink-0 items-center gap-3'>{end}</span>}
     </li>
   );
-}
-
-export function SettingsEmpty(props: { icon: IconName; title: string; description?: string }) {
-  return <EmptyState {...props} />;
 }

@@ -39,6 +39,21 @@ export async function tinybird(): Promise<TinybirdClient> {
   return createTinybird({ baseUrl: env.TINYBIRD_URL, token: await resolveTinybirdToken() });
 }
 
+export async function queryTinybird<T>(sql: string): Promise<T[]> {
+  const token = await resolveTinybirdToken();
+  const response = await fetch(`${env.TINYBIRD_URL}/v0/sql`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'text/plain' },
+    body: `${sql} FORMAT JSON`,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new UnavailableError(`Tinybird refused the query: ${response.status} ${await response.text()}`);
+  }
+  const result = (await response.json()) as { data: T[] };
+  return result.data;
+}
+
 export function formatClickHouseTime(iso: string): string {
   return new Date(iso).toISOString().replace('T', ' ').replace('Z', '');
 }

@@ -11,6 +11,10 @@
     "./webhooks": {
       "types": "./src/webhooks/index.ts",
       "default": "./src/webhooks/index.ts"
+    },
+    "./expressions": {
+      "types": "./src/expressions/index.ts",
+      "default": "./src/expressions/index.ts"
     }
   },
   "scripts": {
@@ -20,5 +24,8 @@
   "devDependencies": {
     "typescript": "^7.0.2",
     "vitest": "~4.1.10"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.52"
   }
 }

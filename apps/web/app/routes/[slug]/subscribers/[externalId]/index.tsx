@@ -42,6 +42,7 @@ import {
 import { DetailRow } from '@/app/components/detail/row';
 import { describeStreamEvent, SOURCE_LABELS, type StreamSource } from '@/app/components/events/stream';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
+import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
@@ -58,6 +59,26 @@ import {
 } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
+
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+
+const SUBSCRIPTION_ICONS: Record<string, IconName> = {
+  push: 'IconPhoneFilled',
+  email: 'IconEmail2Filled',
+  sms: 'IconBubbleTextFilled',
+};
+
+type AttributeRow = {
+  key: string;
+  label: string;
+  icon: IconName;
+  display: string;
+  flag?: string;
+  mono?: boolean;
+  href?: string;
+  tooltip?: string;
+};
 
 export function meta({ loaderData }: Route.MetaArgs) {
   if (!loaderData) return [{ title: 'Subscriber · BuzzKit' }];
@@ -81,20 +102,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 }
 
 export const action = subscriberAction;
-
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
-const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
-
-type AttributeRow = {
-  key: string;
-  label: string;
-  icon: IconName;
-  display: string;
-  flag?: string;
-  mono?: boolean;
-  href?: string;
-  tooltip?: string;
-};
 
 function prettyKey(key: string): string {
   const words = key
@@ -186,6 +193,22 @@ function detectRow(key: string, value: unknown): AttributeRow {
   return { ...base, icon: 'IconParagraph', display: text };
 }
 
+function languageName(code: string): string {
+  try {
+    return languageNames.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+function localTime(timeZone: string): string | null {
+  try {
+    return new Intl.DateTimeFormat('en', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date());
+  } catch {
+    return null;
+  }
+}
+
 function AttributeValue({ row }: { row: AttributeRow }) {
   const content = row.href ? (
     <a
@@ -246,12 +269,6 @@ function endpointLabel(subscription: Subscription): string {
   const token = subscription.endpoint;
   return token.length > 16 ? `${token.slice(0, 8)}…${token.slice(-6)}` : token;
 }
-
-const SUBSCRIPTION_ICONS: Record<string, IconName> = {
-  push: 'IconPhoneFilled',
-  email: 'IconEmail2Filled',
-  sms: 'IconBubbleTextFilled',
-};
 
 function SubscriptionRow({ subscription }: { subscription: Subscription }) {
   const { submit, pending } = useActionFetcher();
@@ -381,35 +398,6 @@ function PreferenceRow({ preference }: { preference: SubscriberPreference }) {
   );
 }
 
-function countryName(code: string): string {
-  try {
-    return regionNames.of(code.toUpperCase()) ?? code.toUpperCase();
-  } catch {
-    return code.toUpperCase();
-  }
-}
-
-function languageName(code: string): string {
-  try {
-    return languageNames.of(code) ?? code;
-  } catch {
-    return code;
-  }
-}
-
-function text(attributes: Record<string, unknown>, key: string): string | null {
-  const value = attributes[key];
-  return typeof value === 'string' && value.trim() ? value : null;
-}
-
-function localTime(timeZone: string): string | null {
-  try {
-    return new Intl.DateTimeFormat('en', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date());
-  } catch {
-    return null;
-  }
-}
-
 function DeliveryRow({ delivery, params }: { delivery: SubscriberDelivery; params: { slug: string } }) {
   return (
     <TableRow>
@@ -465,12 +453,12 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
     Object.entries(attributes).filter(([key]) => !key.startsWith('$') && key !== 'name' && key !== 'email')
   );
   const base = `/${params.slug}/subscribers`;
-  const email = text(attributes, 'email');
-  const country = text(attributes, '$country');
-  const city = text(attributes, '$city');
-  const region = text(attributes, '$region');
-  const timezone = text(attributes, '$timezone');
-  const language = text(attributes, '$language');
+  const email = attribute({ attributes }, 'email');
+  const country = attribute({ attributes }, '$country');
+  const city = attribute({ attributes }, '$city');
+  const region = attribute({ attributes }, '$region');
+  const timezone = attribute({ attributes }, '$timezone');
+  const language = attribute({ attributes }, '$language');
   const lastSeenAt =
     subscriber.subscriptions
       .map((subscription) => subscription.lastSeenAt)

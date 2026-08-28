@@ -1,6 +1,6 @@
 import type { ProviderId } from '@/app/components/onboarding/catalog';
 
-export type TextField = {
+type TextField = {
   kind: 'text';
   name: string;
   label: string;
@@ -13,7 +13,7 @@ export type TextField = {
   invalidMessage?: string;
 };
 
-export type FileField = {
+type FileField = {
   kind: 'file';
   name: string;
   label: string;

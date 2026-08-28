@@ -639,7 +639,7 @@ describe('failure handling', () => {
       owner.bearer,
       workspace.slug,
       endpoint.id,
-      (entry) => entry.id === delivered.id && entry.attempts === 2,
+      (entry) => entry.id === delivered.id && entry.attempts === 2 && entry.status !== 'pending',
       'replayed delivery'
     );
     expect(again).toMatchObject({ status: 'success', lastStatus: 200 });

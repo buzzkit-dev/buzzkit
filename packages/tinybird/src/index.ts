@@ -2,18 +2,34 @@ import { defineProject, type InferRow, Tinybird } from '@tinybirdco/sdk';
 import { eventNamesHourly } from './datasources/event-names-hourly';
 import { events } from './datasources/events';
 import { eventsBySubscriber } from './datasources/events-by-subscriber';
+import { subscriberActivity } from './datasources/subscriber-activity';
+import { subscriberAttributes } from './datasources/subscriber-attributes';
+import { subscriptionState } from './datasources/subscription-state';
 import { eventCatalog } from './endpoints/event-catalog';
 import { eventRecent } from './endpoints/event-recent';
 import { eventVolume } from './endpoints/event-volume';
 import { subscriberTimeline } from './endpoints/subscriber-timeline';
 import { eventNamesHourlyMv } from './materializations/event-names-hourly';
 import { eventsBySubscriberMv } from './materializations/events-by-subscriber';
+import { subscriberActivityMv } from './materializations/subscriber-activity';
+import { subscriberAttributesMv } from './materializations/subscriber-attributes';
+import { subscriptionStateMv } from './materializations/subscription-state';
 
-export const datasources = { events, eventsBySubscriber, eventNamesHourly };
+export const datasources = {
+  events,
+  eventsBySubscriber,
+  eventNamesHourly,
+  subscriberAttributes,
+  subscriptionState,
+  subscriberActivity,
+};
 
 export const pipes = {
   eventsBySubscriberMv,
   eventNamesHourlyMv,
+  subscriberAttributesMv,
+  subscriptionStateMv,
+  subscriberActivityMv,
   eventCatalog,
   eventVolume,
   eventRecent,

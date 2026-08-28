@@ -36,7 +36,6 @@ export function Sidebar({
   const isExact = (page: NavigationPage) => pathname === `${base}${page.path}`;
   const isActive = (page: NavigationPage) =>
     page.path === '' ? pathname === base : isExact(page) || pathname.startsWith(`${base}${page.path}/`);
-  const isWithin = (page: NavigationPage) => isActive(page);
   const isCurrent = (page: NavigationPage, child: NavigationPage) =>
     isExact(child) || (child.path === page.path && isActive(page) && !page.children?.some(isExact));
 
@@ -62,7 +61,7 @@ export function Sidebar({
               <span className='px-2.5 pb-1 font-medium text-fg-2 text-xs'>{section.label}</span>
             )}
             {section.pages.map((page) => {
-              const open = opened[page.path] ?? isWithin(page);
+              const open = opened[page.path] ?? isActive(page);
               const key = page.children ? `group:${page.path}` : page.path;
               const active = !page.children && isActive(page);
               const highlighted = hovered !== null ? hovered === key : active;

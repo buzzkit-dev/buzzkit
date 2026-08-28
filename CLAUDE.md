@@ -6,7 +6,7 @@ buzzkit — open-source, self-hostable, code-first push notification framework. 
 
 Two layers, one codebase:
 
-1. **The framework (headless core)** — multi-tenant push infrastructure defined entirely in code: workspaces with isolated APNs/FCM credentials, device token lifecycle, sending, and code-defined campaigns/segments/workflows pushed via the CLI (in the spirit of SST / Alchemy — bring your own provider credentials, buzzkit is the framework around them).
+1. **The framework (headless core)** — multi-tenant push infrastructure defined entirely in code: workspaces with isolated APNs/FCM credentials, device token lifecycle, sending, and code-defined campaigns/segments/workflows created from code through the `buzzkit` package (in the spirit of SST / Alchemy — bring your own provider credentials, buzzkit is the framework around them).
 2. **The platform (`apps/web` + hosted version)** — a full product built *on top of* the framework. The hosted version is just a deployment of the same multi-tenant core; it must never need anything the framework doesn't expose.
 
 **Multi-tenancy is the core primitive, not a feature.** Every design decision must work for both a single self-hoster and the hosted platform running thousands of workspaces.
@@ -19,7 +19,6 @@ Two layers, one codebase:
 apps/api/                → @buzzkit/api            Cloudflare Worker API (Elysia + CloudflareAdapter)
 apps/web/                → @buzzkit/web            Platform dashboard (Vite + React Router 8 SSR on CF Workers, dev port 5180)
 packages/buzzkit/        → buzzkit                 The framework itself — the main public package
-packages/cli/            → @buzzkit/cli            Pushes code-defined config to a buzzkit deployment
 packages/database/       → @buzzkit/database       Drizzle ORM, PostgreSQL schema, migrations
 packages/auth/           → @buzzkit/auth           BetterAuth configuration (email/password, bearer tokens)
 packages/eden/           → @buzzkit/eden           Typed Eden Treaty API client (envelope-unwrapping, inferred from the contract)

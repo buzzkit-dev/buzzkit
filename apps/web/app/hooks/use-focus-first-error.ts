@@ -1,6 +1,6 @@
-export type FormErrors = { form?: string; fields?: Record<string, string> };
-
 import { useEffect } from 'react';
+
+export type FormErrors = { form?: string; fields?: Record<string, string> };
 
 export function useFocusFirstError(errors: FormErrors | undefined) {
   useEffect(() => {

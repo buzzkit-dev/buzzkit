@@ -44,6 +44,8 @@ const RANGES: Array<{ value: EventRange; label: string }> = [
 
 const DEFAULT_RANGE: EventRange = '7d';
 
+type Field = { key: string; types: string[]; example: string };
+
 export function meta({ params }: Route.MetaArgs) {
   return [{ title: `${params.name} · BuzzKit` }];
 }
@@ -60,8 +62,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 
   return { detail, range: range ?? DEFAULT_RANGE };
 }
-
-type Field = { key: string; types: string[]; example: string };
 
 function inferFields(samples: EventNameDetail['samples']): Field[] {
   const fields = new Map<string, { types: Set<string>; example: string }>();
@@ -146,12 +146,12 @@ function SampleRow({
 }
 
 export default function EventNameRoute({ loaderData, params }: Route.ComponentProps) {
-  const { detail, range } = loaderData;
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const scrollerRef = useRef<HTMLDivElement>(null);
+  const { detail, range } = loaderData;
   const { label } = describeStreamEvent({ name: detail.name, data: {} });
   const fields = inferFields(detail.samples);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
@@ -213,7 +213,7 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
                   : 'six hours'}
               .
             </CardDescription>
-            <CardAction className='flex items-center gap-1.5 self-center'>
+            <CardAction className='gap-1.5'>
               {detail.sources.map((source) => (
                 <SourceBadge key={source} source={source} />
               ))}

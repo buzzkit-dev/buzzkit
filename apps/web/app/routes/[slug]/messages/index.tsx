@@ -1,9 +1,7 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import {
   FilterBar,
   FilterClear,
@@ -11,9 +9,7 @@ import {
   FilterSearch,
   FilterSelect,
 } from '@buzzkit/ui/components/filter-bar';
-import { Icon, type IconName } from '@buzzkit/ui/components/icon';
-import { Input } from '@buzzkit/ui/components/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
+import { Icon } from '@buzzkit/ui/components/icon';
 import {
   Table,
   TableBody,
@@ -23,19 +19,25 @@ import {
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
-import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Truncate } from '@buzzkit/ui/components/truncate';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router';
+import { useState } from 'react';
+import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge } from '@/app/components/badges';
 import { Funnel } from '@/app/components/messages/funnel';
-import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { SendDialog } from '@/app/components/messages/send-dialog';
+import { describeTarget } from '@/app/components/messages/target';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
-import { listMessages, listTopics, type Message, type MessageQuery, type Topic } from '@/app/lib/api.server';
-import { CHANNEL_OPTIONS, type Channel, channelLabel } from '@/app/lib/channels';
+import {
+  listMessages,
+  listSegments,
+  listTopics,
+  type Message,
+  type MessageQuery,
+} from '@/app/lib/api.server';
+import { CHANNEL_OPTIONS, type Channel } from '@/app/lib/channels';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
 import { requestUrl } from '@/app/lib/utils/request';
@@ -72,34 +74,15 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   };
   const filtered = Boolean(query.q || status || channel || query.topic || query.from);
 
-  const [page, topics] = await Promise.all([
+  const [page, topics, segments] = await Promise.all([
     listMessages(ctx, token, params.slug, tenant, query),
     listTopics(ctx, token, params.slug, tenant, { limit: 100 }),
+    listSegments(ctx, token, params.slug, tenant),
   ]);
-  return { ...paginate(request, page), filtered, topics: topics.items };
+  return { ...paginate(request, page), filtered, topics: topics.items, segments };
 }
 
 export const action = messagesAction;
-
-type Target = 'subscriber' | 'topic';
-
-const EXAMPLES: { title: string; body: string }[] = [
-  { title: 'Leg day', body: "Let's go." },
-  { title: 'Your order shipped', body: 'Arrives Thursday between 9am and 1pm.' },
-  { title: 'Table for two is ready', body: 'Head to the host stand whenever you are.' },
-  { title: 'Price drop on your watchlist', body: 'Two items are now cheaper.' },
-  { title: 'New sign-in from Chrome on Mac', body: 'If this was not you, reset your password now.' },
-  { title: 'Ride arriving in 2 minutes', body: 'Meet your driver at the pickup point.' },
-  { title: 'Streak at risk', body: 'A 20 minute run keeps it alive.' },
-  { title: 'Jane replied to your thread', body: 'Tap to read her reply.' },
-  { title: 'Back in stock', body: 'The item you wanted is available again.' },
-  { title: 'Weekly digest', body: 'Five things you missed this week.' },
-];
-
-const TARGETS: { value: Target; label: string }[] = [
-  { value: 'subscriber', label: 'Subscribers' },
-  { value: 'topic', label: 'Topic' },
-];
 
 function sendSnippet(apiUrl: string) {
   return [
@@ -110,178 +93,9 @@ function sendSnippet(apiUrl: string) {
   ].join('\n');
 }
 
-function targetOf(message: Message): { icon: IconName; nudge: string; text: string } {
-  const targets = message.targets as { to?: string[]; topic?: string };
-  if (targets.topic) return { icon: 'IconTagFilled', nudge: 'mt-0.5', text: targets.topic };
-  const to = targets.to ?? [];
-  if (to.length === 1) return { icon: 'IconPeopleFilled', nudge: 'mt-px', text: to[0] ?? '' };
-  return { icon: 'IconTeamFilled', nudge: 'mt-px', text: `${to.length} subscribers` };
-}
-
-function SendDialog({
-  topics,
-  channels,
-  open,
-  onOpenChange,
-}: {
-  topics: Topic[];
-  channels: Channel[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const navigate = useNavigate();
-  const { submit, pending } = useActionFetcher((data) => {
-    onOpenChange(false);
-    if (typeof data.id === 'string') navigate(`${data.id}`, { relative: 'path' });
-  });
-  const [channel, setChannel] = useState<Channel>(channels[0] ?? 'push');
-  const [target, setTarget] = useState<Target>('subscriber');
-  const [to, setTo] = useState('');
-  const [topic, setTopic] = useState('');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [example, setExample] = useState(EXAMPLES[0]!);
-  const channelTopics = topics.filter((entry) => entry.channels.includes(channel));
-  const channelName = channelLabel(channel).toLowerCase();
-
-  useEffect(() => {
-    if (!open) return;
-    setChannel(channels[0] ?? 'push');
-    setTarget('subscriber');
-    setTo('');
-    setTopic('');
-    setTitle('');
-    setBody('');
-    setExample(EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]!);
-  }, [open, channels[0]]);
-
-  useEffect(() => {
-    if (!channelTopics.some((entry) => entry.slug === topic)) setTopic(channelTopics[0]?.slug ?? '');
-  }, [channelTopics, topic]);
-
-  const hasTarget = target === 'topic' ? topic.length > 0 : to.trim().length > 0;
-  const canSend = hasTarget && (title.trim().length > 0 || body.trim().length > 0) && !pending;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton>
-        <DialogHeader>
-          <DialogTitle>Send test message</DialogTitle>
-        </DialogHeader>
-        <FieldGroup className='w-full'>
-          <Field>
-            <FieldLabel htmlFor='message-channel'>Channel</FieldLabel>
-            <Select
-              items={CHANNEL_OPTIONS.filter((option) => channels.includes(option.value))}
-              value={channel}
-              onValueChange={(value) => setChannel(value as Channel)}
-            >
-              <SelectTrigger id='message-channel' className='w-full'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CHANNEL_OPTIONS.filter((option) => channels.includes(option.value)).map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor='message-target'>To</FieldLabel>
-            <Select items={TARGETS} value={target} onValueChange={(value) => setTarget(value as Target)}>
-              <SelectTrigger id='message-target' className='w-full'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TARGETS.filter((entry) => entry.value !== 'topic' || channelTopics.length > 0).map(
-                  (entry) => (
-                    <SelectItem key={entry.value} value={entry.value}>
-                      {entry.label}
-                    </SelectItem>
-                  )
-                )}
-              </SelectContent>
-            </Select>
-          </Field>
-          {target === 'topic' ? (
-            <Field>
-              <FieldLabel htmlFor='message-topic'>Topic</FieldLabel>
-              <Select
-                items={channelTopics.map((entry) => ({ value: entry.slug, label: entry.name }))}
-                value={topic}
-                onValueChange={(value) => setTopic(String(value))}
-              >
-                <SelectTrigger id='message-topic' className='w-full'>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {channelTopics.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.slug}>
-                      {entry.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldDescription>
-                Every subscriber opted in to this topic on {channelName} receives it.
-              </FieldDescription>
-            </Field>
-          ) : (
-            <Field>
-              <FieldLabel htmlFor='message-to'>External ids</FieldLabel>
-              <Input
-                id='message-to'
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-                placeholder='user_42, user_43'
-                autoComplete='off'
-                spellCheck={false}
-              />
-              <FieldDescription>
-                The ids your app identified these users with, separated by commas.
-              </FieldDescription>
-            </Field>
-          )}
-          <Field>
-            <FieldLabel htmlFor='message-title'>Title</FieldLabel>
-            <Input
-              id='message-title'
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={example.title}
-              maxLength={500}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor='message-body'>Body</FieldLabel>
-            <Textarea
-              id='message-body'
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              placeholder={example.body}
-              maxLength={4000}
-              rows={3}
-            />
-          </Field>
-          <Button
-            className='w-full'
-            disabled={!canSend}
-            loading={pending}
-            onClick={() => submit('send', { channel, target, to, topic, title, body })}
-          >
-            Send test message
-          </Button>
-        </FieldGroup>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function MessageRow({ message, base }: { message: Message; base: string }) {
   const payload = message.payload as { title?: string; body?: string };
-  const target = targetOf(message);
+  const target = describeTarget(message.targets);
 
   return (
     <TableRow>
@@ -318,11 +132,11 @@ function MessageRow({ message, base }: { message: Message; base: string }) {
 
 export default function MessagesRoute({ loaderData, params }: Route.ComponentProps) {
   const { apiUrl, connected } = useOutletContext<WorkspaceOutletContext>();
-  const { items: messages, pagination, filtered, topics } = loaderData;
-  const [open, setOpen] = useState(false);
-  const filters = useFilters(FILTER_KEYS);
+  const { items: messages, pagination, filtered, topics, segments } = loaderData;
   const base = `/${params.slug}/messages`;
   const fresh = !filtered && messages.length === 0;
+  const [open, setOpen] = useState(false);
+  const filters = useFilters(FILTER_KEYS);
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
@@ -423,7 +237,14 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
         )}
       </Card>
 
-      <SendDialog topics={topics} channels={connected} open={open} onOpenChange={setOpen} />
+      <SendDialog
+        topics={topics}
+        segments={segments}
+        channels={connected}
+        messagesBase={base}
+        open={open}
+        onOpenChange={setOpen}
+      />
     </div>
   );
 }

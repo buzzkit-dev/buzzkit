@@ -1,7 +1,3 @@
-export function bareId(id: string): string {
-  return id.slice(id.indexOf('_') + 1);
-}
-
 const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
@@ -11,18 +7,6 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
 
 export function formatDate(iso: string): string {
   return DATE_FORMAT.format(new Date(iso));
-}
-
-const DATE_TIME_FORMAT = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-});
-
-export function formatDateTime(iso: string): string {
-  return DATE_TIME_FORMAT.format(new Date(iso));
 }
 
 export function initials(name: string): string {

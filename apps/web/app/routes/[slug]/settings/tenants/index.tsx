@@ -58,19 +58,11 @@ function TenantDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { submit, pending } = useActionFetcher(() => onOpenChange(false));
+  const slugLocked = tenant?.isDefault ?? false;
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setName(tenant?.name ?? '');
-    setSlug(tenant?.slug ?? '');
-    setSlugTouched(tenant !== null);
-  }, [open, tenant]);
-
   const slugValue = slugTouched ? slug : slugify(name);
-  const slugLocked = tenant?.isDefault ?? false;
   const valid = name.trim().length > 0 && slugValue.length > 0;
   const save = () => {
     if (!valid || pending) return;
@@ -80,6 +72,13 @@ function TenantDialog({
       slug: slugLocked ? tenant!.slug : slugValue,
     });
   };
+
+  useEffect(() => {
+    if (!open) return;
+    setName(tenant?.name ?? '');
+    setSlug(tenant?.slug ?? '');
+    setSlugTouched(tenant !== null);
+  }, [open, tenant]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -196,13 +195,13 @@ function TenantRow({
 
 export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const { submit, pending } = useActionFetcher(() => setDeleteOpen(false));
   const { tenants } = loaderData;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [editing, setEditing] = useState<Tenant | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<Tenant | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const { submit, pending } = useActionFetcher(() => setDeleteOpen(false));
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>

@@ -169,6 +169,8 @@ function ProviderRow({
 
 export default function ChannelsRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const location = useLocation();
+  const { submit, pending } = useActionFetcher(() => setRemoveOpen(false));
   const { credentials } = loaderData;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [removing, setRemoving] = useState<{ provider: ProviderEntry; credentials: Credential[] } | null>(
@@ -177,8 +179,6 @@ export default function ChannelsRoute({ loaderData, params }: Route.ComponentPro
   const [removeOpen, setRemoveOpen] = useState(false);
   const [target, setTarget] = useState<{ channel: ChannelEntry; provider: AvailableProvider } | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
-  const { submit, pending } = useActionFetcher(() => setRemoveOpen(false));
-  const location = useLocation();
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>

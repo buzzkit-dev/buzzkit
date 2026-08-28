@@ -1,8 +1,8 @@
 import { Button } from '@buzzkit/ui/components/button';
-import { Card, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import { Card, CardAction, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { Icon, type IconName } from '@buzzkit/ui/components/icon';
+import { Icon } from '@buzzkit/ui/components/icon';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
@@ -19,6 +19,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
+import type { Expression } from 'buzzkit/expressions';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
@@ -31,6 +32,8 @@ import {
 } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
 import { Funnel } from '@/app/components/messages/funnel';
+import { describeTarget } from '@/app/components/messages/target';
+import { Conditions } from '@/app/components/segments/conditions';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import {
@@ -46,8 +49,6 @@ import { requestUrl } from '@/app/lib/utils/request';
 import type { Route } from './+types/index';
 
 const STATUSES = ['pending', 'retrying', 'sent', 'delivered', 'bounced', 'failed', 'invalid'] as const;
-type DeliveryStatus = (typeof STATUSES)[number];
-type Filter = DeliveryStatus | 'all';
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -57,6 +58,10 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'retrying', label: 'Retrying' },
   { value: 'pending', label: 'Pending' },
 ];
+
+type DeliveryStatus = (typeof STATUSES)[number];
+
+type Filter = DeliveryStatus | 'all';
 
 export function meta({ loaderData }: Route.MetaArgs) {
   return [{ title: loaderData ? `${loaderData.title} · BuzzKit` : 'Message · BuzzKit' }];
@@ -86,13 +91,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     deliveries: paginate(request, deliveries),
     expanded: deliveryId ? { id: deliveryId, attempts: attempts ?? [] } : null,
   };
-}
-
-function targetOf(message: { targets: unknown }): { icon: IconName; text: string } {
-  const targets = message.targets as { to?: string[]; topic?: string };
-  if (targets.topic) return { icon: 'IconTagFilled', text: targets.topic };
-  const to = targets.to ?? [];
-  return { icon: to.length === 1 ? 'IconPeopleFilled' : 'IconTeamFilled', text: to.join(', ') };
 }
 
 function SubHead({ children, className }: { children?: React.ReactNode; className?: string }) {
@@ -333,15 +331,16 @@ function FunnelRow({
 }
 
 export default function MessageRoute({ loaderData, params }: Route.ComponentProps) {
-  const { message, status, deliveries, expanded } = loaderData;
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<Filter>(status);
-  useEffect(() => setFilter(status), [status]);
+  const { message, status, deliveries, expanded } = loaderData;
   const payload = message.payload as unknown as { title?: string; body?: string };
   const counts = message.counts;
-  const target = targetOf(message);
+  const target = describeTarget(message.targets);
+  const inline = (message.targets as { where?: Expression }).where ?? null;
+  const [filter, setFilter] = useState<Filter>(status);
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
+
   useLinkedScroll(mainRef, asideRef);
 
   const withParams = (patch: Record<string, string | null>) => {
@@ -357,6 +356,8 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
   };
   const go = (patch: Record<string, string | null>) =>
     navigate(withParams(patch), { preventScrollReset: true, replace: true });
+
+  useEffect(() => setFilter(status), [status]);
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
@@ -393,10 +394,16 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
               <DetailRow label='Channel'>
                 <ChannelBadge channel={message.channel} />
               </DetailRow>
-              <DetailRow label='Sent to' copy={target.text}>
-                <Icon name={target.icon} className='mt-px size-4 shrink-0 text-fg-2' />
-                <Truncate>{target.text}</Truncate>
-              </DetailRow>
+              {inline ? (
+                <DetailRow label='Sent to'>
+                  <Conditions expression={inline} limit={1} />
+                </DetailRow>
+              ) : (
+                <DetailRow label='Sent to' copy={target.text}>
+                  <Icon name={target.icon} className='mt-px size-4 shrink-0 text-fg-2' />
+                  <Truncate>{target.text}</Truncate>
+                </DetailRow>
+              )}
               <DetailRow label='Status'>
                 <MessageStatusBadge status={message.status} />
               </DetailRow>
@@ -420,17 +427,19 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           </Card>
 
           <Card className='flex min-h-0 flex-col'>
-            <CardHeader className='flex flex-row items-center justify-between py-3'>
+            <CardHeader className='py-3'>
               <CardTitle>Deliveries</CardTitle>
-              <PillTabs
-                items={FILTERS}
-                value={filter}
-                itemClassName='h-6.5 px-2.5 text-xs'
-                onValueChange={(value) => {
-                  setFilter(value);
-                  go({ status: value === 'all' ? null : value, delivery: null });
-                }}
-              />
+              <CardAction>
+                <PillTabs
+                  items={FILTERS}
+                  value={filter}
+                  itemClassName='h-6.5 px-2.5 text-xs'
+                  onValueChange={(value) => {
+                    setFilter(value);
+                    go({ status: value === 'all' ? null : value, delivery: null });
+                  }}
+                />
+              </CardAction>
             </CardHeader>
             {deliveries.items.length === 0 ? (
               <EmptyState
@@ -488,9 +497,11 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-1 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='flex flex-row items-center justify-between py-3'>
+            <CardHeader className='py-3'>
               <CardTitle>Delivery</CardTitle>
-              <Funnel counts={counts} status={message.status} className='w-24' />
+              <CardAction>
+                <Funnel counts={counts} status={message.status} className='w-24' />
+              </CardAction>
             </CardHeader>
             <dl className='flex flex-col border-bg-3 border-t'>
               <FunnelRow label='Reachable' value={counts.total} />

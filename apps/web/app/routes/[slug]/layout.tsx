@@ -26,6 +26,18 @@ import {
 } from '@/app/lib/session.server';
 import type { Route } from './+types/layout';
 
+const TENANT_PAGES = [
+  '',
+  '/campaigns',
+  '/workflows',
+  '/subscribers',
+  '/segments',
+  '/topics',
+  '/messages',
+  '/events',
+  '/settings/channels',
+];
+
 export type WorkspaceOutletContext = {
   workspace: Workspace;
   profile: Profile;
@@ -90,26 +102,15 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
   return loaderHeaders;
 }
 
-const TENANT_PAGES = [
-  '',
-  '/campaigns',
-  '/workflows',
-  '/subscribers',
-  '/segments',
-  '/topics',
-  '/messages',
-  '/events',
-  '/settings/channels',
-];
-
 export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
-  const { workspace, workspaces, profile, apiUrl, connected, tenant, tenants } = loaderData;
   const { pathname } = useLocation();
+  const { workspace, workspaces, profile, apiUrl, connected, tenant, tenants } = loaderData;
   const base = `/${workspace.slug}`;
   const tenantPage = TENANT_PAGES.some(
     (page) => pathname === `${base}${page}` || (page !== '' && pathname.startsWith(`${base}${page}/`))
   );
   const viewingTenant = !tenant.isDefault && tenantPage;
+
   return (
     <div className='flex h-svh bg-background-subtle'>
       <a

@@ -11,7 +11,7 @@ import {
 import { Button } from '@buzzkit/ui/components/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useFetcher, useOutletContext } from 'react-router';
 import { SettingsCard } from '@/app/components/settings/card';
 import { type SettingsActionData, useActionFetcher } from '@/app/hooks/use-action-fetcher';
@@ -19,17 +19,15 @@ import { workspaceSettingsAction } from '@/app/lib/actions/workspace.server';
 import type { Workspace } from '@/app/lib/api.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 
-export const action = workspaceSettingsAction;
-
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 const SLUG_MESSAGE = 'Use 3 to 48 lowercase letters, numbers and single hyphens.';
 
+export const action = workspaceSettingsAction;
+
 function WorkspaceCard({ workspace, canEdit }: { workspace: Workspace; canEdit: boolean }) {
-  const [name, setName] = useState(workspace.name);
   const { submit, pending } = useActionFetcher();
-
-  useEffect(() => setName(workspace.name), [workspace.name]);
-
+  const [name, setName] = useState(workspace.name);
   const trimmed = name.trim();
   const dirty = trimmed.length > 0 && trimmed !== workspace.name;
   const save = () => submit('update', { name: trimmed });
@@ -67,14 +65,11 @@ function WorkspaceCard({ workspace, canEdit }: { workspace: Workspace; canEdit: 
 }
 
 function SlugCard({ workspace, canEdit }: { workspace: Workspace; canEdit: boolean }) {
+  const fetcher = useFetcher<SettingsActionData>();
+  const pending = fetcher.state !== 'idle';
   const [slug, setSlug] = useState(workspace.slug);
   const [clientError, setClientError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
-  const fetcher = useFetcher<SettingsActionData>();
-  const pending = fetcher.state !== 'idle';
-
-  useEffect(() => setSlug(workspace.slug), [workspace.slug]);
-
   const trimmed = slug.trim().toLowerCase();
   const dirty = trimmed.length > 0 && trimmed !== workspace.slug;
   const serverError = trimmed === submitted && fetcher.state === 'idle' ? fetcher.data?.error : undefined;
@@ -130,13 +125,13 @@ function SlugCard({ workspace, canEdit }: { workspace: Workspace; canEdit: boole
 }
 
 function DeleteCard({ workspace }: { workspace: Workspace }) {
+  const { submit, pending } = useActionFetcher();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState('');
-  const { submit, pending } = useActionFetcher();
-
-  useEffect(() => {
-    if (!open) setConfirm('');
-  }, [open]);
+  const openChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setConfirm('');
+  };
 
   return (
     <>
@@ -150,7 +145,7 @@ function DeleteCard({ workspace }: { workspace: Workspace }) {
           </Button>
         }
       />
-      <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialog open={open} onOpenChange={openChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{workspace.name}”?</AlertDialogTitle>
@@ -204,8 +199,8 @@ export default function SettingsGeneralRoute() {
         </h1>
         <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage the workspace name and slug.</p>
       </header>
-      <WorkspaceCard workspace={workspace} canEdit={canEdit} />
-      <SlugCard workspace={workspace} canEdit={canEdit} />
+      <WorkspaceCard key={`name:${workspace.name}`} workspace={workspace} canEdit={canEdit} />
+      <SlugCard key={`slug:${workspace.slug}`} workspace={workspace} canEdit={canEdit} />
       {workspace.role === 'owner' && <DeleteCard workspace={workspace} />}
     </>
   );

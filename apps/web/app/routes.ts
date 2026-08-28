@@ -14,6 +14,9 @@ export default [
   route(':slug', 'routes/[slug]/layout.tsx', [
     index('routes/[slug]/index.tsx'),
     route('subscribers', 'routes/[slug]/subscribers/index.tsx'),
+    route('segments', 'routes/[slug]/segments/index.tsx'),
+    route('segments/new', 'routes/[slug]/segments/new/index.tsx'),
+    route('segments/:segmentSlug', 'routes/[slug]/segments/[segmentSlug]/index.tsx'),
     route('topics', 'routes/[slug]/topics/index.tsx'),
     route('messages', 'routes/[slug]/messages/index.tsx'),
     route('messages/:id', 'routes/[slug]/messages/[id]/index.tsx'),

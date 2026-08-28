@@ -14,7 +14,6 @@ export function DetailRow({
 }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
 
   const copyValue = () => {
     if (!copy) return;
@@ -24,6 +23,8 @@ export function DetailRow({
       timer.current = setTimeout(() => setCopied(false), 1500);
     });
   };
+
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   return (
     <div className='flex min-h-10 items-center gap-6 border-bg-3 border-b px-4 last:border-b-0'>

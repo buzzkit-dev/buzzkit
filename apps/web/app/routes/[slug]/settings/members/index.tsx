@@ -107,9 +107,6 @@ function MemberAvatar({ member }: { member: Member }) {
 }
 
 function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<Role>('member');
-  const [link, setLink] = useState<{ email: string; href: string } | null>(null);
   const { submit, pending } = useActionFetcher((data) => {
     if (data.emailSent) {
       toast.success('Invite sent', { description: `${data.email} has an email with the link.` });
@@ -118,6 +115,11 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
     }
     setLink({ email: String(data.email), href: `${window.location.origin}/invite/${data.token}` });
   });
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('member');
+  const [link, setLink] = useState<{ email: string; href: string } | null>(null);
+  const valid = email.trim().includes('@');
+  const description = ROLES.find((entry) => entry.value === role)?.description;
 
   useEffect(() => {
     if (!open) return;
@@ -125,9 +127,6 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
     setRole('member');
     setLink(null);
   }, [open]);
-
-  const valid = email.trim().includes('@');
-  const description = ROLES.find((entry) => entry.value === role)?.description;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -350,6 +349,8 @@ function InviteRow({
 
 export default function MembersRoute({ loaderData }: Route.ComponentProps) {
   const { workspace, profile } = useOutletContext<WorkspaceOutletContext>();
+  const remove = useActionFetcher(() => setRemoveOpen(false));
+  const revoke = useActionFetcher(() => setRevokeOpen(false));
   const { members, invites } = loaderData;
   const actor = (workspace.role ?? null) as Role | null;
   const canManage = actor === 'owner' || actor === 'admin';
@@ -358,8 +359,6 @@ export default function MembersRoute({ loaderData }: Route.ComponentProps) {
   const [removeOpen, setRemoveOpen] = useState(false);
   const [revoking, setRevoking] = useState<Invite | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
-  const remove = useActionFetcher(() => setRemoveOpen(false));
-  const revoke = useActionFetcher(() => setRevokeOpen(false));
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>

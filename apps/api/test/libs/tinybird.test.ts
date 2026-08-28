@@ -9,6 +9,7 @@ import {
   formatClickHouseDateTime,
   formatClickHouseTime,
   parseClickHouseTime,
+  queryTinybird,
   resolveTinybirdToken,
   resolveTinybirdWorkspaceId,
   signTinybirdJwt,
@@ -384,5 +385,41 @@ describe('signTinybirdJwt', () => {
     bindings.TINYBIRD_TOKEN = workspaceToken({ u: 'ws_123' });
     const claims = { name: 'events:3', expiresAt: new Date('2026-08-27T13:00:00Z'), scopes };
     expect(await signTinybirdJwt(claims)).toBe(await signTinybirdJwt(claims));
+  });
+});
+
+describe('queryTinybird', () => {
+  it('posts the SQL with a JSON format suffix and returns the rows', async () => {
+    fetchMock.mockImplementation(jsonResponse({ data: [{ total: '3' }], rows: 1 }));
+    await expect(queryTinybird<{ total: string }>('SELECT count() AS total FROM events')).resolves.toEqual([
+      { total: '3' },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.tinybird.co/v0/sql');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe('SELECT count() AS total FROM events FORMAT JSON');
+    const headers = init?.headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer p.token');
+    expect(headers['content-type']).toBe('text/plain');
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('turns a refused query into an UnavailableError carrying the status and body', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response('Syntax error near FROM', { status: 400 }))
+    );
+    await expect(queryTinybird('SELECT')).rejects.toBeInstanceOf(UnavailableError);
+    await expect(queryTinybird('SELECT')).rejects.toThrow(/400 Syntax error near FROM/);
+  });
+
+  it('propagates a network failure', async () => {
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    await expect(queryTinybird('SELECT 1')).rejects.toThrow('fetch failed');
+  });
+
+  it('refuses to query without a token', async () => {
+    delete bindings.TINYBIRD_TOKEN;
+    await expect(queryTinybird('SELECT 1')).rejects.toBeInstanceOf(UnavailableError);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

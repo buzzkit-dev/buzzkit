@@ -19,7 +19,9 @@ import {
   sql,
   tables,
 } from '@buzzkit/database';
-import { RECONCILE_LOOKBACK_MS, STALE_DELIVERY_GRACE_MS } from './policy';
+import { subscriptionMatches } from './catalog';
+import { listEnabledEndpoints } from './endpoints';
+import { HORIZON_CLOCK_SKEW_MS, RECONCILE_LOOKBACK_MS, STALE_DELIVERY_GRACE_MS } from './policy';
 import type {
   AttemptOutcome,
   DeliveryOutcome,
@@ -160,10 +162,22 @@ export async function listStaleDeliveryIds(
   return rows.map((row) => row.id);
 }
 
-export async function listUndeliveredAuditIds(db: Db, lookbackMs = RECONCILE_LOOKBACK_MS): Promise<number[]> {
+export async function listUndeliveredAuditRows(
+  db: Db,
+  limit: number,
+  lookbackMs = RECONCILE_LOOKBACK_MS
+): Promise<
+  Array<{ id: number; workspaceId: number; tenantId: number | null; event: string; createdAt: Date }>
+> {
   const since = new Date(Date.now() - lookbackMs);
   const rows = await db
-    .select({ id: tables.event.id })
+    .select({
+      id: tables.event.id,
+      workspaceId: tables.event.workspaceId,
+      tenantId: tables.event.tenantId,
+      event: tables.event.event,
+      createdAt: tables.event.createdAt,
+    })
     .from(tables.event)
     .where(
       and(
@@ -188,33 +202,62 @@ export async function listUndeliveredAuditIds(db: Db, lookbackMs = RECONCILE_LOO
             .where(and(isNull(tables.webhookEndpoint.disabledAt), isNull(tables.webhookEndpoint.deletedAt)))
         )
       )
-    );
-  return rows.map((row) => row.id);
+    )
+    .orderBy(tables.event.id)
+    .limit(limit);
+  return rows.flatMap((row) =>
+    row.workspaceId === null ? [] : [{ ...row, workspaceId: row.workspaceId, tenantId: row.tenantId ?? null }]
+  );
+}
+
+export async function listReconcilableAuditIds(db: Db, limit: number): Promise<number[]> {
+  const rows = await listUndeliveredAuditRows(db, limit);
+  const endpointsByScope = new Map<string, WebhookEndpoint[]>();
+  const ids: number[] = [];
+  for (const row of rows) {
+    const key = `${row.workspaceId}:${row.tenantId ?? ''}`;
+    let endpoints = endpointsByScope.get(key);
+    if (!endpoints) {
+      endpoints = await listEnabledEndpoints(db, row.workspaceId, row.tenantId);
+      endpointsByScope.set(key, endpoints);
+    }
+    if (
+      endpoints.some(
+        (endpoint) =>
+          endpoint.updatedAt.getTime() - HORIZON_CLOCK_SKEW_MS <= row.createdAt.getTime() &&
+          subscriptionMatches(endpoint.events, row.event)
+      )
+    )
+      ids.push(row.id);
+  }
+  return ids;
 }
 
 export async function recordWebhookEvent(db: Db, input: WebhookEventInput): Promise<WebhookEvent> {
-  return await trace('webhooks.recordEvent', async () => {
-    const [inserted] = await db
-      .insert(tables.webhookEvent)
-      .values(input)
-      .onConflictDoNothing({ target: [tables.webhookEvent.source, tables.webhookEvent.sourceId] })
-      .returning();
-    if (inserted) {
-      const [stamped] = await db
-        .update(tables.webhookEvent)
-        .set({ payload: { ...input.payload, id: encodeId('webhookEvent', inserted.id) } })
-        .where(eq(tables.webhookEvent.id, inserted.id))
+  return await trace('webhooks.recordEvent', async () =>
+    db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(tables.webhookEvent)
+        .values(input)
+        .onConflictDoNothing({ target: [tables.webhookEvent.source, tables.webhookEvent.sourceId] })
         .returning();
-      return stamped!;
-    }
-    const [existing] = await db
-      .select()
-      .from(tables.webhookEvent)
-      .where(
-        and(eq(tables.webhookEvent.source, input.source), eq(tables.webhookEvent.sourceId, input.sourceId))
-      );
-    return existing!;
-  });
+      if (inserted) {
+        const [stamped] = await tx
+          .update(tables.webhookEvent)
+          .set({ payload: { ...input.payload, id: encodeId('webhookEvent', inserted.id) } })
+          .where(eq(tables.webhookEvent.id, inserted.id))
+          .returning();
+        return stamped!;
+      }
+      const [existing] = await tx
+        .select()
+        .from(tables.webhookEvent)
+        .where(
+          and(eq(tables.webhookEvent.source, input.source), eq(tables.webhookEvent.sourceId, input.sourceId))
+        );
+      return existing!;
+    })
+  );
 }
 
 export async function createDeliveries(
@@ -247,6 +290,24 @@ export async function createDeliveries(
         eq(tables.webhookDelivery.attempts, 0)
       )
     );
+}
+
+export async function claimDeliveryAttempt(
+  db: Db,
+  delivery: Pick<WebhookDelivery, 'id' | 'attempts'>
+): Promise<number | null> {
+  const [claimed] = await db
+    .update(tables.webhookDelivery)
+    .set({ attempts: delivery.attempts + 1, lastAttemptAt: new Date() })
+    .where(
+      and(
+        eq(tables.webhookDelivery.id, delivery.id),
+        eq(tables.webhookDelivery.attempts, delivery.attempts),
+        inArray(tables.webhookDelivery.status, ['pending', 'failed'])
+      )
+    )
+    .returning({ attempts: tables.webhookDelivery.attempts });
+  return claimed?.attempts ?? null;
 }
 
 export async function recordAttempt(db: Db, deliveryId: number, outcome: AttemptOutcome): Promise<void> {

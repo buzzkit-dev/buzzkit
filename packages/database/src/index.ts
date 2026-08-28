@@ -6,6 +6,7 @@ import { eventTables } from './schema/event';
 import { inviteTables } from './schema/invite';
 import { apiKeyTables } from './schema/key';
 import { messageTables } from './schema/message';
+import { segmentTables } from './schema/segment';
 import { subscriberTables } from './schema/subscriber';
 import { tenantTables } from './schema/tenant';
 import { topicTables } from './schema/topic';
@@ -24,6 +25,7 @@ export const tables = {
   ...topicTables,
   ...messageTables,
   ...webhookTables,
+  ...segmentTables,
 };
 
 export type DrizzleOptions = { max?: number };

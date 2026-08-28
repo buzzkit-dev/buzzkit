@@ -2,7 +2,7 @@ import type { IconName } from '@buzzkit/ui/components/icon';
 
 type Data = Record<string, unknown>;
 
-export type StreamDescription = { label: string; icon: IconName; detail: string | null };
+type StreamDescription = { label: string; icon: IconName; detail: string | null };
 
 type Definition = { label: string; icon: IconName; describe?: (data: Data) => Partial<StreamDescription> };
 
@@ -112,10 +112,6 @@ export function describeStreamEvent(event: { name: string; data: unknown }): Str
   const definition = RESERVED[event.name];
   if (!definition) return { label: event.name, icon: 'IconZapFilled', detail: null };
   return { label: definition.label, icon: definition.icon, detail: null, ...definition.describe?.(data) };
-}
-
-export function isReservedEvent(name: string): boolean {
-  return name.startsWith('$');
 }
 
 export function summarizeData(data: unknown): string | null {

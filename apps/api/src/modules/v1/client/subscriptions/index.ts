@@ -67,7 +67,7 @@ export const clientSubscriptions = new Elysia()
         await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
           {
             name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
-            data: resolveSubscriptionEventData(subscription, externalId),
+            data: resolveSubscriptionEventData(updated, externalId),
           },
         ]);
       }

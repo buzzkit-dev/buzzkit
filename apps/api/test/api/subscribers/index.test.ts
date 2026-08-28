@@ -80,11 +80,12 @@ describe('resolveSubscriptionEventData', () => {
     enabled: true,
   };
 
-  it('carries only the channel, platform and endpoint, never the rest of the row', () => {
+  it('carries only the channel, platform, endpoint and enabled state, never the rest of the row', () => {
     expect(resolveSubscriptionEventData(subscription)).toEqual({
       channel: 'push',
       platform: 'ios',
       endpoint: 'a1b2c3',
+      enabled: true,
     });
   });
 
@@ -94,6 +95,7 @@ describe('resolveSubscriptionEventData', () => {
       channel: 'push',
       platform: 'ios',
       endpoint: 'a1b2c3',
+      enabled: true,
     });
   });
 });

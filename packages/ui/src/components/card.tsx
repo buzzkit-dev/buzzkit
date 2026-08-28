@@ -20,6 +20,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot='card-header'
       className={cn(
         'grid auto-rows-min items-start gap-0.5 px-4 py-4 group-has-data-[slot=card-content]/card:pb-[13px] has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto]',
+        'relative [&>[data-slot=card-title]~*:not([data-slot=card-description])]:absolute [&>[data-slot=card-title]~*:not([data-slot=card-description])]:inset-y-0 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:right-4 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:my-auto [&>[data-slot=card-title]~*:not([data-slot=card-description])]:h-fit',
         className
       )}
       {...props}
@@ -48,13 +49,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot='card-action'
-      className={cn('col-start-2 row-span-2 row-start-1 self-start justify-self-end', className)}
-      {...props}
-    />
-  );
+  return <div data-slot='card-action' className={cn('flex items-center', className)} {...props} />;
 }
 
 function CardContent({ className, ...props }: React.ComponentProps<'div'>) {

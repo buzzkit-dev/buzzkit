@@ -36,21 +36,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
-  return (
-    <ThemeProvider>
-      <LinkProvider link={Link}>
-        <MotionConfig reducedMotion='user'>
-          <TooltipProvider>
-            <Outlet />
-            <Toaster />
-          </TooltipProvider>
-        </MotionConfig>
-      </LinkProvider>
-    </ThemeProvider>
-  );
-}
-
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error) && error.status === 404) return <NotFoundPage />;
   if (isRouteErrorResponse(error) && error.status === 403) return <NoAccessPage />;
@@ -68,4 +53,19 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return <ErrorPage title={title} details={details} stack={stack} />;
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <LinkProvider link={Link}>
+        <MotionConfig reducedMotion='user'>
+          <TooltipProvider>
+            <Outlet />
+            <Toaster />
+          </TooltipProvider>
+        </MotionConfig>
+      </LinkProvider>
+    </ThemeProvider>
+  );
 }

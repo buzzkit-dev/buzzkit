@@ -14,16 +14,16 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: 'custom', label: 'Pick events' },
 ];
 
-export type EndpointFormValues = {
+type EndpointFormValues = {
   url: string;
   description: string;
   tenant: string;
   events: string[];
 };
 
-export type EndpointFormState = ReturnType<typeof useEndpointForm>;
+type EndpointFormState = ReturnType<typeof useEndpointForm>;
 
-export function describeUrlProblem(value: string): string | null {
+function describeUrlProblem(value: string): string | null {
   if (value.trim().length === 0) return null;
   let parsed: URL;
   try {

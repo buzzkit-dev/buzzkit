@@ -22,6 +22,10 @@ import { messages } from './messages';
 import { message } from './messages/[id]';
 import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
+import { segments } from './segments';
+import { segment } from './segments/[segmentSlug]';
+import { segmentMembers } from './segments/[segmentSlug]/members';
+import { segmentsPreview } from './segments/preview';
 import { stats } from './stats';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
@@ -214,6 +218,22 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/topics/:topicSlug
    */
   .use(topic)
+  /*
+   * /v1/segments
+   */
+  .use(segments)
+  /*
+   * /v1/segments/preview
+   */
+  .use(segmentsPreview)
+  /*
+   * /v1/segments/:segmentSlug
+   */
+  .use(segment)
+  /*
+   * /v1/segments/:segmentSlug/members
+   */
+  .use(segmentMembers)
   /*
    * /v1/messages
    */

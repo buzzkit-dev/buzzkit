@@ -58,7 +58,11 @@ function expectSystemEvent(item: TimelineItem | undefined, externalId: string, n
   expect(item?.name).toBe(name);
   expect(item?.source).toBe('system');
   expect(item?.externalId).toBe(externalId);
-  expect(item?.data).toEqual(data);
+  expect(item?.data).toEqual(
+    name.startsWith('$subscription.')
+      ? { enabled: name !== '$subscription.muted', ...(data as object) }
+      : data
+  );
   expect(item?.id).toMatch(/^evt_[0-9a-f-]{36}$/);
   expect(item?.runId).toBeNull();
   expect(item?.messageId).toBeNull();

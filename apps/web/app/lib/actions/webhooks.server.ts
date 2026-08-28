@@ -82,16 +82,16 @@ export async function webhooksAction(args: ActionFunctionArgs) {
 function describeFailure(intent: string): string {
   switch (intent) {
     case 'create':
-      return 'Endpoint not created';
+      return 'Failed to create endpoint';
     case 'update':
-      return 'Changes not saved';
+      return 'Failed to save changes';
     case 'rotate':
-      return 'Secret not rotated';
+      return 'Failed to rotate secret';
     case 'delete':
-      return 'Endpoint not deleted';
+      return 'Failed to delete endpoint';
     case 'replay':
-      return 'Replay not possible';
+      return 'Failed to replay delivery';
     default:
-      return 'Endpoint not updated';
+      return 'Failed to update endpoint';
   }
 }

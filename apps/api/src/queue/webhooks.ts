@@ -1,15 +1,17 @@
 import { env } from 'cloudflare:workers';
 import type { ActorEventRow } from '@buzzkit/api/actor/types';
 import { isPublicEvent } from '@buzzkit/api/api/audit/catalog';
-import { isDeliverableEvent, subscriptionMatches } from '@buzzkit/api/api/webhooks/catalog';
+import { isDeliverableEvent } from '@buzzkit/api/api/webhooks/catalog';
 import {
+  claimDeliveryAttempt,
   createDeliveries,
+  endpointReceives,
   findDeliveryById,
   findEnabledEndpointById,
   findWebhookEventById,
   listEnabledEndpoints,
+  listReconcilableAuditIds,
   listStaleDeliveryIds,
-  listUndeliveredAuditIds,
   markEndpointFailure,
   markEndpointSuccess,
   matchingEndpoints,
@@ -47,7 +49,7 @@ export type WebhookQueueMessage =
 
 const RETRY_DELAY_SECONDS = 30;
 
-const STALE_SWEEP_LIMIT = 500;
+const SWEEP_LIMIT = 500;
 
 export async function handleWebhookBatch(batch: MessageBatch<WebhookQueueMessage>): Promise<void> {
   await trace('queue.webhooks.batch', { 'queue.batch_size': batch.messages.length }, async () => {
@@ -77,7 +79,13 @@ async function processAuditEvent(db: Db, auditId: number): Promise<void> {
   const [row] = await db.select().from(tables.event).where(eq(tables.event.id, auditId));
   if (!row?.workspaceId || !isPublicEvent(row.event)) return;
 
-  const endpoints = await matchingEndpoints(db, row.workspaceId, row.tenantId ?? null, row.event);
+  const endpoints = await matchingEndpoints(
+    db,
+    row.workspaceId,
+    row.tenantId ?? null,
+    row.event,
+    row.createdAt
+  );
   if (endpoints.length === 0) return;
 
   const scope = await resolveWebhookScope(db, row.workspaceId, row.tenantId ?? null);
@@ -113,7 +121,9 @@ async function processStreamRows(
 
   for (const row of message.rows) {
     if (!isDeliverableEvent(row.name)) continue;
-    const matched = endpoints.filter((endpoint) => subscriptionMatches(endpoint.events, row.name));
+    const matched = endpoints.filter((endpoint) =>
+      endpointReceives(endpoint, row.name, new Date(row.received_at))
+    );
     if (matched.length === 0) continue;
     const event = await recordWebhookEvent(db, {
       workspaceId: tenant.workspaceId,
@@ -158,6 +168,11 @@ export async function deliver(
     'webhooks.deliver',
     { 'webhook.endpoint_id': endpoint.id, 'webhook.delivery_id': delivery.id, 'webhook.event': event.type },
     async (t) => {
+      const attempts = await claimDeliveryAttempt(db, delivery);
+      if (attempts === null) {
+        t.set('webhook.claimed', false);
+        return false;
+      }
       const body = JSON.stringify(event.payload);
       const id = encodeId('webhookEvent', event.id);
       const timestamp = Math.floor(Date.now() / 1000);
@@ -182,6 +197,7 @@ export async function deliver(
             'webhook-signature': signatures.join(' '),
           },
           body,
+          redirect: 'manual',
           signal: controller.signal,
         });
         status = response.status;
@@ -193,7 +209,6 @@ export async function deliver(
         clearTimeout(timer);
       }
       const durationMs = Date.now() - started;
-      const attempts = delivery.attempts + 1;
       const ok = status !== null && isSuccessStatus(status);
 
       await recordAttempt(db, delivery.id, { attempt: attempts, status, error, durationMs, responseBody });
@@ -247,11 +262,11 @@ function describeDeliveryError(caught: unknown, timedOut: boolean): string {
 export async function reconcileWebhooks(): Promise<void> {
   await trace('scheduler.webhooks', async (t) => {
     const db = createDb({ max: 2 });
-    const auditIds = await listUndeliveredAuditIds(db);
+    const auditIds = await listReconcilableAuditIds(db, SWEEP_LIMIT);
     for (const auditId of auditIds) {
       await env.WEBHOOKS.send({ kind: 'audit', auditId });
     }
-    const deliveryIds = await listStaleDeliveryIds(db, STALE_SWEEP_LIMIT);
+    const deliveryIds = await listStaleDeliveryIds(db, SWEEP_LIMIT);
     for (const deliveryId of deliveryIds) {
       await env.WEBHOOKS.send({ kind: 'deliver', deliveryId });
     }

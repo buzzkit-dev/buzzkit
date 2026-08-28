@@ -23,7 +23,6 @@ apps/
 packages/
 ├── auth/         @buzzkit/auth      BetterAuth configuration (email/password, bearer tokens)
 ├── buzzkit/      buzzkit            The framework: channel connectors, workflows, campaigns, segments, send client
-├── cli/          @buzzkit/cli       Pushes code-defined config to a buzzkit deployment
 └── database/     @buzzkit/database  Drizzle ORM, PostgreSQL schema, migrations
 ```
 

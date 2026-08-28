@@ -231,9 +231,9 @@ function EventRow({
 
 export default function AuditLogRoute({ loaderData, params }: Route.ComponentProps) {
   const { items: events, pagination, filtered } = loaderData;
-  const filters = useFilters(FILTER_KEYS);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const fresh = !filtered && events.length === 0;
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const filters = useFilters(FILTER_KEYS);
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>

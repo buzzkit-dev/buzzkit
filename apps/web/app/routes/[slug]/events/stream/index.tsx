@@ -50,6 +50,25 @@ const SOURCES = Object.keys(SOURCE_LABELS) as StreamSource[];
 
 const LIVE_INTERVAL_MS = 3000;
 
+type LiveEvent = Omit<StreamEvent, 'runId' | 'messageId'> & {
+  runId: string | null;
+  messageId: string | null;
+};
+
+type LiveRow = {
+  id: string;
+  sequence: number;
+  name: string;
+  source: string;
+  external_id: string;
+  timestamp: string;
+  received_at: string;
+  data: string;
+  run_id: string | null;
+  message_id: string | null;
+  step: string | null;
+};
+
 export function meta() {
   return [{ title: 'Stream · BuzzKit' }];
 }
@@ -80,25 +99,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     live,
   };
 }
-
-type LiveEvent = Omit<StreamEvent, 'runId' | 'messageId'> & {
-  runId: string | null;
-  messageId: string | null;
-};
-
-type LiveRow = {
-  id: string;
-  sequence: number;
-  name: string;
-  source: string;
-  external_id: string;
-  timestamp: string;
-  received_at: string;
-  data: string;
-  run_id: string | null;
-  message_id: string | null;
-  step: string | null;
-};
 
 function clickHouseTime(iso: string): string {
   return new Date(iso).toISOString().replace('T', ' ').replace('Z', '');
@@ -243,12 +243,12 @@ function EventRow({
 }
 
 export default function StreamRoute({ loaderData, params }: Route.ComponentProps) {
-  const { items, pagination, names, filter, live } = loaderData;
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
+  const { items, pagination, names, filter, live } = loaderData;
+  const fresh = names.length === 0;
+  const [expanded, setExpanded] = useState<string | null>(null);
   const filters = useFilters(FILTER_KEYS);
   const events = useLiveEvents(items, live, filter);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const fresh = names.length === 0;
   const snippet = [
     `curl -X POST ${apiUrl}/v1/events \\`,
     "  -H 'Authorization: Bearer bk_ws_…' \\",

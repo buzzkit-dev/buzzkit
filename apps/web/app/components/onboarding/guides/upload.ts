@@ -1,9 +1,7 @@
 import type { ProviderId } from '@/app/components/onboarding/catalog';
 import type { CredentialUpload } from '@/app/lib/api.server';
 
-export type UploadResult =
-  | { ok: true; upload: CredentialUpload }
-  | { ok: false; error: string; param?: string };
+type UploadResult = { ok: true; upload: CredentialUpload } | { ok: false; error: string; param?: string };
 
 function text(form: FormData, name: string): string {
   return String(form.get(name) ?? '').trim();

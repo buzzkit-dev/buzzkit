@@ -3,7 +3,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import { TIME_TOOLTIP_DELAY } from '@/app/hooks/use-time-ago';
 import type { Message } from '@/app/lib/api.server';
 
-export const FUNNEL_TONES = {
+const FUNNEL_TONES = {
   sent: 'bg-green-4',
   failed: 'bg-red-4',
   pending: 'bg-amber-4',

@@ -18,11 +18,6 @@ import { Link, useLocation } from 'react-router';
 import { CreateWorkspaceDialog } from '@/app/components/workspace/create-dialog';
 import type { Tenant, Workspace } from '@/app/lib/api.server';
 
-/**
- * A workspace always has a picture: the uploaded one when there is one,
- * otherwise a pastel gradient picked from the slug, so every workspace is
- * recognisable at a glance without anyone uploading anything.
- */
 export function WorkspaceAvatar({
   slug,
   avatarUrl,
@@ -60,8 +55,8 @@ export function WorkspaceSwitcher({
   tenant: Tenant;
   tenants: Tenant[];
 }) {
-  const [creating, setCreating] = useState(false);
   const { pathname } = useLocation();
+  const [creating, setCreating] = useState(false);
   const switchable = tenants.length > 1;
 
   return (

@@ -1,6 +1,6 @@
 # Messages & Deliveries
 
-The send API — the product promise. One call targets subscribers by your ids or by topic; buzzkit resolves who is reachable (enabled, active subscriptions on the channel, topic×channel preferences, channel kill-switch), fans out through a durable queue, delivers via the tenant's provider credentials with progressive retries, and keeps endpoints clean from provider feedback. Every attempt — request, response, classification, latency — is kept. Nothing is lost. Tenant-context routes; scopes `messages:send` / `messages:read`.
+The send API — the product promise. One call targets subscribers by your ids, by topic or by segment; buzzkit resolves who is reachable (enabled, active subscriptions on the channel, topic×channel preferences, channel kill-switch), fans out through a durable queue, delivers via the tenant's provider credentials with progressive retries, and keeps endpoints clean from provider feedback. Every attempt — request, response, classification, latency — is kept. Nothing is lost. Tenant-context routes; scopes `messages:send` / `messages:read`.
 
 ## POST /v1/messages → 202 Accepted
 
@@ -15,7 +15,7 @@ The send API — the product promise. One call targets subscribers by your ids o
 }
 ```
 
-- **Targeting**: `to` (one id or up to 1000), `topic` (every opted-in subscriber), or both (`to` filtered by the topic's preferences). At least one is required; an unknown topic is a 404, and a topic that is not offered on the message's channel is a 400 `channel_not_offered`.
+- **Targeting**: `to` (one id or up to 1000), `topic` (every opted-in subscriber), `segment` (every member of a [segment](segments.md), evaluated at send time and pinned to its current version, `targets.segmentVersion`), `where` (an inline [expression](segments.md#expressions), the same grammar as a segment, evaluated once for this send and stored verbatim in `targets.where` so the audience stays explainable; nothing is saved as a segment), or one of those combined with `topic` (filtered by the topic's preferences). At least one is required; `to`, `segment` and `where` are mutually exclusive (400 `targets_conflict`); an invalid `where` is a 400 `invalid_expression` whose `param` points at the node (`where.all[1]`); an unknown topic or segment is a 404, and a topic that is not offered on the message's channel is a 400 `channel_not_offered`.
 - **Channel**: `channel` defaults to `push` (email sending arrives with the next phase → 400 for now). A channel disabled in tenant settings is a 400 `channel_disabled`; a channel the tenant has no credential for is a 400 `channel_not_connected` before anything is queued (`no_credential` on a delivery is reserved for a credential removed mid-flight).
 - **Content**: at least one of `title`, `body`, `data`. Optional `subtitle`, `badge`, `sound`, `imageUrl`, `collapseId`, `priority` (`high` default | `normal`), and raw escape hatches `apns.payload` / `fcm.android` / `fcm.payload`. `apns.environment` picks sandbox vs production credentials (default production; falls back to whichever exists).
 - **Expiry**: `ttlSeconds` (60s … 28 days, default 24h) → `expiresAt`. Passed to APNs (`apns-expiration`) and FCM (`android.ttl`); deliveries still pending at expiry are failed with `expired` — stale pushes never go out.

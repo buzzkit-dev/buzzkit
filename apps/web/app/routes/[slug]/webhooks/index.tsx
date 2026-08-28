@@ -55,13 +55,13 @@ function CreateForm({
   slug: string;
   onClose: () => void;
 }) {
-  const form = useEndpointForm({}, catalog);
-  const [created, setCreated] = useState<{ id: string; secret: string } | null>(null);
   const { submit, pending } = useActionFetcher((data) => {
     if (typeof data.secret === 'string' && typeof data.id === 'string')
       setCreated({ id: data.id, secret: data.secret });
     else onClose();
   });
+  const [created, setCreated] = useState<{ id: string; secret: string } | null>(null);
+  const form = useEndpointForm({}, catalog);
 
   if (created) {
     return (
@@ -155,9 +155,9 @@ function EndpointRow({
 export default function WebhooksRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const { endpoints, catalog, tenants } = loaderData;
+  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(0);
-  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const tenantName = (tenantId: string | null) =>
     tenants.find((entry) => entry.id === tenantId)?.name ?? null;
   const openDialog = () => {

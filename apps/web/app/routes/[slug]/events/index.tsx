@@ -99,7 +99,7 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
                     : 'six hours'}
                 .
               </CardDescription>
-              <CardAction className='self-center'>
+              <CardAction>
                 <PillTabs
                   items={RANGES}
                   value={range}

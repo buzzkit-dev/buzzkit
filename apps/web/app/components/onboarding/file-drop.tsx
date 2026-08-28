@@ -168,9 +168,15 @@ export function FileDrop({
   summary?: string | null;
   onChange: (file: LoadedFile | null) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [rejected, setRejected] = useState<string | null>(null);
   const id = useId();
+  const [rejected, setRejected] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const rejectLabel = accept
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.startsWith('.'))
+    .map((entry) => `a ${entry} file`)
+    .join(' or ');
 
   const read = async (file: File | undefined | null) => {
     if (!file) return;
@@ -182,13 +188,6 @@ export function FileDrop({
     setRejected(null);
     onChange({ name: file.name, text: await file.text() });
   };
-
-  const rejectLabel = accept
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.startsWith('.'))
-    .map((entry) => `a ${entry} file`)
-    .join(' or ');
 
   const dragState = useWindowDrop(accept, read);
 

@@ -49,6 +49,7 @@
         "@buzzkit/ui": "workspace:*",
         "@number-flow/react": "^0.6.2",
         "better-auth": "1.6.25",
+        "buzzkit": "workspace:*",
         "isbot": "^5.2.1",
         "motion": "^12.43.0",
         "react": "^19.2.8",
@@ -94,19 +95,12 @@
     "packages/buzzkit": {
       "name": "buzzkit",
       "version": "0.0.0",
+      "dependencies": {
+        "@sinclair/typebox": "^0.34.52",
+      },
       "devDependencies": {
         "typescript": "^7.0.2",
         "vitest": "~4.1.10",
-      },
-    },
-    "packages/cli": {
-      "name": "@buzzkit/cli",
-      "version": "0.0.0",
-      "dependencies": {
-        "buzzkit": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "^7.0.2",
       },
     },
     "packages/database": {
@@ -315,8 +309,6 @@
     "@buzzkit/api": ["@buzzkit/api@workspace:apps/api"],
 
     "@buzzkit/auth": ["@buzzkit/auth@workspace:packages/auth"],
-
-    "@buzzkit/cli": ["@buzzkit/cli@workspace:packages/cli"],
 
     "@buzzkit/database": ["@buzzkit/database@workspace:packages/database"],
 

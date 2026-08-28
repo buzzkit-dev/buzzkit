@@ -2,7 +2,7 @@ import type { IconName } from '@buzzkit/ui/components/icon';
 
 type Data = Record<string, unknown>;
 
-export type EventDescription = { label: string; icon: IconName; detail: string | null };
+type EventDescription = { label: string; icon: IconName; detail: string | null };
 
 type Definition = {
   label: string;
@@ -216,17 +216,4 @@ export function describeEvent(event: Described): EventDescription {
   if (!definition) return { label: event.event, icon: 'IconBellFilled', detail: null };
   const data = (event.data && typeof event.data === 'object' ? event.data : {}) as Data;
   return { label: definition.label, icon: definition.icon, detail: null, ...definition.describe?.(data) };
-}
-
-export function actorLabel(event: Described): string {
-  switch (event.actorType) {
-    case 'key':
-      return `via ${event.actorDisplay}`;
-    case 'member':
-      return `by ${event.actorDisplay}`;
-    case 'user':
-      return 'by the subscriber';
-    default:
-      return 'by BuzzKit';
-  }
 }

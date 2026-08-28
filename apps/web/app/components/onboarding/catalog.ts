@@ -1,9 +1,9 @@
 import type { IconName } from '@buzzkit/ui/components/icon';
 import { data } from 'react-router';
 
-export type ChannelId = 'push' | 'email' | 'sms' | 'web-push';
+type ChannelId = 'push' | 'email' | 'sms' | 'web-push';
 export type ProviderId = 'apns' | 'fcm' | 'resend';
-export type UpcomingProviderId = 'postmark' | 'sendgrid';
+type UpcomingProviderId = 'postmark' | 'sendgrid';
 
 export type ProviderEntry = {
   id: ProviderId | UpcomingProviderId;
@@ -114,10 +114,6 @@ export function findChannel(id: string): ChannelEntry | undefined {
 export function findProvider(channelId: string, providerId: string): AvailableProvider | undefined {
   const provider = findChannel(channelId)?.providers.find((entry) => entry.id === providerId);
   return provider?.available ? (provider as AvailableProvider) : undefined;
-}
-
-export function channelOfProvider(providerId: string): ChannelEntry | undefined {
-  return CHANNELS.find((channel) => channel.providers.some((provider) => provider.id === providerId));
 }
 
 export function resolveOnboardingPath(splat: string | undefined) {

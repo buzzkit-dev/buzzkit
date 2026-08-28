@@ -1,4 +1,5 @@
 import { createVersionedClient, type VersionedApiClient } from '@buzzkit/eden';
+import type { Expression } from 'buzzkit/expressions';
 import { signedOutRedirect } from '@/app/lib/session.server';
 
 export type RequestContext = { request: Request; env: Env };
@@ -288,7 +289,7 @@ export function revokeKey(ctx: RequestContext, token: string, workspaceSlug: str
   return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys({ id }).delete());
 }
 
-export type WebhookInput = {
+type WebhookInput = {
   url: string;
   description?: string;
   events?: string[];
@@ -409,21 +410,6 @@ export function getSubscriber(
   return unwrap(
     ctx,
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).subscribers({ externalId }).get()
-  );
-}
-
-export function deleteSubscriber(
-  ctx: RequestContext,
-  token: string,
-  workspaceSlug: string,
-  tenantSlug: string,
-  externalId: string
-) {
-  return unwrap(
-    ctx,
-    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
-      .subscribers({ externalId })
-      .delete()
   );
 }
 
@@ -764,6 +750,7 @@ export function listDeliveryAttempts(
 export type MessageInput = {
   to?: string[];
   topic?: string;
+  segment?: string;
   channel?: 'push' | 'email';
   title?: string;
   body?: string;
@@ -783,13 +770,98 @@ export function sendMessage(
   );
 }
 
+type SegmentInput = {
+  slug: string;
+  name: string;
+  description?: string;
+  expression: Expression;
+};
+
+export function listSegments(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).segments.get()
+  ).then((page) => page.items);
+}
+
+export function getSegment(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  segmentSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).segments({ segmentSlug }).get()
+  );
+}
+
+export function createSegment(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  input: SegmentInput
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).segments.post(input)
+  );
+}
+
+export function updateSegment(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  segmentSlug: string,
+  patch: { name?: string; description?: string | null; expression?: Expression }
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .segments({ segmentSlug })
+      .patch(patch)
+  );
+}
+
+export function deleteSegment(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  segmentSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .segments({ segmentSlug })
+      .delete()
+  );
+}
+
+export function previewSegment(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  expression: Expression
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).segments.preview.post({
+      expression,
+    })
+  );
+}
+
 export type Workspace = Awaited<ReturnType<typeof getWorkspace>>;
 export type Profile = Awaited<ReturnType<typeof getProfile>>;
 export type Member = Awaited<ReturnType<typeof listMembers>>[number];
 export type Invite = Awaited<ReturnType<typeof listInvites>>[number];
-export type InvitePreview = Awaited<ReturnType<typeof getInvitePreview>>;
 export type Subscriber = Awaited<ReturnType<typeof listSubscribers>>['items'][number];
-export type SubscriberDetail = Awaited<ReturnType<typeof getSubscriber>>;
+type SubscriberDetail = Awaited<ReturnType<typeof getSubscriber>>;
 export type Subscription = SubscriberDetail['subscriptions'][number];
 export type Topic = Awaited<ReturnType<typeof listTopics>>['items'][number];
 export type SubscriberPreference = Awaited<ReturnType<typeof getSubscriberPreferences>>[number];
@@ -798,6 +870,9 @@ export type TimelineEvent = Awaited<ReturnType<typeof listSubscriberTimeline>>['
 export type AuditEvent = Awaited<ReturnType<typeof listAuditEvents>>['items'][number];
 export type StreamEvent = Awaited<ReturnType<typeof listEvents>>['items'][number];
 export type EventName = Awaited<ReturnType<typeof listEventNames>>[number];
+export type Segment = Awaited<ReturnType<typeof listSegments>>[number];
+export type SegmentPreview = Awaited<ReturnType<typeof previewSegment>>;
+export type SegmentMember = SegmentPreview['sample'][number];
 export type EventNameDetail = Awaited<ReturnType<typeof getEventName>>;
 export type EventVolume = Awaited<ReturnType<typeof getEventVolume>>;
 export type EventsToken = Awaited<ReturnType<typeof getEventsToken>>;
@@ -810,8 +885,6 @@ export type WebhookDetail = Awaited<ReturnType<typeof getWebhook>>;
 export type WebhookCatalog = Awaited<ReturnType<typeof getWebhookCatalog>>;
 export type WebhookDelivery = Awaited<ReturnType<typeof listWebhookDeliveries>>['items'][number];
 export type WebhookDeliveryDetail = Awaited<ReturnType<typeof getWebhookDelivery>>;
-export type CreatedKey = Awaited<ReturnType<typeof createKey>>;
 export type Message = Awaited<ReturnType<typeof listMessages>>['items'][number];
-export type MessageDetail = Awaited<ReturnType<typeof getMessage>>;
 export type MessageDelivery = Awaited<ReturnType<typeof listMessageDeliveries>>['items'][number];
 export type DeliveryAttempt = Awaited<ReturnType<typeof listDeliveryAttempts>>[number];

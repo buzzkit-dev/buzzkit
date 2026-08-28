@@ -65,20 +65,14 @@ export function AuthForm({
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const busy = submitting || redirecting;
   const [errors, setErrors] = useState<FormErrors | undefined>();
+
+  const busy = submitting || redirecting;
   const nameError = errors?.fields?.name;
   const emailError = errors?.fields?.email;
   const passwordError = errors?.fields?.password;
 
   useFocusFirstError(errors);
-
-  useEffect(() => {
-    setErrors(undefined);
-    setSubmitting(false);
-    setRedirecting(false);
-    if (error === 'github') toast.error('GitHub sign-in did not complete', { description: 'Try again.' });
-  }, [error]);
 
   const submit = async (form: FormData) => {
     const name = String(form.get('name') ?? '').trim();
@@ -113,6 +107,13 @@ export function AuthForm({
       errorCallbackURL: new URL(`/${mode}?error=github`, window.location.origin).toString(),
     });
   };
+
+  useEffect(() => {
+    setErrors(undefined);
+    setSubmitting(false);
+    setRedirecting(false);
+    if (error === 'github') toast.error('GitHub sign-in did not complete', { description: 'Try again.' });
+  }, [error]);
 
   return (
     <CardContent className='gap-4 pt-1'>

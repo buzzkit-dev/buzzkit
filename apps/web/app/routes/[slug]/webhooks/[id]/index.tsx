@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
 } from '@buzzkit/ui/components/alert-dialog';
 import { Button } from '@buzzkit/ui/components/button';
-import { Card, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import { Card, CardAction, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import {
@@ -66,10 +66,6 @@ import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
-type Filter = 'all' | NonNullable<WebhookDeliveryQuery['status']>;
-
-type Attempt = WebhookDeliveryDetail['attempts'][number];
-
 const LIVE_POLL_MS = 3_000;
 
 const LIVE_POLL_MAX_MS = 60_000;
@@ -81,6 +77,10 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'exhausted', label: 'Failed' },
   { value: 'pending', label: 'Pending' },
 ];
+
+type Filter = 'all' | NonNullable<WebhookDeliveryQuery['status']>;
+
+type Attempt = WebhookDeliveryDetail['attempts'][number];
 
 export function meta({ loaderData }: Route.MetaArgs) {
   return [{ title: loaderData ? `${loaderData.endpoint.url} · BuzzKit` : 'Webhook · BuzzKit' }];
@@ -121,6 +121,46 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 }
 
 export const action = webhooksAction;
+
+function formatBody(body: string): string {
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return body.trimStart().startsWith('{') || body.trimStart().startsWith('[') ? indentJson(body) : body;
+  }
+}
+
+function indentJson(source: string): string {
+  let output = '';
+  let depth = 0;
+  let inString = false;
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index]!;
+    if (inString) {
+      output += character;
+      if (character === '\\') output += source[++index] ?? '';
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      output += character;
+    } else if (character === '{' || character === '[') {
+      depth += 1;
+      output += `${character}\n${'  '.repeat(depth)}`;
+    } else if (character === '}' || character === ']') {
+      depth = Math.max(0, depth - 1);
+      output += `\n${'  '.repeat(depth)}${character}`;
+    } else if (character === ',') {
+      output += `,\n${'  '.repeat(depth)}`;
+    } else if (character === ':') {
+      output += ': ';
+    } else if (character !== ' ' && character !== '\n') {
+      output += character;
+    }
+  }
+  return output;
+}
 
 function SubHead({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
@@ -167,46 +207,6 @@ function AttemptRow({
       </TableCell>
     </TableRow>
   );
-}
-
-function formatBody(body: string): string {
-  try {
-    return JSON.stringify(JSON.parse(body), null, 2);
-  } catch {
-    return body.trimStart().startsWith('{') || body.trimStart().startsWith('[') ? indentJson(body) : body;
-  }
-}
-
-function indentJson(source: string): string {
-  let output = '';
-  let depth = 0;
-  let inString = false;
-  for (let index = 0; index < source.length; index++) {
-    const character = source[index]!;
-    if (inString) {
-      output += character;
-      if (character === '\\') output += source[++index] ?? '';
-      else if (character === '"') inString = false;
-      continue;
-    }
-    if (character === '"') {
-      inString = true;
-      output += character;
-    } else if (character === '{' || character === '[') {
-      depth += 1;
-      output += `${character}\n${'  '.repeat(depth)}`;
-    } else if (character === '}' || character === ']') {
-      depth = Math.max(0, depth - 1);
-      output += `\n${'  '.repeat(depth)}${character}`;
-    } else if (character === ',') {
-      output += `,\n${'  '.repeat(depth)}`;
-    } else if (character === ':') {
-      output += ': ';
-    } else if (character !== ' ' && character !== '\n') {
-      output += character;
-    }
-  }
-  return output;
 }
 
 function AttemptLedger({
@@ -350,6 +350,7 @@ function EditForm({
   tenants: { id: string; name: string; slug: string; isDefault: boolean }[];
   onClose: () => void;
 }) {
+  const { submit, pending } = useActionFetcher(() => onClose());
   const form = useEndpointForm(
     {
       url: endpoint.url,
@@ -359,7 +360,6 @@ function EditForm({
     },
     catalog
   );
-  const { submit, pending } = useActionFetcher(() => onClose());
 
   return (
     <>
@@ -391,10 +391,18 @@ function EditForm({
 
 export default function WebhookRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
-  const { endpoint, deliveries, tenants, catalog, filter, expanded } = loaderData;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const [searchParams] = useSearchParams();
+  const { submit, pending } = useActionFetcher((data) => {
+    setRotateOpen(false);
+    if (data.deleted) navigate(base);
+  });
+  const { submit: replay, pending: replaying } = useActionFetcher();
+  const { endpoint, deliveries, tenants, catalog, filter, expanded } = loaderData;
+  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+  const base = `/${params.slug}/webhooks`;
+  const tenantName = tenants.find((entry) => entry.id === endpoint.tenantId)?.name ?? null;
   const [revealed, setRevealed] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [edits, setEdits] = useState(0);
@@ -402,15 +410,21 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
   const [rotateOpen, setRotateOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
+
   useLinkedScroll(mainRef, asideRef);
-  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
-  const base = `/${params.slug}/webhooks`;
-  const { submit, pending } = useActionFetcher((data) => {
-    setRotateOpen(false);
-    if (data.deleted) navigate(base);
-  });
-  const { submit: replay, pending: replaying } = useActionFetcher();
-  const tenantName = tenants.find((entry) => entry.id === endpoint.tenantId)?.name ?? null;
+
+  const withParams = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const key of ['cursor', 'trail']) next.delete(key);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    const query = next.toString();
+    return query ? `?${query}` : '.';
+  };
+  const go = (patch: Record<string, string | null>) =>
+    navigate(withParams(patch), { preventScrollReset: true, replace: true });
 
   useEffect(() => {
     const now = Date.now();
@@ -429,19 +443,6 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
     );
     return () => clearTimeout(timer);
   }, [deliveries.items, revalidator]);
-
-  const withParams = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(searchParams);
-    for (const key of ['cursor', 'trail']) next.delete(key);
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null) next.delete(key);
-      else next.set(key, value);
-    }
-    const query = next.toString();
-    return query ? `?${query}` : '.';
-  };
-  const go = (patch: Record<string, string | null>) =>
-    navigate(withParams(patch), { preventScrollReset: true, replace: true });
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
@@ -508,14 +509,16 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
         >
           <Card className='flex min-h-0 flex-col'>
-            <CardHeader className='flex flex-row items-center justify-between py-3'>
+            <CardHeader className='py-3'>
               <CardTitle>Deliveries</CardTitle>
-              <PillTabs
-                items={FILTERS}
-                value={filter}
-                itemClassName='h-6.5 px-2.5 text-xs'
-                onValueChange={(value) => go({ status: value === 'all' ? null : value, delivery: null })}
-              />
+              <CardAction>
+                <PillTabs
+                  items={FILTERS}
+                  value={filter}
+                  itemClassName='h-6.5 px-2.5 text-xs'
+                  onValueChange={(value) => go({ status: value === 'all' ? null : value, delivery: null })}
+                />
+              </CardAction>
             </CardHeader>
             {deliveries.items.length === 0 ? (
               <EmptyState
@@ -603,11 +606,13 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           </Card>
 
           <Card>
-            <CardHeader className='flex flex-row items-center justify-between py-3'>
+            <CardHeader className='py-3'>
               <CardTitle>Signing secret</CardTitle>
-              <Button variant='ghost' size='xs' onClick={() => setRevealed((current) => !current)}>
-                {revealed ? 'Hide' : 'Reveal'}
-              </Button>
+              <CardAction>
+                <Button variant='ghost' size='xs' onClick={() => setRevealed((current) => !current)}>
+                  {revealed ? 'Hide' : 'Reveal'}
+                </Button>
+              </CardAction>
             </CardHeader>
             <dl className='flex flex-col border-bg-3 border-t'>
               <DetailRow label='Secret' copy={endpoint.secret}>

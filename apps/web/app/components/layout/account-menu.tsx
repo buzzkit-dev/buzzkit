@@ -7,12 +7,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@buzzkit/ui/components/dropdown-menu';
 import { Icon } from '@buzzkit/ui/components/icon';
@@ -22,10 +17,14 @@ import { toast } from '@buzzkit/ui/components/sonner';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { useParams, useSubmit } from 'react-router';
-import { useTheme } from '@/app/components/layout/theme-provider';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import type { Profile } from '@/app/lib/api.server';
 import { initials } from '@/app/lib/utils/format';
+
+function useWorkspaceAction(): string {
+  const { slug } = useParams();
+  return `/${slug}`;
+}
 
 export function AccountMenu({
   profile,
@@ -35,9 +34,8 @@ export function AccountMenu({
   variant?: 'avatar' | 'row';
 }) {
   const submit = useSubmit();
-  const workspaceAction = useWorkspaceAction();
-  const { theme, setTheme } = useTheme();
   const [editOpen, setEditOpen] = useState(false);
+  const workspaceAction = useWorkspaceAction();
 
   return (
     <>
@@ -91,31 +89,6 @@ export function AccountMenu({
             <DropdownMenuItem icon='IconPeopleFilled' onClick={() => setEditOpen(true)}>
               Edit profile
             </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Icon name='IconMoonFilled' />
-                Theme
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup
-                  value={theme}
-                  onValueChange={(value) => setTheme(value as typeof theme)}
-                >
-                  <DropdownMenuRadioItem value='light'>
-                    <Icon name='IconSunFilled' />
-                    Light
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value='dark'>
-                    <Icon name='IconMoonFilled' />
-                    Dark
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value='system'>
-                    <Icon name='IconImacFilled' />
-                    System
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
             <DropdownMenuItem
               icon='IconArrowBoxRight'
               onClick={() => submit({ intent: 'sign-out' }, { method: 'post', action: workspaceAction })}
@@ -139,7 +112,6 @@ function EditProfileDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [name, setName] = useState(profile.name);
   const workspaceAction = useWorkspaceAction();
   const { submit, pending } = useActionFetcher(
     () => {
@@ -148,11 +120,7 @@ function EditProfileDialog({
     },
     { action: workspaceAction }
   );
-
-  useEffect(() => {
-    if (open) setName(profile.name);
-  }, [open, profile.name]);
-
+  const [name, setName] = useState(profile.name);
   const trimmed = name.trim();
   const canSave = trimmed.length > 0 && trimmed !== profile.name && !pending;
 
@@ -160,6 +128,10 @@ function EditProfileDialog({
     if (!canSave) return;
     submit('profile', { name: trimmed });
   };
+
+  useEffect(() => {
+    if (open) setName(profile.name);
+  }, [open, profile.name]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,9 +163,4 @@ function EditProfileDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function useWorkspaceAction(): string {
-  const { slug } = useParams();
-  return `/${slug}`;
 }
