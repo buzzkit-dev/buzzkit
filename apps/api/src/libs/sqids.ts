@@ -25,7 +25,6 @@ export const ID_PREFIXES = {
   audit: 'aud',
   segment: 'seg',
   segmentVersion: 'sgv',
-  campaign: 'cmp',
   workflow: 'wf',
   run: 'run',
   invite: 'inv',

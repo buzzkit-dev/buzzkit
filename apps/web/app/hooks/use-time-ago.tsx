@@ -1,4 +1,10 @@
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipLabel,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@buzzkit/ui/components/tooltip';
 import { useSyncExternalStore } from 'react';
 import { formatDate } from '@/app/lib/utils/format';
 import { timeAgo } from '@/app/lib/utils/time';
@@ -29,14 +35,14 @@ function useTimeAgo(iso: string): string {
   return timeAgo(iso);
 }
 
-function exactTime(iso: string): string {
-  return new Date(iso).toLocaleString('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+function exactTime(iso: string): React.ReactNode {
+  const date = new Date(iso);
+  return (
+    <span className='whitespace-nowrap'>
+      {date.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}{' '}
+      <TooltipLabel>{date.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}</TooltipLabel>
+    </span>
+  );
 }
 
 export const TIME_TOOLTIP_DELAY = 150;

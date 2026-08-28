@@ -366,7 +366,7 @@ export function SegmentEditor({
               ) : (
                 <FieldDescription>
                   {segment
-                    ? 'Messages and campaigns target the segment by this slug.'
+                    ? 'Messages target the segment by this slug.'
                     : "How the API refers to it. Can't be changed once created."}
                 </FieldDescription>
               )}
@@ -499,8 +499,8 @@ export function SegmentEditor({
             <AlertDialogHeader>
               <AlertDialogTitle>Delete {segment.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Messages already sent to it keep their record. Campaigns and workflows that reference it stop
-                matching anyone.
+                Messages already sent to it keep their record. Workflows that reference it stop matching
+                anyone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -96,7 +96,10 @@ async function processFanoutJob(db: Db, item: FanoutItem, summary: Summary): Pro
     },
     async (t) => {
       try {
-        await fanoutPage(db, item.body.messageId, item.body.afterId);
+        await fanoutPage(db, item.body.messageId, item.body.afterId, {
+          zones: item.body.zones,
+          final: item.body.final,
+        });
         summary.fanouts += 1;
         item.ack();
       } catch (error) {

@@ -38,7 +38,7 @@ export const messages = new Elysia()
 
       return Response.success(page.items.map(serializeMessage), {
         entity: 'message',
-        ignoreTransform: ['payload', 'targets'],
+        ignoreTransform: ['payload', 'targets', 'schedule'],
       })
         .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
         .send();
@@ -69,14 +69,15 @@ export const messages = new Elysia()
             topic: message.topic,
             segment: (message.targets as { segment?: string }).segment ?? null,
             recipients: (message.targets as { to?: string[] }).to?.length ?? null,
+            scheduledFor: message.scheduledFor,
           },
         });
-        await enqueueFanout(message.id);
+        if (!message.schedule) await enqueueFanout(message.id);
       }
 
       return Response.success(serializeMessage(message), {
         entity: 'message',
-        ignoreTransform: ['payload', 'targets'],
+        ignoreTransform: ['payload', 'targets', 'schedule'],
       })
         .status(202)
         .headers(created ? {} : { 'idempotent-replayed': 'true' })

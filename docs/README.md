@@ -4,7 +4,7 @@ Product and architecture documentation — the source of truth for what we're bu
 
 - [overview.md](overview.md) — product vision, goals, scope, and design principles
 - [roadmap.md](roadmap.md) — the phased build plan, tenancy model, and pending decisions
-- [engine.md](engine.md) — the engagement engine: events, workflows, segments, campaigns — the stack (subscriber actors on Durable Objects, Cloudflare Workflows, Tinybird) and how it feels (real apps with and without buzzkit); phases E1 Events, E2 Webhooks and E3 Segments built, E4–E8 planned; [webhooks.md](webhooks.md) is the delivery engine
+- [engine.md](engine.md) — the engagement engine: events, workflows, segments, scheduled sends — the stack (subscriber actors on Durable Objects, Cloudflare Workflows, Tinybird) and how it feels (real apps with and without buzzkit); phases E1 Events, E2 Webhooks, E3 Segments and E4 Scheduled messages built, E5–E8 planned; [webhooks.md](webhooks.md) is the delivery engine
 - [architecture.md](architecture.md) — runtime, API layers, APNs egress findings, testing, secrets
 - [configuration.md](configuration.md) — every variable, secret and binding, what it is for, and what a self-hoster actually needs
 - [authentication.md](authentication.md) — credentials, scopes, workspace addressing, isolation invariants

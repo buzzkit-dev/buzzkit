@@ -5,7 +5,13 @@ import { subscriber, subscription } from './subscriber';
 import { tenant } from './tenant';
 import { topic } from './topic';
 
-export const messageStatus = pgEnum('message_status', ['queued', 'processing', 'completed']);
+export const messageStatus = pgEnum('message_status', [
+  'queued',
+  'processing',
+  'completed',
+  'scheduled',
+  'canceled',
+]);
 
 export const deliveryStatus = pgEnum('delivery_status', [
   'pending',
@@ -39,6 +45,10 @@ export const message = pgTable(
     idempotencyKey: text('idempotency_key'),
     idempotencyFingerprint: text('idempotency_fingerprint'),
     status: messageStatus('status').notNull().default('queued'),
+    schedule: jsonb('schedule'),
+    scheduledFor: timestamptz('scheduled_for'),
+    scheduledZones: jsonb('scheduled_zones'),
+    canceledAt: timestamptz('canceled_at'),
     total: integer('total').notNull().default(0),
     sent: integer('sent').notNull().default(0),
     delivered: integer('delivered').notNull().default(0),
@@ -62,6 +72,11 @@ export const message = pgTable(
       .on(table.updatedAt)
       .where(sql`${table.status} in ('queued', 'processing') and ${table.fanoutCompletedAt} is null`),
     index('message_expiry_idx').on(table.expiresAt).where(sql`${table.status} <> 'completed'`),
+    index('message_due_idx')
+      .on(table.scheduledFor)
+      .where(
+        sql`${table.schedule} is not null and ${table.fanoutCompletedAt} is null and ${table.canceledAt} is null`
+      ),
     index('message_unfinalized_idx')
       .on(table.updatedAt)
       .where(sql`${table.status} = 'processing' and ${table.fanoutCompletedAt} is not null`),

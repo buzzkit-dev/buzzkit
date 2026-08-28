@@ -6,7 +6,7 @@ buzzkit — open-source, self-hostable, code-first push notification framework. 
 
 Two layers, one codebase:
 
-1. **The framework (headless core)** — multi-tenant push infrastructure defined entirely in code: workspaces with isolated APNs/FCM credentials, device token lifecycle, sending, and code-defined campaigns/segments/workflows created from code through the `buzzkit` package (in the spirit of SST / Alchemy — bring your own provider credentials, buzzkit is the framework around them).
+1. **The framework (headless core)** — multi-tenant push infrastructure defined entirely in code: workspaces with isolated APNs/FCM credentials, device token lifecycle, sending, scheduled sends, and code-defined segments/workflows created from code through the `buzzkit` package (in the spirit of SST / Alchemy — bring your own provider credentials, buzzkit is the framework around them).
 2. **The platform (`apps/web` + hosted version)** — a full product built *on top of* the framework. The hosted version is just a deployment of the same multi-tenant core; it must never need anything the framework doesn't expose.
 
 **Multi-tenancy is the core primitive, not a feature.** Every design decision must work for both a single self-hoster and the hosted platform running thousands of workspaces.
@@ -27,7 +27,7 @@ packages/tinybird/       → @buzzkit/tinybird       The event log: Tinybird dat
 packages/ui/             → @buzzkit/ui             Design system: shadcn (Base UI style) + Tailwind v4 tokens, Central Icons
 ```
 
-**`buzzkit` is one package, not core + sdk.** The main package IS the framework (like `sst`): channel-agnostic primitives (connectors, workflows, campaigns, segments), the send client, and device token APIs all live in `packages/buzzkit`, organized by subpath exports (`buzzkit/channels`, `buzzkit/workflows`, …) as it grows — never split into separate npm packages for organization's sake. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
+**`buzzkit` is one package, not core + sdk.** The main package IS the framework (like `sst`): channel-agnostic primitives (connectors, workflows, segments), the send client, and device token APIs all live in `packages/buzzkit`, organized by subpath exports (`buzzkit/channels`, `buzzkit/workflows`, …) as it grows — never split into separate npm packages for organization's sake. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
 
 The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side). `bun db:up` starts Postgres (5460) and Tinybird Local (7181); after a fresh Tinybird container, `bun run build` in `packages/tinybird` pushes the event tables and endpoints into it.
 

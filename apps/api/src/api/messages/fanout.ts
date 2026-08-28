@@ -6,15 +6,27 @@ import { trace } from '@buzzkit/api/libs/telemetry';
 import { type ProviderName, PUSH_PROVIDER_BY_PLATFORM } from '@buzzkit/api/providers/index';
 import { and, asc, type Db, eq, gt, inArray, isNull, lt, ne, sql, tables } from '@buzzkit/database';
 import type { Expression } from 'buzzkit/expressions';
-import { FANOUT_PAGE_SIZE } from './constants';
+import { FANOUT_PAGE_SIZE, SUBSCRIBER_TIMEZONE } from './constants';
 import { enqueueDeliveries, enqueueFanout } from './enqueue';
-import type { Message, MessageTargets, TargetPage } from './types';
+import { fallbackTimezone, timezoneScoped } from './schedule';
+import type { Message, MessageSchedule, MessageTargets, TargetPage } from './types';
+
+export type FanoutBatch = { zones?: string[]; final?: boolean };
+
+function zoneCondition(message: Message, zones: string[]) {
+  const attribute = sql`${tables.subscriber.attributes}->>'$timezone'`;
+  const fallback = fallbackTimezone(message.schedule as MessageSchedule);
+  return zones.includes(fallback)
+    ? sql`(${attribute} in ${zones} or ${attribute} is null)`
+    : sql`${attribute} in ${zones}`;
+}
 
 async function resolveTargetPage(
   db: Db,
   message: Message,
   topic: Topic | null,
-  afterId: number
+  afterId: number,
+  zones?: string[]
 ): Promise<TargetPage> {
   const targets = message.targets as MessageTargets;
   const channel = message.channel as Channel;
@@ -32,6 +44,9 @@ async function resolveTargetPage(
 
   if (targets.to) {
     conditions.push(inArray(tables.subscriber.externalId, targets.to));
+  }
+  if (zones) {
+    conditions.push(zoneCondition(message, zones));
   }
 
   let query = db
@@ -72,14 +87,18 @@ async function resolveSegmentPage(
   db: Db,
   message: Message,
   topic: Topic | null,
-  afterSubscriberId: number
+  afterSubscriberId: number,
+  zones?: string[]
 ): Promise<TargetPage> {
   const targets = message.targets as MessageTargets;
   const version = targets.segmentVersionId
     ? await findSegmentVersionById(db, targets.segmentVersionId)
     : null;
-  const expression = targets.where ?? (version?.expression as Expression | undefined);
-  if (!expression) return { rows: [], cursor: afterSubscriberId, done: true };
+  const audience = targets.where ?? (version?.expression as Expression | undefined);
+  if (!audience) return { rows: [], cursor: afterSubscriberId, done: true };
+  const expression = zones
+    ? timezoneScoped(audience, zones, fallbackTimezone(message.schedule as MessageSchedule))
+    : audience;
   const members = await listSegmentMembers(message.tenantId, expression, {
     afterSubscriberId,
     limit: FANOUT_PAGE_SIZE,
@@ -140,7 +159,7 @@ async function providerHasCredential(db: Db, tenantId: number, provider: Provide
   return row !== undefined;
 }
 
-async function completeFanout(db: Db, messageId: number): Promise<void> {
+export async function completeFanout(db: Db, messageId: number): Promise<void> {
   await db
     .update(tables.message)
     .set({ fanoutCompletedAt: new Date() })
@@ -148,20 +167,49 @@ async function completeFanout(db: Db, messageId: number): Promise<void> {
   await finalizeMessageIfComplete(db, messageId);
 }
 
-export async function fanoutPage(db: Db, messageId: number, afterId: number): Promise<void> {
+async function markZonesDone(db: Db, messageId: number, zones: string[]): Promise<void> {
+  await db
+    .update(tables.message)
+    .set({
+      scheduledZones: sql`(select coalesce(jsonb_agg(distinct zone), '[]'::jsonb) from jsonb_array_elements(coalesce(${tables.message.scheduledZones}, '[]'::jsonb) || ${JSON.stringify(zones)}::jsonb) as zone)`,
+    })
+    .where(eq(tables.message.id, messageId));
+}
+
+async function finishBatch(db: Db, messageId: number, batch: FanoutBatch): Promise<void> {
+  if (!batch.zones) {
+    await completeFanout(db, messageId);
+    return;
+  }
+  await markZonesDone(db, messageId, batch.zones);
+  if (batch.final) await completeFanout(db, messageId);
+}
+
+export async function fanoutPage(
+  db: Db,
+  messageId: number,
+  afterId: number,
+  batch: FanoutBatch = {}
+): Promise<void> {
   return await trace('messages.fanoutPage', async (t) => {
     t.set('message.id', messageId);
     t.set('fanout.afterId', afterId);
-    return fanoutPageInner(db, messageId, afterId);
+    if (batch.zones) t.set('fanout.zones', batch.zones.length);
+    return fanoutPageInner(db, messageId, afterId, batch);
   });
 }
 
-async function fanoutPageInner(db: Db, messageId: number, afterId: number): Promise<void> {
+async function fanoutPageInner(
+  db: Db,
+  messageId: number,
+  afterId: number,
+  batch: FanoutBatch
+): Promise<void> {
   const [message] = await db.select().from(tables.message).where(eq(tables.message.id, messageId));
   if (!message || message.fanoutCompletedAt) return;
-  if (afterId < message.fanoutCursor) return;
+  if (!batch.zones && afterId < message.fanoutCursor) return;
 
-  if (message.status === 'queued') {
+  if (message.status === 'queued' || message.status === 'scheduled') {
     await db.update(tables.message).set({ status: 'processing' }).where(eq(tables.message.id, message.id));
   }
 
@@ -189,11 +237,11 @@ async function fanoutPageInner(db: Db, messageId: number, afterId: number): Prom
 
   const page =
     targets.segment || targets.where
-      ? await resolveSegmentPage(db, message, topic, afterId)
-      : await resolveTargetPage(db, message, topic, afterId);
+      ? await resolveSegmentPage(db, message, topic, afterId, batch.zones)
+      : await resolveTargetPage(db, message, topic, afterId, batch.zones);
 
   if (page.rows.length === 0 && page.done) {
-    await completeFanout(db, message.id);
+    await finishBatch(db, message.id, batch);
     return;
   }
 
@@ -238,7 +286,7 @@ async function fanoutPageInner(db: Db, messageId: number, afterId: number): Prom
     .set({
       total: sql`${tables.message.total} + ${inserted.length}`,
       failed: sql`${tables.message.failed} + ${failed}`,
-      fanoutCursor: lastId,
+      ...(batch.zones ? {} : { fanoutCursor: lastId }),
     })
     .where(eq(tables.message.id, message.id));
 
@@ -249,11 +297,11 @@ async function fanoutPageInner(db: Db, messageId: number, afterId: number): Prom
   );
 
   if (page.done) {
-    await completeFanout(db, message.id);
+    await finishBatch(db, message.id, batch);
     return;
   }
 
-  await enqueueFanout(message.id, lastId);
+  await enqueueFanout(message.id, lastId, batch);
 }
 
 export async function listStalledFanouts(
@@ -268,6 +316,7 @@ export async function listStalledFanouts(
       and(
         inArray(tables.message.status, ['queued', 'processing']),
         isNull(tables.message.fanoutCompletedAt),
+        sql`(${tables.message.schedule} is null or ${tables.message.schedule}->>'timezone' <> ${SUBSCRIBER_TIMEZONE})`,
         lt(tables.message.updatedAt, cutoff)
       )
     )

@@ -26,7 +26,13 @@ import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipLabel,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useRef } from 'react';
 import { Link } from 'react-router';
@@ -77,7 +83,7 @@ type AttributeRow = {
   flag?: string;
   mono?: boolean;
   href?: string;
-  tooltip?: string;
+  tooltip?: React.ReactNode;
 };
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -146,7 +152,16 @@ function detectRow(key: string, value: unknown): AttributeRow {
         new Date()
       );
     } catch {}
-    return { ...base, icon: 'IconClock', display: text, tooltip: now ? `Local time · ${now}` : undefined };
+    return {
+      ...base,
+      icon: 'IconClock',
+      display: text,
+      tooltip: now ? (
+        <span className='whitespace-nowrap'>
+          <TooltipLabel>Local time</TooltipLabel> {now}
+        </span>
+      ) : undefined,
+    };
   }
 
   if (/^(lang|language|locale)$/i.test(key)) {
@@ -163,13 +178,19 @@ function detectRow(key: string, value: unknown): AttributeRow {
       ...base,
       icon: 'IconCalendar1',
       display: date.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' }),
-      tooltip: date.toLocaleString('en', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        ...(text.length > 10 ? { hour: 'numeric', minute: '2-digit' } : {}),
-      }),
+      tooltip: (
+        <span className='whitespace-nowrap'>
+          {date.toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          {text.length > 10 && (
+            <>
+              {' '}
+              <TooltipLabel>
+                {date.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}
+              </TooltipLabel>
+            </>
+          )}
+        </span>
+      ),
     };
   }
 

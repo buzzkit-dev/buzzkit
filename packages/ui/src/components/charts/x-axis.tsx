@@ -398,7 +398,7 @@ function buildDataAlignedTicks({
   };
 
   const indices = pick
-    ? data.map((point, index) => index).filter((index) => pick(xAccessor(data[index]!), index))
+    ? data.map((_, index) => index).filter((index) => pick(xAccessor(data[index]!), index))
     : selectEvenlySpacedIndices(data.length, targetTickCount, {
         data,
         dateLabels,

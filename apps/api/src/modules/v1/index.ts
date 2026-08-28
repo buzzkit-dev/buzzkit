@@ -8,7 +8,6 @@ import { credentials } from './credentials';
 import { credential } from './credentials/[id]';
 import { credentialValidate } from './credentials/[id]/validate';
 import { delivery } from './deliveries/[id]';
-
 import { deliveryAttempts } from './deliveries/[id]/attempts';
 import { events } from './events';
 import { eventNames } from './events/names';
@@ -20,6 +19,7 @@ import { invitePreview } from './invites/[token]';
 import { inviteAccept } from './invites/[token]/accept';
 import { messages } from './messages';
 import { message } from './messages/[id]';
+import { messageCancel } from './messages/[id]/cancel';
 import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
 import { segments } from './segments';
@@ -242,6 +242,10 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/messages/:id
    */
   .use(message)
+  /*
+   * /v1/messages/:id/cancel
+   */
+  .use(messageCancel)
   /*
    * /v1/messages/:id/deliveries
    */

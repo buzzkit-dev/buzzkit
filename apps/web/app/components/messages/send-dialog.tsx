@@ -1,4 +1,5 @@
 import { Button } from '@buzzkit/ui/components/button';
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem } from '@buzzkit/ui/components/combobox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
@@ -11,6 +12,44 @@ import type { Segment, Topic } from '@/app/lib/api.server';
 import { CHANNEL_OPTIONS, type Channel, channelLabel } from '@/app/lib/channels';
 
 type SendTarget = 'subscriber' | 'topic' | 'segment';
+
+type SendWhen = 'now' | 'later';
+
+const SUBSCRIBER_TIMEZONE = 'subscriber';
+
+const SUBSCRIBER_TIMEZONE_LABEL = "Each subscriber's local time";
+
+const WHEN_OPTIONS: { value: SendWhen; label: string }[] = [
+  { value: 'now', label: 'Immediately' },
+  { value: 'later', label: 'Scheduled' },
+];
+
+function timezoneOptions(): string[] {
+  const supported = (
+    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf?.('timeZone');
+  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return [SUBSCRIBER_TIMEZONE_LABEL, ...new Set([local, 'UTC', ...(supported ?? [])])];
+}
+
+function timezoneValue(label: string): string {
+  return label === SUBSCRIBER_TIMEZONE_LABEL ? SUBSCRIBER_TIMEZONE : label;
+}
+
+function timezoneLabel(value: string): string {
+  return value === SUBSCRIBER_TIMEZONE ? SUBSCRIBER_TIMEZONE_LABEL : value;
+}
+
+function wallClock(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function defaultAt(): string {
+  const next = new Date(Date.now() + 60 * 60_000);
+  next.setMinutes(0, 0, 0);
+  return wallClock(next);
+}
 
 const EXAMPLES: { title: string; body: string }[] = [
   { title: 'Leg day', body: "Let's go." },
@@ -60,13 +99,21 @@ export function SendDialog({
   const [segment, setSegment] = useState(initial?.segment ?? '');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [when, setWhen] = useState<SendWhen>('now');
+  const [at, setAt] = useState(defaultAt);
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [zones] = useState(timezoneOptions);
   const [example, setExample] = useState(EXAMPLES[0]!);
   const channelTopics = topics.filter((entry) => entry.channels.includes(channel));
   const channelName = channelLabel(channel).toLowerCase();
 
   const hasTarget =
     target === 'topic' ? topic.length > 0 : target === 'segment' ? segment.length > 0 : to.trim().length > 0;
-  const canSend = hasTarget && (title.trim().length > 0 || body.trim().length > 0) && !pending;
+  const canSend =
+    hasTarget &&
+    (title.trim().length > 0 || body.trim().length > 0) &&
+    (when === 'now' || at.length > 0) &&
+    !pending;
   const targets = TARGETS.filter(
     (entry) =>
       (entry.value !== 'topic' || channelTopics.length > 0) &&
@@ -82,6 +129,8 @@ export function SendDialog({
     setSegment(initial?.segment ?? '');
     setTitle('');
     setBody('');
+    setWhen('now');
+    setAt(defaultAt());
     setExample(EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]!);
   }, [open, channels[0], initial?.target, initial?.segment]);
 
@@ -217,13 +266,88 @@ export function SendDialog({
               rows={3}
             />
           </Field>
+          <Field>
+            <FieldLabel htmlFor='message-when'>Timing</FieldLabel>
+            <Select items={WHEN_OPTIONS} value={when} onValueChange={(value) => setWhen(value as SendWhen)}>
+              <SelectTrigger id='message-when' className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WHEN_OPTIONS.map((entry) => (
+                  <SelectItem key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {when === 'later' && (
+            <>
+              <Field>
+                <FieldLabel htmlFor='message-at'>Time</FieldLabel>
+                <Input
+                  id='message-at'
+                  type='datetime-local'
+                  min={wallClock(new Date())}
+                  value={at}
+                  onChange={(event) => setAt(event.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='message-timezone'>Timezone</FieldLabel>
+                <Combobox
+                  items={zones}
+                  value={timezoneLabel(timezone)}
+                  onValueChange={(next) => {
+                    if (typeof next === 'string') setTimezone(timezoneValue(next));
+                  }}
+                >
+                  <ComboboxInput
+                    id='message-timezone'
+                    placeholder='Search timezones'
+                    autoComplete='off'
+                    spellCheck={false}
+                  />
+                  <ComboboxContent>
+                    {(label: string) => (
+                      <ComboboxItem key={label} value={label}>
+                        {label}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxContent>
+                </Combobox>
+                <FieldDescription>
+                  {timezone === SUBSCRIBER_TIMEZONE
+                    ? 'The message reaches each subscriber as their own clock hits this time.'
+                    : 'The message goes out when this time is reached in the timezone.'}
+                </FieldDescription>
+              </Field>
+            </>
+          )}
           <Button
             className='w-full'
             disabled={!canSend}
             loading={pending}
-            onClick={() => submit('send', { channel, target, to, topic, segment, title, body })}
+            onClick={() =>
+              submit('send', {
+                channel,
+                target,
+                to,
+                topic,
+                segment,
+                title,
+                body,
+                when,
+                at,
+                timezone,
+              })
+            }
           >
-            {target === 'segment' ? 'Send to segment' : 'Send test message'}
+            {when === 'later'
+              ? 'Schedule message'
+              : target === 'segment'
+                ? 'Send to segment'
+                : 'Send test message'}
           </Button>
         </FieldGroup>
       </DialogContent>

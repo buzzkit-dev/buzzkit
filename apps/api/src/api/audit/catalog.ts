@@ -37,6 +37,7 @@ export const AUDIT_CATALOG = {
 
   'message.created': { webhook: true },
   'message.completed': { webhook: true },
+  'message.canceled': { webhook: true },
 
   'profile.updated': { webhook: false },
 

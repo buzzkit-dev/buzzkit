@@ -2,9 +2,12 @@ import { encodeId } from '@buzzkit/api/libs/sqids';
 import type { Message, MessageTargets } from './types';
 
 function serializeTargets({ segmentVersionId, ...targets }: MessageTargets) {
-  return segmentVersionId === undefined
-    ? targets
-    : { ...targets, segmentVersion: encodeId('segmentVersion', segmentVersionId) };
+  return {
+    ...targets,
+    ...(segmentVersionId === undefined
+      ? {}
+      : { segmentVersion: encodeId('segmentVersion', segmentVersionId) }),
+  };
 }
 
 export function serializeMessage(message: Message) {
@@ -25,6 +28,9 @@ export function serializeMessage(message: Message) {
       invalid: message.invalid,
     },
     idempotencyKey: message.idempotencyKey,
+    schedule: message.schedule,
+    scheduledFor: message.scheduledFor,
+    canceledAt: message.canceledAt,
     expiresAt: message.expiresAt,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,

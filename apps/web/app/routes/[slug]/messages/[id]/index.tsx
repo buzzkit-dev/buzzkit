@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@buzzkit/ui/components/alert-dialog';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardAction, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
@@ -16,7 +26,13 @@ import {
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipLabel,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import type { Expression } from 'buzzkit/expressions';
@@ -32,13 +48,17 @@ import {
 } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
 import { Funnel } from '@/app/components/messages/funnel';
+import { Recipients } from '@/app/components/messages/recipients';
 import { describeTarget } from '@/app/components/messages/target';
 import { Conditions } from '@/app/components/segments/conditions';
+import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
+import { messageAction } from '@/app/lib/actions/messages.server';
 import {
   type DeliveryAttempt,
   getMessage,
+  getSubscriber,
   listDeliveryAttempts,
   listMessageDeliveries,
   type MessageDelivery,
@@ -67,6 +87,10 @@ export function meta({ loaderData }: Route.MetaArgs) {
   return [{ title: loaderData ? `${loaderData.title} · BuzzKit` : 'Message · BuzzKit' }];
 }
 
+const RECIPIENT_TIMEZONE_LOOKUPS = 20;
+
+export const action = messageAction;
+
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
@@ -83,9 +107,27 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     deliveryId ? listDeliveryAttempts(ctx, token, params.slug, tenant, deliveryId) : Promise.resolve(null),
   ]);
   const payload = message.payload as { title?: string; body?: string };
+  const recipients = (message.targets as { to?: string[] }).to ?? [];
+  const schedule = message.schedule as unknown as { timezone: string } | null;
+  const lookups =
+    schedule?.timezone === 'subscriber'
+      ? await Promise.all(
+          recipients
+            .slice(0, RECIPIENT_TIMEZONE_LOOKUPS)
+            .map((externalId) => getSubscriber(ctx, token, params.slug, tenant, externalId).catch(() => null))
+        )
+      : [];
+  const recipientTimezones = [
+    ...new Set(
+      lookups
+        .map((recipient) => (recipient?.attributes as { $timezone?: unknown } | undefined)?.$timezone)
+        .filter((zone): zone is string => typeof zone === 'string')
+    ),
+  ];
 
   return {
     message,
+    recipientTimezones,
     title: payload.title ?? 'Untitled',
     status: (status ?? 'all') as Filter,
     deliveries: paginate(request, deliveries),
@@ -117,12 +159,14 @@ function AttemptRow({
   selectable: boolean;
   onSelect: () => void;
 }) {
-  const reason = [
-    attempt.providerReason,
-    attempt.providerStatus !== null ? `HTTP ${attempt.providerStatus}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const reason =
+    attempt.providerReason || attempt.providerStatus !== null ? (
+      <span>
+        {attempt.providerReason}
+        {attempt.providerReason && attempt.providerStatus !== null && ' '}
+        {attempt.providerStatus !== null && <TooltipLabel>HTTP {attempt.providerStatus}</TooltipLabel>}
+      </span>
+    ) : null;
 
   return (
     <TableRow
@@ -332,14 +376,21 @@ function FunnelRow({
 
 export default function MessageRoute({ loaderData, params }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const { message, status, deliveries, expanded } = loaderData;
+  const { message, status, deliveries, expanded, recipientTimezones } = loaderData;
   const payload = message.payload as unknown as { title?: string; body?: string };
   const counts = message.counts;
   const target = describeTarget(message.targets);
   const inline = (message.targets as { where?: Expression }).where ?? null;
+  const schedule = message.schedule as unknown as { at: string; timezone: string } | null;
+  const cancelable =
+    message.status === 'scheduled' ||
+    (schedule?.timezone === 'subscriber' && message.status === 'processing' && !message.canceledAt);
   const [filter, setFilter] = useState<Filter>(status);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
+
+  const { submit: submitCancel, pending: canceling } = useActionFetcher(() => setCancelOpen(false));
 
   useLinkedScroll(mainRef, asideRef);
 
@@ -379,8 +430,15 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader className='gap-0 py-3'>
               <CardTitle>Overview</CardTitle>
+              {cancelable && (
+                <CardAction className='-my-1.5 self-center'>
+                  <Button variant='soft' size='xs' onClick={() => setCancelOpen(true)}>
+                    Cancel message
+                  </Button>
+                </CardAction>
+              )}
             </CardHeader>
             <dl className='flex flex-col border-bg-3 border-t'>
               <DetailRow label='Title' copy={payload.title}>
@@ -399,21 +457,48 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                   <Conditions expression={inline} limit={1} />
                 </DetailRow>
               ) : (
-                <DetailRow label='Sent to' copy={target.text}>
-                  <Icon name={target.icon} className='mt-px size-4 shrink-0 text-fg-2' />
-                  <Truncate>{target.text}</Truncate>
+                <DetailRow label='Sent to' copy={target.full}>
+                  <Recipients list={target.list}>
+                    <span className='flex min-w-0 items-center gap-2'>
+                      <Icon name={target.icon} className='mt-px size-4 shrink-0 text-fg-2' />
+                      <Truncate>{target.text}</Truncate>
+                    </span>
+                  </Recipients>
                 </DetailRow>
               )}
               <DetailRow label='Status'>
                 <MessageStatusBadge status={message.status} />
               </DetailRow>
-              <DetailRow label='Sent'>
+              {schedule && message.scheduledFor && (
+                <DetailRow label='Scheduled' copy={schedule.at}>
+                  <Truncate>
+                    {schedule.at.replace('T', ' ')}{' '}
+                    <span className='text-fg-2'>
+                      {schedule.timezone === 'subscriber'
+                        ? `Local time${
+                            recipientTimezones.length === 1
+                              ? ` (${recipientTimezones[0]})`
+                              : recipientTimezones.length > 1
+                                ? ` (${recipientTimezones.length} time zones)`
+                                : ''
+                          }`
+                        : schedule.timezone.replace(/_/g, ' ')}
+                    </span>
+                  </Truncate>
+                </DetailRow>
+              )}
+              <DetailRow label={schedule ? 'Created' : 'Sent'}>
                 <Time at={message.createdAt} />
               </DetailRow>
+              {message.canceledAt && (
+                <DetailRow label='Canceled'>
+                  <Time at={message.canceledAt} />
+                </DetailRow>
+              )}
               <DetailRow label='Expires'>
                 <Time at={message.expiresAt} />
               </DetailRow>
-              {message.completedAt && (
+              {message.completedAt && message.status === 'completed' && (
                 <DetailRow label='Completed'>
                   <Time at={message.completedAt} />
                 </DetailRow>
@@ -446,18 +531,26 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                 size='sm'
                 icon='IconPaperPlaneTopRightFilled'
                 title={
-                  message.status === 'queued'
-                    ? 'Working out who is reachable'
-                    : status === 'all'
-                      ? 'No deliveries'
-                      : `No ${status} deliveries`
+                  message.status === 'scheduled'
+                    ? 'Not sent yet'
+                    : message.status === 'canceled'
+                      ? 'Canceled before sending'
+                      : message.status === 'queued'
+                        ? 'Working out who is reachable'
+                        : status === 'all'
+                          ? 'No deliveries'
+                          : `No ${status} deliveries`
                 }
                 description={
-                  message.status === 'queued'
-                    ? 'Deliveries appear here as the message fans out. Reload to see them.'
-                    : status === 'all'
-                      ? 'No subscriber was reachable on this channel when the message was sent.'
-                      : 'No delivery of this message has that status.'
+                  message.status === 'scheduled'
+                    ? 'Deliveries appear here once the message goes out.'
+                    : message.status === 'canceled'
+                      ? 'Nothing went out to anyone.'
+                      : message.status === 'queued'
+                        ? 'Deliveries appear here as the message fans out. Reload to see them.'
+                        : status === 'all'
+                          ? 'No subscriber was reachable on this channel when the message was sent.'
+                          : 'No delivery of this message has that status.'
                 }
               />
             ) : (
@@ -500,7 +593,12 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
             <CardHeader className='py-3'>
               <CardTitle>Delivery</CardTitle>
               <CardAction>
-                <Funnel counts={counts} status={message.status} className='w-24' />
+                <Funnel
+                  schedule={message.schedule}
+                  counts={counts}
+                  status={message.status}
+                  className='w-24'
+                />
               </CardAction>
             </CardHeader>
             <dl className='flex flex-col border-bg-3 border-t'>
@@ -523,6 +621,28 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           </Card>
         </div>
       </div>
+
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel “{payload.title ?? 'Untitled'}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delivery of this message stops.
+              <span className='block'>Deliveries already made stay as they are.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep</AlertDialogCancel>
+            <AlertDialogAction
+              variant='destructive'
+              disabled={canceling}
+              onClick={() => submitCancel('cancel', {})}
+            >
+              Cancel message
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

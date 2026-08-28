@@ -213,7 +213,7 @@ The framework's public face. This is where "feels like a framework, not a platfo
 
 ## Phases 8–9 — The engine (events, webhooks, segments, campaigns, workflows, iOS SDK, code)
 
-Superseded by [engine.md](engine.md), which carries the design and the phase table **E1 Events → E2 Webhooks → E3 Segments → E4 Campaigns → E5/E6 Workflows → E7 iOS SDK + local delivery → E8 Code (builders, `buzzkit push`)**. What changed from the original Phases 8–9: the stored, versioned spec is the source of truth and the API is the way in (the CLI is diff + apply on top, last); product events are a stream through a per-subscriber Durable Object actor into Tinybird, not rows in Postgres; runs execute on Cloudflare Workflows; segments compile to ClickHouse SQL; campaigns are scheduled sends to a segment; webhooks move up from Phase 10 to E2.
+Superseded by [engine.md](engine.md), which carries the design and the phase table **E1 Events → E2 Webhooks → E3 Segments → E4 Scheduled messages → E5/E6 Workflows → E7 iOS SDK + local delivery → E8 Code (builders, `buzzkit push`)**. What changed from the original Phases 8–9: the stored, versioned spec is the source of truth and the API is the way in (the CLI is diff + apply on top, last); product events are a stream through a per-subscriber Durable Object actor into Tinybird, not rows in Postgres; runs execute on Cloudflare Workflows; segments compile to ClickHouse SQL; campaigns are scheduled sends to a segment; webhooks move up from Phase 10 to E2.
 
 ---
 

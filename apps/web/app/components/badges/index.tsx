@@ -62,9 +62,11 @@ const DELIVERY_STATUSES: Record<string, Entry> = {
 };
 
 const MESSAGE_STATUSES: Record<string, Entry> = {
+  scheduled: { label: 'Scheduled', tone: 'sky' },
   queued: { label: 'Queued', tone: 'amber' },
   processing: { label: 'Sending', tone: 'purple' },
   completed: { label: 'Completed', tone: 'green' },
+  canceled: { label: 'Canceled', tone: 'default' },
 };
 
 export function MessageStatusBadge({ status }: { status: string }) {

@@ -3,7 +3,7 @@ import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { queryTinybird } from '@buzzkit/api/libs/tinybird';
 import { stableStringify } from '@buzzkit/api/utils/json';
-import { and, type Db, desc, eq, isNull, sql, tables } from '@buzzkit/database';
+import { and, type Db, eq, isNull, tables } from '@buzzkit/database';
 import type { Expression } from 'buzzkit/expressions';
 import { type CompiledSegment, compileSegment, countQuery, memberQuery } from './compile';
 import { SEGMENT_MEMBERS_PAGE, SEGMENT_RESERVED_SLUGS } from './constants';

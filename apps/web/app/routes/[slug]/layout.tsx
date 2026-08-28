@@ -28,7 +28,6 @@ import type { Route } from './+types/layout';
 
 const TENANT_PAGES = [
   '',
-  '/campaigns',
   '/workflows',
   '/subscribers',
   '/segments',

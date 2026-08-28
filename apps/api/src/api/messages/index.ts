@@ -24,12 +24,16 @@ import {
   tables,
 } from '@buzzkit/database';
 import type { Expression } from 'buzzkit/expressions';
-import { DEFAULT_TTL_SECONDS, MAX_PAYLOAD_BYTES } from './constants';
-import type { Message, MessageFilters, MessageTargets } from './types';
+import { DEFAULT_TTL_SECONDS, DUE_MESSAGES_LIMIT, MAX_PAYLOAD_BYTES } from './constants';
+import { enqueueFanout } from './enqueue';
+import { completeFanout } from './fanout';
+import { dueZones, firstInstant, followsSubscriber, lastInstant, resolveSchedule } from './schedule';
+import type { Message, MessageFilters, MessageSchedule, MessageTargets } from './types';
 
 export * from './constants';
 export * from './enqueue';
 export * from './fanout';
+export * from './schedule';
 export * from './schemas';
 export * from './send';
 export { serializeMessage } from './serialize';
@@ -125,6 +129,7 @@ function payloadFromInput(input: Record<string, unknown>): MessagePayload {
     ttlSeconds: _ttl,
     segment: _segment,
     where: _where,
+    schedule: _schedule,
     ...payload
   } = input;
   return payload as MessagePayload;
@@ -140,9 +145,11 @@ export async function createMessage(
     where?: Expression;
     channel?: Channel;
     ttlSeconds?: number;
+    schedule?: { at: string; timezone?: string; defaultTimezone?: string };
     idempotencyKey?: string;
   } & MessagePayload
 ): Promise<{ message: Message; created: boolean }> {
+  const now = new Date();
   const channel: Channel = input.channel ?? 'push';
   if (!CHANNELS.includes(channel)) {
     throw new BadRequestError(`Unknown channel '${channel}'`, { code: 'channel_unknown', param: 'channel' });
@@ -202,6 +209,7 @@ export async function createMessage(
     ...(segment ? { segment: segment.slug, segmentVersionId: segment.version.id } : {}),
     ...(input.where ? { where: input.where } : {}),
   };
+  const schedule = input.schedule ? resolveSchedule(input.schedule, now) : null;
   const payload = payloadFromInput(input as Record<string, unknown>);
   assertJsonSize(payload, MAX_PAYLOAD_BYTES, 'payload must serialize to 8KB or less', {
     code: 'payload_too_large',
@@ -209,7 +217,13 @@ export async function createMessage(
   });
   const fingerprint = input.idempotencyKey
     ? await sha256Hex(
-        stableStringify({ targets, channel, ttlSeconds: input.ttlSeconds ?? DEFAULT_TTL_SECONDS, payload })
+        stableStringify({
+          targets,
+          channel,
+          ttlSeconds: input.ttlSeconds ?? DEFAULT_TTL_SECONDS,
+          payload,
+          schedule,
+        })
       )
     : null;
   const ttlSeconds = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
@@ -228,7 +242,17 @@ export async function createMessage(
           payload,
           idempotencyKey: input.idempotencyKey ?? null,
           idempotencyFingerprint: fingerprint,
-          expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+          ...(schedule
+            ? {
+                status: 'scheduled' as const,
+                schedule,
+                scheduledFor: firstInstant(schedule),
+                scheduledZones: followsSubscriber(schedule) ? [] : null,
+              }
+            : {}),
+          expiresAt: new Date(
+            (schedule ? lastInstant(schedule).getTime() : now.getTime()) + ttlSeconds * 1000
+          ),
         })
         .onConflictDoNothing({
           target: [tables.message.tenantId, tables.message.idempotencyKey],
@@ -269,4 +293,86 @@ export async function createMessage(
   }
 
   return { message: existing, created: false };
+}
+
+export async function cancelMessage(db: Db, tenantId: number, messageSqid: string): Promise<Message> {
+  const message = await findMessage(db, tenantId, messageSqid);
+  const now = new Date();
+  if (message.status === 'scheduled') {
+    const [canceled] = await db
+      .update(tables.message)
+      .set({ status: 'canceled', canceledAt: now, completedAt: now, fanoutCompletedAt: now })
+      .where(and(eq(tables.message.id, message.id), eq(tables.message.status, 'scheduled')))
+      .returning();
+    if (canceled) return canceled;
+  }
+  const pendingZones =
+    message.schedule !== null &&
+    followsSubscriber(message.schedule as MessageSchedule) &&
+    message.fanoutCompletedAt === null &&
+    message.canceledAt === null;
+  if (pendingZones) {
+    await db.update(tables.message).set({ canceledAt: now }).where(eq(tables.message.id, message.id));
+    await completeFanout(db, message.id);
+    return await findMessage(db, tenantId, messageSqid);
+  }
+  throw new BadRequestError('Only a scheduled message that has not been sent yet can be canceled', {
+    code: 'message_not_cancelable',
+    param: 'id',
+  });
+}
+
+export async function listDueMessages(db: Db, now: Date, limit: number): Promise<Message[]> {
+  return await db
+    .select()
+    .from(tables.message)
+    .where(
+      and(
+        sql`${tables.message.schedule} is not null`,
+        isNull(tables.message.fanoutCompletedAt),
+        isNull(tables.message.canceledAt),
+        isNull(tables.message.deletedAt),
+        lte(tables.message.scheduledFor, now)
+      )
+    )
+    .orderBy(tables.message.scheduledFor)
+    .limit(limit);
+}
+
+export async function releaseDueMessages(
+  db: Db,
+  now = new Date()
+): Promise<{ released: number; batches: number }> {
+  const due = await listDueMessages(db, now, DUE_MESSAGES_LIMIT);
+  let released = 0;
+  let batches = 0;
+  for (const message of due) {
+    const schedule = message.schedule as MessageSchedule;
+    if (!followsSubscriber(schedule)) {
+      if (message.status !== 'scheduled') continue;
+      await db
+        .update(tables.message)
+        .set({ status: 'queued' })
+        .where(and(eq(tables.message.id, message.id), eq(tables.message.status, 'scheduled')));
+      await enqueueFanout(message.id);
+      released += 1;
+      continue;
+    }
+    const zones = dueZones(schedule, now, (message.scheduledZones as string[] | null) ?? []);
+    const final = lastInstant(schedule).getTime() <= now.getTime();
+    if (zones.length > 0) {
+      if (message.status === 'scheduled') {
+        await db
+          .update(tables.message)
+          .set({ status: 'processing' })
+          .where(and(eq(tables.message.id, message.id), eq(tables.message.status, 'scheduled')));
+        released += 1;
+      }
+      await enqueueFanout(message.id, 0, { zones, final });
+      batches += 1;
+    } else if (final) {
+      await completeFanout(db, message.id);
+    }
+  }
+  return { released, batches };
 }

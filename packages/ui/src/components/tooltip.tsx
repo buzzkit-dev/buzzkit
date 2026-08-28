@@ -2,6 +2,7 @@
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import { cn } from '@buzzkit/ui/lib/utils';
+import type * as React from 'react';
 
 function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot='tooltip-provider' delay={delay} {...props} />;
@@ -50,4 +51,8 @@ function TooltipContent({
   );
 }
 
-export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };
+function TooltipLabel({ className, ...props }: React.ComponentProps<'span'>) {
+  return <span data-slot='tooltip-label' className={cn('text-fg-1', className)} {...props} />;
+}
+
+export { Tooltip, TooltipContent, TooltipLabel, TooltipProvider, TooltipTrigger };

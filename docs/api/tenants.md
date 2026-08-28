@@ -47,7 +47,7 @@ The tenant object never carries the identity secret. It lives behind two **sessi
 - `POST /v1/tenants/:tenantSlug/identity-secret/rotate` → new secret; every hash minted with the old one stops verifying immediately. Recorded as `tenant.identity_secret_rotated`.
 - `channels.<channel>.enabled` — per-tenant channel kill-switch ("pause all email without deleting the Resend key"); enforced at send time from Phase 4.
 
-Settings are deliberately **small tenant configuration only**. Routing logic (segment→provider, geo rules, traffic splits) is NOT settings — it ships later as code-defined routing rules (Phase 8 specs, like campaigns/segments).
+Settings are deliberately **small tenant configuration only**. Routing logic (segment→provider, geo rules, traffic splits) is NOT settings — it ships later as code-defined routing rules (Phase 8 specs, like segments/workflows).
 
 ## DELETE /v1/tenants/:tenantSlug
 

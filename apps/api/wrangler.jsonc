@@ -98,6 +98,6 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SubscriberActor"] }],
 
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["* * * * *", "*/5 * * * *"]
   }
 }

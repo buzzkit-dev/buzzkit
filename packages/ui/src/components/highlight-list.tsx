@@ -45,9 +45,24 @@ function useAnimatedIndicator<T extends HTMLElement>(
       indicator.style.transform = `${translate} scale(var(--hl-press-scale, 1))`;
     };
 
+    const park = () => {
+      activeEl?.removeAttribute('data-indicator-here');
+      activeEl = null;
+      hasAppeared = false;
+      translate = '';
+      indicator.style.transition = 'none';
+      indicator.style.opacity = '0';
+      indicator.style.transform = '';
+      indicator.style.width = '0px';
+      indicator.style.height = '0px';
+    };
+
     const update = () => {
       const el = root.querySelector<HTMLElement>(selector);
-      if (!el) return;
+      if (!el) {
+        if (activeEl && !activeEl.isConnected) park();
+        return;
+      }
 
       if (el !== activeEl) {
         activeEl?.removeAttribute('data-indicator-here');
@@ -96,7 +111,12 @@ function useAnimatedIndicator<T extends HTMLElement>(
 
     update();
     const observer = new MutationObserver(update);
-    observer.observe(root, { subtree: true, attributes: true, attributeFilter: [attribute] });
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: [attribute],
+    });
     // The popup can resize after mount (anchor-width applied late, filtered
     // content, …) — re-measure so the indicator stays aligned.
     const resizeObserver = new ResizeObserver(update);

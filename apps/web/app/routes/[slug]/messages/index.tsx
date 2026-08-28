@@ -25,10 +25,11 @@ import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge } from '@/app/components/badges';
 import { Funnel } from '@/app/components/messages/funnel';
+import { Recipients } from '@/app/components/messages/recipients';
 import { SendDialog } from '@/app/components/messages/send-dialog';
 import { describeTarget } from '@/app/components/messages/target';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
-import { TimeAgo } from '@/app/hooks/use-time-ago';
+import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
 import {
   listMessages,
@@ -47,9 +48,11 @@ import type { Route } from './+types/index';
 const FILTER_KEYS = ['status', 'channel', 'topic', 'range'] as const;
 
 const STATUS_OPTIONS = [
+  { value: 'scheduled', label: 'Scheduled' },
   { value: 'queued', label: 'Queued' },
   { value: 'processing', label: 'Sending' },
   { value: 'completed', label: 'Completed' },
+  { value: 'canceled', label: 'Canceled' },
 ] as const;
 
 export function meta() {
@@ -112,19 +115,25 @@ function MessageRow({ message, base }: { message: Message; base: string }) {
         <ChannelBadge channel={message.channel} />
       </TableCell>
       <TableCell className='max-w-56'>
-        <span className='flex min-w-0 items-center gap-1.5'>
-          <Icon name={target.icon} className={`${target.nudge} size-4 shrink-0 text-fg-2`} />
-          <Truncate>{target.text}</Truncate>
-        </span>
+        <Recipients list={target.list}>
+          <span className='flex min-w-0 items-center gap-1.5'>
+            <Icon name={target.icon} className={`${target.nudge} size-4 shrink-0 text-fg-2`} />
+            <Truncate>{target.text}</Truncate>
+          </span>
+        </Recipients>
       </TableCell>
       <TableCell>
         <MessageStatusBadge status={message.status} />
       </TableCell>
       <TableCell>
-        <Funnel counts={message.counts} status={message.status} />
+        <Funnel counts={message.counts} status={message.status} schedule={message.schedule} />
       </TableCell>
       <TableCell>
-        <TimeAgo at={message.createdAt} />
+        {message.status === 'scheduled' && message.scheduledFor ? (
+          <Time at={message.scheduledFor} />
+        ) : (
+          <TimeAgo at={message.createdAt} />
+        )}
       </TableCell>
     </TableRow>
   );

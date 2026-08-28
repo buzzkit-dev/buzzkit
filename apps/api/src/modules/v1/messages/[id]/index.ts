@@ -13,7 +13,7 @@ export const message = new Elysia()
 
       return Response.success(serializeMessage(message), {
         entity: 'message',
-        ignoreTransform: ['payload', 'targets'],
+        ignoreTransform: ['payload', 'targets', 'schedule'],
       }).send();
     },
     { tenant: 'messages:read' }

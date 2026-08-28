@@ -3,7 +3,7 @@ import { ExternalIdSchema } from '@buzzkit/api/api/subscribers/index';
 import { TopicSlugSchema } from '@buzzkit/api/api/topics/index';
 import { ChannelSchema, SlugSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
 import { t } from 'elysia';
-import { MAX_DIRECT_TARGETS, MAX_TTL_SECONDS, MESSAGE_STATUSES } from './constants';
+import { MAX_DIRECT_TARGETS, MAX_TTL_SECONDS, MESSAGE_STATUSES, WALL_TIME_PATTERN } from './constants';
 
 export const MessagePayloadSchema = t.Object({
   title: t.Optional(t.String({ maxLength: 500 })),
@@ -28,6 +28,12 @@ export const MessagePayloadSchema = t.Object({
   ),
 });
 
+export const MessageScheduleSchema = t.Object({
+  at: t.String({ pattern: WALL_TIME_PATTERN.source }),
+  timezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
+  defaultTimezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
+});
+
 export const CreateMessageSchema = t.Composite([
   t.Object({
     to: t.Optional(
@@ -38,6 +44,7 @@ export const CreateMessageSchema = t.Composite([
     where: t.Optional(SegmentExpressionSchema),
     channel: t.Optional(ChannelSchema),
     ttlSeconds: t.Optional(t.Integer({ minimum: 60, maximum: MAX_TTL_SECONDS })),
+    schedule: t.Optional(MessageScheduleSchema),
     idempotencyKey: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
   }),
   MessagePayloadSchema,

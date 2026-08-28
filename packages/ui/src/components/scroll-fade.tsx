@@ -73,10 +73,23 @@ function ScrollFade({
     el.addEventListener('scroll', update, { passive: true });
     const observer = new ResizeObserver(update);
     observer.observe(el);
-    // Content can change height without the container resizing.
-    for (const child of Array.from(el.children)) observer.observe(child);
+    const observed = new WeakSet<Element>();
+    const observeChildren = () => {
+      for (const child of Array.from(el.children)) {
+        if (observed.has(child)) continue;
+        observed.add(child);
+        observer.observe(child);
+      }
+    };
+    observeChildren();
+    const mutations = new MutationObserver(() => {
+      observeChildren();
+      update();
+    });
+    mutations.observe(el, { childList: true, subtree: true });
     return () => {
       el.removeEventListener('scroll', update);
+      mutations.disconnect();
       observer.disconnect();
       el.classList.remove('scroll-fade');
       el.style.removeProperty('--fade-size');

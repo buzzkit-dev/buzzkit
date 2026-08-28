@@ -16,24 +16,10 @@ export const NAVIGATION: NavigationSection[] = [
     pages: [{ label: 'Overview', path: '', icon: 'IconHomeRoundDoorFilled' }],
   },
   {
-    label: 'Engage',
-    pages: [
-      { label: 'Campaigns', path: '/campaigns', icon: 'IconMegaphoneFilled', planned: 'engine phase E4' },
-      { label: 'Workflows', path: '/workflows', icon: 'IconAgentsFilled', planned: 'engine phase E5' },
-    ],
-  },
-  {
-    label: 'Audience',
-    pages: [
-      { label: 'Subscribers', path: '/subscribers', icon: 'IconTeamFilled' },
-      { label: 'Segments', path: '/segments', icon: 'IconTargetFilled' },
-      { label: 'Topics', path: '/topics', icon: 'IconTagFilled' },
-    ],
-  },
-  {
-    label: 'Activity',
+    label: 'Messaging',
     pages: [
       { label: 'Messages', path: '/messages', icon: 'IconPaperPlaneTopRightFilled' },
+      { label: 'Workflows', path: '/workflows', icon: 'IconAgentsFilled', planned: 'engine phase E5' },
       {
         label: 'Events',
         path: '/events',
@@ -43,6 +29,14 @@ export const NAVIGATION: NavigationSection[] = [
           { label: 'Stream', path: '/events/stream' },
         ],
       },
+    ],
+  },
+  {
+    label: 'Audience',
+    pages: [
+      { label: 'Subscribers', path: '/subscribers', icon: 'IconTeamFilled' },
+      { label: 'Segments', path: '/segments', icon: 'IconTargetFilled' },
+      { label: 'Topics', path: '/topics', icon: 'IconTagFilled' },
     ],
   },
   {

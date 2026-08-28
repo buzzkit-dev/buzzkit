@@ -1,4 +1,4 @@
-import { and, drizzle, eq, postgres, tables } from '@buzzkit/database';
+import { and, drizzle, eq, postgres, sql, tables } from '@buzzkit/database';
 
 export { and, desc, eq, sql, tables } from '@buzzkit/database';
 
@@ -68,4 +68,22 @@ export async function disconnectChannel(tenantId: number, channel: 'email' | 'pu
     .update(tables.credential)
     .set({ deletedAt: new Date() })
     .where(and(eq(tables.credential.tenantId, tenantId), eq(tables.credential.channel, channel)));
+}
+
+export async function stampSystemAttributes(
+  tenantId: number,
+  externalId: string,
+  attributes: Record<string, string>
+) {
+  await db
+    .update(tables.subscriber)
+    .set({ attributes: sql`${tables.subscriber.attributes} || ${JSON.stringify(attributes)}::jsonb` })
+    .where(and(eq(tables.subscriber.tenantId, tenantId), eq(tables.subscriber.externalId, externalId)));
+}
+
+export async function backdateScheduledMessages(tenantId: number, minutes = 1) {
+  await db
+    .update(tables.message)
+    .set({ scheduledFor: new Date(Date.now() - minutes * 60_000) })
+    .where(and(eq(tables.message.tenantId, tenantId), eq(tables.message.status, 'scheduled')));
 }

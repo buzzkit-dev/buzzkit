@@ -23,8 +23,11 @@ src/
 ├── providers/            Provider registry: one module per provider (validate + send), aggregated in index.ts
 ├── actor/                The subscriber actor (Durable Object on the Agents SDK): subscriber.ts (the class: ingest, flush), store.ts (typed
 │                         SQLite access), schema.ts (DDL), types.ts, constants.ts. Exported instrumented from index.ts (`instrumentActor`)
-├── queue/                Queue consumers (deliveries: fan-out pages + batched delivery pipeline: select → claim → send → settle;
+├── queue/                Queue consumers (deliveries: fan-out pages + batched delivery pipeline: select → claim → send → settle; 
 │                         events: actor flushes → gzipped Events API batches, `buzzkit-events-dlq` re-driven into the main queue; webhooks: audit ids and actor batches → event objects → signed deliveries with explicit delayed retries) and the reconciliation cron
+├── cron/                 The Worker's cron triggers, dispatched by `controller.cron` in index.ts: the `* * * * *` tick releases due scheduled sends
+│                         (scheduled-messages.ts, zone by zone for subscriber-timezone schedules); the `*/5 * * * *` sweep runs the delivery,
+│                         webhook and credential reconciliations (reconcile.ts, queue/webhooks.ts, rewrap.ts)
 └── modules/              File-based routes
     ├── contract.ts       `api` — the v1 router without runtime adapters; `@buzzkit/api/contract` for Eden clients
     ├── index.ts          App: CloudflareAdapter + CORS + logger + error + OpenAPI + v1
@@ -87,7 +90,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/deliveries`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
+`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
 
 ## Commands
 

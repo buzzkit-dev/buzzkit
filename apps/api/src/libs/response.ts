@@ -65,7 +65,6 @@ const FIELD_ENTITIES: Record<string, IdEntity> = {
   segmentId: 'segment',
   segmentVersionId: 'segmentVersion',
   currentVersionId: 'segmentVersion',
-  campaignId: 'campaign',
   workflowId: 'workflow',
   runId: 'run',
   inviteId: 'invite',

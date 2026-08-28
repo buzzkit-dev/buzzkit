@@ -1,6 +1,12 @@
 import type { ActionFunctionArgs } from 'react-router';
 import { beginAction } from '@/app/lib/actions/context.server';
-import { ApiError, type MessageInput, type RequestContext, sendMessage } from '@/app/lib/api.server';
+import {
+  ApiError,
+  cancelMessage,
+  type MessageInput,
+  type RequestContext,
+  sendMessage,
+} from '@/app/lib/api.server';
 
 function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: false; error: string } {
   const target = String(form.get('target') ?? 'subscriber');
@@ -13,6 +19,9 @@ function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: 
   const segment = String(form.get('segment') ?? '').trim();
   const title = String(form.get('title') ?? '').trim();
   const body = String(form.get('body') ?? '').trim();
+  const when = String(form.get('when') ?? 'now');
+  const at = String(form.get('at') ?? '').trim();
+  const timezone = String(form.get('timezone') ?? '').trim();
 
   if (channel !== 'push' && channel !== 'email') return { ok: false, error: 'Pick a channel.' };
   if (target === 'topic' && !topic) return { ok: false, error: 'Pick a topic.' };
@@ -20,6 +29,8 @@ function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: 
   if (target === 'subscriber' && to.length === 0)
     return { ok: false, error: 'Enter at least one external id.' };
   if (!title && !body) return { ok: false, error: 'Give the message a title or a body.' };
+  if (when === 'later' && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at))
+    return { ok: false, error: 'Pick a time to send at.' };
 
   return {
     ok: true,
@@ -28,6 +39,7 @@ function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: 
       ...(target === 'topic' ? { topic } : target === 'segment' ? { segment } : { to }),
       ...(title ? { title } : {}),
       ...(body ? { body } : {}),
+      ...(when === 'later' ? { schedule: { at, ...(timezone ? { timezone } : {}) } } : {}),
     },
   };
 }
@@ -58,7 +70,31 @@ export async function sendIntent(
         };
       if (error.code === 'channel_not_connected')
         return { error: 'Failed to send message', description: 'Connect a provider for that channel first.' };
+      if (error.code === 'schedule_in_past')
+        return { error: 'Failed to schedule message', description: 'That time has already passed.' };
+      if (error.code === 'invalid_schedule')
+        return { error: 'Failed to schedule message', description: error.message };
       return { error: 'Failed to send message', description: error.message };
+    }
+    throw error;
+  }
+}
+
+export async function cancelIntent(
+  ctx: RequestContext,
+  token: string,
+  slug: string,
+  tenant: string,
+  id: string
+) {
+  try {
+    await cancelMessage(ctx, token, slug, tenant, id);
+    return { ok: true, message: 'Message canceled' };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.code === 'message_not_cancelable')
+        return { error: 'Unable to cancel message', description: 'It has already been sent.' };
+      return { error: 'Unable to cancel message', description: error.message };
     }
     throw error;
   }
@@ -71,6 +107,19 @@ export async function messagesAction(args: ActionFunctionArgs) {
   switch (intent) {
     case 'send':
       return sendIntent(ctx, token, slug, tenant, form);
+    default:
+      return { error: 'Unknown action.' };
+  }
+}
+
+export async function messageAction(args: ActionFunctionArgs) {
+  const { token, ctx, intent, tenant } = await beginAction(args);
+  const slug = String(args.params.slug);
+  const id = String(args.params.id);
+
+  switch (intent) {
+    case 'cancel':
+      return cancelIntent(ctx, token, slug, tenant, id);
     default:
       return { error: 'Unknown action.' };
   }

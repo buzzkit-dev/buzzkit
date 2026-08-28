@@ -1,7 +1,16 @@
 import { and } from '@buzzkit/database';
+import type { Expression } from 'buzzkit/expressions';
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
-import { db, disconnectChannel, eq, tables } from '../../utils/db';
+import {
+  backdateScheduledMessages,
+  db,
+  disconnectChannel,
+  eq,
+  stampSystemAttributes,
+  tables,
+} from '../../utils/db';
+import { eventually } from '../../utils/eventually';
 import { fakeToken, TRANSIENT_CODES, TRANSIENT_STATUS, uploadSandboxApns } from '../../utils/fixtures';
 import { encodeMessageId } from '../../utils/ids';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
@@ -22,6 +31,9 @@ type MessageBody = {
   targets: Record<string, unknown>;
   counts: Counts;
   expiresAt: string;
+  schedule: { at: string; timezone: string; defaultTimezone?: string } | null;
+  scheduledFor: string | null;
+  canceledAt: string | null;
 };
 type DeliveryBody = {
   id: string;
@@ -111,6 +123,28 @@ async function deliveryRowIdFor(externalId: string): Promise<number> {
     .innerJoin(tables.subscriber, eq(tables.subscriber.id, tables.delivery.subscriberId))
     .where(eq(tables.subscriber.externalId, externalId));
   return row!.id;
+}
+
+async function tick() {
+  const response = await fetch(`${BASE_URL}/__scheduled?cron=*+*+*+*+*`);
+  if (!response.ok) throw new Error(`schedule tick failed: ${response.status}`);
+}
+
+function wallTime(date: Date, timezone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 async function triggerReconciliation() {
@@ -1233,5 +1267,221 @@ describe('isolation, pagination, and delivery-time credential state', () => {
     expect((await deliveries(keyBearer, sent.body.data?.id ?? '')).map((d) => d.subscriptionId)).toEqual([
       explicitSub,
     ]);
+  });
+});
+
+describe('scheduled sends', () => {
+  it('holds a scheduled message until its moment, refuses the past and unknown zones, then sends it', async () => {
+    const { keyBearer, tenantId } = await setupWorkspace({ push: 'unusable' });
+    const alice = `sched_${uniq()}`;
+    await subscribe(keyBearer, alice);
+
+    const past = await send(keyBearer, {
+      to: alice,
+      schedule: { at: '2020-01-01T10:00', timezone: 'Europe/Berlin' },
+    });
+    expect(past.status).toBe(400);
+    expect(past.body.error?.code).toBe('schedule_in_past');
+    const unknownZone = await send(keyBearer, {
+      to: alice,
+      schedule: { at: '2099-01-01T10:00', timezone: 'Mars/Olympus' },
+    });
+    expect(unknownZone.status).toBe(400);
+    expect(unknownZone.body.error?.param).toBe('schedule.timezone');
+    const strayDefault = await send(keyBearer, {
+      to: alice,
+      schedule: { at: '2099-01-01T10:00', timezone: 'UTC', defaultTimezone: 'UTC' },
+    });
+    expect(strayDefault.status).toBe(400);
+    expect(strayDefault.body.error?.param).toBe('schedule.defaultTimezone');
+    const malformed = await send(keyBearer, { to: alice, schedule: { at: 'tomorrow' } });
+    expect(malformed.status).toBe(400);
+
+    const at = wallTime(new Date(Date.now() + 10 * 60_000), 'UTC');
+    const { status, body } = await send(keyBearer, { to: alice, schedule: { at, timezone: 'UTC' } });
+    expect(status).toBe(202);
+    expect(body.data?.status).toBe('scheduled');
+    expect(body.data?.schedule).toEqual({ at, timezone: 'UTC' });
+    expect(
+      Math.abs(new Date(body.data!.scheduledFor!).getTime() - new Date(`${at}:00Z`).getTime())
+    ).toBeLessThan(1000);
+    expect(body.data?.counts.total).toBe(0);
+    expect((body.data as unknown as { payload: Record<string, unknown> }).payload.schedule).toBeUndefined();
+    const id = body.data!.id;
+
+    await tick();
+    const held = await api<MessageBody>(`/v1/messages/${id}`, { headers: keyBearer });
+    expect(held.body.data?.status).toBe('scheduled');
+
+    await backdateScheduledMessages(tenantId);
+    await tick();
+    const completed = await awaitCompletion(keyBearer, id);
+    expect(completed.counts.total).toBe(1);
+    expect(completed.schedule?.at).toBe(at);
+    const rows = await deliveries(keyBearer, id);
+    expect(rows.map((row) => row.externalId)).toEqual([alice]);
+  });
+
+  it('follows each subscriber into their own timezone and never sends a zone twice', async () => {
+    const { keyBearer, tenantId } = await setupWorkspace({ push: 'unusable' });
+    const alice = `berlin_${uniq()}`;
+    const bob = `newyork_${uniq()}`;
+    const carol = `nowhere_${uniq()}`;
+    for (const externalId of [alice, bob, carol]) await subscribe(keyBearer, externalId);
+    await stampSystemAttributes(tenantId, alice, { $timezone: 'Europe/Berlin' });
+    await stampSystemAttributes(tenantId, bob, { $timezone: 'America/New_York' });
+
+    const at = wallTime(new Date(Date.now() - 60_000), 'Europe/Berlin');
+    const { status, body } = await send(keyBearer, {
+      to: [alice, bob, carol],
+      schedule: { at, timezone: 'subscriber', defaultTimezone: 'Europe/Berlin' },
+    });
+    expect(status).toBe(202);
+    expect(body.data?.status).toBe('scheduled');
+    expect(body.data?.schedule).toEqual({ at, timezone: 'subscriber', defaultTimezone: 'Europe/Berlin' });
+    const id = body.data!.id;
+
+    await tick();
+    const firstWave = await waitFor(async () => {
+      const rows = await deliveries(keyBearer, id);
+      return rows.length >= 2 ? rows : null;
+    });
+    expect(firstWave.map((row) => row.externalId).sort()).toEqual([alice, carol].sort());
+    const midway = await api<MessageBody>(`/v1/messages/${id}`, { headers: keyBearer });
+    expect(midway.body.data?.status).toBe('processing');
+
+    await tick();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect((await deliveries(keyBearer, id)).length).toBe(2);
+
+    const canceled = await api<MessageBody>(`/v1/messages/${id}/cancel`, {
+      method: 'POST',
+      headers: keyBearer,
+    });
+    expect(canceled.status).toBe(200);
+    expect(canceled.body.data?.canceledAt).not.toBeNull();
+    const completed = await awaitCompletion(keyBearer, id);
+    expect(completed.counts.total).toBe(2);
+    await tick();
+    expect((await deliveries(keyBearer, id)).length).toBe(2);
+  });
+
+  it('recovers a released fixed-zone send whose fan-out job was lost', async () => {
+    const { keyBearer, tenantId } = await setupWorkspace({ push: 'unusable' });
+    const user = `lost_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const { body } = await send(keyBearer, {
+      to: user,
+      schedule: { at: '2099-01-01T10:00', timezone: 'UTC' },
+    });
+    const id = body.data!.id;
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    await db
+      .update(tables.message)
+      .set({ status: 'queued', scheduledFor: stale, updatedAt: stale })
+      .where(and(eq(tables.message.tenantId, tenantId), eq(tables.message.status, 'scheduled')));
+
+    await triggerReconciliation();
+
+    const done = await awaitCompletion(keyBearer, id);
+    expect(done.counts.total).toBe(1);
+  });
+
+  it('replays a scheduled send under its idempotency key without scheduling it twice', async () => {
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
+    const user = `idem_${uniq()}`;
+    await subscribe(keyBearer, user);
+    const key = `sched-${uniq()}`;
+    const input = { to: user, idempotencyKey: key, schedule: { at: '2099-01-01T10:00', timezone: 'UTC' } };
+    const first = await send(keyBearer, input);
+    const second = await send(keyBearer, input);
+    expect(second.status).toBe(202);
+    expect(second.body.data?.id).toBe(first.body.data?.id);
+    const listed = await api<{ items: MessageBody[] }>('/v1/messages?status=scheduled', {
+      headers: keyBearer,
+    });
+    expect(listed.body.data?.items).toHaveLength(1);
+    const changed = await send(keyBearer, {
+      ...input,
+      schedule: { at: '2099-01-02T10:00', timezone: 'UTC' },
+    });
+    expect(changed.status).toBe(409);
+  });
+
+  it('topic sends follow the subscriber timezone too', async () => {
+    const { keyBearer, tenantId } = await setupWorkspace({ push: 'unusable' });
+    const topic = `local-${uniq()}`;
+    await api('/v1/topics', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ slug: topic, name: 'Local' }),
+    });
+    const alice = `berlin_${uniq()}`;
+    const bob = `newyork_${uniq()}`;
+    for (const externalId of [alice, bob]) await subscribe(keyBearer, externalId);
+    await stampSystemAttributes(tenantId, alice, { $timezone: 'Europe/Berlin' });
+    await stampSystemAttributes(tenantId, bob, { $timezone: 'America/New_York' });
+
+    const at = wallTime(new Date(Date.now() - 60_000), 'Europe/Berlin');
+    const { body } = await send(keyBearer, { topic, schedule: { at, timezone: 'subscriber' } });
+    const id = body.data!.id;
+    await tick();
+    const rows = await waitFor(async () => {
+      const list = await deliveries(keyBearer, id);
+      return list.length >= 1 ? list : null;
+    });
+    await sleep(1500);
+    expect((await deliveries(keyBearer, id)).map((row) => row.externalId)).toEqual([alice]);
+    expect(rows[0]?.externalId).toBe(alice);
+  });
+
+  it('inline conditions follow the subscriber timezone, resolved through the attribute mirror', async () => {
+    const { keyBearer, tenantId } = await setupWorkspace({ push: 'unusable' });
+    const alice = `berlin_${uniq()}`;
+    const bob = `newyork_${uniq()}`;
+    const carol = `free_${uniq()}`;
+    for (const externalId of [alice, bob, carol]) await subscribe(keyBearer, externalId);
+    await stampSystemAttributes(tenantId, alice, { $timezone: 'Europe/Berlin' });
+    await stampSystemAttributes(tenantId, bob, { $timezone: 'Europe/Berlin' });
+    for (const [externalId, plan] of [
+      [alice, 'pro'],
+      [bob, 'pro'],
+      [carol, 'free'],
+    ] as const) {
+      const { status } = await api(`/v1/subscribers/${externalId}`, {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify({ attributes: { plan } }),
+      });
+      expect(status).toBe(200);
+    }
+    const pro: Expression = { ref: 'attributes.plan', eq: 'pro' };
+    await eventually(
+      async () => {
+        const { body } = await api<{ count: number }>('/v1/segments/preview', {
+          method: 'POST',
+          headers: keyBearer,
+          body: JSON.stringify({
+            expression: { all: [pro, { ref: 'attributes.$timezone', in: ['Europe/Berlin'] }] },
+          }),
+        });
+        return body.data?.count === 2;
+      },
+      { label: 'attribute mirror caught up', timeoutMs: 90_000, intervalMs: 1000 }
+    );
+
+    const at = wallTime(new Date(Date.now() - 60_000), 'Europe/Berlin');
+    const { status, body } = await send(keyBearer, { where: pro, schedule: { at, timezone: 'subscriber' } });
+    expect(status).toBe(202);
+    const id = body.data!.id;
+    await tick();
+    await waitFor(async () => {
+      const list = await deliveries(keyBearer, id);
+      return list.length >= 2 ? list : null;
+    });
+    await sleep(1500);
+    expect((await deliveries(keyBearer, id)).map((row) => row.externalId).sort()).toEqual(
+      [alice, bob].sort()
+    );
   });
 });

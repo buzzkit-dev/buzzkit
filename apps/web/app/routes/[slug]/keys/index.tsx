@@ -191,8 +191,10 @@ function KeyDialog({
             </DialogHeader>
             <div className='flex w-full flex-col gap-3'>
               <CodeBlock code={created.secret} className='w-full' />
-              <span className='font-medium text-fg-2 text-xs'>Use it right away</span>
-              <CodeBlock code={firstUseSnippet(apiUrl, created.kind, created.secret)} className='w-full' />
+              <Field>
+                <FieldLabel>Use it right away</FieldLabel>
+                <CodeBlock code={firstUseSnippet(apiUrl, created.kind, created.secret)} className='w-full' />
+              </Field>
               <Button className='w-full' onClick={() => onOpenChange(false)}>
                 Done
               </Button>

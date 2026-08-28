@@ -16,6 +16,12 @@ export type MessageTargets = {
   where?: Expression;
 };
 
+export type MessageSchedule = {
+  at: string;
+  timezone: string;
+  defaultTimezone?: string;
+};
+
 export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 
 export type MessageFilters = {
@@ -28,7 +34,7 @@ export type MessageFilters = {
 };
 
 export type DeliveryQueueMessage =
-  | { type: 'fanout'; messageId: number; afterId: number }
+  | { type: 'fanout'; messageId: number; afterId: number; zones?: string[]; final?: boolean }
   | { type: 'deliver'; deliveryId: number; attempt: number };
 
 export type TargetRow = { subscriptionId: number; subscriberId: number; platform: Subscription['platform'] };
@@ -57,7 +63,7 @@ export type ProcessableRow = {
     Delivery,
     'id' | 'tenantId' | 'messageId' | 'subscriberId' | 'subscriptionId' | 'status' | 'attempts' | 'provider'
   >;
-  message: Pick<Message, 'id' | 'payload' | 'expiresAt'>;
+  message: Pick<Message, 'id' | 'payload' | 'targets' | 'expiresAt'>;
   subscription: Pick<
     Subscription,
     'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel' | 'environment' | 'platform'

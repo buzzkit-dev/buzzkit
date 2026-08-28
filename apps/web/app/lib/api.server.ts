@@ -681,7 +681,7 @@ export type MessageQuery = {
   limit?: number;
   cursor?: string;
   q?: string;
-  status?: 'queued' | 'processing' | 'completed';
+  status?: 'scheduled' | 'queued' | 'processing' | 'completed' | 'canceled';
   channel?: 'push' | 'email';
   topic?: string;
   from?: string;
@@ -747,6 +747,8 @@ export function listDeliveryAttempts(
   ).then((page) => page.items);
 }
 
+export type MessageSchedule = { at: string; timezone?: string; defaultTimezone?: string };
+
 export type MessageInput = {
   to?: string[];
   topic?: string;
@@ -755,6 +757,7 @@ export type MessageInput = {
   title?: string;
   body?: string;
   data?: Record<string, unknown>;
+  schedule?: MessageSchedule;
 };
 
 export function sendMessage(
@@ -767,6 +770,19 @@ export function sendMessage(
   return unwrap(
     ctx,
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).messages.post(input)
+  );
+}
+
+export function cancelMessage(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).messages({ id }).cancel.post()
   );
 }
 

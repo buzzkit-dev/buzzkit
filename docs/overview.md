@@ -4,7 +4,7 @@ buzzkit is an open-source, self-hostable, **code-first push notification framewo
 
 ## The two-layer model
 
-1. **The framework** — fully headless, everything defined in code. Multi-tenant workspaces, per-tenant APNs/FCM credentials, device token lifecycle, sending, and code-defined campaigns/segments/workflows created from code through the `buzzkit` package, the server-side TypeScript SDK.
+1. **The framework** — fully headless, everything defined in code. Multi-tenant workspaces, per-tenant APNs/FCM credentials, device token lifecycle, sending, scheduled sends, and code-defined segments/workflows created from code through the `buzzkit` package, the server-side TypeScript SDK.
 2. **The platform** — a full product (dashboard + hosted version) that under the hood is *just a deployment of the framework's multi-tenant core*. The hosted version is a free OneSignal alternative; each hosted customer is a tenant/workspace of the same architecture a self-hoster runs.
 
 This is the load-bearing constraint: if the platform ever needs something the framework doesn't expose, the framework is wrong.
@@ -12,7 +12,7 @@ This is the load-bearing constraint: if the platform ever needs something the fr
 ## Core goals
 
 - Fully open source and free to self-host
-- Code-first: campaigns, segments, triggers, and workflow logic are versioned specs stored in buzzkit; code (`defineWorkflow` + `buzzkit push`, or the SDK) is the best way to write them, and the dashboard, an agent or the API create the very same objects — there is no deploy step
+- Code-first: segments, triggers, and workflow logic are versioned specs stored in buzzkit; code (`defineWorkflow` + `buzzkit push`, or the SDK) is the best way to write them, and the dashboard, an agent or the API create the very same objects — there is no deploy step
 - Multi-tenant by design: workspaces with full credential and data isolation
 - Excellent DX for both one-off sends and complex workflows
 - Support platforms offering push to *their* customers (each tenant brings their own APNs keys / FCM projects)
@@ -20,7 +20,7 @@ This is the load-bearing constraint: if the platform ever needs something the fr
 
 ## Channels
 
-v1 ships **mobile push only** (APNs + FCM), but channels are a first-class generic concept. buzzkit does not compete with providers (Resend, Twilio, …) — like SST wraps AWS, buzzkit wraps provider credentials with a really nice code-first SDK. Future channels (email, SMS, web push) arrive as modular connectors; workflow/campaign/segment primitives are channel-agnostic from day one.
+v1 ships **mobile push only** (APNs + FCM), but channels are a first-class generic concept. buzzkit does not compete with providers (Resend, Twilio, …) — like SST wraps AWS, buzzkit wraps provider credentials with a really nice code-first SDK. Future channels (email, SMS, web push) arrive as modular connectors; workflow/segment primitives are channel-agnostic from day one.
 
 ## Workflows (direction)
 
@@ -32,7 +32,7 @@ Event-based: the app (native iOS SDK) and the server track events; workflows rea
 - Multi-tenant workspaces with encrypted per-tenant credential storage
 - Device token management and lifecycle (registration, invalidation, cleanup)
 - Simple send API + TypeScript-first SDK
-- Code-first campaign / segment definitions
+- Code-first segment / workflow definitions
 - Self-hostable architecture
 
 ## Out of scope for v1
