@@ -62,7 +62,6 @@ function useGrowExitClip(
     return rightEdge - (1 - shrink) * paddedFullWidth;
   });
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loopEpoch restarts pulse when orchestrator advances
   useEffect(() => {
     if (innerWidth <= 0) {
       return;

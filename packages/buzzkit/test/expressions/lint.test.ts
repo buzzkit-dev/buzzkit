@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type Expression,
-  ExpressionSchema,
-  formatExpressionPath,
-  isExpression,
-  lintExpression,
-} from '../../src/expressions/index';
+import { formatExpressionPath, isExpression, lintExpression } from '../../src/expressions/index';
 
 const messages = (value: unknown) =>
   lintExpression(value).map((issue) => `${formatExpressionPath(issue.path)}: ${issue.message}`);

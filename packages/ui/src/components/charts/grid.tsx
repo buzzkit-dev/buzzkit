@@ -86,7 +86,6 @@ function resolveRowTickValues(options: {
   return filtered.length > 0 ? filtered : undefined;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: grid fade masks and shimmer share one layer tree
 export function Grid({
   horizontal = true,
   vertical = false,

@@ -3,6 +3,7 @@ import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buz
 import {
   AttributesSchema,
   assertNoSystemAttributes,
+  assertTimezone,
   EmailAddressSchema,
   ExternalIdSchema,
   findSubscriberByExternalId,
@@ -47,10 +48,12 @@ export const subscriber = new Elysia()
     '/subscribers/:externalId',
     async ({ body, db, params, set, tenant }) => {
       assertNoSystemAttributes(body?.attributes);
+      assertTimezone(body?.timezone);
       if (body?.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
       const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, params.externalId, {
         attributes: body?.attributes,
+        ...(body?.timezone ? { systemAttributes: { $timezone: body.timezone } } : {}),
       });
 
       const registered = body?.email
@@ -89,6 +92,7 @@ export const subscriber = new Elysia()
         t.Object({
           attributes: t.Optional(AttributesSchema),
           email: t.Optional(EmailAddressSchema),
+          timezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
         })
       ),
     }

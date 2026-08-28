@@ -201,7 +201,7 @@ describe('POST /v1/subscriptions', () => {
   });
 
   it('records mute and removal on the timeline', async () => {
-    const { keyBearer, ownerBearer, workspace } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
     const registered = await register(keyBearer, { externalId });
 
@@ -332,7 +332,7 @@ describe('subscription ids, listing, and ledger', () => {
   });
 
   it('records one registration per endpoint, not per refresh', async () => {
-    const { keyBearer, ownerBearer, workspace } = await setupWorkspace();
+    const { keyBearer } = await setupWorkspace();
     const token = fakeToken();
     const externalId = `user_${uniq()}`;
 

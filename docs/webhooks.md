@@ -58,4 +58,4 @@ const { id } = await verifyWebhook(rawBody, request.headers, process.env.BUZZKIT
 
 Read the raw body before parsing it, verify, then dedupe on `id`. The helper accepts an array of secrets while you rotate.
 
-Both horizons (an endpoint's `createdAt` against the event's time, its `updatedAt` against the audit row's time in the sweep) allow 5 seconds of clock skew between the API and Postgres, because endpoint timestamps are written by the API and audit timestamps by the database; a delivery is unique per endpoint and event, so the slack can only heal, never duplicate.
+Both horizons (an endpoint's `createdAt` against the event's time, its `updatedAt` against the audit row's time in the sweep) compare exactly: endpoint and audit timestamps are both Postgres `now()`, so there is no clock to reconcile. An earlier 5-second slack "for clock skew" let a freshly created tenant-filtered endpoint receive the `tenant.created` and `credential.created` rows from the seconds before it existed whenever the queue consumer ran later than that, which the edges test caught (2026-08-29).

@@ -7,12 +7,7 @@ import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, count, type Db, eq, isNull, or, sql, tables } from '@buzzkit/database';
 import { generateWebhookSecret } from 'buzzkit/webhooks';
 import { assertValidSubscriptions, subscriptionMatches } from './catalog';
-import {
-  DISABLE_AFTER_FAILING_MS,
-  HORIZON_CLOCK_SKEW_MS,
-  MAX_ENDPOINTS_PER_WORKSPACE,
-  SECRET_OVERLAP_MS,
-} from './policy';
+import { DISABLE_AFTER_FAILING_MS, MAX_ENDPOINTS_PER_WORKSPACE, SECRET_OVERLAP_MS } from './policy';
 import type { EndpointInput, WebhookEndpoint } from './types';
 
 const PRIVATE_HOSTNAME_PATTERN =
@@ -123,8 +118,7 @@ export async function listEnabledEndpoints(
 
 export function endpointReceives(endpoint: WebhookEndpoint, eventName: string, occurredAt: Date): boolean {
   return (
-    endpoint.createdAt.getTime() - HORIZON_CLOCK_SKEW_MS <= occurredAt.getTime() &&
-    subscriptionMatches(endpoint.events, eventName)
+    endpoint.createdAt.getTime() <= occurredAt.getTime() && subscriptionMatches(endpoint.events, eventName)
   );
 }
 

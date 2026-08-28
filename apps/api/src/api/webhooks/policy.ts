@@ -16,8 +16,6 @@ export const RESPONSE_EXCERPT_BYTES = 4096;
 
 export const RECONCILE_LOOKBACK_MS = 60 * 60 * 1000;
 
-export const HORIZON_CLOCK_SKEW_MS = 5_000;
-
 export const STALE_DELIVERY_GRACE_MS = 15 * 60 * 1000;
 
 export const MAX_ENDPOINTS_PER_WORKSPACE = 50;

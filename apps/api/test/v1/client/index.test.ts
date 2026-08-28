@@ -738,7 +738,7 @@ describe('client surface hardening', () => {
 
 describe('ledger attribution and identity throttling', () => {
   it('client actions are recorded as the subscriber, with the externalId as the actor', async () => {
-    const { clientBearer, keyBearer, ownerBearer, workspace } = await setupClient();
+    const { clientBearer, keyBearer } = await setupClient();
     const externalId = `user_${uniq()}`;
     const gym = `gym-${uniq()}`;
     await api('/v1/topics', {

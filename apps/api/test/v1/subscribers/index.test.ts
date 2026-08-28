@@ -582,3 +582,32 @@ describe('cross-tenant and email-only updates', () => {
     expect(namesAfter.filter((name) => name.startsWith('$subscriber.'))).toEqual(['$subscriber.created']);
   });
 });
+
+describe('PUT /v1/subscribers/:externalId timezone', () => {
+  it('stores a backend-supplied timezone as $timezone, keeps it across attribute replaces, refuses junk', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `tz_${uniq()}`;
+    const put = (body: Record<string, unknown>) =>
+      api<{ attributes: Record<string, unknown> }>(`/v1/subscribers/${externalId}`, {
+        method: 'PUT',
+        headers: keyBearer,
+        body: JSON.stringify(body),
+      });
+
+    const created = await put({ attributes: { plan: 'pro' }, timezone: 'Europe/Berlin' });
+    expect(created.status).toBe(201);
+    expect(created.body.data?.attributes).toEqual({ plan: 'pro', $timezone: 'Europe/Berlin' });
+
+    const replaced = await put({ attributes: { plan: 'free' } });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.data?.attributes).toEqual({ plan: 'free', $timezone: 'Europe/Berlin' });
+
+    const moved = await put({ timezone: 'America/New_York' });
+    expect(moved.body.data?.attributes).toEqual({ plan: 'free', $timezone: 'America/New_York' });
+
+    const junk = await put({ timezone: 'Mars/Olympus' });
+    expect(junk.status).toBe(400);
+    expect(junk.body.error?.code).toBe('invalid_timezone');
+    expect(junk.body.error?.param).toBe('timezone');
+  });
+});

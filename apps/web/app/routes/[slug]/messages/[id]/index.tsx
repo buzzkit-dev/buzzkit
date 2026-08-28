@@ -430,10 +430,10 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='gap-0 py-3'>
+            <CardHeader className='py-3'>
               <CardTitle>Overview</CardTitle>
               {cancelable && (
-                <CardAction className='-my-1.5 self-center'>
+                <CardAction>
                   <Button variant='soft' size='xs' onClick={() => setCancelOpen(true)}>
                     Cancel message
                   </Button>

@@ -21,7 +21,7 @@ import {
 } from '@buzzkit/database';
 import { subscriptionMatches } from './catalog';
 import { listEnabledEndpoints } from './endpoints';
-import { HORIZON_CLOCK_SKEW_MS, RECONCILE_LOOKBACK_MS, STALE_DELIVERY_GRACE_MS } from './policy';
+import { RECONCILE_LOOKBACK_MS, STALE_DELIVERY_GRACE_MS } from './policy';
 import type {
   AttemptOutcome,
   DeliveryOutcome,
@@ -224,7 +224,7 @@ export async function listReconcilableAuditIds(db: Db, limit: number): Promise<n
     if (
       endpoints.some(
         (endpoint) =>
-          endpoint.updatedAt.getTime() - HORIZON_CLOCK_SKEW_MS <= row.createdAt.getTime() &&
+          endpoint.updatedAt.getTime() <= row.createdAt.getTime() &&
           subscriptionMatches(endpoint.events, row.event)
       )
     )

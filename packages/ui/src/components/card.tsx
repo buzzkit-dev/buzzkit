@@ -19,7 +19,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot='card-header'
       className={cn(
-        'grid auto-rows-min items-start gap-0.5 px-4 py-4 group-has-data-[slot=card-content]/card:pb-[13px] has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto]',
+        'grid auto-rows-min items-start gap-0.5 px-4 py-4 group-has-data-[slot=card-content]/card:pb-[13px] has-data-[slot=card-description]:grid-rows-[auto_auto] has-data-[slot=card-action]:pr-28',
         'relative [&>[data-slot=card-title]~*:not([data-slot=card-description])]:absolute [&>[data-slot=card-title]~*:not([data-slot=card-description])]:inset-y-0 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:right-4 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:my-auto [&>[data-slot=card-title]~*:not([data-slot=card-description])]:h-fit',
         className
       )}

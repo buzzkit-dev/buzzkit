@@ -1,5 +1,6 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
+import { isTimezone } from '@buzzkit/api/api/messages/schedule';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import {
   ChannelSchema,
@@ -138,6 +139,15 @@ export const SUBSCRIPTION_TOUCH_THROTTLE_MS = 5 * 60 * 1000;
 export const IDENTITY_REVERIFY_THROTTLE_MS = 5 * 60 * 1000;
 
 export const SYSTEM_ATTRIBUTE_PREFIX = '$';
+
+export function assertTimezone(timezone: string | undefined): void {
+  if (timezone !== undefined && !isTimezone(timezone)) {
+    throw new BadRequestError(`Unknown timezone '${timezone}'`, {
+      code: 'invalid_timezone',
+      param: 'timezone',
+    });
+  }
+}
 
 export function assertNoSystemAttributes(attributes: Record<string, unknown> | undefined): void {
   if (!attributes) return;

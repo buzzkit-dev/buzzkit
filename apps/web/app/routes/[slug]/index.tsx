@@ -483,7 +483,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
 
       <div className='grid gap-5 lg:grid-cols-2'>
         <Card>
-          <CardHeader className='gap-0 py-3'>
+          <CardHeader className='py-3'>
             <CardTitle>Recent messages</CardTitle>
             {messages.length > 0 && (
               <CardAction>
@@ -523,7 +523,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           )}
         </Card>
         <Card>
-          <CardHeader className='gap-0 py-3'>
+          <CardHeader className='py-3'>
             <CardTitle>New subscribers</CardTitle>
             {subscribers.length > 0 && (
               <CardAction>

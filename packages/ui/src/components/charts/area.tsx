@@ -126,7 +126,6 @@ function useAreaLoadingPulseState(
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: mirrors Line series layout (fill, stroke, dash, markers, pulse)
 export function Area({
   dataKey,
   yAxisId,

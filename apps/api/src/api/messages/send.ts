@@ -18,13 +18,7 @@ import {
 } from '@buzzkit/api/providers/index';
 import type { TokenMemo } from '@buzzkit/api/providers/shared/cache';
 import { and, type Db, eq, inArray, isNull, ne, tables } from '@buzzkit/database';
-import type {
-  CredentialMemo,
-  MessageTargets,
-  ProcessableRow,
-  ProcessedDelivery,
-  ResolvedCredential,
-} from './types';
+import type { CredentialMemo, ProcessableRow, ProcessedDelivery, ResolvedCredential } from './types';
 
 export function createCredentialMemo(): CredentialMemo {
   return new Map();
