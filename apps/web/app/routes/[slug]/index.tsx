@@ -467,6 +467,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
           value={filters.values.range ?? DEFAULT_RANGE}
           onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
+          allowAny={false}
         />
       </header>
 

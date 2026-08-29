@@ -414,6 +414,56 @@ Audit + webhook events: `workflow.created / updated / published / paused / delet
 
 Done when the E5 row below holds, plus: a paused workflow stops starting runs but a sleeping run of it still finishes; deleting a workflow cancels its runs; a spec with an unknown ref, a duplicate step name or a wait over a year is refused with the offending path; the KV document is rewritten on every publish and an actor picks it up on its next ingest.
 
+## E6 plan — Workflows II (drafted 2026-08-29, for review before code)
+
+E5 made a workflow a sequence in time. E6 gives it data (`fetch`, `set`, templates with filters), memory (conditions over what the subscriber did and what the run sent), a clock of its own (schedule triggers, local-time waits), manners (`afterBackground`, `skipIfSentWithin`), and a way to test a version without sending (`POST …/test`). Everything stays inside the E5 shape: a spec, pinned per run, interpreted by `EngineWorkflow`, decided by the actor.
+
+### The spec, what grows
+
+- **`fetch`**: `{ name, fetch: { url, as?, body?, onError?: "fail" | "skip" | "continue", timeout?: "30s" } }`. A signed `POST` (the webhook signature scheme from `buzzkit/webhooks`, so the customer verifies it the same way) carrying `{ subscriber, trigger, steps }`; the JSON reply (≤ 64 KB) lands under `steps.<name>.data` (and `vars.<as>` when `as` is given). `step.do` with the runtime's retries (limit 3, exponential from 10s) for 5xx / network errors; a 4xx is permanent. `onError` decides what a permanent failure does: `fail` (default) fails the run, `skip` records `steps.<name>.failed = true` and continues, `continue` continues with `data: null`. Only `https:` URLs; the tenant's outbound allowlist (a `workflow_fetch_hosts` tenant setting, default: any) guards it.
+- **`set`**: `{ name, set: { attribute: "marketingFatigue", value: true } }` or `{ set: { var: "checks", value: "{{ steps.status.data.checks }}" } }`. Attribute writes go through the subscriber API (`$subscriber.updated` on the stream, the mirror and Tinybird follow); vars live in the run only.
+- **Templates** get filters and a ternary: `{{ trigger.data.endsAt | date }}`, `{{ steps.status.data.checks | number }}`, `{{ subscriber.attributes.name | default: "there" }}`, `{{ vars.cancel ? "Resubscribe to keep your alerts." : "Your alerts continue." }}`. Filters: `date`, `time`, `number`, `default`, `upper`, `lower`, `truncate`. A template that fails to render records the step and renders empty, as today.
+- **Conditions** over the subscriber's history, evaluated by the actor from its own tables (no Tinybird on the hot path): `{ count: "workout.completed", within: "30d" | { since: "trigger" | "localMidnight" }, gte: 5 }`, `{ occurred: "$app.opened", since: "trigger" }`, `{ opened: "<step>" }` (a `$notification.opened` for the message that step sent), `{ delivered: "<step>" }`. Usable in `trigger.where`, `branch.if`, `waitFor.where` and `cancelOn.where`; the same nodes in a segment keep meaning Tinybird.
+- **Local-time `waitUntil`**: `timezone: "subscriber"` reads `$timezone` from the run's subscriber snapshot at the step, falling back to the spec's `defaultTimezone`, then to UTC; the step records which zone it used.
+- **Schedule triggers**: `trigger: { schedule: { cron: "0 10 * * MON" } | { daily: "19:00" }, timezone: IANA | "subscriber", segment?: "<slug>", where? }`. The Worker's minute tick (E4's) finds the workflows whose schedule is due, zone by zone for `subscriber` timezones exactly like scheduled messages, resolves the segment (every subscriber when absent), applies `where` through the actor, and starts one run per member with the id `${tenant}-${workflow}-${subscriber}-${fireTime}` (idempotent: a tick that runs twice starts nothing twice). Runs start at the runtime's 100/s per workflow; the tick keeps a cursor so a million-member segment drains over hours instead of failing.
+- **`afterBackground: "5m"`**: sugar for `waitFor $app.backgrounded` then `wait`, so a send lands when the user is not looking; a foreground `$app.opened` during the wait restarts it.
+- **`skipIfSentWithin: "1d"`** on `send`: the step is skipped (recorded as `skipped`) when the run's subscriber already received a message with the same `topic` (or the same step name when there is no topic) inside the window; the actor answers it from its events.
+- **`POST /v1/workflows/:slug/test`**: `{ version?: n, externalId | attributes, event: { name, data, source? }, at? }` runs the interpreter in **dry-run mode**: every wait resolves to the instant it would end (no sleeping), `waitFor` takes `assume: { "<step>": { matched, data } }` from the request or times out, `fetch` uses `assume` or is recorded as "would call `url`", `send` renders the payload and records it without creating a message, `set` records the write. The reply is the trace: the path taken, each step's summary, instants and payloads, the lint of the version it used. Works on drafts and old versions.
+
+### Data and runtime
+
+- **Actor**: `runs` gains `vars` (JSON) is not needed, vars travel in the instance; `sends` per run are already events. New lookups over its own events table for `count / occurred / opened / delivered / skipIfSentWithin` (indexed by name and timestamp, bounded by `ACTOR_RETAINED_ROWS`, so a window longer than what the actor retains falls back to Tinybird's `subscriber_timeline` once and caches the count on the run).
+- **Schedules**: a `workflow_schedule` cursor table in Postgres (`workflow_version_id`, `fire_at`, `zone`, `member_cursor`, `finished_at`), the minute tick's bookkeeping, mirroring `message.scheduled_zones` from E4.
+- **`EngineWorkflow`**: `steps/fetch.ts`, `steps/set.ts`, template filters in `buzzkit/workflows/template.ts`, `resolveAnchor` reads the subscriber zone from the run's snapshot, and a `mode: "run" | "test"` on the context so the same step files produce the dry run.
+- **Tinybird**: `$run.step` rows already carry everything the test trace and the run page need; `runs_current` gains nothing.
+
+### API
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/v1/workflows/:slug/test` | The dry run above, `workflows:read`, never sends |
+| GET | `/v1/workflows/:slug/schedule` | The schedule's next fire times per zone and the last tick's progress |
+| PATCH | `/v1/tenants/:tenantSlug` | `workflowFetchHosts` allowlist |
+
+Errors: `fetch_blocked` (host not allowed), `schedule_invalid` (bad cron or daily time), `segment_required` for a schedule over a segment that does not exist.
+
+### Dashboard
+
+- The workflow page's flow renders the new step kinds (`fetch` with the host, `set` with the write, a schedule trigger card with its next fire and the segment chips) and the run page's path shows skipped steps and fetch outcomes.
+- **Test** on the Code tab and on every version row: a dialog with the sample event, a subscriber picker (or attributes), assumptions per `waitFor` / `fetch`, and the result drawn on the flow: the path taken, each card annotated with what it would do, sends rendered in full.
+- The Overview's Runs count schedule-started runs like any other.
+
+### Order of work
+
+1. `buzzkit/workflows`: schema, lint and types for `fetch`, `set`, templates with filters, the new conditions, schedule triggers, `afterBackground`, `skipIfSentWithin`; unit tests.
+2. Actor: history lookups for the conditions and `skipIfSentWithin`, the subscriber snapshot with `$timezone` in run params; unit tests.
+3. Engine: `fetch` (signing, retries, `onError`, the allowlist), `set`, filters, local-time `waitUntil`, `afterBackground`, `skipIfSentWithin`; the trial workflow **with** both fetches end to end.
+4. Schedule triggers: the tick, the cursor table, zone batches, the segment membership feed, `GET …/schedule`; the streak and winback workflows end to end with compressed clocks.
+5. Dry run: `mode: "test"` in the context, `POST …/test`, the trace shape; tests on drafts and old versions.
+6. Dashboard: the new cards in the flow, the Test dialog and its result on the flow, schedule details on the workflow page.
+
+Done when the E6 row below holds, plus: a fetch to a blocked host fails the step with `fetch_blocked` and nothing leaks; a schedule over a 10k-member segment starts every run exactly once even when the tick runs twice; a dry run of the trial workflow shows both fetches, both branches' payloads and the local 09:00 instant for a Paris subscriber without creating a message.
+
 ## Phases
 
 **E2 is implemented** (2026-08-27): [webhooks.md](webhooks.md) and [api/webhooks.md](api/webhooks.md). Deviations from the table: the actor has no second watermark, it sends every flushed batch to `buzzkit-webhooks` next to `buzzkit-events` under the one watermark (both sends must succeed); the reconciliation sweep runs on the existing five-minute cron with a one-hour lookback; every attempt is its own row (`webhook_attempt`), the payload lives once on `webhook_event`, and a rotation keeps the previous secret verifying for 24 hours with both signatures sent. Retries are explicit delayed queue messages, not consumer retries, so the schedule is exact and a replay is the same path.

@@ -150,19 +150,22 @@ function FilterRange({
   value,
   onValueChange,
   className,
+  allowAny = true,
 }: {
   label?: string;
   presets: FilterOption[];
   value: string | null;
   onValueChange: (value: string | null) => void;
   className?: string;
+  /** Offer "Any time" (clears the range). Off for pages that always need a window. */
+  allowAny?: boolean;
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<DateRange | undefined>(undefined);
   const custom = parseRange(value);
   const items = [
-    { value: ANY, label: `Any ${label.toLowerCase()}` },
+    ...(allowAny ? [{ value: ANY, label: `Any ${label.toLowerCase()}` }] : []),
     ...presets,
     ...(custom && value ? [{ value, label: formatRange(custom as { from: Date; to: Date }) }] : []),
     { value: CUSTOM, label: 'Custom range' },
