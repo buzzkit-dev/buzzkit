@@ -34,7 +34,10 @@ export function DetailRow({
           <button
             type='button'
             aria-label={copied ? 'Copied' : `Copy ${label.toLowerCase()}`}
-            onClick={copyValue}
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest('a')) return;
+              copyValue();
+            }}
             className={cn(
               'group/copy -mx-2 -my-1 relative isolate flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
               "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",

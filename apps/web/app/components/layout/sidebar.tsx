@@ -37,7 +37,12 @@ export function Sidebar({
   const isActive = (page: NavigationPage) =>
     page.path === '' ? pathname === base : isExact(page) || pathname.startsWith(`${base}${page.path}/`);
   const isCurrent = (page: NavigationPage, child: NavigationPage) =>
-    isExact(child) || (child.path === page.path && isActive(page) && !page.children?.some(isExact));
+    isExact(child) ||
+    (child.path !== page.path && isActive(child)) ||
+    (child.path === page.path &&
+      isActive(page) &&
+      !page.children?.some((entry) => entry.path !== page.path && isActive(entry)) &&
+      !page.children?.some(isExact));
 
   return (
     <aside className='flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
@@ -61,7 +66,7 @@ export function Sidebar({
               <span className='px-2.5 pb-1 font-medium text-fg-2 text-xs'>{section.label}</span>
             )}
             {section.pages.map((page) => {
-              const open = opened[page.path] ?? isActive(page);
+              const open = opened[page.path] ?? (isActive(page) || (page.children?.some(isActive) ?? false));
               const key = page.children ? `group:${page.path}` : page.path;
               const active = !page.children && isActive(page);
               const highlighted = hovered !== null ? hovered === key : active;

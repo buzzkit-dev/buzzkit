@@ -35,6 +35,12 @@ export const AUDIT_CATALOG = {
   'segment.updated': { webhook: true },
   'segment.deleted': { webhook: true },
 
+  'workflow.created': { webhook: true },
+  'workflow.updated': { webhook: true },
+  'workflow.published': { webhook: true },
+  'workflow.paused': { webhook: true },
+  'workflow.deleted': { webhook: true },
+
   'message.created': { webhook: true },
   'message.completed': { webhook: true },
   'message.canceled': { webhook: true },

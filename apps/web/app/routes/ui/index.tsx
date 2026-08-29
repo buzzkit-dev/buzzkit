@@ -1694,6 +1694,15 @@ export default function DesignSystem() {
             </CardFooter>
           </Card>
           <Card className='max-w-xs'>
+            <CardHeader divider>
+              <CardTitle>Recent messages</CardTitle>
+            </CardHeader>
+            <ul className='flex flex-col divide-y divide-bg-3'>
+              <li className='px-4 py-2.5 text-fg-4 text-sm'>Streak at risk</li>
+              <li className='px-4 py-2.5 text-fg-4 text-sm'>Good morning</li>
+            </ul>
+          </Card>
+          <Card className='max-w-xs'>
             <CardHeader>
               <CardTitle>Credentials</CardTitle>
               <CardDescription>2 connected, 1 unverified.</CardDescription>

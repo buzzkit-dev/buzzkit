@@ -408,7 +408,7 @@ export default function MembersRoute({ loaderData }: Route.ComponentProps) {
       </Card>
 
       <Card className='shrink-0'>
-        <CardHeader>
+        <CardHeader divider>
           <CardTitle>Invites</CardTitle>
           <CardDescription>People who were invited and have not joined yet.</CardDescription>
         </CardHeader>
@@ -420,7 +420,7 @@ export default function MembersRoute({ loaderData }: Route.ComponentProps) {
             description='Invite a teammate and they appear here until they accept.'
           />
         ) : (
-          <Table className='border-bg-3 border-t'>
+          <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>

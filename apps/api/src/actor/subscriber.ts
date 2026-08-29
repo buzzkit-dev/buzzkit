@@ -1,6 +1,8 @@
+import { type RunParams, toWaitPayload } from '@buzzkit/api/engine/types';
 import { log } from '@buzzkit/api/libs/logger';
 import {
   activeTraceId,
+  currentTraceparent,
   flushSpans,
   runInvocation,
   type Span,
@@ -10,22 +12,30 @@ import {
 import type { EventsQueueMessage } from '@buzzkit/api/queue/events';
 import { Agent } from 'agents';
 import {
+  ACTOR_DEFINITIONS_CHECK_MS,
   ACTOR_FLUSH_CALLBACK,
   ACTOR_FLUSH_RETRY_SECONDS,
   ACTOR_FLUSH_ROWS,
   ACTOR_RETAINED_ROWS,
+  ACTOR_RUNS_LIMIT,
   ACTOR_SERVICE,
 } from './constants';
 import { flushEvents } from './flush';
-import { acceptEvents } from './ingest';
+import { acceptEvent, acceptEvents, systemEvent } from './ingest';
+import { advanceRuns, runEventData } from './runs';
 import { ActorStore } from './store';
 import type {
+  ActorDefinitions,
+  ActorEventInput,
   ActorEventRow,
   ActorFlushOutcome,
   ActorIdentity,
   ActorIngestInput,
   ActorIngestOutcome,
   ActorProjection,
+  ActorRunFinish,
+  ActorRunRow,
+  ActorStepRecord,
 } from './types';
 
 export class SubscriberActor extends Agent<Env> {
@@ -50,6 +60,30 @@ export class SubscriberActor extends Agent<Env> {
 
         t.set('events.accepted', outcomes.filter((outcome) => outcome.status === 'accepted').length);
         t.set('events.duplicates', outcomes.filter((outcome) => outcome.status === 'duplicate').length);
+
+        const accepted = outcomes.flatMap((outcome, index) =>
+          outcome.status === 'accepted' ? [{ event: input.events[index]!, sequence: outcome.sequence }] : []
+        );
+        if (accepted.length > 0) {
+          const runs = await advanceRuns(
+            this.store,
+            input,
+            await this.definitions(input.tenantId),
+            accepted,
+            {
+              createRun: (run, definition, trigger, sequence) =>
+                this.startRun(input, run, definition.versionId, definition.spec, trigger, sequence),
+              terminateRun: (runId) => this.terminateRun(runId),
+              deliverWait: async (wait, event) => {
+                const instance = await this.env.ENGINE.get(wait.run_id);
+                await instance.sendEvent({ type: `evt:${wait.step}`, payload: toWaitPayload(event) });
+              },
+            }
+          );
+          t.set('runs.started', runs.started.length);
+          t.set('runs.cancelled', runs.cancelled.length);
+          t.set('waits.delivered', runs.delivered.length);
+        }
 
         this.ctx.waitUntil(this.flush());
         return outcomes;
@@ -81,6 +115,150 @@ export class SubscriberActor extends Agent<Env> {
 
   listRecent(limit = 50, beforeSequence?: number): ActorEventRow[] {
     return this.store.listRecent(limit, beforeSequence);
+  }
+
+  listRuns(limit = ACTOR_RUNS_LIMIT): ActorRunRow[] {
+    return this.store.listRuns(limit);
+  }
+
+  listLiveRuns(): ActorRunRow[] {
+    return this.store.listLiveRuns();
+  }
+
+  findRun(runId: string): ActorRunRow | null {
+    return this.store.findRun(runId);
+  }
+
+  async recordStep(runId: string, record: ActorStepRecord): Promise<void> {
+    const run = this.store.findRun(runId);
+    if (!run || run.status === 'cancelled') return;
+    const now = new Date().toISOString();
+    this.store.updateRun(
+      runId,
+      record.status === 'completed' ? 'running' : record.status,
+      record.step,
+      record.summary,
+      now
+    );
+    acceptEvent(
+      this.store,
+      systemEvent(
+        '$run.step',
+        {
+          ...runEventData(run),
+          step: record.step,
+          status: record.status,
+          summary: record.summary,
+          ...(record.detail ?? {}),
+        },
+        runId,
+        record.step
+      )
+    );
+    this.ctx.waitUntil(this.flush());
+  }
+
+  registerWait(runId: string, step: string, event: string, condition: unknown, expiresAt: string): void {
+    this.store.insertWait({
+      run_id: runId,
+      step,
+      event,
+      condition: condition === undefined || condition === null ? null : JSON.stringify(condition),
+      expires_at: expiresAt,
+    });
+  }
+
+  deregisterWait(runId: string, step: string): void {
+    this.store.deleteWait(runId, step);
+  }
+
+  async finishRun(runId: string, finish: ActorRunFinish): Promise<void> {
+    const run = this.store.findRun(runId);
+    if (!run || run.status === 'cancelled') return;
+    const now = new Date().toISOString();
+    const step = finish.step ?? run.step;
+    this.store.updateRun(runId, finish.status, step, finish.error ?? null, now);
+    this.store.deleteWaitsOfRun(runId);
+    acceptEvent(
+      this.store,
+      systemEvent(
+        finish.status === 'completed' ? '$run.completed' : '$run.failed',
+        { ...runEventData(run), ...(finish.error ? { error: finish.error } : {}) },
+        runId,
+        step
+      )
+    );
+    this.ctx.waitUntil(this.flush());
+  }
+
+  private async definitions(tenantId: number): Promise<ActorDefinitions | null> {
+    const now = Date.now();
+    const cached = this.store.readDefinitions();
+    const checkEvery = ACTOR_DEFINITIONS_CHECK_MS * (Number(this.env.WORKFLOW_TIME_SCALE ?? '1') || 1);
+    if (cached && now - this.store.readDefinitionsCheckedAt() < checkEvery) return cached;
+    const version = await this.env.ENGINE_DEFS.get(`defs-version:${tenantId}`);
+    this.store.writeDefinitionsCheckedAt(now);
+    if (version === null) return cached;
+    if (cached && Number(version) === cached.version) return cached;
+    const fresh = await this.env.ENGINE_DEFS.get<ActorDefinitions>(`defs:${tenantId}`, 'json');
+    if (!fresh) return cached;
+    this.store.writeDefinitions(fresh);
+    return fresh;
+  }
+
+  private async startRun(
+    identity: ActorIdentity,
+    run: ActorRunRow,
+    versionId: string,
+    spec: RunParams['spec'],
+    trigger: ActorEventInput,
+    sequence: number
+  ): Promise<void> {
+    const params: RunParams = {
+      runId: run.run_id,
+      tenantId: identity.tenantId,
+      subscriberId: identity.subscriberId,
+      externalId: identity.externalId,
+      workflowId: run.workflow_id,
+      workflowSlug: run.workflow_slug,
+      versionId,
+      spec,
+      trigger: {
+        name: trigger.name,
+        data: trigger.data,
+        source: trigger.source,
+        timestamp: trigger.timestamp,
+        sequence,
+      },
+      attributes: this.store.readAttributes(),
+      traceparent: currentTraceparent(),
+    };
+    try {
+      await this.env.ENGINE.createBatch([{ id: run.run_id, params }]);
+    } catch (error) {
+      log.error('[Actor] Could not start a run', {
+        runId: run.run_id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      const now = new Date().toISOString();
+      this.store.updateRun(run.run_id, 'failed', null, 'engine_unavailable', now);
+      acceptEvent(
+        this.store,
+        systemEvent('$run.failed', { ...runEventData(run), error: 'engine_unavailable' }, run.run_id, null)
+      );
+    }
+  }
+
+  private async terminateRun(runId: string): Promise<void> {
+    try {
+      const instance = await this.env.ENGINE.get(runId);
+      await instance.terminate();
+    } catch (error) {
+      log.warn('[Actor] Could not terminate a run', {
+        runId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   listProjections(): ActorProjection[] {

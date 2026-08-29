@@ -509,7 +509,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
         >
           <Card className='flex min-h-0 flex-col'>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Deliveries</CardTitle>
               <CardAction>
                 <PillTabs
@@ -532,7 +532,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
                 }
               />
             ) : (
-              <Table className='table-fixed border-bg-3 border-t'>
+              <Table className='table-fixed'>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Event</TableHead>
@@ -569,10 +569,10 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-1 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Overview</CardTitle>
             </CardHeader>
-            <dl className='flex flex-col border-bg-3 border-t'>
+            <dl className='flex flex-col'>
               <DetailRow label='URL' copy={endpoint.url}>
                 <Truncate>{endpoint.url}</Truncate>
               </DetailRow>
@@ -606,7 +606,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           </Card>
 
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Signing secret</CardTitle>
               <CardAction>
                 <Button variant='ghost' size='xs' onClick={() => setRevealed((current) => !current)}>
@@ -614,7 +614,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
                 </Button>
               </CardAction>
             </CardHeader>
-            <dl className='flex flex-col border-bg-3 border-t'>
+            <dl className='flex flex-col'>
               <DetailRow label='Secret' copy={endpoint.secret}>
                 <Truncate className='font-mono text-xs'>
                   {revealed ? endpoint.secret : 'whsec_••••••••••••••••'}

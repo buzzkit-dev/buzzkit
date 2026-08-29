@@ -14,6 +14,7 @@
 
   "vars": {
     "ENVIRONMENT": "development",
+    "WORKFLOW_TIME_SCALE": "1",
     "DASHBOARD_URL": "http://localhost:5180",
     "TRACE_SAMPLE_RATIO": "1",
     "TINYBIRD_URL": "http://localhost:7181"
@@ -46,6 +47,10 @@
     {
       "binding": "PROVIDER_CACHE",
       "id": "your-provider-cache-kv-id"
+    },
+    {
+      "binding": "ENGINE_DEFS",
+      "id": "your-engine-defs-kv-id"
     }
   ],
 
@@ -94,6 +99,8 @@
   "durable_objects": {
     "bindings": [{ "name": "SUBSCRIBER_ACTOR", "class_name": "SubscriberActor" }]
   },
+
+  "workflows": [{ "name": "buzzkit-workflows", "binding": "ENGINE", "class_name": "EngineWorkflow" }],
 
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SubscriberActor"] }],
 

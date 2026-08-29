@@ -430,7 +430,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Overview</CardTitle>
               {cancelable && (
                 <CardAction>
@@ -440,7 +440,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                 </CardAction>
               )}
             </CardHeader>
-            <dl className='flex flex-col border-bg-3 border-t'>
+            <dl className='flex flex-col'>
               <DetailRow label='Title' copy={payload.title}>
                 <Truncate>{payload.title ?? 'Untitled'}</Truncate>
               </DetailRow>
@@ -503,6 +503,16 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                   <Time at={message.completedAt} />
                 </DetailRow>
               )}
+              {message.run && (
+                <DetailRow label='Workflow run' copy={message.run.id}>
+                  <Link
+                    to={`/${params.slug}/runs/${message.run.id}`}
+                    className='truncate underline-offset-2 hover:underline'
+                  >
+                    {message.run.step}
+                  </Link>
+                </DetailRow>
+              )}
               {message.idempotencyKey && (
                 <DetailRow label='Idempotency key' copy={message.idempotencyKey}>
                   <Truncate>{message.idempotencyKey}</Truncate>
@@ -512,7 +522,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           </Card>
 
           <Card className='flex min-h-0 flex-col'>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Deliveries</CardTitle>
               <CardAction>
                 <PillTabs
@@ -554,7 +564,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                 }
               />
             ) : (
-              <Table className='table-fixed border-bg-3 border-t'>
+              <Table className='table-fixed'>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Subscriber</TableHead>
@@ -590,7 +600,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           className='-m-1 flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-1 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Delivery</CardTitle>
               <CardAction>
                 <Funnel
@@ -601,7 +611,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                 />
               </CardAction>
             </CardHeader>
-            <dl className='flex flex-col border-bg-3 border-t'>
+            <dl className='flex flex-col'>
               <FunnelRow label='Reachable' value={counts.total} />
               <FunnelRow label='Sent' value={counts.sent} tone='green' />
               {counts.delivered > 0 && <FunnelRow label='Delivered' value={counts.delivered} tone='green' />}
@@ -612,10 +622,10 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           </Card>
 
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Payload</CardTitle>
             </CardHeader>
-            <div className='border-bg-3 border-t p-4'>
+            <div className='p-4'>
               <CodeBlock code={JSON.stringify(message.payload, null, 2)} className='w-full' />
             </div>
           </Card>

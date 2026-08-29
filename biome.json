@@ -34,7 +34,8 @@
       "suspicious": {
         "noConsole": "error",
         "noCommentText": "error",
-        "noDuplicateJsxProps": "error"
+        "noDuplicateJsxProps": "error",
+        "noThenProperty": "off"
       },
       "style": {
         "noNonNullAssertion": "off"

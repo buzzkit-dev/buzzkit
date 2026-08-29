@@ -1,3 +1,4 @@
+import { uuidv7 } from '@buzzkit/api/utils/uuid';
 import type { ActorStore } from './store';
 import type { ActorEventInput, ActorIngestOutcome } from './types';
 
@@ -14,5 +15,38 @@ export function acceptEvent(store: ActorStore, input: ActorEventInput): ActorIng
 
   const sequence = store.insertEvent(event);
   store.recordProjection(event.name, sequence, event.timestamp);
+  mirrorAttributes(store, event);
   return { id: event.id, sequence, status: 'accepted' };
+}
+
+const SNAPSHOT_EVENTS = new Set(['$subscriber.created', '$subscriber.updated']);
+
+function mirrorAttributes(store: ActorStore, event: ActorEventInput): void {
+  const attributes = event.data.attributes;
+  if (typeof attributes !== 'object' || attributes === null || Array.isArray(attributes)) return;
+  if (SNAPSHOT_EVENTS.has(event.name)) {
+    store.writeAttributes(attributes as Record<string, unknown>);
+  } else if (event.name === '$identify') {
+    store.writeAttributes({ ...store.readAttributes(), ...(attributes as Record<string, unknown>) });
+  }
+}
+
+export function systemEvent(
+  name: string,
+  data: Record<string, unknown>,
+  runId: string,
+  step: string | null,
+  now = new Date()
+): ActorEventInput {
+  return {
+    id: `evt_${uuidv7(now.getTime())}`,
+    idempotencyKey: null,
+    name,
+    source: 'system',
+    timestamp: now.toISOString(),
+    receivedAt: now.toISOString(),
+    data,
+    runId,
+    step,
+  };
 }

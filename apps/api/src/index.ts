@@ -13,3 +13,5 @@ export default instrument<Env, QueueMessage>({
 });
 
 export const SubscriberActor = instrumentActor(SubscriberActorClass);
+
+export { EngineWorkflow } from './engine';

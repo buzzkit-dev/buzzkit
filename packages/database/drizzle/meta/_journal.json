@@ -50,6 +50,20 @@
       "when": 1787946754707,
       "tag": "0006_fat_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787958116958,
+      "tag": "0007_burly_komodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788003370485,
+      "tag": "0008_cuddly_shotgun",
+      "breakpoints": true
     }
   ]
 }

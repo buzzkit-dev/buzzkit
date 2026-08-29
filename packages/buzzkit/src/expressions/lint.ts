@@ -12,6 +12,12 @@ export type ExpressionPath = Array<string | number>;
 
 export type ExpressionIssue = { path: ExpressionPath; message: string };
 
+export type RefScope = { roots: readonly string[]; bare: readonly string[]; label: string };
+
+export type LintOptions = { refs?: RefScope; kinds?: readonly string[] };
+
+export const SEGMENT_REFS: RefScope = { roots: ['attributes'], bare: ['externalId'], label: 'a segment' };
+
 const GROUP_KEYS = ['all', 'any', 'not'] as const;
 
 const CONDITION_KEYS = ['ref', 'count', 'never', 'lastSeen', 'channel'] as const;
@@ -52,8 +58,10 @@ function list(items: readonly string[]): string {
   return items.map((item) => `"${item}"`).join(', ');
 }
 
-export function lintExpression(value: unknown): ExpressionIssue[] {
+export function lintExpression(value: unknown, options: LintOptions = {}): ExpressionIssue[] {
   const issues: ExpressionIssue[] = [];
+  const refs = options.refs ?? SEGMENT_REFS;
+  const kinds = options.kinds ?? CONDITION_KEYS;
   let leaves = 0;
   const report = (path: ExpressionPath, message: string) => issues.push({ path, message });
 
@@ -79,25 +87,25 @@ export function lintExpression(value: unknown): ExpressionIssue[] {
     }
   };
 
+  const refShapes = [
+    ...refs.roots.map((root) => `"${root}.<key>"`),
+    ...refs.bare.map((bare) => `"${bare}"`),
+  ].join(' or ');
+
   const checkRef = (path: ExpressionPath, node: Record<string, unknown>) => {
     const ref = node.ref;
     if (typeof ref !== 'string' || !REF_PATTERN.test(ref)) {
-      report([...path, 'ref'], `"ref" must be "attributes.<key>" or "externalId", got ${describe(ref)}.`);
-    } else if (ref !== 'externalId') {
-      if (!ref.startsWith('attributes.')) {
+      report([...path, 'ref'], `"ref" must be ${refShapes}, got ${describe(ref)}.`);
+    } else if (!refs.bare.includes(ref)) {
+      const [root, ...keys] = ref.split('.');
+      if (!root || !refs.roots.includes(root)) {
+        report([...path, 'ref'], `"${ref}" is not something ${refs.label} can read. Use ${refShapes}.`);
+      } else if (keys.length === 0) {
+        report([...path, 'ref'], `"${ref}" needs a key after it, such as "${root}.<key>".`);
+      } else if (!keys.every((key) => ATTRIBUTE_KEY_PATTERN.test(key))) {
         report(
           [...path, 'ref'],
-          `"${ref}" is not something a segment can filter on. Use "attributes.<key>" for an attribute or "externalId".`
-        );
-      } else if (
-        !ref
-          .slice('attributes.'.length)
-          .split('.')
-          .every((key) => ATTRIBUTE_KEY_PATTERN.test(key))
-      ) {
-        report(
-          [...path, 'ref'],
-          `"${ref}" is not a valid attribute path. Keys may contain letters, digits, _, $ and -.`
+          `"${ref}" is not a valid path. Keys may contain letters, digits, _, $ and -.`
         );
       }
     }
@@ -224,22 +232,26 @@ export function lintExpression(value: unknown): ExpressionIssue[] {
       report(path, `Groups nest at most ${MAX_EXPRESSION_DEPTH} levels deep.`);
       return;
     }
-    const kinds = [...GROUP_KEYS, ...CONDITION_KEYS].filter((key) => key in node);
-    if (kinds.length === 0) {
+    const present = [...GROUP_KEYS, ...CONDITION_KEYS].filter((key) => key in node);
+    if (present.length === 0) {
       report(
         path,
-        `This object is neither a group nor a condition. Start it with one of ${list(GROUP_KEYS)} or ${list(CONDITION_KEYS)}.`
+        `This object is neither a group nor a condition. Start it with one of ${list(GROUP_KEYS)} or ${list(kinds)}.`
       );
       return;
     }
-    if (kinds.length > 1) {
+    if (present.length > 1) {
       report(
         path,
-        `Pick one of ${list(kinds)} per object; put several conditions in an "all" or "any" group instead.`
+        `Pick one of ${list(present)} per object; put several conditions in an "all" or "any" group instead.`
       );
       return;
     }
-    const kind = kinds[0]!;
+    const kind = present[0]!;
+    if (!GROUP_KEYS.includes(kind as (typeof GROUP_KEYS)[number]) && !kinds.includes(kind)) {
+      report(path, `"${kind}" conditions are not available here. Use one of ${list(kinds)}.`);
+      return;
+    }
     if (kind === 'all' || kind === 'any') {
       checkUnknownKeys(path, node, [kind], `an "${kind}" group`);
       const children = node[kind];

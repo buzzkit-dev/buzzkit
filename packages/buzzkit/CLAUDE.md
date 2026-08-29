@@ -1,6 +1,6 @@
 # buzzkit — the framework package
 
-The public `buzzkit` package: what customers install, and what the platform (`apps/api`) dogfoods. One package, organized by subpath exports (`buzzkit/webhooks` and `buzzkit/expressions` today; channels, workflows, the send client and device token APIs as they land), never split into separate npm packages for organization's sake.
+The public `buzzkit` package: what customers install, and what the platform (`apps/api`) dogfoods. One package, organized by subpath exports (`buzzkit/webhooks`, `buzzkit/expressions` and `buzzkit/workflows` today; channels, workflows, the send client and device token APIs as they land), never split into separate npm packages for organization's sake.
 
 ## Rules
 

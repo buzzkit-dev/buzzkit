@@ -17,6 +17,7 @@ export function serializeMessage(message: Message) {
     topic: message.topic,
     targets: serializeTargets(message.targets as MessageTargets),
     payload: message.payload,
+    run: message.runId && message.runStep ? { id: message.runId, step: message.runStep } : null,
     status: message.status,
     counts: {
       total: message.total,

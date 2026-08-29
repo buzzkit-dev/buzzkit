@@ -15,6 +15,10 @@
     "./expressions": {
       "types": "./src/expressions/index.ts",
       "default": "./src/expressions/index.ts"
+    },
+    "./workflows": {
+      "types": "./src/workflows/index.ts",
+      "default": "./src/workflows/index.ts"
     }
   },
   "scripts": {

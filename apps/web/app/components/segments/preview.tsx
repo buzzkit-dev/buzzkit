@@ -22,7 +22,7 @@ export function SegmentPreviewPanel({
 }) {
   return (
     <Card>
-      <CardHeader className='py-3'>
+      <CardHeader divider className='py-3'>
         <CardTitle>Matching now</CardTitle>
         <CardAction className='flex items-center gap-2'>
           <Spinner
@@ -63,7 +63,7 @@ export function SegmentPreviewPanel({
           className='border-bg-3 border-t py-10'
         />
       ) : (
-        <div className='border-bg-3 border-t'>
+        <div>
           <Table>
             <SubscriberColumns />
             <TableBody>

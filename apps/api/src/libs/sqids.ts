@@ -26,6 +26,7 @@ export const ID_PREFIXES = {
   segment: 'seg',
   segmentVersion: 'sgv',
   workflow: 'wf',
+  workflowVersion: 'wfv',
   run: 'run',
   invite: 'inv',
   webhook: 'whk',
@@ -50,6 +51,7 @@ export const TARGET_ENTITIES: Record<string, IdEntity> = {
   audit: 'audit',
   webhook: 'webhook',
   segment: 'segment',
+  workflow: 'workflow',
 };
 
 export function encodeBareId(entity: IdEntity | undefined, id: number): string {

@@ -1,5 +1,6 @@
 import { createVersionedClient, type VersionedApiClient } from '@buzzkit/eden';
 import type { Expression } from 'buzzkit/expressions';
+import type { WorkflowSpec } from 'buzzkit/workflows';
 import { signedOutRedirect } from '@/app/lib/session.server';
 
 export type RequestContext = { request: Request; env: Env };
@@ -872,6 +873,165 @@ export function previewSegment(
   );
 }
 
+export type WorkflowInput = { slug: string; name: string; description?: string; spec: WorkflowSpec };
+
+export type WorkflowPatch = { name?: string; description?: string | null; spec?: WorkflowSpec };
+
+export type RunStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'cancelled' | 'failed';
+
+export type RunQuery = { limit?: number; cursor?: string; status?: RunStatus; workflow?: string };
+
+export function listWorkflows(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).workflows.get()
+  ).then((page) => page.items);
+}
+
+export function getWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).workflows({ workflowSlug }).get()
+  );
+}
+
+export function createWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  input: WorkflowInput
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).workflows.post(input)
+  );
+}
+
+export function updateWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string,
+  patch: WorkflowPatch
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .patch(patch)
+  );
+}
+
+export function publishWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .publish.post()
+  );
+}
+
+export function pauseWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .pause.post()
+  );
+}
+
+export function deleteWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .delete()
+  );
+}
+
+export function listWorkflowRuns(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string,
+  query: RunQuery = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .runs.get({ query })
+  );
+}
+
+export function listRuns(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  query: RunQuery = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).runs.get({ query })
+  );
+}
+
+export function getRun(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  runId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).runs({ runId }).get()
+  );
+}
+
+export function listSubscriberRuns(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .runs.get()
+  ).then((page) => page.items);
+}
+
 export type Workspace = Awaited<ReturnType<typeof getWorkspace>>;
 export type Profile = Awaited<ReturnType<typeof getProfile>>;
 export type Member = Awaited<ReturnType<typeof listMembers>>[number];
@@ -904,3 +1064,11 @@ export type WebhookDeliveryDetail = Awaited<ReturnType<typeof getWebhookDelivery
 export type Message = Awaited<ReturnType<typeof listMessages>>['items'][number];
 export type MessageDelivery = Awaited<ReturnType<typeof listMessageDeliveries>>['items'][number];
 export type DeliveryAttempt = Awaited<ReturnType<typeof listDeliveryAttempts>>[number];
+export type Workflow = Awaited<ReturnType<typeof listWorkflows>>[number];
+export type WorkflowDetail = Awaited<ReturnType<typeof getWorkflow>>;
+export type WorkflowVersion = NonNullable<WorkflowDetail['versions']>[number];
+export type WorkflowRun = Awaited<ReturnType<typeof listWorkflowRuns>>['items'][number];
+export type Run = Awaited<ReturnType<typeof listRuns>>['items'][number];
+export type RunDetail = Awaited<ReturnType<typeof getRun>>;
+export type RunEvent = RunDetail['events'][number];
+export type SubscriberRun = Awaited<ReturnType<typeof listSubscriberRuns>>[number];

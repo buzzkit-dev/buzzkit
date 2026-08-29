@@ -22,4 +22,26 @@ export const ACTOR_SCHEMA = [
     last_at TEXT NOT NULL
   )`,
   'CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+  `CREATE TABLE IF NOT EXISTS runs (
+    run_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    workflow_slug TEXT NOT NULL,
+    version_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    step TEXT,
+    detail TEXT,
+    trigger_sequence INTEGER NOT NULL,
+    started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS runs_workflow_status ON runs (workflow_id, status)',
+  `CREATE TABLE IF NOT EXISTS waits (
+    run_id TEXT NOT NULL,
+    step TEXT NOT NULL,
+    event TEXT NOT NULL,
+    condition TEXT,
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (run_id, step)
+  )`,
+  'CREATE INDEX IF NOT EXISTS waits_event ON waits (event)',
 ] as const;

@@ -3,7 +3,13 @@ import type { IconName } from '@buzzkit/ui/components/icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { cn } from '@buzzkit/ui/lib/utils';
 import type { Expression } from 'buzzkit/expressions';
-import { type ConditionPart, type ConditionTree, conditionLeaves, conditionTree } from './describe';
+import {
+  type ConditionKind,
+  type ConditionPart,
+  type ConditionTree,
+  conditionLeaves,
+  conditionTree,
+} from './describe';
 
 const VISIBLE = 2;
 
@@ -16,21 +22,24 @@ const TONES: Record<Tone, { badge: string; strong: string }> = {
   tooltip: { badge: 'bg-background/15 text-background/60', strong: 'text-background' },
 };
 
+const KIND_ICONS: Record<Exclude<ConditionKind, 'channel'>, { icon: IconName }> = {
+  attribute: { icon: 'IconUserFilled' },
+  event: { icon: 'IconZapFilled' },
+  activity: { icon: 'IconClock' },
+  trigger: { icon: 'IconZapFilled' },
+  source: { icon: 'IconServer1Filled' },
+  step: { icon: 'IconAgentsFilled' },
+};
+
+const CHANNEL_ICONS: Record<string, { icon: IconName }> = {
+  email: { icon: 'IconEmail2Filled' },
+  sms: { icon: 'IconBubbleTextFilled' },
+  push: { icon: 'IconPhoneFilled' },
+};
+
 function iconFor(part: ConditionPart): IconName {
-  switch (part.kind) {
-    case 'attribute':
-      return 'IconUserFilled';
-    case 'event':
-      return 'IconZapFilled';
-    case 'activity':
-      return 'IconClock';
-    case 'channel':
-      return part.value === 'email'
-        ? 'IconEmail2Filled'
-        : part.value === 'sms'
-          ? 'IconBubbleTextFilled'
-          : 'IconPhoneFilled';
-  }
+  if (part.kind === 'channel') return (CHANNEL_ICONS[part.value] ?? CHANNEL_ICONS.push!).icon;
+  return KIND_ICONS[part.kind].icon;
 }
 
 function Chip({ part, tone }: { part: ConditionPart; tone: Tone }) {
@@ -41,7 +50,7 @@ function Chip({ part, tone }: { part: ConditionPart; tone: Tone }) {
       icon={iconFor(part)}
       className={cn('min-w-0 max-w-full shrink gap-1 whitespace-nowrap', colors.badge)}
     >
-      <span className={cn('truncate font-medium', colors.strong)}>{part.subject}</span>
+      {part.subject && <span className={cn('truncate font-medium', colors.strong)}>{part.subject}</span>}
       {part.operator && <span className='shrink-0'>{part.operator}</span>}
       <span className={cn('truncate font-medium', colors.strong)}>{part.value}</span>
     </Badge>
@@ -49,7 +58,7 @@ function Chip({ part, tone }: { part: ConditionPart; tone: Tone }) {
 }
 
 function partText(part: ConditionPart): string {
-  return `${part.subject} ${part.operator} ${part.value}`;
+  return [part.subject, part.operator, part.value].filter(Boolean).join(' ');
 }
 
 function treeText(tree: ConditionTree): string {
@@ -87,17 +96,28 @@ function Group({ tree, depth }: { tree: ConditionTree; depth: number }) {
 }
 
 export function Conditions({ expression, limit = VISIBLE }: { expression: Expression; limit?: number }) {
-  const tree = conditionTree(expression);
+  return <ConditionChips tree={conditionTree(expression)} limit={limit} />;
+}
+
+export function ConditionChips({
+  tree,
+  limit = VISIBLE,
+  wrap = false,
+}: {
+  tree: ConditionTree;
+  limit?: number;
+  wrap?: boolean;
+}) {
   const leaves = conditionLeaves(tree);
   let characters = 0;
   const visible = leaves.filter((leaf, index) => {
     characters += partText(leaf.part).length;
-    return index === 0 || (index < limit && characters <= ROW_CHARACTERS);
+    return index === 0 || (index < limit && (wrap || characters <= ROW_CHARACTERS));
   });
   const hidden = leaves.length - visible.length;
 
   const row = (
-    <span className='flex min-w-0 items-center gap-1.5'>
+    <span className={cn('flex min-w-0 items-center gap-1.5', wrap && 'flex-wrap')}>
       {keyed(visible, (leaf) => partText(leaf.part)).map(({ item: leaf, key }) => (
         <span key={key} className='flex min-w-0 items-center gap-1.5'>
           {leaf.joiner && <span className='shrink-0 text-fg-2 text-xs'>{leaf.joiner}</span>}
@@ -112,7 +132,8 @@ export function Conditions({ expression, limit = VISIBLE }: { expression: Expres
     </span>
   );
 
-  if (leaves.length <= limit && tree.kind !== 'group') return row;
+  const nested = tree.kind === 'group' && tree.children.some((child) => child.kind === 'group');
+  if (hidden === 0 && (!nested || wrap)) return row;
   return (
     <Tooltip>
       <TooltipTrigger render={<span className='flex min-w-0 cursor-default'>{row}</span>} />

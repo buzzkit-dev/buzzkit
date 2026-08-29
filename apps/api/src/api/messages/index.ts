@@ -28,7 +28,7 @@ import { DEFAULT_TTL_SECONDS, DUE_MESSAGES_LIMIT, MAX_PAYLOAD_BYTES } from './co
 import { enqueueFanout } from './enqueue';
 import { completeFanout } from './fanout';
 import { dueZones, firstInstant, followsSubscriber, lastInstant, resolveSchedule } from './schedule';
-import type { Message, MessageFilters, MessageSchedule, MessageTargets } from './types';
+import type { Message, MessageFilters, MessageRun, MessageSchedule, MessageTargets } from './types';
 
 export * from './constants';
 export * from './enqueue';
@@ -130,6 +130,7 @@ function payloadFromInput(input: Record<string, unknown>): MessagePayload {
     segment: _segment,
     where: _where,
     schedule: _schedule,
+    run: _run,
     ...payload
   } = input;
   return payload as MessagePayload;
@@ -147,6 +148,7 @@ export async function createMessage(
     ttlSeconds?: number;
     schedule?: { at: string; timezone?: string; defaultTimezone?: string };
     idempotencyKey?: string;
+    run?: MessageRun;
   } & MessagePayload
 ): Promise<{ message: Message; created: boolean }> {
   const now = new Date();
@@ -223,6 +225,7 @@ export async function createMessage(
           ttlSeconds: input.ttlSeconds ?? DEFAULT_TTL_SECONDS,
           payload,
           schedule,
+          run: input.run ?? null,
         })
       )
     : null;
@@ -240,6 +243,8 @@ export async function createMessage(
           topicId: topic?.id ?? null,
           targets,
           payload,
+          runId: input.run?.id ?? null,
+          runStep: input.run?.step ?? null,
           idempotencyKey: input.idempotencyKey ?? null,
           idempotencyFingerprint: fingerprint,
           ...(schedule

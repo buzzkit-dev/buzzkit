@@ -48,6 +48,8 @@ export const message = pgTable(
     schedule: jsonb('schedule'),
     scheduledFor: timestamptz('scheduled_for'),
     scheduledZones: jsonb('scheduled_zones'),
+    runId: text('run_id'),
+    runStep: text('run_step'),
     canceledAt: timestamptz('canceled_at'),
     total: integer('total').notNull().default(0),
     sent: integer('sent').notNull().default(0),
@@ -68,6 +70,7 @@ export const message = pgTable(
       .on(table.tenantId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} is not null and ${table.deletedAt} is null`),
     index('message_tenant_idx').on(table.tenantId, table.id),
+    index('message_run_idx').on(table.tenantId, table.runId).where(sql`${table.runId} is not null`),
     index('message_processing_idx')
       .on(table.updatedAt)
       .where(sql`${table.status} in ('queued', 'processing') and ${table.fanoutCompletedAt} is null`),

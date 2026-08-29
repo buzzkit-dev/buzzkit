@@ -25,6 +25,8 @@ sweep (5 min):  public audit rows without a webhook_event + stale deliveries →
 - **Ordering is not promised** (nor by Stripe): receivers dedupe on `webhook-id` and order on `createdAt` or the stream `sequence` inside `data.object`.
 - **Endpoints are workspace-level** with an optional tenant filter; subscriptions are exact names, `resource.*` patterns, `*`, or the tenant's own event names (`order.completed`, `order.*`). Private audit names (`key.*`, `webhook.*`, `profile.*`) can never be subscribed. In production, URLs must be `https` and publicly routable.
 
+Workflow run events (`$run.started`, `$run.step`, `$run.completed`, `$run.cancelled`, `$run.failed`) are stream events like any other: subscribe to `$run.*` and every run of every workflow reaches the endpoint with its `runId`, `workflow`, `workflowId`, `versionId` and `startedAt` ([api/workflows.md](api/workflows.md#runs)).
+
 ## Payload
 
 ```json

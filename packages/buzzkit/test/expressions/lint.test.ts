@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatExpressionPath, isExpression, lintExpression } from '../../src/expressions/index';
+import {
+  type Expression,
+  formatExpressionPath,
+  isExpression,
+  lintExpression,
+} from '../../src/expressions/index';
 
 const messages = (value: unknown) =>
   lintExpression(value).map((issue) => `${formatExpressionPath(issue.path)}: ${issue.message}`);
@@ -90,7 +95,7 @@ describe('lintExpression', () => {
       'gte: "gte" takes a whole number of times, 0 or more, got "2".',
     ]);
     expect(messages({ ref: 'email', eq: 'a@b.c' })).toEqual([
-      'ref: "email" is not something a segment can filter on. Use "attributes.<key>" for an attribute or "externalId".',
+      'ref: "email" is not something a segment can read. Use "attributes.<key>" or "externalId".',
     ]);
     expect(messages({ all: [{ ref: 'attributes.plan', eq: 'pro' }, 'push'] })).toEqual([
       'all[1]: This must be an object: a group ({ "all": [...] }, { "any": [...] }, { "not": {...} }) or a condition, got "push".',

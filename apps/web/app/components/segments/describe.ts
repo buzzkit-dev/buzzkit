@@ -70,7 +70,7 @@ function describeCondition(node: Expression): string {
   return `can receive ${String(record.channel)}`;
 }
 
-type ConditionKind = 'attribute' | 'event' | 'activity' | 'channel';
+export type ConditionKind = 'attribute' | 'event' | 'activity' | 'channel' | 'trigger' | 'source' | 'step';
 
 export type ConditionPart = { kind: ConditionKind; subject: string; operator: string; value: string };
 
@@ -94,7 +94,7 @@ const NEGATED_OPERATORS: Record<string, string> = {
   'can receive': 'cannot receive',
 };
 
-function negate(part: ConditionPart): ConditionPart {
+export function negate(part: ConditionPart): ConditionPart {
   if (part.operator === '' && part.value === 'never') return { ...part, operator: 'at least', value: '1×' };
   if (part.kind === 'channel') return { ...part, subject: 'cannot receive' };
   const negated = NEGATED_OPERATORS[part.operator];
@@ -113,7 +113,7 @@ const COUNT_WORDS: Record<string, string> = {
   lt: 'fewer than',
 };
 
-const REF_WORDS: Record<string, string> = {
+export const REF_WORDS: Record<string, string> = {
   eq: 'is',
   neq: 'is not',
   gt: 'is greater than',
@@ -124,27 +124,37 @@ const REF_WORDS: Record<string, string> = {
   contains: 'contains',
 };
 
+export function refPart(
+  kind: ConditionKind,
+  subject: string,
+  record: Record<string, unknown>
+): ConditionPart {
+  if (record.exists !== undefined) {
+    return { kind, subject, operator: 'is', value: record.exists ? 'set' : 'not set' };
+  }
+  if (record.eq === null) return { kind, subject, operator: 'is', value: 'not set' };
+  if (record.neq === null) return { kind, subject, operator: 'is', value: 'set' };
+  const comparators = Object.keys(REF_WORDS).filter((key) => record[key] !== undefined);
+  return {
+    kind,
+    subject,
+    operator: comparators.map((key) => REF_WORDS[key]).join(' and '),
+    value: comparators
+      .map((key) => (key === 'in' ? (record.in as unknown[]).map(scalar).join(', ') : scalar(record[key])))
+      .join(' and '),
+  };
+}
+
 function conditionPart(node: Expression): ConditionPart {
   const record = node as Record<string, unknown>;
   if ('not' in record) return negate(conditionPart(record.not as Expression));
   if ('ref' in record) {
     const ref = String(record.ref);
-    const subject = ref === 'externalId' ? 'external id' : ref.slice('attributes.'.length);
-    const kind = 'attribute';
-    if (record.exists !== undefined) {
-      return { kind, subject, operator: 'is', value: record.exists ? 'set' : 'not set' };
-    }
-    if (record.eq === null) return { kind, subject, operator: 'is', value: 'not set' };
-    if (record.neq === null) return { kind, subject, operator: 'is', value: 'set' };
-    const comparators = Object.keys(REF_WORDS).filter((key) => record[key] !== undefined);
-    return {
-      kind,
-      subject,
-      operator: comparators.map((key) => REF_WORDS[key]).join(' and '),
-      value: comparators
-        .map((key) => (key === 'in' ? (record.in as unknown[]).map(scalar).join(', ') : scalar(record[key])))
-        .join(' and '),
-    };
+    return refPart(
+      'attribute',
+      ref === 'externalId' ? 'external id' : ref.slice('attributes.'.length),
+      record
+    );
   }
   if ('count' in record) {
     const comparators = Object.keys(COUNT_WORDS).filter((key) => record[key] !== undefined);

@@ -60,6 +60,7 @@ type LogEntry = {
 
 type Invocation = {
   service: string;
+  traced: boolean;
   entries: LogEntry[];
 };
 
@@ -117,6 +118,8 @@ export function createTraceRunner(tracerName: string) {
     const fn = (typeof attributesOrFn === 'function' ? attributesOrFn : maybeFn) as (t: Span) => Promise<T>;
     const attributes = typeof attributesOrFn === 'function' ? undefined : (attributesOrFn as Attributes);
 
+    if (invocations.getStore()?.traced === false) return fn(silentSpan);
+
     return tracer.startActiveSpan(name, async (span: OtelSpan) => {
       try {
         applyAttributes(span, attributes);
@@ -130,6 +133,11 @@ export function createTraceRunner(tracerName: string) {
       }
     });
   }
+
+  const silentSpan: Span = {
+    set: () => {},
+    trace: (name: string, attributesOrFn: unknown, maybeFn?: unknown) => run(name, attributesOrFn, maybeFn),
+  };
 
   return run;
 }
@@ -271,9 +279,10 @@ export function runInvocation<T>(
   service: string,
   env: ObservabilityEnv,
   ctx: { waitUntil(promise: Promise<unknown>): void },
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  options: { traced?: boolean } = {}
 ): Promise<T> {
-  return invocations.run({ service, entries: [] }, async () => {
+  return invocations.run({ service, traced: options.traced ?? true, entries: [] }, async () => {
     try {
       return await fn();
     } finally {

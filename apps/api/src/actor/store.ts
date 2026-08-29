@@ -1,5 +1,14 @@
 import { ACTOR_SCHEMA } from './schema';
-import type { ActorEventInput, ActorEventRow, ActorIdentity, ActorProjection } from './types';
+import type {
+  ActorDefinitions,
+  ActorEventInput,
+  ActorEventRow,
+  ActorIdentity,
+  ActorProjection,
+  ActorRunRow,
+  ActorRunStatus,
+  ActorWaitRow,
+} from './types';
 
 type Sql = <T = Record<string, string | number | boolean | null>>(
   strings: TemplateStringsArray,
@@ -98,6 +107,95 @@ export class ActorStore {
     `;
     this.sql`DELETE FROM events WHERE sequence <= ${flushed} AND sequence < ${keepFrom}`;
     return count?.count ?? 0;
+  }
+
+  readAttributes(): Record<string, unknown> {
+    const raw = this.readMeta('attributes');
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  }
+
+  writeAttributes(attributes: Record<string, unknown>): void {
+    this.writeMeta('attributes', JSON.stringify(attributes));
+  }
+
+  readDefinitions(): ActorDefinitions | null {
+    const raw = this.readMeta('definitions');
+    return raw ? (JSON.parse(raw) as ActorDefinitions) : null;
+  }
+
+  writeDefinitions(definitions: ActorDefinitions): void {
+    this.writeMeta('definitions', JSON.stringify(definitions));
+  }
+
+  readDefinitionsCheckedAt(): number {
+    return Number(this.readMeta('definitions_checked_at') ?? 0);
+  }
+
+  writeDefinitionsCheckedAt(at: number): void {
+    this.writeMeta('definitions_checked_at', String(at));
+  }
+
+  insertRun(run: ActorRunRow): void {
+    this.sql`
+      INSERT INTO runs (run_id, workflow_id, workflow_slug, version_id, status, step, detail, trigger_sequence, started_at, updated_at)
+      VALUES (
+        ${run.run_id}, ${run.workflow_id}, ${run.workflow_slug}, ${run.version_id}, ${run.status}, ${run.step},
+        ${run.detail}, ${run.trigger_sequence}, ${run.started_at}, ${run.updated_at}
+      )
+    `;
+  }
+
+  updateRun(
+    runId: string,
+    status: ActorRunStatus,
+    step: string | null,
+    detail: string | null,
+    at: string
+  ): void {
+    this.sql`
+      UPDATE runs SET status = ${status}, step = ${step}, detail = ${detail}, updated_at = ${at} WHERE run_id = ${runId}
+    `;
+  }
+
+  findRun(runId: string): ActorRunRow | null {
+    const [row] = this.sql<ActorRunRow>`SELECT * FROM runs WHERE run_id = ${runId}`;
+    return row ?? null;
+  }
+
+  listLiveRuns(workflowId?: string): ActorRunRow[] {
+    if (workflowId === undefined) {
+      return this.sql<ActorRunRow>`
+        SELECT * FROM runs WHERE status IN ('running', 'sleeping', 'waiting') ORDER BY started_at DESC
+      `;
+    }
+    return this.sql<ActorRunRow>`
+      SELECT * FROM runs WHERE workflow_id = ${workflowId} AND status IN ('running', 'sleeping', 'waiting')
+      ORDER BY started_at DESC
+    `;
+  }
+
+  listRuns(limit: number): ActorRunRow[] {
+    return this.sql<ActorRunRow>`SELECT * FROM runs ORDER BY started_at DESC LIMIT ${limit}`;
+  }
+
+  insertWait(wait: ActorWaitRow): void {
+    this.sql`
+      INSERT INTO waits (run_id, step, event, condition, expires_at)
+      VALUES (${wait.run_id}, ${wait.step}, ${wait.event}, ${wait.condition}, ${wait.expires_at})
+      ON CONFLICT (run_id, step) DO UPDATE SET event = excluded.event, condition = excluded.condition, expires_at = excluded.expires_at
+    `;
+  }
+
+  deleteWait(runId: string, step: string): void {
+    this.sql`DELETE FROM waits WHERE run_id = ${runId} AND step = ${step}`;
+  }
+
+  deleteWaitsOfRun(runId: string): void {
+    this.sql`DELETE FROM waits WHERE run_id = ${runId}`;
+  }
+
+  listWaitsFor(event: string, now: string): ActorWaitRow[] {
+    return this.sql<ActorWaitRow>`SELECT * FROM waits WHERE event = ${event} AND expires_at > ${now}`;
   }
 
   private readMeta(key: string): string | null {

@@ -105,6 +105,38 @@ const RESERVED: Record<string, Definition> = {
     icon: 'IconSettingsSliderHorFilled',
     describe: (data) => ({ detail: preferenceChanges(data) }),
   },
+  '$run.started': {
+    label: 'Workflow started',
+    icon: 'IconPlayFilled',
+    describe: (data) => ({ detail: text(data, 'workflow') }),
+  },
+  '$run.step': {
+    label: 'Workflow step',
+    icon: 'IconCircleDashedFilled',
+    describe: (data) => ({
+      label: `${text(data, 'workflow') ?? 'Workflow'} · ${text(data, 'step') ?? 'step'}`,
+      detail: text(data, 'summary'),
+    }),
+  },
+  '$run.completed': {
+    label: 'Workflow completed',
+    icon: 'IconCircleCheckFilled',
+    describe: (data) => ({ detail: text(data, 'workflow') }),
+  },
+  '$run.cancelled': {
+    label: 'Workflow cancelled',
+    icon: 'IconCircleBanSignFilled',
+    describe: (data) => ({
+      detail: [text(data, 'workflow'), text(data, 'reason')].filter(Boolean).join(' · ') || null,
+    }),
+  },
+  '$run.failed': {
+    label: 'Workflow failed',
+    icon: 'IconCircleXFilled',
+    describe: (data) => ({
+      detail: [text(data, 'workflow'), text(data, 'error')].filter(Boolean).join(' · ') || null,
+    }),
+  },
 };
 
 export function describeStreamEvent(event: { name: string; data: unknown }): StreamDescription {

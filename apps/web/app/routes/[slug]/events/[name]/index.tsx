@@ -226,13 +226,13 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
 
         <div className='grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]'>
           <Card className='min-w-0'>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Recent</CardTitle>
             </CardHeader>
             {detail.samples.length === 0 ? (
               <EmptyState size='sm' icon='IconHistoryFilled' title='Nothing recent' />
             ) : (
-              <Table className='table-fixed border-bg-3 border-t'>
+              <Table className='table-fixed'>
                 <TableHeader>
                   <TableRow>
                     <TableHead className='w-52'>Subscriber</TableHead>
@@ -258,7 +258,7 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
           </Card>
 
           <Card className='min-w-0'>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Fields</CardTitle>
             </CardHeader>
             {fields.length === 0 ? (
@@ -269,7 +269,7 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
                 description='Send a data object with the event to see its fields here.'
               />
             ) : (
-              <ul className='flex flex-col divide-y divide-bg-3 border-bg-3 border-t'>
+              <ul className='flex flex-col divide-y divide-bg-3'>
                 {fields.map((field) => (
                   <li key={field.key} className='flex items-center justify-between gap-3 px-4 py-2.5'>
                     <div className='flex min-w-0 flex-col'>

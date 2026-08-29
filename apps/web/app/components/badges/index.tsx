@@ -164,3 +164,28 @@ export function OptInBadge({ optedIn }: { optedIn: boolean }) {
     <Typed entry={optedIn ? { label: 'Opted in', tone: 'green' } : { label: 'Opted out', tone: 'default' }} />
   );
 }
+
+const WORKFLOW_STATUSES: Record<string, Entry> = {
+  draft: { label: 'Draft', tone: 'default' },
+  active: { label: 'Active', tone: 'green' },
+  paused: { label: 'Paused', tone: 'amber' },
+};
+
+export function WorkflowStatusBadge({ status }: { status: string }) {
+  const entry = WORKFLOW_STATUSES[status];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;
+}
+
+const RUN_STATUSES: Record<string, Entry> = {
+  running: { label: 'Running', tone: 'blue' },
+  sleeping: { label: 'Sleeping', tone: 'sky' },
+  waiting: { label: 'Waiting', tone: 'purple' },
+  completed: { label: 'Completed', tone: 'green' },
+  cancelled: { label: 'Cancelled', tone: 'default' },
+  failed: { label: 'Failed', tone: 'red' },
+};
+
+export function RunStatusBadge({ status }: { status: string }) {
+  const entry = RUN_STATUSES[status];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;
+}

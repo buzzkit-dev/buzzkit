@@ -16,6 +16,8 @@ export type MessageTargets = {
   where?: Expression;
 };
 
+export type MessageRun = { id: string; step: string };
+
 export type MessageSchedule = {
   at: string;
   timezone: string;

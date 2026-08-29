@@ -47,6 +47,9 @@ export const SCOPE_CATALOG = {
   'segments:read': { context: 'tenant', role: 'member', key: true },
   'segments:write': { context: 'tenant', role: 'admin', key: true },
 
+  'workflows:read': { context: 'tenant', role: 'member', key: true },
+  'workflows:write': { context: 'tenant', role: 'admin', key: true },
+
   'topics:read': { context: 'tenant', role: 'member', key: true },
   'topics:write': { context: 'tenant', role: 'admin', key: true },
 

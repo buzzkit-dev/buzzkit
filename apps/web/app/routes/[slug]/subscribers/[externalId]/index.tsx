@@ -41,6 +41,7 @@ import {
   ChannelBadge,
   DeliveryStatusBadge,
   PlatformBadge,
+  RunStatusBadge,
   SandboxBadge,
   SubscriptionStatusBadge,
   VerifiedBadge,
@@ -57,9 +58,11 @@ import {
   getSubscriber,
   getSubscriberPreferences,
   listSubscriberDeliveries,
+  listSubscriberRuns,
   listSubscriberTimeline,
   type SubscriberDelivery,
   type SubscriberPreference,
+  type SubscriberRun,
   type Subscription,
   type TimelineEvent,
 } from '@/app/lib/api.server';
@@ -96,15 +99,16 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
-  const [subscriber, preferences, deliveries, events] = await Promise.all([
+  const [subscriber, preferences, deliveries, events, runs] = await Promise.all([
     getSubscriber(ctx, token, params.slug, tenant, params.externalId),
     getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
     listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
     listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, { limit: 12 }),
+    listSubscriberRuns(ctx, token, params.slug, tenant, params.externalId),
   ]);
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const name = typeof attributes.name === 'string' && attributes.name.trim() ? attributes.name : null;
-  return { subscriber, preferences, deliveries, events, name };
+  return { subscriber, preferences, deliveries, events, runs, name };
 }
 
 export const action = subscriberAction;
@@ -264,7 +268,7 @@ function AttributeList({ attributes }: { attributes: Record<string, unknown> }) 
     .sort((a, b) => a.label.localeCompare(b.label));
 
   return (
-    <dl className='flex flex-col border-bg-3 border-t'>
+    <dl className='flex flex-col'>
       {rows.map((row) => (
         <div
           key={row.key}
@@ -426,7 +430,7 @@ function DeliveryRow({ delivery, params }: { delivery: SubscriberDelivery; param
         <span className='flex min-w-0 flex-col'>
           <Link
             to={`/${params.slug}/messages/${delivery.message.id}`}
-            className='min-w-0 outline-none hover:underline focus-visible:underline'
+            className='min-w-0 outline-none focus-visible:underline'
           >
             <Truncate className='font-medium text-fg-4'>{delivery.message.title ?? 'Untitled'}</Truncate>
           </Link>
@@ -443,6 +447,29 @@ function DeliveryRow({ delivery, params }: { delivery: SubscriberDelivery; param
       </TableCell>
       <TableCell>
         <TimeAgo at={delivery.sentAt ?? delivery.createdAt} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function RunRow({ run, slug }: { run: SubscriberRun; slug: string }) {
+  return (
+    <TableRow className='relative'>
+      <TableCell className='max-w-64 py-2'>
+        <Link
+          to={`/${slug}/runs/${run.id}`}
+          className="flex min-w-0 flex-col outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline"
+        >
+          <Truncate className='font-medium text-fg-4'>{run.workflow}</Truncate>
+          {run.summary && <Truncate className='text-fg-2 text-xs'>{run.summary}</Truncate>}
+        </Link>
+      </TableCell>
+      <TableCell>{run.step}</TableCell>
+      <TableCell>
+        <RunStatusBadge status={run.status} />
+      </TableCell>
+      <TableCell>
+        <TimeAgo at={run.updatedAt} />
       </TableCell>
     </TableRow>
   );
@@ -468,7 +495,7 @@ function EventRow({ event }: { event: TimelineEvent }) {
 }
 
 export default function SubscriberRoute({ loaderData, params }: Route.ComponentProps) {
-  const { subscriber, preferences, deliveries, events, name } = loaderData;
+  const { subscriber, preferences, deliveries, events, runs, name } = loaderData;
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const custom = Object.fromEntries(
     Object.entries(attributes).filter(([key]) => !key.startsWith('$') && key !== 'name' && key !== 'email')
@@ -490,6 +517,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
     (b.sentAt ?? b.createdAt).localeCompare(a.sentAt ?? a.createdAt)
   );
   const activity = events.items;
+
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
   useLinkedScroll(mainRef, asideRef);
@@ -514,10 +542,10 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Overview</CardTitle>
             </CardHeader>
-            <dl className='flex flex-col border-bg-3 border-t'>
+            <dl className='flex flex-col'>
               {name && (
                 <DetailRow label='Name' copy={name}>
                   {name}
@@ -571,7 +599,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           </Card>
 
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Messages</CardTitle>
             </CardHeader>
             {deliveries.items.length === 0 ? (
@@ -582,7 +610,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 description='Everything sent to this subscriber shows up here with its delivery status.'
               />
             ) : (
-              <Table className='border-bg-3 border-t'>
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Message</TableHead>
@@ -601,7 +629,37 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           </Card>
 
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
+              <CardTitle>Runs</CardTitle>
+            </CardHeader>
+            {runs.length === 0 ? (
+              <EmptyState
+                size='sm'
+                icon='IconAgentsFilled'
+                title='No runs yet'
+                description='A run appears here when an event from this subscriber matches a workflow.'
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Workflow</TableHead>
+                    <TableHead>Step</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Updated</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {runs.map((run) => (
+                    <RunRow key={run.id} run={run} slug={params.slug} />
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader divider className='py-3'>
               <CardTitle>Activity</CardTitle>
             </CardHeader>
             {events.items.length === 0 ? (
@@ -612,7 +670,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 description='Events from the app and your server appear here, newest first.'
               />
             ) : (
-              <ul className='flex flex-col divide-y divide-bg-3 border-bg-3 border-t'>
+              <ul className='flex flex-col divide-y divide-bg-3'>
                 {activity.map((event) => (
                   <EventRow key={event.id} event={event} />
                 ))}
@@ -627,7 +685,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           className='-m-1 flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-1 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'
         >
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Subscriptions</CardTitle>
             </CardHeader>
             {subscriber.subscriptions.length === 0 ? (
@@ -638,7 +696,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 description='Devices and addresses registered from your app appear here.'
               />
             ) : (
-              <ul className='flex flex-col divide-y divide-bg-3 border-bg-3 border-t'>
+              <ul className='flex flex-col divide-y divide-bg-3'>
                 {subscriber.subscriptions.map((subscription) => (
                   <SubscriptionRow key={subscription.id} subscription={subscription} />
                 ))}
@@ -647,7 +705,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           </Card>
 
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Preferences</CardTitle>
             </CardHeader>
             {preferences.length === 0 ? (
@@ -658,7 +716,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 description='Create a topic and this subscriber’s choice per channel appears here.'
               />
             ) : (
-              <ul className='flex flex-col divide-y divide-bg-3 border-bg-3 border-t'>
+              <ul className='flex flex-col divide-y divide-bg-3'>
                 {preferences.map((preference) => (
                   <PreferenceRow key={preference.id} preference={preference} />
                 ))}
@@ -667,7 +725,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           </Card>
 
           <Card>
-            <CardHeader className='py-3'>
+            <CardHeader divider className='py-3'>
               <CardTitle>Attributes</CardTitle>
             </CardHeader>
             {Object.keys(custom).length === 0 ? (

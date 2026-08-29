@@ -39,12 +39,12 @@ import {
   rowsToExpression,
   stableKey,
 } from '@/app/components/segments/expression';
-import { lineOf, parseJson } from '@/app/components/segments/json';
 import { SegmentPreviewPanel } from '@/app/components/segments/preview';
 import { describeSlugProblem, slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import type { Segment, SegmentMember, SegmentPreview, Topic } from '@/app/lib/api.server';
 import type { Channel } from '@/app/lib/channels';
+import { lineOf, parseJson } from '@/app/lib/utils/json';
 
 type Mode = 'builder' | 'json';
 
@@ -326,10 +326,10 @@ export function SegmentEditor({
         className='-m-1 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
       >
         <Card>
-          <CardHeader className='py-3'>
+          <CardHeader divider className='py-3'>
             <CardTitle>Details</CardTitle>
           </CardHeader>
-          <FieldGroup className='border-bg-3 border-t p-4'>
+          <FieldGroup className='p-4'>
             <Field>
               <FieldLabel htmlFor='segment-name'>Name</FieldLabel>
               <Input
@@ -386,7 +386,7 @@ export function SegmentEditor({
         </Card>
 
         <Card>
-          <CardHeader className='py-3'>
+          <CardHeader divider className='py-3'>
             <CardTitle>Conditions</CardTitle>
             <CardAction>
               <PillTabs
@@ -397,7 +397,7 @@ export function SegmentEditor({
               />
             </CardAction>
           </CardHeader>
-          <div className='border-bg-3 border-t'>
+          <div>
             {mode === 'builder' ? (
               !builderBlocked ? (
                 <SegmentBuilder

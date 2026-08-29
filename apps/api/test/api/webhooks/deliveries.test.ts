@@ -412,8 +412,14 @@ describe('listUndeliveredAuditRows and listReconcilableAuditIds', () => {
     const mine = rows.filter((row) => row.workspaceId === workspace.id).map((row) => row.id);
     expect(mine).toEqual([first.id, second.id]);
     expect((await listUndeliveredAuditRows(db, 1)).length).toBe(1);
+    await db
+      .update(tables.event)
+      .set({ createdAt: new Date(Date.now() - 10 * 60 * 1000) })
+      .where(inArray(tables.event.id, [first.id, second.id]));
     expect(
-      (await listUndeliveredAuditRows(db, 100_000, 1)).some((row) => row.workspaceId === workspace.id)
+      (await listUndeliveredAuditRows(db, 100_000, 5 * 60 * 1000)).some(
+        (row) => row.workspaceId === workspace.id
+      )
     ).toBe(false);
   });
 });
@@ -579,7 +585,7 @@ describe('processWebhookMessage', () => {
     const fetched = fetchSpy().mockResolvedValue(new Response(null, { status: 204 }));
     const workspace = await createWorkspaceRow();
     const tenant = await createTenantRow(workspace.id);
-    const endpoint = await createEndpointRow(workspace.id, { events: ['order.*', '$app.opened'] });
+    const endpoint = await createEndpointRow(workspace.id, { events: ['order.*', '$app.opened', '$run.*'] });
     const row = (name: string) => ({
       sequence: 1,
       id: `evt_${uniq()}`,
@@ -587,7 +593,7 @@ describe('processWebhookMessage', () => {
       name,
       source: 'ios',
       timestamp: '2026-08-27T10:00:00.000Z',
-      received_at: new Date().toISOString(),
+      received_at: new Date(endpoint.createdAt.getTime() + 1_000).toISOString(),
       data: '{}',
       run_id: null,
       message_id: null,
@@ -612,16 +618,16 @@ describe('processWebhookMessage', () => {
       ],
     });
 
-    expect(fetched).toHaveBeenCalledTimes(2);
+    expect(fetched).toHaveBeenCalledTimes(3);
     const types = fetched.mock.calls.map(
       ([, init]) => (JSON.parse((init as RequestInit).body as string) as { type: string }).type
     );
-    expect(types).toEqual(['order.completed', '$app.opened']);
+    expect(types).toEqual(['order.completed', '$app.opened', '$run.started']);
     const deliveries = await db
       .select()
       .from(tables.webhookDelivery)
       .where(eq(tables.webhookDelivery.endpointId, endpoint.id));
-    expect(deliveries).toHaveLength(2);
+    expect(deliveries).toHaveLength(3);
     expect(deliveries.every((delivery) => delivery.status === 'success')).toBe(true);
   });
 

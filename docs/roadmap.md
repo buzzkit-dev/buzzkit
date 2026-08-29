@@ -2,7 +2,7 @@
 
 **Status: Phases 0–4 ✅ (the API milestone). Phase 5 in progress: dashboard phase 1 (foundation + onboarding) is built and awaiting review; the dashboard's own phase plan lives in [dashboard.md](dashboard.md).**
 
-**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E8 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) and E2 (Webhooks) are built.**
+**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E9 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) and E2 (Webhooks) are built.**
 
 Deviations from the original plan, all deliberate:
 - **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.
@@ -269,6 +269,6 @@ Ship the framework to the world; the hosted product becomes deployment #1.
 | Decision | Phase | Leaning |
 |---|---|---|
 | APNs egress from Workers (HTTP/2) | 0 | Spike decides; fallback = minimal delivery sidecar |
-| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | E8 | No CLI at all (2026-08-28): the `buzzkit` package is the server SDK and applies definitions from code; `upsert` is diff + apply over the definitions API |
+| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | E9 | No CLI at all (2026-08-28): the `buzzkit` package is the server SDK and applies definitions from code; `upsert` is diff + apply over the definitions API |
 | Workflow runner: CF Workflows vs Durable Objects | 8 | **Decided** (engine.md): Cloudflare Workflows for runs, a Durable Object actor per subscriber for state, ordering and timers; Tinybird for the event log |
 | App sub-entity under tenant | 2 | No — tenant ≈ app; multiple apps = multiple tenants |

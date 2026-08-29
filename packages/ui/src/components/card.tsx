@@ -14,12 +14,17 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
+function CardHeader({
+  className,
+  divider = false,
+  ...props
+}: React.ComponentProps<'div'> & { divider?: boolean }) {
   return (
     <div
       data-slot='card-header'
       className={cn(
         'grid auto-rows-min items-start gap-0.5 px-4 py-4 group-has-data-[slot=card-content]/card:pb-[13px] has-data-[slot=card-description]:grid-rows-[auto_auto] has-data-[slot=card-action]:pr-28',
+        divider && 'border-bg-3 [&:has(+_:not([data-slot=empty-state]))]:border-b',
         'relative [&>[data-slot=card-title]~*:not([data-slot=card-description])]:absolute [&>[data-slot=card-title]~*:not([data-slot=card-description])]:inset-y-0 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:right-4 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:my-auto [&>[data-slot=card-title]~*:not([data-slot=card-description])]:h-fit',
         className
       )}

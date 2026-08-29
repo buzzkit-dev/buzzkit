@@ -8,7 +8,7 @@ const badgeVariants = cva(
   [
     'group/badge inline-flex w-fit shrink-0 select-none items-center justify-center gap-1 overflow-hidden whitespace-nowrap font-medium transition-[color,background-color,box-shadow]',
     'outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
-    '[&>svg]:pointer-events-none',
+    '[&>svg]:pointer-events-none [&>svg]:shrink-0',
   ].join(' '),
   {
     variants: {

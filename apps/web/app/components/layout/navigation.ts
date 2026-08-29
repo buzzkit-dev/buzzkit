@@ -19,7 +19,15 @@ export const NAVIGATION: NavigationSection[] = [
     label: 'Messaging',
     pages: [
       { label: 'Messages', path: '/messages', icon: 'IconPaperPlaneTopRightFilled' },
-      { label: 'Workflows', path: '/workflows', icon: 'IconAgentsFilled', planned: 'engine phase E5' },
+      {
+        label: 'Workflows',
+        path: '/workflows',
+        icon: 'IconAgentsFilled',
+        children: [
+          { label: 'Catalog', path: '/workflows' },
+          { label: 'Runs', path: '/runs' },
+        ],
+      },
       {
         label: 'Events',
         path: '/events',

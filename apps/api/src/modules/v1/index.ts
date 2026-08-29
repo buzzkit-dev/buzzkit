@@ -22,6 +22,8 @@ import { message } from './messages/[id]';
 import { messageCancel } from './messages/[id]/cancel';
 import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
+import { runs } from './runs';
+import { run } from './runs/[runId]';
 import { segments } from './segments';
 import { segment } from './segments/[segmentSlug]';
 import { segmentMembers } from './segments/[segmentSlug]/members';
@@ -31,6 +33,7 @@ import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
 import { subscriberDeliveries } from './subscribers/[externalId]/deliveries';
 import { subscriberPreferences } from './subscribers/[externalId]/preferences';
+import { subscriberRuns } from './subscribers/[externalId]/runs';
 import { subscriberSubscriptions } from './subscribers/[externalId]/subscriptions';
 import { subscriberTimeline } from './subscribers/[externalId]/timeline';
 import { subscriptions } from './subscriptions';
@@ -41,6 +44,11 @@ import { tenantIdentitySecret } from './tenants/[tenantSlug]/identity-secret';
 import { tenantIdentitySecretRotate } from './tenants/[tenantSlug]/identity-secret/rotate';
 import { topics } from './topics';
 import { topic } from './topics/[topicSlug]';
+import { workflows } from './workflows';
+import { workflow } from './workflows/[workflowSlug]';
+import { workflowPause } from './workflows/[workflowSlug]/pause';
+import { workflowPublish } from './workflows/[workflowSlug]/publish';
+import { workflowRuns } from './workflows/[workflowSlug]/runs';
 import { workspaces } from './workspaces';
 import { workspace } from './workspaces/[workspaceSlug]';
 import { auditLog } from './workspaces/[workspaceSlug]/audit';
@@ -203,6 +211,10 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(subscriberTimeline)
   /*
+   * /v1/subscribers/:externalId/runs
+   */
+  .use(subscriberRuns)
+  /*
    * /v1/subscriptions
    */
   .use(subscriptions)
@@ -234,6 +246,34 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/segments/:segmentSlug/members
    */
   .use(segmentMembers)
+  /*
+   * /v1/workflows
+   */
+  .use(workflows)
+  /*
+   * /v1/workflows/:workflowSlug
+   */
+  .use(workflow)
+  /*
+   * /v1/workflows/:workflowSlug/publish
+   */
+  .use(workflowPublish)
+  /*
+   * /v1/workflows/:workflowSlug/pause
+   */
+  .use(workflowPause)
+  /*
+   * /v1/workflows/:workflowSlug/runs
+   */
+  .use(workflowRuns)
+  /*
+   * /v1/runs/:runId
+   */
+  .use(runs)
+  /*
+   * /v1/runs/:runId
+   */
+  .use(run)
   /*
    * /v1/messages
    */

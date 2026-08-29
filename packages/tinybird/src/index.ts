@@ -2,15 +2,20 @@ import { defineProject, type InferRow, Tinybird } from '@tinybirdco/sdk';
 import { eventNamesHourly } from './datasources/event-names-hourly';
 import { events } from './datasources/events';
 import { eventsBySubscriber } from './datasources/events-by-subscriber';
+import { runsCurrent } from './datasources/runs-current';
 import { subscriberActivity } from './datasources/subscriber-activity';
 import { subscriberAttributes } from './datasources/subscriber-attributes';
 import { subscriptionState } from './datasources/subscription-state';
 import { eventCatalog } from './endpoints/event-catalog';
 import { eventRecent } from './endpoints/event-recent';
 import { eventVolume } from './endpoints/event-volume';
+import { runCounts } from './endpoints/run-counts';
+import { runSteps } from './endpoints/run-steps';
+import { runs } from './endpoints/runs';
 import { subscriberTimeline } from './endpoints/subscriber-timeline';
 import { eventNamesHourlyMv } from './materializations/event-names-hourly';
 import { eventsBySubscriberMv } from './materializations/events-by-subscriber';
+import { runsCurrentMv } from './materializations/runs-current';
 import { subscriberActivityMv } from './materializations/subscriber-activity';
 import { subscriberAttributesMv } from './materializations/subscriber-attributes';
 import { subscriptionStateMv } from './materializations/subscription-state';
@@ -22,6 +27,7 @@ export const datasources = {
   subscriberAttributes,
   subscriptionState,
   subscriberActivity,
+  runsCurrent,
 };
 
 export const pipes = {
@@ -30,10 +36,14 @@ export const pipes = {
   subscriberAttributesMv,
   subscriptionStateMv,
   subscriberActivityMv,
+  runsCurrentMv,
   eventCatalog,
   eventVolume,
   eventRecent,
   subscriberTimeline,
+  runs,
+  runCounts,
+  runSteps,
 };
 
 export default defineProject({ datasources, pipes });

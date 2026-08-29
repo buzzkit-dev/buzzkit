@@ -13,6 +13,8 @@ const server = spawn(
     '--local',
     '--var',
     'ENVIRONMENT:test',
+    '--var',
+    'WORKFLOW_TIME_SCALE:0.0001',
     '--port',
     String(port),
     '--inspector-port',

@@ -483,7 +483,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
 
       <div className='grid gap-5 lg:grid-cols-2'>
         <Card>
-          <CardHeader className='py-3'>
+          <CardHeader divider className='py-3'>
             <CardTitle>Recent messages</CardTitle>
             {messages.length > 0 && (
               <CardAction>
@@ -506,7 +506,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
               description='Send one from your backend and it appears here.'
             />
           ) : (
-            <Table className='border-bg-3 border-t'>
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Message</TableHead>
@@ -523,7 +523,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           )}
         </Card>
         <Card>
-          <CardHeader className='py-3'>
+          <CardHeader divider className='py-3'>
             <CardTitle>New subscribers</CardTitle>
             {subscribers.length > 0 && (
               <CardAction>
@@ -546,7 +546,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
               description='Identify a user from your app and they appear here.'
             />
           ) : (
-            <Table className='border-bg-3 border-t'>
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Subscriber</TableHead>

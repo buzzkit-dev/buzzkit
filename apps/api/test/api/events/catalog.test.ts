@@ -140,6 +140,14 @@ const subscription = {
   enabled: true,
 };
 
+const run = {
+  runId: '1-wf_a-2-3',
+  workflow: 'trial',
+  workflowId: 'wf_a',
+  versionId: 'wfv_a',
+  startedAt: '2026-08-29T10:00:00.000Z',
+};
+
 const systemPayloads: Record<keyof typeof SYSTEM_EVENTS, { valid: unknown; invalid: unknown }> = {
   'subscriber.created': {
     valid: { externalId: 'user_1', attributes: { plan: 'pro', seats: 3 } },
@@ -163,6 +171,17 @@ const systemPayloads: Record<keyof typeof SYSTEM_EVENTS, { valid: unknown; inval
   },
   'preferences.updated': { valid: { changes: { marketing: false } }, invalid: { changes: [] } },
   identify: { valid: { attributes: { name: 'Ada' } }, invalid: {} },
+  'run.started': {
+    valid: { ...run, trigger: { name: 'trial.started', id: 'evt_1' } },
+    invalid: { ...run, trigger: { name: 'trial.started' } },
+  },
+  'run.step': {
+    valid: { ...run, step: 'settle', status: 'sleeping', summary: 'Sleeping for 2h' },
+    invalid: { ...run, step: 'settle', status: 'sleeping' },
+  },
+  'run.completed': { valid: run, invalid: { ...run, startedAt: 1 } },
+  'run.cancelled': { valid: { ...run, reason: 'subscription.started' }, invalid: run },
+  'run.failed': { valid: { ...run, error: 'Tenant is gone' }, invalid: { ...run, error: 500 } },
 };
 
 const sdkPayloads: Record<keyof typeof SDK_EVENTS, { valid: unknown; invalid: unknown }> = {

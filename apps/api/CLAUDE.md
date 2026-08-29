@@ -19,12 +19,22 @@ src/
 │   ├── tinybird.ts       Tinybird client (typed endpoints), Events API ingest, local token resolution, dashboard JWT signing
 │   ├── actor.ts          `subscriberActor(tenantId, subscriberId)` — the Durable Object stub
 │   └── sqids.ts          Sqids encoder/decoder + ID_PREFIXES catalog
+├── api/                  Domain logic per resource (see Rules); `runs/` reads Tinybird's `runs_current` / `run_counts` / `run_steps` and the
+│                         actor (`findRun`, `listRecent`) so a live run is fresh and a finished one is history
 ├── utils/errorCodes.ts   Error code → HTTP status mapping (includes PostgreSQL codes)
 ├── providers/            Provider registry: one module per provider (validate + send), aggregated in index.ts
-├── actor/                The subscriber actor (Durable Object on the Agents SDK): subscriber.ts (the class: ingest, flush), store.ts (typed
+├── actor/                The subscriber actor (Durable Object on the Agents SDK): subscriber.ts (the class: ingest, flush, the run RPCs),
+│                         ingest.ts (accepting events, system events), runs.ts (`advanceRuns`: trigger matching, cancel rules, wait delivery,
+│                         the `$run.*` events; pure over the store and a `RunPorts` object so it unit-tests without Workers), store.ts (typed
 │                         SQLite access), schema.ts (DDL), types.ts, constants.ts. Exported instrumented from index.ts (`instrumentActor`)
 ├── queue/                Queue consumers (deliveries: fan-out pages + batched delivery pipeline: select → claim → send → settle; 
 │                         events: actor flushes → gzipped Events API batches, `buzzkit-events-dlq` re-driven into the main queue; webhooks: audit ids and actor batches → event objects → signed deliveries with explicit delayed retries) and the reconciliation cron
+├── engine/               `EngineWorkflow` (index.ts), the Cloudflare Workflow (binding `ENGINE`) that interprets one run's pinned spec:
+│                         context.ts (`RunContext`: params, step state, the actor stub, `record` → `$run.step`; `do` turns a 4xx `ApiError` into a `NonRetryableError` so permanent failures do not sit in retries), anchors.ts (`resolveAnchor`,
+│                         wall-clock times in a zone), steps/ (one file per step kind, `runSteps` dispatches), types.ts. Every step is its own
+│                         `runInvocation(…, { traced: false })`: OTel has no Workflow instrumentation, so the context is declared untraced,
+│                         `trace()` hands out a silent span there, `send` uses an untraced db, and the step logs carry the run id and the
+│                         trace id of the request that triggered the run (`traceparent` in the run params)
 ├── cron/                 The Worker's cron triggers, dispatched by `controller.cron` in index.ts: the `* * * * *` tick releases due scheduled sends
 │                         (scheduled-messages.ts, zone by zone for subscriber-timezone schedules); the `*/5 * * * *` sweep runs the delivery,
 │                         webhook and credential reconciliations (reconcile.ts, queue/webhooks.ts, rewrap.ts)
@@ -56,7 +66,7 @@ src/
 
 ## Observability — every unit of work is a span
 
-Traces and logs come from `@buzzkit/observability` (`packages/observability`). Wrap domain operations, provider calls, and queue/cron work in `trace('resource.verb', attrs?, fn)` and stamp outcomes with `t.set()`; log with `log.info/warn/error(message, fields)` — never `console`. Services report as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler` / `buzzkit-actor` from one Worker; the actor's spans join the API request's trace through the `traceparent` the ingest RPC carries. Caches live in KV only (`AUTH_CACHE`, `PROVIDER_CACHE`) — never in isolate memory — and only through `libs/cache.ts` (`readCache`/`writeCache`/`deleteCache`): a cache failure is logged and swallowed, it must never fail a request. Details: `docs/architecture.md` → Observability.
+Traces and logs come from `@buzzkit/observability` (`packages/observability`). Wrap domain operations, provider calls, and queue/cron work in `trace('resource.verb', attrs?, fn)` and stamp outcomes with `t.set()`; log with `log.info/warn/error(message, fields)` — never `console`. Services report as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler` / `buzzkit-actor` / `buzzkit-workflows` (the Workflow runner, one short invocation per step) from one Worker; the actor's spans join the API request's trace through the `traceparent` the ingest RPC carries. Caches live in KV only (`AUTH_CACHE`, `PROVIDER_CACHE`) — never in isolate memory — and only through `libs/cache.ts` (`readCache`/`writeCache`/`deleteCache`): a cache failure is logged and swallowed, it must never fail a request. Details: `docs/architecture.md` → Observability.
 
 ## Testing
 
@@ -90,7 +100,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
+`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/workflows` (+ `/:slug`, `/:slug/publish`, `/:slug/pause`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
 
 ## Commands
 
