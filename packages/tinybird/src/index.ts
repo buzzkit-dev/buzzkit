@@ -8,9 +8,12 @@ import { subscriberAttributes } from './datasources/subscriber-attributes';
 import { subscriptionState } from './datasources/subscription-state';
 import { eventCatalog } from './endpoints/event-catalog';
 import { eventRecent } from './endpoints/event-recent';
+import { eventTop } from './endpoints/event-top';
 import { eventVolume } from './endpoints/event-volume';
 import { runCounts } from './endpoints/run-counts';
+import { runLatest } from './endpoints/run-latest';
 import { runSteps } from './endpoints/run-steps';
+import { runVolume } from './endpoints/run-volume';
 import { runs } from './endpoints/runs';
 import { subscriberTimeline } from './endpoints/subscriber-timeline';
 import { eventNamesHourlyMv } from './materializations/event-names-hourly';
@@ -40,10 +43,13 @@ export const pipes = {
   eventCatalog,
   eventVolume,
   eventRecent,
+  eventTop,
   subscriberTimeline,
   runs,
   runCounts,
+  runLatest,
   runSteps,
+  runVolume,
 };
 
 export default defineProject({ datasources, pipes });

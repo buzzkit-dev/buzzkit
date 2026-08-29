@@ -7,6 +7,7 @@ export const eventVolume = defineEndpoint('event_volume', {
     name: p.string().optional(),
     start: p.dateTime(),
     end: p.dateTime(),
+    exclude_source: p.string().optional(),
     bucket_seconds: p.int32().optional(3600),
   },
   nodes: [
@@ -22,6 +23,7 @@ export const eventVolume = defineEndpoint('event_volume', {
           {% if defined(name) %} AND name = {{String(name)}} {% end %}
           AND hour >= {{DateTime(start)}}
           AND hour < {{DateTime(end)}}
+          {% if defined(exclude_source) %} AND source != {{String(exclude_source)}} {% end %}
         GROUP BY bucket
         ORDER BY bucket ASC
       `,

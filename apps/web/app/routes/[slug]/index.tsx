@@ -26,7 +26,9 @@ import { useMemo } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge, PlatformBadge } from '@/app/components/badges';
+import { EventName } from '@/app/components/events/name';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
+import { LiveRuns } from '@/app/components/workflows/live-runs';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import {
@@ -61,6 +63,8 @@ const TONES = {
   purple: { fill: 'var(--purple-4)', dot: 'bg-purple-4' },
   green: { fill: 'var(--green-4)', dot: 'bg-green-4' },
   red: { fill: 'var(--red-4)', dot: 'bg-red-4' },
+  amber: { fill: 'var(--amber-4)', dot: 'bg-amber-4' },
+  blue: { fill: 'var(--blue-4)', dot: 'bg-blue-4' },
 } as const;
 
 const DELTA_ICONS: Record<'up' | 'down', { icon: IconName }> = {
@@ -248,12 +252,28 @@ function Key({ tone, children }: { tone: keyof typeof TONES; children: React.Rea
   );
 }
 
-function DeliveriesChart({ series, interval }: { series: Stats['series']; interval: Stats['interval'] }) {
+type Line = {
+  key: string;
+  label: string;
+  tone: keyof typeof TONES;
+  pick: (day: Stats['series'][number]) => number;
+};
+
+function PeriodChart({
+  series,
+  interval,
+  lines,
+  height = '16rem',
+}: {
+  series: Stats['series'];
+  interval: Stats['interval'];
+  lines: Line[];
+  height?: string;
+}) {
   const plan = useMemo(() => axisPlan(interval, series.length), [interval, series.length]);
   const data = series.map((day) => ({
     date: dayOf(day.date),
-    sent: day.sent,
-    failed: day.failed + day.invalid,
+    ...Object.fromEntries(lines.map((line) => [line.key, line.pick(day)])),
   }));
   return (
     <AreaChart
@@ -264,36 +284,85 @@ function DeliveriesChart({ series, interval }: { series: Stats['series']; interv
       aspectRatio='auto'
       animationDuration={700}
       yDomainTween={false}
-      className='h-64 w-full'
-      style={{ height: '16rem' }}
+      className='w-full'
+      style={{ height }}
     >
       <Grid horizontal numTicksRows={3} strokeDasharray='none' />
-      <Area
-        dataKey='sent'
-        fill={TONES.green.fill}
-        stroke={TONES.green.fill}
-        strokeWidth={2}
-        fillOpacity={0.14}
-        gradientToOpacity={0}
-      />
-      <Area
-        dataKey='failed'
-        fill={TONES.red.fill}
-        stroke={TONES.red.fill}
-        strokeWidth={2}
-        fillOpacity={0.14}
-        gradientToOpacity={0}
-      />
+      {lines.map((line) => (
+        <Area
+          key={line.key}
+          dataKey={line.key}
+          fill={TONES[line.tone].fill}
+          stroke={TONES[line.tone].fill}
+          strokeWidth={2}
+          fillOpacity={0.14}
+          gradientToOpacity={0}
+        />
+      ))}
       <XAxis ticks={plan.tick} format={plan.label} tickerHalfWidth={0} offset={6} />
       <ChartTooltip
         showDatePill={false}
         title={(point: Record<string, unknown>) => plan.title(point.date as Date)}
-        rows={(point: Record<string, unknown>) => [
-          { color: TONES.green.fill, label: 'Sent', value: Number(point.sent) },
-          { color: TONES.red.fill, label: 'Failed', value: Number(point.failed) },
-        ]}
+        rows={(point: Record<string, unknown>) =>
+          lines.map((line) => ({
+            color: TONES[line.tone].fill,
+            label: line.label,
+            value: Number(point[line.key]),
+          }))
+        }
       />
     </AreaChart>
+  );
+}
+
+const DELIVERY_LINES: Line[] = [
+  { key: 'sent', label: 'Sent', tone: 'green', pick: (day) => day.sent },
+  { key: 'failed', label: 'Failed', tone: 'red', pick: (day) => day.failed + day.invalid },
+];
+
+const EVENT_LINES: Line[] = [{ key: 'events', label: 'Events', tone: 'amber', pick: (day) => day.events }];
+
+const RUN_LINES: Line[] = [
+  { key: 'started', label: 'Started', tone: 'blue', pick: (day) => day.runsStarted },
+  { key: 'completed', label: 'Completed', tone: 'green', pick: (day) => day.runsCompleted },
+  { key: 'failed', label: 'Failed', tone: 'red', pick: (day) => day.runsFailed },
+];
+
+function TopEventRow({ event, base }: { event: Stats['topEvents'][number]; base: string }) {
+  return (
+    <TableRow>
+      <TableCell className='max-w-0 py-2'>
+        <Link
+          to={`${base}/events/${encodeURIComponent(event.name)}`}
+          className='flex min-w-0 outline-none focus-visible:underline'
+        >
+          <EventName name={event.name} />
+        </Link>
+      </TableCell>
+      <TableCell className='w-0 text-right tabular-nums'>{event.count.toLocaleString('en-US')}</TableCell>
+    </TableRow>
+  );
+}
+
+function WorkflowRow({ workflow, base }: { workflow: Stats['workflows'][number]; base: string }) {
+  return (
+    <TableRow>
+      <TableCell className='max-w-0 py-2'>
+        <Link
+          to={`${base}/workflows/${workflow.slug}`}
+          className='flex min-w-0 flex-col outline-none focus-visible:underline'
+        >
+          <Truncate className='font-medium text-fg-4'>{workflow.name}</Truncate>
+          <Truncate className='text-fg-2 text-xs'>{workflow.slug}</Truncate>
+        </Link>
+      </TableCell>
+      <TableCell className='w-0'>
+        <LiveRuns runs={workflow} />
+      </TableCell>
+      <TableCell className='w-0 whitespace-nowrap'>
+        {workflow.lastRunAt ? <TimeAgo at={workflow.lastRunAt} /> : <span className='text-fg-2'>Never</span>}
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -391,7 +460,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
             Overview
           </h1>
           <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Track subscribers, messages and deliveries over time.
+            Track subscribers, messages, deliveries, events and workflows over time.
           </p>
         </div>
         <FilterRange
@@ -416,7 +485,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
         </Card>
       )}
 
-      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-4'>
+      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-3'>
         <Tile
           label='Subscribers'
           value={stats.subscribers.total}
@@ -453,7 +522,47 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
             upIsGood: false,
           }}
         />
+        <Tile
+          label='Events'
+          value={stats.events.total}
+          tone='amber'
+          points={points((day) => day.events)}
+          delta={{ current: stats.events.total, previous: stats.previous.events.total, upIsGood: true }}
+        />
+        <Tile
+          label='Runs'
+          value={stats.runs.started}
+          tone='blue'
+          points={points((day) => day.runsStarted)}
+          delta={{ current: stats.runs.started, previous: stats.previous.runs.started, upIsGood: true }}
+        />
       </div>
+
+      {stats.scheduled.count > 0 && (
+        <Card className='flex-row items-center gap-3 px-4 py-3'>
+          <IconTile icon='IconCalendarClockFilled' size='sm' className='text-fg-2' />
+          <span className='flex min-w-0 flex-1 flex-col'>
+            <span className='font-medium text-fg-4 text-sm'>
+              {stats.scheduled.count === 1
+                ? '1 message scheduled'
+                : `${stats.scheduled.count.toLocaleString('en-US')} messages scheduled`}
+            </span>
+            {stats.scheduled.nextAt && (
+              <span className='text-pretty text-fg-2 text-sm'>
+                The next one goes out <Time at={stats.scheduled.nextAt} />.
+              </span>
+            )}
+          </span>
+          <Button
+            variant='soft'
+            size='sm'
+            nativeButton={false}
+            render={<Link to={`${base}/messages?status=scheduled`} />}
+          >
+            View scheduled
+          </Button>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -476,10 +585,63 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           />
         ) : (
           <CardContent className='pt-1 pb-3'>
-            <DeliveriesChart series={stats.series} interval={stats.interval} />
+            <PeriodChart series={stats.series} interval={stats.interval} lines={DELIVERY_LINES} />
           </CardContent>
         )}
       </Card>
+
+      <div className='grid gap-5 lg:grid-cols-2'>
+        <Card>
+          <CardHeader>
+            <CardTitle>Events</CardTitle>
+            <CardDescription>Events tracked per {stats.interval}.</CardDescription>
+          </CardHeader>
+          {stats.events.total === 0 ? (
+            <EmptyState
+              size='sm'
+              className='pt-0'
+              icon='IconZapFilled'
+              title='No events in this period'
+              description='Track an event from your app or backend and it appears here.'
+            />
+          ) : (
+            <CardContent className='pt-1 pb-3'>
+              <PeriodChart
+                series={stats.series}
+                interval={stats.interval}
+                lines={EVENT_LINES}
+                height='12rem'
+              />
+            </CardContent>
+          )}
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Runs</CardTitle>
+            <CardDescription>Workflow runs started per {stats.interval}.</CardDescription>
+            {stats.runs.started > 0 && (
+              <CardAction className='gap-3'>
+                <Key tone='blue'>Started</Key>
+                <Key tone='green'>Completed</Key>
+                <Key tone='red'>Failed</Key>
+              </CardAction>
+            )}
+          </CardHeader>
+          {stats.runs.started === 0 ? (
+            <EmptyState
+              size='sm'
+              className='pt-0'
+              icon='IconAgentsFilled'
+              title='No runs in this period'
+              description='Publish a workflow and its runs appear here as events trigger them.'
+            />
+          ) : (
+            <CardContent className='pt-1 pb-3'>
+              <PeriodChart series={stats.series} interval={stats.interval} lines={RUN_LINES} height='12rem' />
+            </CardContent>
+          )}
+        </Card>
+      </div>
 
       <div className='grid gap-5 lg:grid-cols-2'>
         <Card>
@@ -557,6 +719,85 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
               <TableBody>
                 {subscribers.map((subscriber) => (
                   <SubscriberRow key={subscriber.id} subscriber={subscriber} base={base} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Top events</CardTitle>
+            {stats.topEvents.length > 0 && (
+              <CardAction>
+                <Button
+                  variant='ghost'
+                  size='xs'
+                  nativeButton={false}
+                  render={<Link to={`${base}/events`} />}
+                >
+                  View all
+                </Button>
+              </CardAction>
+            )}
+          </CardHeader>
+          {stats.topEvents.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconZapFilled'
+              title='No events in this period'
+              description='The most tracked event names of the period appear here.'
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event</TableHead>
+                  <TableHead className='text-right'>Count</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.topEvents.map((event) => (
+                  <TopEventRow key={event.name} event={event} base={base} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Active workflows</CardTitle>
+            {stats.workflows.length > 0 && (
+              <CardAction>
+                <Button
+                  variant='ghost'
+                  size='xs'
+                  nativeButton={false}
+                  render={<Link to={`${base}/workflows`} />}
+                >
+                  View all
+                </Button>
+              </CardAction>
+            )}
+          </CardHeader>
+          {stats.workflows.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconAgentsFilled'
+              title='No active workflows'
+              description='Publish a workflow and its live runs appear here.'
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Workflow</TableHead>
+                  <TableHead>Live runs</TableHead>
+                  <TableHead>Last run</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.workflows.map((workflow) => (
+                  <WorkflowRow key={workflow.slug} workflow={workflow} base={base} />
                 ))}
               </TableBody>
             </Table>

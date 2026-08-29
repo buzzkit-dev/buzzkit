@@ -1,5 +1,9 @@
+import { countLiveRuns } from '@buzzkit/api/api/runs/index';
+import { listWorkflows } from '@buzzkit/api/api/workflows/index';
 import { BadRequestError } from '@buzzkit/api/libs/error';
+import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { formatClickHouseDateTime, parseClickHouseTime, tinybird } from '@buzzkit/api/libs/tinybird';
 import {
   and,
   type Column,
@@ -9,6 +13,7 @@ import {
   gte,
   isNull,
   lte,
+  min,
   type SQL,
   sql,
   tables,
@@ -37,12 +42,35 @@ export type StatsDay = {
   failed: number;
   invalid: number;
   pending: number;
+  events: number;
+  runsStarted: number;
+  runsCompleted: number;
+  runsFailed: number;
+};
+
+export type RunTotals = {
+  started: number;
+  live: number;
+  completed: number;
+  cancelled: number;
+  failed: number;
 };
 
 export type StatsWindow = {
   subscribers: { added: number };
   messages: { total: number };
   deliveries: DeliveryTotals;
+  events: { total: number };
+  runs: RunTotals;
+};
+
+export type StatsWorkflow = {
+  slug: string;
+  name: string;
+  running: number;
+  sleeping: number;
+  waiting: number;
+  lastRunAt: string | null;
 };
 
 export type Stats = {
@@ -51,9 +79,29 @@ export type Stats = {
   subscribers: { total: number; added: number };
   messages: { total: number };
   deliveries: DeliveryTotals;
+  events: { total: number };
+  runs: RunTotals;
+  topEvents: Array<{ name: string; count: number }>;
+  workflows: StatsWorkflow[];
+  scheduled: { count: number; nextAt: string | null };
   previous: StatsWindow;
   series: StatsDay[];
 };
+
+type HourlyEvents = Array<{ bucket: string; count: number }>;
+
+type HourlyRuns = Array<{
+  bucket: string;
+  started: number;
+  live: number;
+  completed: number;
+  cancelled: number;
+  failed: number;
+}>;
+
+const TOP_EVENTS = 5;
+
+const TOP_WORKFLOWS = 5;
 
 export const StatsQuerySchema = t.Object({
   from: t.Optional(t.String({ format: 'date-time' })),
@@ -125,8 +173,55 @@ function bucket(status: string): 'sent' | 'failed' | 'invalid' | 'pending' {
   return 'invalid';
 }
 
-async function collectWindow(db: Db, tenantId: number, range: StatsRange): Promise<StatsWindow> {
-  const [[subscribers], [messages], byStatus] = await Promise.all([
+async function listHourlyEvents(tenantId: number, range: StatsRange): Promise<HourlyEvents> {
+  const result = await trace('stats.events', async () =>
+    (await tinybird()).eventVolume.query({
+      tenant_id: tenantId,
+      start: formatClickHouseDateTime(range.from.toISOString()),
+      end: formatClickHouseDateTime(range.to.toISOString()),
+      bucket_seconds: 3600,
+      exclude_source: 'system',
+    })
+  );
+  return result.data.map((row) => ({ bucket: parseClickHouseTime(row.bucket), count: Number(row.count) }));
+}
+
+async function listHourlyRuns(tenantId: number, range: StatsRange): Promise<HourlyRuns> {
+  const result = await trace('stats.runs', async () =>
+    (await tinybird()).runVolume.query({
+      tenant_id: tenantId,
+      start: formatClickHouseDateTime(range.from.toISOString()),
+      end: formatClickHouseDateTime(range.to.toISOString()),
+    })
+  );
+  return result.data.map((row) => ({
+    bucket: parseClickHouseTime(row.bucket),
+    started: Number(row.started),
+    live: Number(row.live),
+    completed: Number(row.completed),
+    cancelled: Number(row.cancelled),
+    failed: Number(row.failed),
+  }));
+}
+
+function sumRuns(rows: HourlyRuns): RunTotals {
+  const totals: RunTotals = { started: 0, live: 0, completed: 0, cancelled: 0, failed: 0 };
+  for (const row of rows) {
+    totals.started += row.started;
+    totals.live += row.live;
+    totals.completed += row.completed;
+    totals.cancelled += row.cancelled;
+    totals.failed += row.failed;
+  }
+  return totals;
+}
+
+async function collectWindow(
+  db: Db,
+  tenantId: number,
+  range: StatsRange
+): Promise<StatsWindow & { hourlyEvents: HourlyEvents; hourlyRuns: HourlyRuns }> {
+  const [[subscribers], [messages], byStatus, hourlyEvents, hourlyRuns] = await Promise.all([
     trace(
       'stats.subscribersAdded',
       async () =>
@@ -172,6 +267,8 @@ async function collectWindow(db: Db, tenantId: number, range: StatsRange): Promi
           )
           .groupBy(tables.delivery.status)
     ),
+    listHourlyEvents(tenantId, range),
+    listHourlyRuns(tenantId, range),
   ]);
 
   const deliveries: DeliveryTotals = { total: 0, sent: 0, failed: 0, invalid: 0, pending: 0 };
@@ -183,7 +280,73 @@ async function collectWindow(db: Db, tenantId: number, range: StatsRange): Promi
     subscribers: { added: Number(subscribers?.added ?? 0) },
     messages: { total: Number(messages?.total ?? 0) },
     deliveries,
+    events: { total: hourlyEvents.reduce((total, row) => total + row.count, 0) },
+    runs: sumRuns(hourlyRuns),
+    hourlyEvents,
+    hourlyRuns,
   };
+}
+
+async function listTopEvents(tenantId: number, range: StatsRange) {
+  const result = await trace('stats.topEvents', async () =>
+    (await tinybird()).eventTop.query({
+      tenant_id: tenantId,
+      start: formatClickHouseDateTime(range.from.toISOString()),
+      end: formatClickHouseDateTime(range.to.toISOString()),
+      limit: TOP_EVENTS,
+      exclude_source: 'system',
+    })
+  );
+  return result.data.map((row) => ({ name: row.name, count: Number(row.count) }));
+}
+
+async function listLatestRuns(tenantId: number): Promise<Map<string, string>> {
+  const result = await trace('stats.latestRuns', async () =>
+    (await tinybird()).runLatest.query({ tenant_id: tenantId })
+  );
+  return new Map(result.data.map((row) => [row.workflow_id, parseClickHouseTime(row.last_started_at)]));
+}
+
+async function listActiveWorkflows(db: Db, tenantId: number): Promise<StatsWorkflow[]> {
+  const [workflows, counts, latest] = await Promise.all([
+    listWorkflows(db, tenantId),
+    countLiveRuns(tenantId),
+    listLatestRuns(tenantId),
+  ]);
+  return workflows
+    .filter((workflow) => workflow.status === 'active')
+    .map((workflow) => {
+      const id = encodeId('workflow', workflow.id);
+      const live = counts.get(id);
+      return {
+        slug: workflow.slug,
+        name: workflow.name,
+        running: live?.running ?? 0,
+        sleeping: live?.sleeping ?? 0,
+        waiting: live?.waiting ?? 0,
+        lastRunAt: latest.get(id) ?? null,
+      };
+    })
+    .sort((a, b) => b.running + b.sleeping + b.waiting - (a.running + a.sleeping + a.waiting))
+    .slice(0, TOP_WORKFLOWS);
+}
+
+async function countScheduled(db: Db, tenantId: number) {
+  const [row] = await trace(
+    'stats.scheduled',
+    async () =>
+      await db
+        .select({ total: count(), nextAt: min(tables.message.scheduledFor) })
+        .from(tables.message)
+        .where(
+          and(
+            eq(tables.message.tenantId, tenantId),
+            eq(tables.message.status, 'scheduled'),
+            isNull(tables.message.deletedAt)
+          )
+        )
+  );
+  return { count: Number(row?.total ?? 0), nextAt: row?.nextAt ? new Date(row.nextAt).toISOString() : null };
 }
 
 export async function collectStats(
@@ -203,7 +366,17 @@ export async function collectStats(
   const span = range.to.getTime() - range.from.getTime();
   const before = { from: new Date(range.from.getTime() - span - 1), to: new Date(range.from.getTime() - 1) };
 
-  const [current, previous, [subscribers], byDay, subscribersByDay, messagesByDay] = await Promise.all([
+  const [
+    current,
+    previous,
+    [subscribers],
+    byDay,
+    subscribersByDay,
+    messagesByDay,
+    topEvents,
+    workflows,
+    scheduled,
+  ] = await Promise.all([
     collectWindow(db, tenantId, range),
     collectWindow(db, tenantId, before),
     trace(
@@ -255,6 +428,9 @@ export async function collectStats(
           )
           .groupBy(messageDay)
     ),
+    listTopEvents(tenantId, range),
+    listActiveWorkflows(db, tenantId),
+    countScheduled(db, tenantId),
   ]);
 
   const days = new Map<string, StatsDay>();
@@ -266,6 +442,10 @@ export async function collectStats(
     failed: 0,
     invalid: 0,
     pending: 0,
+    events: 0,
+    runsStarted: 0,
+    runsCompleted: 0,
+    runsFailed: 0,
   });
   for (let at = truncate(range.from, interval); at <= range.to; at = advance(at, interval)) {
     days.set(bucketKey(at), empty(bucketKey(at)));
@@ -282,14 +462,31 @@ export async function collectStats(
     const entry = days.get(row.day);
     if (entry) entry.messages += Number(row.total);
   }
+  for (const row of current.hourlyEvents) {
+    const entry = days.get(bucketKey(truncate(new Date(row.bucket), interval)));
+    if (entry) entry.events += row.count;
+  }
+  for (const row of current.hourlyRuns) {
+    const entry = days.get(bucketKey(truncate(new Date(row.bucket), interval)));
+    if (!entry) continue;
+    entry.runsStarted += row.started;
+    entry.runsCompleted += row.completed;
+    entry.runsFailed += row.failed;
+  }
 
+  const { hourlyEvents: _events, hourlyRuns: _runs, ...previousWindow } = previous;
   return {
     range: { from: range.from.toISOString(), to: range.to.toISOString() },
     interval,
     subscribers: { total: Number(subscribers?.total ?? 0), added: current.subscribers.added },
     messages: current.messages,
     deliveries: current.deliveries,
-    previous,
+    events: current.events,
+    runs: current.runs,
+    topEvents,
+    workflows,
+    scheduled,
+    previous: previousWindow,
     series: [...days.values()],
   };
 }

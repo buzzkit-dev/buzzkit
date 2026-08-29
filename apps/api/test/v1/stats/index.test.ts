@@ -52,6 +52,8 @@ describe('GET /v1/stats', () => {
       subscribers: { added: 0 },
       messages: { total: 0 },
       deliveries: { total: 0, sent: 0, failed: 0, invalid: 0, pending: 0 },
+      events: { total: 0 },
+      runs: { started: 0, live: 0, completed: 0, cancelled: 0, failed: 0 },
     });
     expect(data.interval).toBe('day');
     expect(data.series.length).toBeGreaterThanOrEqual(7);
@@ -178,4 +180,65 @@ describe('GET /v1/stats', () => {
     const theirs = await stats({ ...keyBearer, 'buzzkit-tenant': other.slug });
     expect(theirs.body.data?.subscribers.total).toBe(0);
   });
+
+  it('counts events, runs, top events, active workflows and scheduled messages', async () => {
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
+    const externalId = `user_${uniq()}`;
+    await api('/v1/subscriptions', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId, channel: 'push', platform: 'ios', token: fakeToken(externalId) }),
+    });
+    const slug = `welcome-${uniq()}`;
+    await api('/v1/workflows', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({
+        slug,
+        name: 'Welcome',
+        spec: {
+          trigger: { event: 'signup' },
+          steps: [{ name: 'hold', waitFor: { event: 'never', until: '2d' } }],
+        },
+      }),
+    });
+    await api(`/v1/workflows/${slug}/publish`, { method: 'POST', headers: keyBearer });
+    await api('/v1/events', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({
+        events: [
+          { externalId, name: 'signup' },
+          { externalId, name: 'screen.viewed' },
+          { externalId, name: 'screen.viewed' },
+        ],
+      }),
+    });
+    await api('/v1/messages', {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({
+        to: externalId,
+        title: 'Later',
+        schedule: { at: '2030-01-01T09:00', timezone: 'Europe/Berlin' },
+      }),
+    });
+
+    const settled = await waitFor(async () => {
+      const { body } = await stats(keyBearer);
+      return body.data && body.data.runs.started === 1 && body.data.events.total >= 3 ? body.data : null;
+    }, 60_000);
+    expect(settled.events.total).toBeGreaterThanOrEqual(3);
+    expect(settled.topEvents[0]).toMatchObject({ name: 'screen.viewed', count: 2 });
+    expect(settled.runs).toMatchObject({ started: 1, live: 1, completed: 0, failed: 0 });
+    expect(settled.workflows).toEqual([
+      { slug, name: 'Welcome', running: 0, sleeping: 0, waiting: 1, lastRunAt: expect.any(String) },
+    ]);
+    expect(settled.scheduled.count).toBe(1);
+    expect(settled.scheduled.nextAt).toBe('2030-01-01T08:00:00.000Z');
+    const today = new Date().toISOString().slice(0, 10);
+    const day = settled.series.find((entry) => entry.date.startsWith(today));
+    expect(day?.runsStarted).toBe(1);
+    expect(day?.events).toBeGreaterThanOrEqual(3);
+  }, 90_000);
 });

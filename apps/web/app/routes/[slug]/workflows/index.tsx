@@ -1,14 +1,12 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
-import { Tooltip, TooltipContent, TooltipLabel, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
-import { cn } from '@buzzkit/ui/lib/utils';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { WorkflowStatusBadge } from '@/app/components/badges';
+import { LiveRuns } from '@/app/components/workflows/live-runs';
 import { TriggerConditions } from '@/app/components/workflows/trigger';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { workflowsAction } from '@/app/lib/actions/workflows.server';
@@ -30,50 +28,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 }
 
 export const action = workflowsAction;
-
-const LIVE_STATUSES = [
-  { status: 'running', label: 'Running', dot: 'bg-blue-4' },
-  { status: 'sleeping', label: 'Sleeping', dot: 'bg-sky-4' },
-  { status: 'waiting', label: 'Waiting', dot: 'bg-purple-4' },
-] as const;
-
-function LiveRuns({ runs }: { runs: NonNullable<Workflow['runs']> }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className='flex w-fit cursor-default items-center gap-3'>
-            {LIVE_STATUSES.map(({ status, dot }) => (
-              <span key={status} className='flex items-center gap-1.5'>
-                <span
-                  className={cn('size-1.5 shrink-0 rounded-full', runs[status] === 0 ? 'bg-bg-3' : dot)}
-                />
-                <NumberFlow
-                  value={runs[status]}
-                  className={cn(
-                    'text-sm leading-none tabular-nums',
-                    runs[status] === 0 ? 'text-fg-1' : 'font-medium text-fg-4'
-                  )}
-                />
-              </span>
-            ))}
-          </span>
-        }
-      />
-      <TooltipContent>
-        <span className='flex items-center gap-1.5 whitespace-nowrap'>
-          {LIVE_STATUSES.map(({ status, label }, index) => (
-            <span key={status} className='flex items-center gap-1.5'>
-              {index > 0 && <TooltipLabel>·</TooltipLabel>}
-              <span>{runs[status]}</span>
-              <TooltipLabel>{label}</TooltipLabel>
-            </span>
-          ))}
-        </span>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 function WorkflowRow({ workflow, base }: { workflow: Workflow; base: string }) {
   const runs = workflow.runs ?? { running: 0, sleeping: 0, waiting: 0, steps: {} };
