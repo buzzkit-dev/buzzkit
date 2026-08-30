@@ -23,6 +23,7 @@ export function serializeEventName(row: EventNameRow) {
     counts: { last24h: row.count_24h, last7d: row.count_7d, last30d: row.count_30d, total: row.count_total },
     subscribers7d: row.subscribers_7d,
     sources: row.sources,
+    providers: row.providers ?? [],
     lastAt: parseClickHouseTime(row.last_at),
     firstAt: parseClickHouseTime(row.first_at),
   };

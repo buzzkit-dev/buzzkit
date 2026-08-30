@@ -7,6 +7,10 @@
     "./workflows": {
       "types": "./src/workflows/index.ts",
       "default": "./src/workflows/index.ts"
+    },
+    "./sources": {
+      "types": "./src/sources/index.ts",
+      "default": "./src/sources/index.ts"
     }
   },
   "scripts": {

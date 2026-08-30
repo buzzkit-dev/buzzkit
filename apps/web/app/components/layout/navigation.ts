@@ -53,6 +53,7 @@ export const NAVIGATION: NavigationSection[] = [
     pages: [
       { label: 'API keys', path: '/keys', icon: 'IconKeyholeFilled' },
       { label: 'Webhooks', path: '/webhooks', icon: 'IconWebhooksFilled' },
+      { label: 'Sources', path: '/sources', icon: 'IconMailboxFilled' },
     ],
   },
   {

@@ -22,7 +22,7 @@ export const WALL_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const CONCURRENCY_MODES = ['per-event', 'one-per-subscriber'] as const;
 
-export const TRIGGER_SOURCES = ['server', 'ios', 'android', 'web', 'system'] as const;
+export const TRIGGER_SOURCES = ['server', 'ios', 'android', 'web', 'system', 'webhook'] as const;
 
 export const SEND_CHANNELS = ['push'] as const;
 

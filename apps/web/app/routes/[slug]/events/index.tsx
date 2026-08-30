@@ -1,3 +1,4 @@
+import { Badge } from '@buzzkit/ui/components/badge';
 import {
   Card,
   CardAction,
@@ -11,12 +12,13 @@ import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { SourceBadge } from '@/app/components/badges';
+import { EventSourceBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
 import { VolumeChart } from '@/app/components/events/volume-chart';
-import { TimeAgo } from '@/app/hooks/use-time-ago';
+import { TIME_TOOLTIP_DELAY, TimeAgo } from '@/app/hooks/use-time-ago';
 import { type EventRange, getEventVolume, listEventNames } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { requestUrl } from '@/app/lib/utils/request';
@@ -48,6 +50,32 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   ]);
 
   return { names, volume, range: range ?? DEFAULT_RANGE };
+}
+
+function SourcesCell({ sources, providers }: { sources: string[]; providers: string[] }) {
+  const render = (className?: string) =>
+    sources.flatMap((source) =>
+      source === 'webhook' && providers.length > 0
+        ? providers.map((provider) => (
+            <EventSourceBadge key={provider} source='webhook' provider={provider} className={className} />
+          ))
+        : [<EventSourceBadge key={source} source={source} className={className} />]
+    );
+  const badges = render();
+  if (badges.length <= 2) return <span className='flex gap-1'>{badges}</span>;
+  return (
+    <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
+      <Tooltip>
+        <TooltipTrigger render={<span className='inline-flex cursor-default items-center gap-1' />}>
+          {badges[0]}
+          <Badge size='sm'>+{badges.length - 1} sources</Badge>
+        </TooltipTrigger>
+        <TooltipContent className='p-2'>
+          <span className='flex max-w-xs flex-wrap gap-1'>{render('bg-background/15 text-background')}</span>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export default function EventsRoute({ loaderData, params }: Route.ComponentProps) {
@@ -126,7 +154,7 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
                   <TableHead className='w-24'>Last 24h</TableHead>
                   <TableHead className='w-24'>Last 7d</TableHead>
                   <TableHead className='w-28'>Users (7d)</TableHead>
-                  <TableHead className='w-44'>Sources</TableHead>
+                  <TableHead className='w-52'>Sources</TableHead>
                   <TableHead className='w-28'>Last seen</TableHead>
                 </TableRow>
               </TableHeader>
@@ -151,11 +179,7 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
                       <NumberFlow value={entry.subscribers7d} className='leading-none' />
                     </TableCell>
                     <TableCell className='py-2'>
-                      <span className='flex gap-1'>
-                        {entry.sources.map((source) => (
-                          <SourceBadge key={source} source={source} />
-                        ))}
-                      </span>
+                      <SourcesCell sources={entry.sources} providers={entry.providers} />
                     </TableCell>
                     <TableCell>
                       <TimeAgo at={entry.lastAt} />

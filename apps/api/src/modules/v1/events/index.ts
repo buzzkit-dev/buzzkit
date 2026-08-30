@@ -23,6 +23,7 @@ export const events = new Elysia()
       const { items, hasMore, nextCursor } = await listRecentEvents(tenant.id, {
         name: query.name,
         source: query.source,
+        provider: query.provider || undefined,
         before: resolveEventCursor(query.cursor),
         after: query.after ? { receivedAt: query.after, id: query.afterId } : undefined,
         limit: clampLimit(query.limit),
@@ -37,7 +38,8 @@ export const events = new Elysia()
       query: t.Object({
         ...PaginationQuerySchema.properties,
         name: t.Optional(EventNameSchema),
-        source: t.Optional(literalUnion(EVENT_SOURCES)),
+        source: t.Optional(literalUnion([...EVENT_SOURCES, 'webhook'] as const)),
+        provider: t.Optional(t.String()),
         after: t.Optional(t.String({ format: 'date-time' })),
         afterId: t.Optional(EventIdSchema),
       }),

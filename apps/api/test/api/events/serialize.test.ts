@@ -64,6 +64,8 @@ describe('serializeEventName', () => {
       count_total: 4,
       subscribers_7d: 5,
       sources: ['server', 'ios'],
+      providers: [],
+
       last_at: '2026-08-27 12:00:00.999',
       first_at: '2026-08-01 00:00:00',
     };
@@ -72,6 +74,7 @@ describe('serializeEventName', () => {
       counts: { last24h: 1, last7d: 2, last30d: 3, total: 4 },
       subscribers7d: 5,
       sources: ['server', 'ios'],
+      providers: [],
       lastAt: '2026-08-27T12:00:00.999Z',
       firstAt: '2026-08-01T00:00:00.000Z',
     });

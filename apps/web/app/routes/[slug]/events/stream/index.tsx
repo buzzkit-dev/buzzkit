@@ -1,3 +1,4 @@
+import { SOURCE_PRESETS, type SourceProvider } from '@buzzkit/schema/sources';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
@@ -20,7 +21,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { SourceBadge } from '@/app/components/badges';
+import { EventSourceBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
 import {
   describeStreamEvent,
@@ -28,6 +29,7 @@ import {
   type StreamSource,
   summarizeData,
 } from '@/app/components/events/stream';
+import { providerLabel } from '@/app/components/sources/describe';
 import { useFilters } from '@/app/hooks/use-filters';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import {
@@ -80,10 +82,14 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const ctx = { request, env };
   const search = requestUrl(request).searchParams;
   const page = readPage(request);
+  const requested = search.get('source')?.trim() || undefined;
+  const provider = requested && SOURCE_PRESETS[requested as SourceProvider] ? requested : undefined;
+  const source = provider ? 'webhook' : SOURCES.find((entry) => entry === requested);
   const query: EventQuery = {
     ...page,
     name: search.get('event')?.trim() || undefined,
-    source: SOURCES.find((source) => source === search.get('source')),
+    source,
+    provider,
   };
 
   const [events, names, live] = await Promise.all([
@@ -92,10 +98,25 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     page.cursor ? null : getEventsToken(ctx, token, params.slug, tenant),
   ]);
 
+  const seenSources = new Set<string>();
+  for (const entry of names) {
+    for (const seen of entry.sources) {
+      if (seen !== 'webhook') seenSources.add(seen);
+      else if (entry.providers.length > 0) for (const each of entry.providers) seenSources.add(each);
+      else seenSources.add('webhook');
+    }
+  }
+  const sourceOptions = [...seenSources].sort().map((value) => ({
+    value,
+    label: SOURCE_PRESETS[value as SourceProvider]
+      ? providerLabel(value)
+      : (SOURCE_LABELS[value as StreamSource] ?? value),
+  }));
   return {
     ...paginate(request, events),
     names: names.map((entry) => entry.name),
-    filter: { name: query.name ?? null, source: query.source ?? null },
+    sourceOptions,
+    filter: { name: query.name ?? null, source: query.source ?? null, provider: query.provider ?? null },
     live,
   };
 }
@@ -111,7 +132,7 @@ function isoTime(value: string): string {
 async function fetchNewer(
   token: EventsToken,
   after: { receivedAt: string; id: string | null },
-  filter: { name: string | null; source: string | null }
+  filter: { name: string | null; source: string | null; provider: string | null }
 ): Promise<LiveEvent[]> {
   const url = new URL(`${token.url}/v0/pipes/event_recent.json`);
   url.searchParams.set('tenant_id', '0');
@@ -120,6 +141,7 @@ async function fetchNewer(
   url.searchParams.set('limit', String(PAGE_SIZE));
   if (filter.name) url.searchParams.set('name', filter.name);
   if (filter.source) url.searchParams.set('source', filter.source);
+  if (filter.provider) url.searchParams.set('provider', filter.provider);
   const response = await fetch(url, { headers: { authorization: `Bearer ${token.token}` } });
   if (!response.ok) return [];
   const { data } = (await response.json()) as { data: LiveRow[] };
@@ -148,7 +170,7 @@ function newestOf(events: { receivedAt: string; id: string }[]): { receivedAt: s
 function useLiveEvents(
   initial: StreamEvent[],
   token: EventsToken | null,
-  filter: { name: string | null; source: string | null }
+  filter: { name: string | null; source: string | null; provider: string | null }
 ) {
   const [events, setEvents] = useState<LiveEvent[]>(initial);
   const newest = useRef(newestOf(initial));
@@ -217,7 +239,7 @@ function EventRow({
           )}
         </TableCell>
         <TableCell className='py-2'>
-          <SourceBadge source={event.source} />
+          <EventSourceBadge source={event.source} provider={event.data?.$provider} />
         </TableCell>
         <TableCell>
           <Truncate className={cn('block', !summary && 'text-fg-2')}>{summary ?? 'No data'}</Truncate>
@@ -244,7 +266,7 @@ function EventRow({
 
 export default function StreamRoute({ loaderData, params }: Route.ComponentProps) {
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { items, pagination, names, filter, live } = loaderData;
+  const { items, pagination, names, sourceOptions, filter, live } = loaderData;
   const fresh = names.length === 0;
   const [expanded, setExpanded] = useState<string | null>(null);
   const filters = useFilters(FILTER_KEYS);
@@ -283,8 +305,8 @@ export default function StreamRoute({ loaderData, params }: Route.ComponentProps
           />
           <FilterSelect
             label='Source'
-            value={filters.values.source as StreamSource | null}
-            options={SOURCES.map((source) => ({ value: source, label: SOURCE_LABELS[source] }))}
+            value={filters.values.source}
+            options={sourceOptions}
             onValueChange={(value) => filters.set('source', value)}
           />
           {filters.active && <FilterClear onClick={filters.clear} />}
@@ -318,7 +340,7 @@ export default function StreamRoute({ loaderData, params }: Route.ComponentProps
               <TableRow>
                 <TableHead className='w-64'>Event</TableHead>
                 <TableHead className='w-44'>Subscriber</TableHead>
-                <TableHead className='w-24'>Source</TableHead>
+                <TableHead className='w-32'>Source</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className='w-24'>Time</TableHead>
                 <TableHead className='w-12' />

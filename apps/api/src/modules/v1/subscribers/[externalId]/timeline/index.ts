@@ -19,6 +19,9 @@ export const subscriberTimeline = new Elysia()
       const { items, hasMore, nextCursor } = await listSubscriberTimeline(tenant.id, subscriber, {
         beforeSequence,
         limit: clampLimit(query.limit),
+        name: query.name || undefined,
+        source: query.source || undefined,
+        provider: query.provider || undefined,
       });
 
       return Response.success(items, { ignoreTransform: ['data'] })
@@ -28,6 +31,11 @@ export const subscriberTimeline = new Elysia()
     {
       tenant: 'subscribers:read',
       params: t.Object({ externalId: ExternalIdSchema }),
-      query: t.Object({ ...PaginationQuerySchema.properties }),
+      query: t.Object({
+        ...PaginationQuerySchema.properties,
+        name: t.Optional(t.String()),
+        source: t.Optional(t.String()),
+        provider: t.Optional(t.String()),
+      }),
     }
   );

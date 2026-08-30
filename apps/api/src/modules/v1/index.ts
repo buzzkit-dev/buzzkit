@@ -30,6 +30,11 @@ import { segments } from './segments';
 import { segment } from './segments/[segmentSlug]';
 import { segmentMembers } from './segments/[segmentSlug]/members';
 import { segmentsPreview } from './segments/preview';
+import { sources } from './sources';
+import { source } from './sources/[id]';
+import { sourceDeliveries } from './sources/[id]/deliveries';
+import { sourceIngest } from './sources/[id]/ingest';
+import { sourcePreview } from './sources/[id]/preview';
 import { stats } from './stats';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
@@ -198,6 +203,26 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/secrets/:name
    */
   .use(secret)
+  /**
+   * /v1/sources
+   */
+  .use(sources)
+  /**
+   * /v1/sources/:id
+   */
+  .use(source)
+  /**
+   * /v1/sources/:id/ingest
+   */
+  .use(sourceIngest)
+  /**
+   * /v1/sources/:id/preview
+   */
+  .use(sourcePreview)
+  /**
+   * /v1/sources/:id/deliveries
+   */
+  .use(sourceDeliveries)
   /*
    * /v1/subscribers
    */

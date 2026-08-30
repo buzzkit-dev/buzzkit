@@ -27,7 +27,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { SourceBadge } from '@/app/components/badges';
+import { EventSourceBadge } from '@/app/components/badges';
 import { describeStreamEvent, summarizeData } from '@/app/components/events/stream';
 import { VolumeChart } from '@/app/components/events/volume-chart';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
@@ -120,7 +120,7 @@ function SampleRow({
           )}
         </TableCell>
         <TableCell>
-          <SourceBadge source={sample.source} />
+          <EventSourceBadge source={sample.source} provider={sample.data?.$provider} />
         </TableCell>
         <TableCell>
           <Truncate className={cn('block', !summary && 'text-fg-2')}>{summary ?? 'No data'}</Truncate>
@@ -214,9 +214,15 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
               .
             </CardDescription>
             <CardAction className='gap-1.5'>
-              {detail.sources.map((source) => (
-                <SourceBadge key={source} source={source} />
-              ))}
+              {detail.sources.map((source) =>
+                source === 'webhook' && detail.providers.length > 0 ? (
+                  detail.providers.map((provider) => (
+                    <EventSourceBadge key={provider} source='webhook' provider={provider} />
+                  ))
+                ) : (
+                  <EventSourceBadge key={source} source={source} />
+                )
+              )}
             </CardAction>
           </CardHeader>
           <CardContent className='pt-1 pb-3'>
@@ -236,7 +242,7 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
                 <TableHeader>
                   <TableRow>
                     <TableHead className='w-52'>Subscriber</TableHead>
-                    <TableHead className='w-24'>Source</TableHead>
+                    <TableHead className='w-32'>Source</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead className='w-24'>Time</TableHead>
                     <TableHead className='w-12' />

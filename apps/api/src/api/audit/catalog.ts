@@ -31,6 +31,10 @@ export const AUDIT_CATALOG = {
   'secret.updated': { webhook: true },
   'secret.deleted': { webhook: true },
 
+  'source.created': { webhook: true },
+  'source.updated': { webhook: true },
+  'source.deleted': { webhook: true },
+
   'topic.created': { webhook: true },
   'topic.updated': { webhook: true },
   'topic.deleted': { webhook: true },

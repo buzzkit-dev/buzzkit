@@ -54,6 +54,7 @@ const FIELD_ENTITIES: Record<string, IdEntity> = {
   keyId: 'key',
   actorKeyId: 'key',
   credentialId: 'credential',
+  sourceId: 'source',
   subscriberId: 'subscriber',
   subscriptionId: 'subscription',
   topicId: 'topic',
@@ -83,8 +84,9 @@ type ErrorParams = {
   error: { code: string; message: string; param?: string; details?: unknown };
 };
 
-type TransformIdToString<T> =
-  T extends Array<infer U>
+export type TransformIdToString<T> = T extends Date
+  ? T
+  : T extends Array<infer U>
     ? Array<TransformIdToString<U>>
     : T extends object
       ? {

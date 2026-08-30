@@ -6,7 +6,7 @@ type StreamDescription = { label: string; icon: IconName; detail: string | null 
 
 type Definition = { label: string; icon: IconName; describe?: (data: Data) => Partial<StreamDescription> };
 
-export type StreamSource = 'server' | 'ios' | 'android' | 'web' | 'system';
+export type StreamSource = 'server' | 'ios' | 'android' | 'web' | 'system' | 'webhook';
 
 export const SOURCE_LABELS: Record<StreamSource, string> = {
   server: 'Server',
@@ -14,6 +14,7 @@ export const SOURCE_LABELS: Record<StreamSource, string> = {
   android: 'Android',
   web: 'Web',
   system: 'System',
+  webhook: 'Webhook',
 };
 
 function text(data: Data, key: string): string | null {
@@ -26,6 +27,10 @@ function subjectOf(data: Data): string {
   if (data.platform === 'ios') return 'iOS device';
   if (data.platform === 'android') return 'Android device';
   return 'Device';
+}
+
+function attributeSummary(data: Data): string | null {
+  return summarizeData(data.attributes);
 }
 
 function preferenceChanges(data: Data): string | null {
@@ -59,15 +64,31 @@ const RESERVED: Record<string, Definition> = {
     describe: (data) => ({ detail: duration(data) }),
   },
   '$notification.delivered': { label: 'Notification delivered', icon: 'IconBellCheckFilled' },
-  '$notification.opened': { label: 'Notification opened', icon: 'IconBellActiveFilled' },
+  '$notification.opened': {
+    label: 'Notification opened',
+    icon: 'IconBellActiveFilled',
+    describe: (data) => ({ detail: text(data, 'action') }),
+  },
   '$permission.changed': {
     label: 'Push permission changed',
     icon: 'IconShieldCheckFilled',
     describe: (data) => ({ detail: text(data, 'status') }),
   },
-  $identify: { label: 'Identified', icon: 'IconFingerPrint1Filled' },
-  '$subscriber.created': { label: 'Subscriber created', icon: 'IconUserAddFilled' },
-  '$subscriber.updated': { label: 'Attributes updated', icon: 'IconUserEditFilled' },
+  $identify: {
+    label: 'Identified',
+    icon: 'IconFingerPrint1Filled',
+    describe: (data) => ({ detail: attributeSummary(data) }),
+  },
+  '$subscriber.created': {
+    label: 'Subscriber created',
+    icon: 'IconUserAddFilled',
+    describe: (data) => ({ detail: attributeSummary(data) }),
+  },
+  '$subscriber.updated': {
+    label: 'Attributes updated',
+    icon: 'IconUserEditFilled',
+    describe: (data) => ({ detail: attributeSummary(data) }),
+  },
   '$subscriber.deleted': { label: 'Subscriber deleted', icon: 'IconUserRemoveFilled' },
   '$subscription.registered': {
     label: 'Device registered',
@@ -150,7 +171,8 @@ export function summarizeData(data: unknown): string | null {
   if (!data || typeof data !== 'object') return null;
   const entries = Object.entries(data as Data);
   if (entries.length === 0) return null;
-  return entries
+  const plain = entries.filter(([key]) => !key.startsWith('$'));
+  return (plain.length > 0 ? plain : entries)
     .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
     .join(' · ');
 }

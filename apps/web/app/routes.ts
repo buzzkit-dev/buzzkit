@@ -33,6 +33,8 @@ export default [
     route('keys', 'routes/[slug]/keys/index.tsx'),
     route('webhooks', 'routes/[slug]/webhooks/index.tsx'),
     route('webhooks/:id', 'routes/[slug]/webhooks/[id]/index.tsx'),
+    route('sources', 'routes/[slug]/sources/index.tsx'),
+    route('sources/:id', 'routes/[slug]/sources/[id]/index.tsx'),
     route('subscribers/:externalId', 'routes/[slug]/subscribers/[externalId]/index.tsx'),
     route('settings', 'routes/[slug]/settings/layout.tsx', [
       index('routes/[slug]/settings/index.tsx'),

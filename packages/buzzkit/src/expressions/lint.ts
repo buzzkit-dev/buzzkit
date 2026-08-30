@@ -13,7 +13,7 @@ export type ExpressionPath = Array<string | number>;
 
 export type ExpressionIssue = { path: ExpressionPath; message: string };
 
-export type RefScope = { roots: readonly string[]; bare: readonly string[]; label: string };
+export type RefScope = { roots: readonly string[]; bare: readonly string[]; label: string; any?: boolean };
 
 export type LintTools = {
   report: (path: ExpressionPath, message: string) => void;
@@ -121,7 +121,7 @@ export function lintExpression(value: unknown, options: LintOptions = {}): Expre
     const ref = node.ref;
     if (typeof ref !== 'string' || !REF_PATTERN.test(ref)) {
       report([...path, 'ref'], `"ref" must be ${refShapes}, got ${describe(ref)}.`);
-    } else if (!refs.bare.includes(ref)) {
+    } else if (!refs.any && !refs.bare.includes(ref)) {
       const [root, ...keys] = ref.split('.');
       if (!root || !refs.roots.includes(root)) {
         report([...path, 'ref'], `"${ref}" is not something ${refs.label} can read. Use ${refShapes}.`);

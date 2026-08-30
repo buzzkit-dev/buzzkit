@@ -2,7 +2,7 @@ import type { Static } from 'elysia';
 import type { SDK_EVENTS, SYSTEM_EVENTS } from './catalog';
 import type { CLIENT_SOURCES, EVENT_SOURCES } from './constants';
 
-export type EventSource = (typeof EVENT_SOURCES)[number];
+export type EventSource = (typeof EVENT_SOURCES)[number] | 'webhook';
 
 export type ClientSource = (typeof CLIENT_SOURCES)[number];
 
@@ -76,6 +76,7 @@ export type EventNameRow = {
   count_total: number;
   subscribers_7d: number;
   sources: string[];
+  providers: string[];
   last_at: string;
   first_at: string;
 };

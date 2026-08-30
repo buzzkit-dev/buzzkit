@@ -36,13 +36,21 @@ export async function listEventNames(tenantId: number) {
 
 export async function listRecentEvents(
   tenantId: number,
-  options: { name?: string; source?: string; before?: EventCursor; after?: EventCursor; limit: number }
+  options: {
+    name?: string;
+    source?: string;
+    provider?: string;
+    before?: EventCursor;
+    after?: EventCursor;
+    limit: number;
+  }
 ): Promise<EventPage> {
   const result = await trace('events.listRecent', async () =>
     (await tinybird()).eventRecent.query({
       tenant_id: tenantId,
       name: options.name,
       source: options.source,
+      provider: options.provider,
       before: options.before ? formatClickHouseTime(options.before.receivedAt) : undefined,
       before_id: options.before?.id,
       after: options.after ? formatClickHouseTime(options.after.receivedAt) : undefined,
@@ -78,23 +86,75 @@ export async function listEventVolume(tenantId: number, range: EventVolumeRange,
   };
 }
 
+type TimelineFilter = { name?: string; source?: string; provider?: string };
+
+function rowProvider(row: EventRow): string | null {
+  try {
+    const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+    const provider = (data as Record<string, unknown> | null)?.$provider;
+    return typeof provider === 'string' ? provider : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchesTimelineFilter(row: EventRow, filter: TimelineFilter): boolean {
+  if (filter.name && row.name !== filter.name) return false;
+  if (filter.source && row.source !== filter.source) return false;
+  if (filter.provider && (row.source !== 'webhook' || rowProvider(row) !== filter.provider)) return false;
+  return true;
+}
+
+async function rawTimelinePage(
+  tenantId: number,
+  subscriber: Pick<Subscriber, 'id' | 'externalId'>,
+  wanted: number,
+  beforeSequence?: number
+): Promise<EventRow[]> {
+  const head = await listTimelineHead(tenantId, subscriber, wanted, beforeSequence);
+  const oldestHeld = head[head.length - 1]?.sequence ?? beforeSequence;
+  return head.length < wanted && oldestHeld !== undefined && oldestHeld > 1
+    ? [...head, ...(await listTimelineTail(tenantId, subscriber, oldestHeld, wanted - head.length))]
+    : head;
+}
+
 export async function listSubscriberTimeline(
   tenantId: number,
   subscriber: Pick<Subscriber, 'id' | 'externalId'>,
-  options: { beforeSequence?: number; limit: number }
+  options: { beforeSequence?: number; limit: number } & TimelineFilter
 ): Promise<EventPage> {
   const wanted = options.limit + 1;
-  const head = await listTimelineHead(tenantId, subscriber, wanted, options.beforeSequence);
-  const oldestHeld = head[head.length - 1]?.sequence ?? options.beforeSequence;
-  const rows =
-    head.length < wanted && oldestHeld !== undefined && oldestHeld > 1
-      ? [...head, ...(await listTimelineTail(tenantId, subscriber, oldestHeld, wanted - head.length))]
-      : head;
-  return toPage(
-    rows.map((row) => ({ ...row, external_id: subscriber.externalId })),
-    options.limit,
-    (row) => String(row.sequence)
-  );
+  const filtered = Boolean(options.name || options.source || options.provider);
+  if (!filtered) {
+    const rows = await rawTimelinePage(tenantId, subscriber, wanted, options.beforeSequence);
+    return toPage(
+      rows.map((row) => ({ ...row, external_id: subscriber.externalId })),
+      options.limit,
+      (row) => String(row.sequence)
+    );
+  }
+  const collected: EventRow[] = [];
+  let before = options.beforeSequence;
+  let rawHasMore = true;
+  for (let round = 0; round < 4 && collected.length < wanted && rawHasMore; round++) {
+    const raw = await rawTimelinePage(tenantId, subscriber, 51, before);
+    const scanned = raw.slice(0, 50);
+    rawHasMore = raw.length > 50;
+    if (scanned.length === 0) break;
+    for (const row of scanned) {
+      if (matchesTimelineFilter(row, options)) collected.push(row);
+      if (collected.length >= wanted) break;
+    }
+    before = scanned[scanned.length - 1]?.sequence;
+  }
+  const page = collected.slice(0, options.limit);
+  const hasMore = collected.length > options.limit || rawHasMore;
+  const last = page[page.length - 1];
+  return {
+    items: page.map((row) => serializeEvent({ ...row, external_id: subscriber.externalId })),
+    hasMore,
+    nextCursor: hasMore && last ? String(last.sequence) : null,
+  };
 }
 
 async function listTimelineHead(

@@ -1,3 +1,4 @@
+import { SOURCE_PRESETS, type SourceProvider } from '@buzzkit/schema/sources';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,8 +10,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@buzzkit/ui/components/alert-dialog';
+import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
-import { Card, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import { Card, CardAction, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -20,12 +23,21 @@ import {
   DropdownMenuTrigger,
 } from '@buzzkit/ui/components/dropdown-menu';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
+import { FilterBar, FilterClear, FilterSelect } from '@buzzkit/ui/components/filter-bar';
 import { Flag } from '@buzzkit/ui/components/flag';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { Switch } from '@buzzkit/ui/components/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableDetail,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@buzzkit/ui/components/table';
 import {
   Tooltip,
   TooltipContent,
@@ -34,12 +46,14 @@ import {
   TooltipTrigger,
 } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
-import { useRef } from 'react';
+import { cn } from '@buzzkit/ui/lib/utils';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
   ChannelBadge,
   DeliveryStatusBadge,
+  EventSourceBadge,
   PlatformBadge,
   RunStatusBadge,
   SandboxBadge,
@@ -49,14 +63,17 @@ import {
 import { DetailRow } from '@/app/components/detail/row';
 import { describeStreamEvent, SOURCE_LABELS, type StreamSource } from '@/app/components/events/stream';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
+import { providerLabel } from '@/app/components/sources/describe';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useFilters } from '@/app/hooks/use-filters';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { subscriberAction } from '@/app/lib/actions/subscribers.server';
 import {
   getSubscriber,
   getSubscriberPreferences,
+  listEventNames,
   listSubscriberDeliveries,
   listSubscriberRuns,
   listSubscriberTimeline,
@@ -67,6 +84,7 @@ import {
   type TimelineEvent,
 } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
+import { requestUrl } from '@/app/lib/utils/request';
 import type { Route } from './+types/index';
 
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
@@ -99,16 +117,52 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
-  const [subscriber, preferences, deliveries, events, runs] = await Promise.all([
+  const search = requestUrl(request).searchParams;
+  const eventFilter = search.get('event')?.trim() || undefined;
+  const sourceValue = search.get('source')?.trim() || undefined;
+  const providerFilter =
+    sourceValue && SOURCE_PRESETS[sourceValue as SourceProvider] ? sourceValue : undefined;
+  const sourceFilter = providerFilter ? 'webhook' : sourceValue;
+  const [subscriber, preferences, deliveries, events, runs, names] = await Promise.all([
     getSubscriber(ctx, token, params.slug, tenant, params.externalId),
     getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
     listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
-    listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, { limit: 12 }),
+    listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, {
+      limit: 25,
+      name: eventFilter,
+      source: sourceFilter,
+      provider: providerFilter,
+    }),
     listSubscriberRuns(ctx, token, params.slug, tenant, params.externalId),
+    listEventNames(ctx, token, params.slug, tenant),
   ]);
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const name = typeof attributes.name === 'string' && attributes.name.trim() ? attributes.name : null;
-  return { subscriber, preferences, deliveries, events, runs, name };
+  const seenSources = new Set<string>();
+  for (const entry of names) {
+    for (const source of entry.sources) {
+      if (source !== 'webhook') seenSources.add(source);
+      else if (entry.providers.length > 0) for (const provider of entry.providers) seenSources.add(provider);
+      else seenSources.add('webhook');
+    }
+  }
+  const sourceOptions = [...seenSources].sort().map((value) => ({
+    value,
+    label: SOURCE_PRESETS[value as SourceProvider]
+      ? providerLabel(value)
+      : (SOURCE_LABELS[value as StreamSource] ?? value),
+  }));
+  return {
+    subscriber,
+    preferences,
+    deliveries,
+    events,
+    runs,
+    name,
+    eventNames: names.map((entry) => entry.name),
+    sourceOptions,
+    activityFiltered: Boolean(eventFilter || sourceValue),
+  };
 }
 
 export const action = subscriberAction;
@@ -475,27 +529,133 @@ function RunRow({ run, slug }: { run: SubscriberRun; slug: string }) {
   );
 }
 
-function EventRow({ event }: { event: TimelineEvent }) {
-  const { label, icon, detail } = describeStreamEvent(event);
-  const source = SOURCE_LABELS[event.source as StreamSource] ?? event.source;
+function sentence(value: string): string {
+  return value.length > 0 ? value[0]?.toUpperCase() + value.slice(1) : value;
+}
+
+function preferenceText(data: Record<string, unknown>): string | null {
+  const changes = data.changes;
+  if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return null;
+  const parts: string[] = [];
+  for (const [topic, value] of Object.entries(changes as Record<string, unknown>)) {
+    if (typeof value === 'boolean') {
+      parts.push(`${sentence(topic)} ${value ? 'on' : 'off'}`);
+      continue;
+    }
+    for (const [channel, enabled] of Object.entries((value ?? {}) as Record<string, unknown>)) {
+      parts.push(`${sentence(topic)} ${channel} ${enabled ? 'on' : 'off'}`);
+    }
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function pairText(entries: Array<[string, unknown]>): string | null {
+  const shown = entries
+    .slice(0, 4)
+    .map(([key, value]) => `${prettyKey(key)}: ${typeof value === 'string' ? value : JSON.stringify(value)}`);
+  return shown.length > 0 ? shown.join(' · ') : null;
+}
+
+function textOf(data: Record<string, unknown>, key: string): string | null {
+  const value = data[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function activityDetail(event: TimelineEvent): string | null {
+  const data = (event.data ?? {}) as Record<string, unknown>;
+  if (event.name === '$preferences.updated') return preferenceText(data);
+  if (
+    event.name === '$subscriber.created' ||
+    event.name === '$subscriber.updated' ||
+    event.name === '$identify'
+  ) {
+    const attributes = data.attributes;
+    if (!attributes || typeof attributes !== 'object') return null;
+    return pairText(
+      Object.entries(attributes as Record<string, unknown>).filter(([key]) => !key.startsWith('$'))
+    );
+  }
+  if (event.name.startsWith('$run.')) {
+    const trailing = textOf(data, 'reason') ?? textOf(data, 'error') ?? textOf(data, 'summary');
+    return [textOf(data, 'workflow'), trailing && sentence(trailing)].filter(Boolean).join(' · ') || null;
+  }
+  if (event.name.startsWith('$')) {
+    const detail = describeStreamEvent(event).detail;
+    return detail ? sentence(detail) : null;
+  }
+  const entries = Object.entries(data);
+  const plain = entries.filter(([key]) => !key.startsWith('$'));
+  return pairText(plain.length > 0 ? plain : entries);
+}
+
+function ActivityRow({
+  event,
+  expanded,
+  onToggle,
+}: {
+  event: TimelineEvent;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const system = event.name.startsWith('$');
+  const { label, icon } = describeStreamEvent(event);
+  const detail = activityDetail(event);
   return (
-    <li className='flex items-center gap-3 px-4 py-2.5'>
-      <IconTile icon={icon} size='sm' />
-      <div className='flex min-w-0 flex-1 flex-col items-start'>
-        <Truncate className='max-w-full font-medium text-fg-4 text-sm'>{label}</Truncate>
-        <Truncate className='max-w-full text-fg-2 text-xs'>
-          {[detail, `from ${source}`].filter(Boolean).join(' · ')}
-        </Truncate>
-      </div>
-      <div className='shrink-0 text-fg-2 text-xs'>
-        <TimeAgo at={event.timestamp} />
-      </div>
-    </li>
+    <>
+      <TableRow
+        onClick={system ? undefined : onToggle}
+        aria-expanded={system ? undefined : expanded}
+        className={cn(!system && 'cursor-pointer hover:bg-bg-a1 [&_*]:cursor-pointer')}
+      >
+        <TableCell className='py-2'>
+          <span className='flex min-w-0 items-center gap-3'>
+            <IconTile icon={icon} size='sm' />
+            <span className='flex min-w-0 flex-col'>
+              <Truncate className='max-w-full font-medium text-fg-4 text-sm'>{label}</Truncate>
+              {detail && <Truncate className='max-w-full text-fg-2 text-xs'>{detail}</Truncate>}
+            </span>
+          </span>
+        </TableCell>
+        <TableCell className='py-2'>
+          <EventSourceBadge source={event.source} provider={event.data?.$provider} />
+        </TableCell>
+        <TableCell>
+          <TimeAgo at={event.timestamp} />
+        </TableCell>
+        <TableCell className='w-0 pr-4 text-right'>
+          {!system && (
+            <Icon
+              name='IconChevronDownMedium'
+              className={cn('size-4 transition-transform duration-150', expanded && 'rotate-180')}
+            />
+          )}
+        </TableCell>
+      </TableRow>
+      {!system && (
+        <TableDetail open={expanded} colSpan={4}>
+          <div className='flex flex-col gap-1.5 px-4 py-3'>
+            <span className='text-fg-2 text-sm'>Data</span>
+            <CodeBlock code={JSON.stringify(event.data, null, 2)} />
+          </div>
+        </TableDetail>
+      )}
+    </>
   );
 }
 
 export default function SubscriberRoute({ loaderData, params }: Route.ComponentProps) {
-  const { subscriber, preferences, deliveries, events, runs, name } = loaderData;
+  const filters = useFilters(['event', 'source']);
+  const {
+    subscriber,
+    preferences,
+    deliveries,
+    events,
+    runs,
+    name,
+    eventNames,
+    sourceOptions,
+    activityFiltered,
+  } = loaderData;
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const custom = Object.fromEntries(
     Object.entries(attributes).filter(([key]) => !key.startsWith('$') && key !== 'name' && key !== 'email')
@@ -517,6 +677,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
     (b.sentAt ?? b.createdAt).localeCompare(a.sentAt ?? a.createdAt)
   );
   const activity = events.items;
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
@@ -605,7 +766,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
             {deliveries.items.length === 0 ? (
               <EmptyState
                 size='sm'
-                icon='IconSend'
+                icon='IconPaperPlaneTopRightFilled'
                 title='No messages yet'
                 description='Everything sent to this subscriber shows up here with its delivery status.'
               />
@@ -640,13 +801,13 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 description='A run appears here when an event from this subscriber matches a workflow.'
               />
             ) : (
-              <Table>
+              <Table className='table-fixed'>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Workflow</TableHead>
-                    <TableHead>Step</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Updated</TableHead>
+                    <TableHead className='w-24'>Step</TableHead>
+                    <TableHead className='w-28'>Status</TableHead>
+                    <TableHead className='w-[104px]'>Updated</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -661,20 +822,60 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           <Card>
             <CardHeader divider className='py-3'>
               <CardTitle>Activity</CardTitle>
+              <CardAction>
+                <FilterBar className='mb-0'>
+                  <FilterSelect
+                    label='Event'
+                    value={filters.values.event}
+                    options={eventNames.map((eventName) => ({ value: eventName, label: eventName }))}
+                    onValueChange={(value) => filters.set('event', value)}
+                    className='h-[26px] rounded-[10px] text-xs'
+                  />
+                  <FilterSelect
+                    label='Source'
+                    value={filters.values.source}
+                    options={sourceOptions}
+                    onValueChange={(value) => filters.set('source', value)}
+                    className='h-[26px] rounded-[10px] text-xs'
+                  />
+                  {filters.active && (
+                    <FilterClear className='h-[26px] rounded-[10px] text-xs' onClick={filters.clear} />
+                  )}
+                </FilterBar>
+              </CardAction>
             </CardHeader>
             {events.items.length === 0 ? (
               <EmptyState
                 size='sm'
                 icon='IconBellFilled'
-                title='No activity yet'
-                description='Events from the app and your server appear here, newest first.'
+                title={activityFiltered ? 'No events match' : 'No activity yet'}
+                description={
+                  activityFiltered
+                    ? 'Nothing on this timeline matches the filters.'
+                    : 'Events from the app and your server appear here, newest first.'
+                }
               />
             ) : (
-              <ul className='flex flex-col divide-y divide-bg-3'>
-                {activity.map((event) => (
-                  <EventRow key={event.id} event={event} />
-                ))}
-              </ul>
+              <Table className='table-fixed'>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Event</TableHead>
+                    <TableHead className='w-28'>Source</TableHead>
+                    <TableHead className='w-16'>Time</TableHead>
+                    <TableHead className='w-10' />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activity.map((event) => (
+                    <ActivityRow
+                      key={event.id}
+                      event={event}
+                      expanded={expandedEventId === event.id}
+                      onToggle={() => setExpandedEventId(expandedEventId === event.id ? null : event.id)}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </Card>
         </div>

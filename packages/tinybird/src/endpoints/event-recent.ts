@@ -6,6 +6,7 @@ export const eventRecent = defineEndpoint('event_recent', {
     tenant_id: p.uint64(),
     name: p.string().optional(),
     source: p.string().optional(),
+    provider: p.string().optional(),
     before: p.dateTime64().optional(),
     before_id: p.string().optional(),
     after: p.dateTime64().optional(),
@@ -23,6 +24,7 @@ export const eventRecent = defineEndpoint('event_recent', {
         WHERE tenant_id = {{UInt64(tenant_id)}}
           {% if defined(name) %} AND name = {{String(name)}} {% end %}
           {% if defined(source) %} AND source = {{String(source)}} {% end %}
+          {% if defined(provider) %} AND JSONExtractString(data_raw, '$provider') = {{String(provider)}} {% end %}
           {% if defined(before) and defined(before_id) %}
             AND (received_at, id) < ({{DateTime64(before)}}, {{String(before_id)}})
           {% elif defined(before) %}

@@ -3,6 +3,7 @@ import { EVERY_MINUTE } from './constants';
 import { reconcileDeliveries } from './reconcile';
 import { rewrapSecrets } from './rewrap';
 import { releaseScheduledMessages } from './scheduled-messages';
+import { purgeSources } from './sources';
 import { releaseWorkflowSchedules } from './workflow-schedules';
 
 export async function handleScheduled(controller: ScheduledController): Promise<void> {
@@ -15,4 +16,5 @@ export async function handleScheduled(controller: ScheduledController): Promise<
   await reconcileDeliveries();
   await reconcileWebhooks();
   await rewrapSecrets();
+  await purgeSources();
 }

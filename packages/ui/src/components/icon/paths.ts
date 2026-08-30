@@ -7,6 +7,7 @@ export const ICON_NAMES = [
   'IconArchive',
   'IconArrowBoxRight',
   'IconArrowDownRight',
+  'IconArrowRight',
   'IconArrowRotateClockwise',
   'IconArrowUpRight',
   'IconBell',
@@ -63,6 +64,7 @@ export const ICON_NAMES = [
   'IconKeyholeFilled',
   'IconLoadingCircle',
   'IconMagnifyingGlass',
+  'IconMailboxFilled',
   'IconMapPin',
   'IconMoon',
   'IconMoonFilled',
@@ -130,6 +132,9 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   },
   IconArrowDownRight: {
     '3': '<g><path d="M18 9V18H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.25 6.25L17 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
+  },
+  IconArrowRight: {
+    '3': '<g><path d="M14 6L20 12L14 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 12H4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
   },
   IconArrowRotateClockwise: {
     '3': '<g><path d="M19.5165 14.6667C18.4182 17.7738 15.4549 20 11.9717 20C7.5534 20 3.97168 16.4183 3.97168 12C3.97168 7.58172 7.5534 4 11.9717 4C15.0676 4 17 5.5 19 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4V8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>',
@@ -303,6 +308,9 @@ export const ICON_PATHS: Record<IconName, Partial<Record<IconRadius, string>>> =
   },
   IconMagnifyingGlass: {
     '3': '<g><path d="M11 18C14.866 18 18 14.866 18 11C18 7.13401 14.866 4 11 4C7.13401 4 4 7.13401 4 11C4 14.866 7.13401 18 11 18Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 20L16.05 16.05" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>',
+  },
+  IconMailboxFilled: {
+    '3': '<g><path d="M17.5 4C19.9853 4 22 6.01472 22 8.5V18C22 19.1046 21.1046 20 20 20H15V21C15 21.5523 14.5523 22 14 22C13.4477 22 13 21.5523 13 21V8.5C13 6.75302 12.3098 5.16799 11.1885 4H17.5Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M6.5 4C8.98528 4 11 6.01472 11 8.5V18C11 19.1046 10.1046 20 9 20H4C2.89543 20 2 19.1046 2 18V8.5C2 6.01472 4.01472 4 6.5 4ZM5.25 9C4.69772 9 4.25 9.44772 4.25 10C4.25 10.5523 4.69772 11 5.25 11H7.75C8.30228 11 8.75 10.5523 8.75 10C8.75 9.44772 8.30228 9 7.75 9H5.25Z" fill="currentColor"/></g>',
   },
   IconMapPin: {
     '3': '<g><path d="M14.4978 10C14.4978 11.3807 13.3785 12.5 11.9978 12.5C10.6171 12.5 9.4978 11.3807 9.4978 10C9.4978 8.61929 10.6171 7.5 11.9978 7.5C13.3785 7.5 14.4978 8.61929 14.4978 10Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M19 10C19 13.9981 15.7482 17.6561 13.6773 19.5804C12.7179 20.4718 11.2821 20.4718 10.3227 19.5804C8.25176 17.6561 5 13.9981 5 10C5 6.13401 8.13401 3 12 3C15.866 3 19 6.13401 19 10Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></g>',

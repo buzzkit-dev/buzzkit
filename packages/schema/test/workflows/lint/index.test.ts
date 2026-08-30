@@ -68,7 +68,7 @@ describe('lintWorkflow', () => {
     ]);
     expect(messages({ trigger: { event: 'Trial Started' }, steps })[0]).toContain('trigger.event:');
     expect(messages({ trigger: { event: 'a', sources: ['sms'] }, steps })).toEqual([
-      'trigger.sources[0]: "sms" is not a source. Use one of "server", "ios", "android", "web", "system".',
+      'trigger.sources[0]: "sms" is not a source. Use one of "server", "ios", "android", "web", "system", "webhook".',
     ]);
     expect(
       messages({ trigger: { event: 'a', where: { ref: 'attributes.plan', eq: 'pro' } }, steps })

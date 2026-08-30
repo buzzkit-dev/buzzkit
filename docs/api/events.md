@@ -10,7 +10,7 @@ The event stream: facts about a subscriber, tracked from your server or from the
   "sequence": 4127,                              // this subscriber's sequence, the order of arrival
   "externalId": "user_42",
   "name": "workout.completed",              // yours; `$…` is reserved for buzzkit
-  "source": "ios",                          // server | ios | android | web | system
+  "source": "ios",                          // server | ios | android | web | system | webhook (a source, sources.md)
   "timestamp": "…", "receivedAt": "…",     // when it happened (the sender's clock), when buzzkit took it
   "data": { "workoutId": "w_1", "duration": 42 },
   "runId": null, "messageId": null, "step": null   // set on engine events
@@ -38,11 +38,11 @@ Client keys only ([client.md](client.md)): `{ externalId, identityHash?, source:
 
 ## GET /v1/events
 
-`events:read`. The newest events of the tenant, keyset-paginated by `(receivedAt, id)` so events that arrived in the same millisecond (one batch shares one `receivedAt`) never straddle a page (`cursor` = the previous page's `nextCursor`, `<receivedAt>_<id>`; `limit` up to 100). Filters: `name`, `source`, `after` (ISO date-time: only events received after it, the live tail) with `afterId` to pin the position inside that millisecond. This list carries no `total`: it is a keyset over the stream, not a counted table.
+`events:read`. The newest events of the tenant, keyset-paginated by `(receivedAt, id)` so events that arrived in the same millisecond (one batch shares one `receivedAt`) never straddle a page (`cursor` = the previous page's `nextCursor`, `<receivedAt>_<id>`; `limit` up to 100). Filters: `name`, `source` (`webhook` included), `provider` (the source provider behind `webhook` events), `after` (ISO date-time: only events received after it, the live tail) with `afterId` to pin the position inside that millisecond. This list carries no `total`: it is a keyset over the stream, not a counted table.
 
 ## GET /v1/events/names
 
-`events:read`. The catalog: every name the tenant has seen, ordered by 7-day volume: `{ name, counts: { last24h, last7d, last30d, total }, subscribers7d, sources[], lastAt, firstAt }`. Counts are exact to the hour (the rollup is hourly).
+`events:read`. The catalog: every name the tenant has seen, ordered by 7-day volume: `{ name, counts: { last24h, last7d, last30d, total }, subscribers7d, sources[], providers[] (the source providers behind `webhook`), lastAt, firstAt }`. Counts are exact to the hour (the rollup is hourly).
 
 ## GET /v1/events/names/:name
 

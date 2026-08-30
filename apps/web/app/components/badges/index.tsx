@@ -1,4 +1,8 @@
+import { SOURCE_PRESETS, type SourceProvider } from '@buzzkit/schema/sources';
 import { Badge } from '@buzzkit/ui/components/badge';
+import { cn } from '@buzzkit/ui/lib/utils';
+import { providerLabel } from '@/app/components/sources/describe';
+import { ProviderLogo } from '@/app/components/sources/logo';
 
 type Tone = 'default' | 'blue' | 'purple' | 'green' | 'amber' | 'red' | 'sky' | 'pink';
 type Entry = { label: string; tone: Tone };
@@ -97,6 +101,7 @@ const SOURCES: Record<string, Entry> = {
   android: { label: 'Android', tone: 'purple' },
   web: { label: 'Web', tone: 'amber' },
   system: { label: 'System', tone: 'default' },
+  webhook: { label: 'Webhook', tone: 'purple' },
 };
 
 const WEBHOOK_STATUSES: Record<string, Entry> = {
@@ -123,9 +128,59 @@ export function EndpointStatusBadge({ enabled, failing }: { enabled: boolean; fa
   return <Typed entry={{ label: 'Active', tone: 'green' }} />;
 }
 
-export function SourceBadge({ source }: { source: string }) {
+const SOURCE_STATUSES: Record<string, Entry> = {
+  unverified: { label: 'Unverified', tone: 'amber' },
+  active: { label: 'Active', tone: 'green' },
+  paused: { label: 'Paused', tone: 'default' },
+};
+
+export function SourceStatusBadge({ status }: { status: string }) {
+  const entry = SOURCE_STATUSES[status];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{status}</Badge>;
+}
+
+const INGEST_OUTCOMES: Record<string, Entry> = {
+  event: { label: 'Event', tone: 'green' },
+  duplicate: { label: 'Duplicate', tone: 'default' },
+  dropped: { label: 'Dropped', tone: 'amber' },
+  rejected: { label: 'Rejected', tone: 'red' },
+  unverified: { label: 'Unverified', tone: 'amber' },
+};
+
+export function IngestOutcomeBadge({ outcome }: { outcome: string }) {
+  const entry = INGEST_OUTCOMES[outcome];
+  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{outcome}</Badge>;
+}
+
+export function EventSourceBadge({
+  source,
+  provider,
+  className,
+}: {
+  source: string;
+  provider?: unknown;
+  className?: string;
+}) {
+  if (source !== 'webhook') return <SourceBadge source={source} className={className} />;
+  if (typeof provider === 'string' && provider !== 'custom' && SOURCE_PRESETS[provider as SourceProvider]) {
+    return (
+      <Badge size='sm' className={cn('pl-1.5', className)}>
+        <ProviderLogo provider={provider} className='size-3 rounded-[3px]' />
+        {providerLabel(provider)}
+      </Badge>
+    );
+  }
+  return <Typed entry={{ label: 'Webhook', tone: 'purple' }} />;
+}
+
+export function SourceBadge({ source, className }: { source: string; className?: string }) {
   const entry = SOURCES[source];
-  return entry ? <Typed entry={entry} /> : <Badge size='sm'>{source}</Badge>;
+  if (!entry) return <Badge size='sm'>{source}</Badge>;
+  return (
+    <Badge size='sm' variant={entry.tone} className={className}>
+      {entry.label}
+    </Badge>
+  );
 }
 
 export function VerifiedBadge({ verified }: { verified: boolean }) {

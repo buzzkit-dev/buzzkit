@@ -291,6 +291,115 @@ export function deleteSecret(
   );
 }
 
+export type SourceInput = {
+  name: string;
+  provider: string;
+  verification?: unknown;
+  mapping?: unknown;
+  secret?: string;
+};
+
+export type SourcePatch = {
+  name?: string;
+  provider?: string;
+  status?: 'active' | 'paused';
+  verification?: unknown;
+  mapping?: unknown;
+  secret?: string;
+};
+
+export function listSources(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).sources.get()
+  ).then((page) => page.items);
+}
+
+export function createSource(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  body: SourceInput
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).sources.post(body)
+  );
+}
+
+export function getSource(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).sources({ id }).get()
+  );
+}
+
+export function updateSource(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string,
+  body: SourcePatch
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).sources({ id }).patch(body)
+  );
+}
+
+export function deleteSource(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).sources({ id }).delete()
+  );
+}
+
+export function previewSource(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string,
+  body: { payload: unknown; mapping?: unknown }
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .sources({ id })
+      .preview.post(body)
+  );
+}
+
+export function listSourceDeliveries(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string,
+  query: { limit?: number; cursor?: string; outcome?: string } = {}
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .sources({ id })
+      .deliveries.get({ query })
+  );
+}
+
 export function deleteCredential(
   ctx: RequestContext,
   token: string,
@@ -602,7 +711,7 @@ export function listSubscriberTimeline(
   workspaceSlug: string,
   tenantSlug: string,
   externalId: string,
-  query: { limit?: number; cursor?: string } = {}
+  query: { limit?: number; cursor?: string; name?: string; source?: string; provider?: string } = {}
 ) {
   return unwrap(
     ctx,
@@ -635,7 +744,8 @@ export type EventQuery = {
   limit?: number;
   cursor?: string;
   name?: string;
-  source?: 'server' | 'ios' | 'android' | 'web' | 'system';
+  source?: 'server' | 'ios' | 'android' | 'web' | 'system' | 'webhook';
+  provider?: string;
   after?: string;
 };
 
@@ -1158,3 +1268,6 @@ export type Run = Awaited<ReturnType<typeof listRuns>>['items'][number];
 export type RunDetail = Awaited<ReturnType<typeof getRun>>;
 export type RunEvent = RunDetail['events'][number];
 export type SubscriberRun = Awaited<ReturnType<typeof listSubscriberRuns>>[number];
+
+export type Source = Awaited<ReturnType<typeof getSource>>;
+export type SourceDelivery = Awaited<ReturnType<typeof listSourceDeliveries>>['items'][number];
