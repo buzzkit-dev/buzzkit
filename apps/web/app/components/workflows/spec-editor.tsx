@@ -1,7 +1,12 @@
+import {
+  formatWorkflowPath,
+  isWorkflowSpec,
+  lintWorkflow,
+  type WorkflowSpec,
+} from '@buzzkit/schema/workflows';
 import { FieldDescription } from '@buzzkit/ui/components/field';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { formatWorkflowPath, isWorkflowSpec, lintWorkflow, type WorkflowSpec } from 'buzzkit/workflows';
 import { useRef } from 'react';
 import { lineOf, parseJson } from '@/app/lib/utils/json';
 
@@ -27,34 +32,51 @@ export const SPEC_PLACEHOLDER = JSON.stringify(
 
 const KEY_ORDER = [
   'trigger',
-  'concurrency',
-  'cancelOn',
-  'steps',
-  'name',
   'event',
+  'schedule',
+  'daily',
+  'cron',
+  'timezone',
+  'segment',
   'sources',
   'where',
   'ref',
+  'concurrency',
+  'cancelOn',
+  'defaultTimezone',
+  'steps',
+  'name',
   'wait',
   'waitUntil',
   'waitFor',
-  'until',
-  'after',
-  'plus',
-  'at',
-  'timezone',
+  'settleFor',
+  'resetOn',
+  'timeout',
+  'delay',
+  'time',
   'branch',
-  'if',
-  'then',
-  'else',
+  'when',
+  'fetch',
+  'method',
+  'url',
+  'headers',
+  'body',
+  'expect',
+  'status',
+  'as',
+  'onError',
+  'set',
+  'attribute',
+  'var',
+  'value',
   'send',
   'channel',
   'topic',
   'title',
   'subtitle',
-  'body',
   'data',
   'deliver',
+  'skipIfSentWithin',
   'exit',
 ];
 

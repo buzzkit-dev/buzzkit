@@ -24,6 +24,8 @@ import { messageDeliveries } from './messages/[id]/deliveries';
 import { profile } from './profile';
 import { runs } from './runs';
 import { run } from './runs/[runId]';
+import { secrets } from './secrets';
+import { secret } from './secrets/[name]';
 import { segments } from './segments';
 import { segment } from './segments/[segmentSlug]';
 import { segmentMembers } from './segments/[segmentSlug]/members';
@@ -49,6 +51,8 @@ import { workflow } from './workflows/[workflowSlug]';
 import { workflowPause } from './workflows/[workflowSlug]/pause';
 import { workflowPublish } from './workflows/[workflowSlug]/publish';
 import { workflowRuns } from './workflows/[workflowSlug]/runs';
+import { workflowSchedule } from './workflows/[workflowSlug]/schedule';
+import { workflowTest } from './workflows/[workflowSlug]/test';
 import { workspaces } from './workspaces';
 import { workspace } from './workspaces/[workspaceSlug]';
 import { auditLog } from './workspaces/[workspaceSlug]/audit';
@@ -186,6 +190,14 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/credentials/:id/validate
    */
   .use(credentialValidate)
+  /**
+   * /v1/secrets
+   */
+  .use(secrets)
+  /**
+   * /v1/secrets/:name
+   */
+  .use(secret)
   /*
    * /v1/subscribers
    */
@@ -266,6 +278,14 @@ export const v1 = new Elysia({ prefix: '/v1' })
    * /v1/workflows/:workflowSlug/runs
    */
   .use(workflowRuns)
+  /*
+   * /v1/workflows/:workflowSlug/schedule
+   */
+  .use(workflowSchedule)
+  /*
+   * /v1/workflows/:workflowSlug/test
+   */
+  .use(workflowTest)
   /*
    * /v1/runs/:runId
    */

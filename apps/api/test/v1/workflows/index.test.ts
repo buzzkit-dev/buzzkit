@@ -169,7 +169,7 @@ async function sentTitles(headers: Headers) {
 const holdSpec = {
   trigger: { event: 'order.placed' },
   steps: [
-    { name: 'hold', waitFor: { event: 'order.paid', until: '2d' } },
+    { name: 'hold', waitFor: { event: 'order.paid', timeout: '2d' } },
     { name: 'thanks', send: { title: 'Thanks' } },
   ],
 };
@@ -184,24 +184,27 @@ const trialSpec = {
   cancelOn: [{ event: 'subscription.started' }],
   steps: [
     { name: 'settle', wait: '2h' },
-    { name: 'cancel', waitFor: { event: 'trial.cancelled', until: '1d' } },
+    { name: 'cancel', waitFor: { event: 'trial.canceled', timeout: '1d' } },
     {
       name: 'outcome',
-      branch: {
-        if: { ref: 'steps.cancel.matched', eq: true },
-        then: [
-          {
-            name: 'sorry',
-            send: {
-              title: 'Your trial is cancelled',
-              body: 'Alerts continue until {{ trigger.data.endsAt }}.',
+      branch: [
+        {
+          name: 'canceled',
+          when: { ref: 'steps.cancel.matched', eq: true },
+          steps: [
+            {
+              name: 'sorry',
+              send: {
+                title: 'Your trial is canceled',
+                body: 'Alerts continue until {{ trigger.data.endsAt }}.',
+              },
             },
-          },
-        ],
-        else: [{ name: 'nudge', send: { title: 'Your trial ends tomorrow' } }],
-      },
+          ],
+        },
+        { name: 'otherwise', steps: [{ name: 'nudge', send: { title: 'Your trial ends tomorrow' } }] },
+      ],
     },
-    { name: 'final', waitUntil: { after: 'trigger', plus: '1d' } },
+    { name: 'final', waitUntil: { delay: '1d' } },
     { name: 'bye', send: { title: 'Thanks {{ subscriber.attributes.name }}' } },
   ],
 };
@@ -230,14 +233,14 @@ describe('workflow runs', () => {
         ),
       { label: 'waiting for the cancel event', timeoutMs: 30_000, intervalMs: 300 }
     );
-    await track(keyBearer, user, 'trial.cancelled');
-    await eventually(async () => (await sentTitles(keyBearer)).includes('Your trial is cancelled'), {
+    await track(keyBearer, user, 'trial.canceled');
+    await eventually(async () => (await sentTitles(keyBearer)).includes('Your trial is canceled'), {
       label: 'cancel branch sent',
       timeoutMs: 30_000,
       intervalMs: 300,
     });
     const { body } = await api<{ items: MessageItem[] }>('/v1/messages?limit=5', { headers: keyBearer });
-    const sorry = body.data?.items.find((item) => item.payload.title === 'Your trial is cancelled');
+    const sorry = body.data?.items.find((item) => item.payload.title === 'Your trial is canceled');
     expect(sorry?.run?.step).toBe('sorry');
     expect(sorry?.run?.id).toMatch(/^\d+-wf_/);
     expect(sorry && (sorry.payload as { body?: string }).body).toBe('Alerts continue until Friday.');
@@ -246,7 +249,7 @@ describe('workflow runs', () => {
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
       { label: 'run completed', timeoutMs: 60_000, intervalMs: 500 }
     );
-    expect(await sentTitles(keyBearer)).toEqual(['Your trial is cancelled', 'Thanks Ada']);
+    expect(await sentTitles(keyBearer)).toEqual(['Your trial is canceled', 'Thanks Ada']);
     const events = await runEvents(keyBearer, user);
     expect(events.map((item) => `${item.name}:${item.data.step ?? ''}:${item.data.status ?? ''}`)).toEqual([
       '$run.started::',
@@ -281,8 +284,8 @@ describe('workflow runs', () => {
 
     await track(keyBearer, user, 'subscription.started');
     await eventually(
-      async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.cancelled'),
-      { label: 'run cancelled', timeoutMs: 30_000, intervalMs: 300 }
+      async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.canceled'),
+      { label: 'run canceled', timeoutMs: 30_000, intervalMs: 300 }
     );
     await new Promise((resolve) => setTimeout(resolve, 12_000));
     expect(await sentTitles(keyBearer)).toEqual([]);
@@ -386,11 +389,14 @@ describe('workflow runs', () => {
       steps: [
         {
           name: 'paid',
-          branch: {
-            if: { ref: 'trigger.data.paid', eq: true },
-            then: [{ name: 'thanks', send: { title: 'Thanks' } }, { exit: true }],
-            else: [{ name: 'reminder', send: { title: 'Still open' } }],
-          },
+          branch: [
+            {
+              name: 'settled',
+              when: { ref: 'trigger.data.paid', eq: true },
+              steps: [{ name: 'thanks', send: { title: 'Thanks' } }, { exit: true }],
+            },
+            { name: 'otherwise', steps: [{ name: 'reminder', send: { title: 'Still open' } }] },
+          ],
         },
         { name: 'later', wait: '1h' },
         { name: 'nudge', send: { title: 'Last call' } },
@@ -427,7 +433,7 @@ describe('workflow runs', () => {
       steps: [
         {
           name: 'returned',
-          waitFor: { event: 'app.opened', where: { ref: 'event.data.screen', eq: 'cart' }, until: '2d' },
+          waitFor: { event: 'app.opened', where: { ref: 'event.data.screen', eq: 'cart' }, timeout: '2d' },
         },
         { name: 'done', send: { title: 'Welcome back to your cart' } },
       ],
@@ -448,15 +454,15 @@ describe('workflow runs', () => {
     await track(keyBearer, user, 'order.placed', { total: 10 });
     await new Promise((resolve) => setTimeout(resolve, 1500));
     const events = await runEvents(keyBearer, user);
-    expect(events.some((item) => item.name === '$run.cancelled')).toBe(false);
+    expect(events.some((item) => item.name === '$run.canceled')).toBe(false);
     expect(events.filter((item) => item.name === '$run.step')).toHaveLength(1);
 
     await track(keyBearer, user, 'order.placed', { total: 80 });
-    const cancelled = await eventually(
-      async () => (await runEvents(keyBearer, user)).find((item) => item.name === '$run.cancelled'),
-      { label: 'run cancelled', timeoutMs: 30_000, intervalMs: 300 }
+    const canceled = await eventually(
+      async () => (await runEvents(keyBearer, user)).find((item) => item.name === '$run.canceled'),
+      { label: 'run canceled', timeoutMs: 30_000, intervalMs: 300 }
     );
-    expect(cancelled.data.reason).toBe('cancelOn:order.placed');
+    expect(canceled.data.reason).toBe('cancelOn:order.placed');
     expect(await sentTitles(keyBearer)).toEqual([]);
   }, 90_000);
 
@@ -465,7 +471,7 @@ describe('workflow runs', () => {
     const slug = `gone-${uniq()}`;
     await publish(keyBearer, slug, {
       trigger: { event: 'signup' },
-      steps: [{ name: 'hold', waitFor: { event: 'never', until: '2d' } }],
+      steps: [{ name: 'hold', waitFor: { event: 'never', timeout: '2d' } }],
     });
     const user = `gone_${uniq()}`;
     await subscribe(keyBearer, user);
@@ -477,14 +483,14 @@ describe('workflow runs', () => {
 
     expect((await api(`/v1/workflows/${slug}`, { method: 'DELETE', headers: keyBearer })).status).toBe(200);
     await track(keyBearer, user, 'app.opened');
-    const cancelled = await eventually(
-      async () => (await runEvents(keyBearer, user)).find((item) => item.name === '$run.cancelled'),
-      { label: 'run cancelled by deletion', timeoutMs: 30_000, intervalMs: 300 }
+    const canceled = await eventually(
+      async () => (await runEvents(keyBearer, user)).find((item) => item.name === '$run.canceled'),
+      { label: 'run canceled by deletion', timeoutMs: 30_000, intervalMs: 300 }
     );
-    expect(cancelled.data.reason).toBe('workflow_deleted');
+    expect(canceled.data.reason).toBe('workflow_deleted');
     const runs = await api<{ items: Array<{ status: string }> }>(`/v1/subscribers/${user}/runs`, {
       headers: keyBearer,
     });
-    expect(runs.body.data?.items[0]?.status).toBe('cancelled');
+    expect(runs.body.data?.items[0]?.status).toBe('canceled');
   }, 90_000);
 });

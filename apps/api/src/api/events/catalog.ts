@@ -46,7 +46,7 @@ export const SYSTEM_EVENTS = {
     summary: t.String(),
   }),
   'run.completed': RunSchema,
-  'run.cancelled': t.Object({ ...RunSchema.properties, reason: t.String() }),
+  'run.canceled': t.Object({ ...RunSchema.properties, reason: t.String() }),
   'run.failed': t.Object({ ...RunSchema.properties, error: t.Optional(t.String()) }),
 } as const satisfies Record<string, TSchema>;
 

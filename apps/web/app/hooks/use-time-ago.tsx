@@ -30,7 +30,7 @@ function currentMinute() {
   return Math.floor(Date.now() / 60_000);
 }
 
-function useTimeAgo(iso: string): string {
+export function useTimeAgo(iso: string): string {
   useSyncExternalStore(subscribe, currentMinute, currentMinute);
   return timeAgo(iso);
 }
@@ -47,7 +47,7 @@ function exactTime(iso: string): React.ReactNode {
 
 export const TIME_TOOLTIP_DELAY = 150;
 
-function ExactTimeTooltip({ at, children }: { at: string; children: string }) {
+function ExactTimeTooltip({ at, detail, children }: { at: string; detail?: string; children: string }) {
   return (
     <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
       <Tooltip>
@@ -58,14 +58,22 @@ function ExactTimeTooltip({ at, children }: { at: string; children: string }) {
             </time>
           }
         />
-        <TooltipContent>{exactTime(at)}</TooltipContent>
+        <TooltipContent className={detail ? 'flex-col items-start gap-0' : undefined}>
+          {exactTime(at)}
+          {detail && <span className='text-background/70'>{detail}</span>}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
 
-export function TimeAgo({ at }: { at: string }) {
-  return <ExactTimeTooltip at={at}>{useTimeAgo(at)}</ExactTimeTooltip>;
+export function TimeAgo({ at, detail, label }: { at: string; detail?: string; label?: string }) {
+  const computed = useTimeAgo(at);
+  return (
+    <ExactTimeTooltip at={at} detail={detail}>
+      {label ?? computed}
+    </ExactTimeTooltip>
+  );
 }
 
 export function Time({ at }: { at: string }) {

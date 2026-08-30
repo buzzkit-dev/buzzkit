@@ -1,15 +1,12 @@
 import { rewrapCredentials } from '@buzzkit/api/api/credentials/index';
-import { createDb } from '@buzzkit/api/libs/database';
-import { log } from '@buzzkit/api/libs/logger';
-import { trace } from '@buzzkit/api/libs/telemetry';
+import { rewrapSecrets as rewrapSecretRows } from '@buzzkit/api/api/secrets/index';
+import { sweep } from './sweep';
 
 const SWEEP_LIMIT = 200;
 
-export async function rewrapCredentialsSweep(): Promise<void> {
-  await trace('scheduler.rewrap', async (t) => {
-    const rewrapped = await rewrapCredentials(createDb({ max: 2 }), SWEEP_LIMIT);
-    t.set('rewrap.credentials', rewrapped);
-    if (rewrapped > 0)
-      log.info('[Scheduler] Re-wrapped credentials under the current master key', { rewrapped });
-  });
+export async function rewrapSecrets(): Promise<void> {
+  await sweep('rewrap', async (db) => ({
+    credentials: await rewrapCredentials(db, SWEEP_LIMIT),
+    secrets: await rewrapSecretRows(db, SWEEP_LIMIT),
+  }));
 }

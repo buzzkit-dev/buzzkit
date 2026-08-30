@@ -1,15 +1,24 @@
-import type { CancelRule, WorkflowSpec } from 'buzzkit/workflows';
-import { ConditionChips } from '@/app/components/segments/conditions';
-import { type ConditionKind, type ConditionTree, negate, refPart } from '@/app/components/segments/describe';
+import type { CancelRule, WorkflowSpec } from '@buzzkit/schema/workflows';
+import type { Expression } from 'buzzkit/expressions';
+import { ConditionChips } from '@/app/components/conditions/chips';
+import {
+  type ConditionKind,
+  type ConditionTree,
+  conditionPart,
+  negate,
+  refPart,
+} from '@/app/components/conditions/describe';
+import { describeSchedule } from '@/app/components/workflows/describe';
 
 const REF_NAMESPACES: Array<{ prefix: string; kind: ConditionKind }> = [
   { prefix: 'trigger.data.', kind: 'event' },
   { prefix: 'event.data.', kind: 'event' },
   { prefix: 'subscriber.attributes.', kind: 'attribute' },
   { prefix: 'steps.', kind: 'step' },
+  { prefix: 'vars.', kind: 'step' },
 ];
 
-function whereTree(node: unknown): ConditionTree | null {
+export function whereTree(node: unknown): ConditionTree | null {
   if (!node || typeof node !== 'object') return null;
   const record = node as Record<string, unknown>;
   if (Array.isArray(record.all)) return { kind: 'group', match: 'all', children: children(record.all) };
@@ -19,9 +28,9 @@ function whereTree(node: unknown): ConditionTree | null {
     return inner?.kind === 'leaf' ? { kind: 'leaf', part: negate(inner.part) } : inner;
   }
   const ref = record.ref;
-  if (typeof ref !== 'string') return null;
+  if (typeof ref !== 'string') return { kind: 'leaf', part: conditionPart(node as Expression) };
   const namespace = REF_NAMESPACES.find((entry) => ref.startsWith(entry.prefix));
-  const subject = namespace ? ref.slice(namespace.prefix.length) : ref;
+  const subject = namespace && namespace.prefix !== 'vars.' ? ref.slice(namespace.prefix.length) : ref;
   return { kind: 'leaf', part: refPart(namespace?.kind ?? 'attribute', subject, record) };
 }
 
@@ -32,6 +41,27 @@ function children(nodes: unknown[]): ConditionTree[] {
 export function triggerTree(spec: WorkflowSpec): ConditionTree {
   const { trigger } = spec;
   const where = whereTree(trigger.where);
+  if ('schedule' in trigger) {
+    return {
+      kind: 'group',
+      match: 'all',
+      children: [
+        {
+          kind: 'leaf',
+          part: { kind: 'trigger', subject: '', operator: 'runs', value: describeSchedule(trigger.schedule) },
+        },
+        ...(trigger.segment
+          ? [
+              {
+                kind: 'leaf' as const,
+                part: { kind: 'source' as const, subject: '', operator: 'in', value: trigger.segment },
+              },
+            ]
+          : []),
+        ...(where ? [where] : []),
+      ],
+    };
+  }
   return {
     kind: 'group',
     match: 'all',

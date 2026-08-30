@@ -896,7 +896,7 @@ export default function DesignSystem() {
         <Section
           id='pastel-avatar'
           title='PastelAvatar'
-          description='The picture for things without one (workspaces): a gradient between two neighbouring accent ramps picked from the seed, with a soft highlight. Same seed, same picture. Pure tokens, so it renders on the server and follows the theme.'
+          description='The picture for things without one (workspaces): a gradient between two neighboring accent ramps picked from the seed, with a soft highlight. Same seed, same picture. Pure tokens, so it renders on the server and follows the theme.'
           className='flex-col items-start gap-6'
         >
           <Specimen label='24px · the switcher'>
@@ -1013,7 +1013,7 @@ export default function DesignSystem() {
         <Section
           id='charts'
           title='Charts'
-          description='bklit charts restyled to the tokens: an area sparkline with a fading fill and a stacked column chart with a tooltip. Series colours are the ramp variables; text stays in text tokens.'
+          description='bklit charts restyled to the tokens: an area sparkline with a fading fill and a stacked column chart with a tooltip. Series colors are the ramp variables; text stays in text tokens.'
           className='flex-col items-start gap-6'
         >
           <Specimen label='sparkline'>
@@ -1187,7 +1187,7 @@ export default function DesignSystem() {
               <Switch id='ds-f-digest' defaultChecked />
             </Field>
           </Specimen>
-          <Specimen label='group: gap-5 stack with a labelled separator'>
+          <Specimen label='group: gap-5 stack with a labeled separator'>
             <FieldGroup className='max-w-sm'>
               <Field>
                 <FieldLabel htmlFor='ds-f-email'>Email</FieldLabel>

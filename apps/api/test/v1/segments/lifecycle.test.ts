@@ -277,7 +277,7 @@ describe('segment members', () => {
     expect(await deliveredTo(keyBearer, optedIn.id)).toEqual([alice]);
   });
 
-  it('honours minute and hour windows against event timestamps', async () => {
+  it('honors minute and hour windows against event timestamps', async () => {
     const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const externalId = `stale_${uniq()}`;
     await putSubscriber(keyBearer, externalId, { plan: 'pro' });

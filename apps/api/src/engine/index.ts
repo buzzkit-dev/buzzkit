@@ -1,13 +1,9 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { log } from '@buzzkit/api/libs/logger';
 import { ExitRun, RunContext } from './context';
+import { describeFailure } from './errors';
 import { runSteps } from './steps';
 import type { RunParams } from './types';
-
-function describeFailure(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/^NonRetryableError: /, '');
-}
 
 export class EngineWorkflow extends WorkflowEntrypoint<Env, RunParams> {
   async run(event: WorkflowEvent<RunParams>, step: WorkflowStep): Promise<void> {

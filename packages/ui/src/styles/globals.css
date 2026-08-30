@@ -168,7 +168,7 @@
   --yellow-text: oklch(0.628 0.131 101.17);
 
   /* Control shadows — raised chrome. Kept here rather than inline in the
-     components so no component hardcodes a colour, and so dark mode can swap
+     components so no component hardcodes a color, and so dark mode can swap
      the whole recipe (light leans on drop shadow, dark on an inner hairline). */
   --control-shadow:
     0 1px 1px oklch(0 0 0 / 0.1), 0 0 0 1px oklch(0 0 0 / 0.08), inset 0 1px 0 oklch(1 0 0 / 0.16);
@@ -892,7 +892,7 @@
 [data-sonner-toast].bk-toast [data-icon] > svg {
   margin: 0;
 }
-/* The loader is absolutely centred *on purpose* — that's what lets the result
+/* The loader is absolutely centered *on purpose* — that's what lets the result
  * icon cross-fade in the same spot. Never pull it into flow, or the two icons
  * sit side by side. The explicit box above is what stops it collapsing. */
 [data-sonner-toast].bk-toast [data-icon] {

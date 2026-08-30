@@ -10,7 +10,7 @@ type Page = { items: Run[]; hasMore: boolean; nextCursor: string | null };
 
 const spec = (event: string) => ({
   trigger: { event },
-  steps: [{ name: 'hold', waitFor: { event: 'never', until: '2d' } }],
+  steps: [{ name: 'hold', waitFor: { event: 'never', timeout: '2d' } }],
 });
 
 describe('GET /v1/runs', () => {

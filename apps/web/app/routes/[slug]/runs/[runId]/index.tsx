@@ -82,17 +82,21 @@ function EventItem({ event, slug }: { event: RunEvent; slug: string }) {
 export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
   const { run, workflow, spec, version } = loaderData;
   const workflowBase = `/${params.slug}/workflows/${run.workflow}`;
-  const _live = run.status === 'running' || run.status === 'sleeping' || run.status === 'waiting';
   const steps = run.events.filter((event) => event.name === '$run.step' && event.step);
   const path: RunPath = {
     reached: new Set(
-      steps.filter((event) => event.data.status === 'completed').map((event) => event.step as string)
+      steps
+        .filter((event) => event.data.status === 'completed' || event.data.status === 'skipped')
+        .map((event) => event.step as string)
+    ),
+    skipped: new Set(
+      steps.filter((event) => event.data.status === 'skipped').map((event) => event.step as string)
     ),
     current: run.status === 'completed' ? null : run.step,
     taken: Object.fromEntries(
       steps
-        .filter((event) => event.data.taken === 'then' || event.data.taken === 'else')
-        .map((event) => [event.step as string, event.data.taken as 'then' | 'else'])
+        .filter((event) => typeof event.data.taken === 'string')
+        .map((event) => [event.step as string, event.data.taken as string])
     ),
     status: run.status,
   };

@@ -53,7 +53,7 @@ describe('retry schedule', () => {
     expect(spread.size).toBeGreaterThan(5);
   });
 
-  it('never goes below the overload floor after a 429 or timeout, and honours Retry-After', () => {
+  it('never goes below the overload floor after a 429 or timeout, and honors Retry-After', () => {
     for (let i = 0; i < 50; i++) {
       expect(backoffSeconds(1, 'rate_limited')).toBeGreaterThanOrEqual(OVERLOAD_PENALTY_SECONDS * 0.8);
       expect(backoffSeconds(1, 'timeout')).toBeGreaterThanOrEqual(OVERLOAD_PENALTY_SECONDS * 0.8);

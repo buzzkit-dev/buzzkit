@@ -122,4 +122,33 @@ describe('lintExpression', () => {
     const many = { all: Array.from({ length: 51 }, () => ({ channel: 'push' })) };
     expect(messages(many)).toEqual(['all[50]: An expression holds at most 50 conditions.']);
   });
+
+  it('takes extra condition kinds through checkers', () => {
+    const shouted = lintExpression(
+      { all: [{ shout: 'HELLO' }, { ref: 'attributes.plan', eq: 'pro' }] },
+      {
+        checkers: {
+          shout: (path, node, tools) => {
+            tools.checkUnknownKeys(path, node, ['shout'], 'a shout');
+            if (node.shout !== 'HELLO')
+              tools.report([...path, 'shout'], `Not loud enough: ${tools.describe(node.shout)}.`);
+          },
+        },
+      }
+    );
+    expect(shouted).toEqual([]);
+    expect(
+      lintExpression(
+        { shout: 'hi', extra: 1 },
+        {
+          checkers: {
+            shout: (path, node, tools) => tools.checkUnknownKeys(path, node, ['shout'], 'a shout'),
+          },
+        }
+      )
+    ).toEqual([{ path: ['extra'], message: '"extra" is not a key of a shout. Allowed keys: "shout".' }]);
+    expect(messages({ shout: 'hi' })).toEqual([
+      'the expression: This object is neither a group nor a condition. Start it with one of "all", "any", "not" or "ref", "count", "never", "lastSeen", "channel".',
+    ]);
+  });
 });

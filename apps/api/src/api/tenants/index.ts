@@ -24,11 +24,19 @@ export const TenantSettingsSchema = t.Object(
   }
 );
 
-const SETTINGS_CATALOG: Record<string, Record<string, 'boolean'>> = {
+type SettingType = 'boolean';
+
+const SETTINGS_CATALOG: Record<string, Record<string, SettingType>> = {
   identity: { requireVerification: 'boolean' },
   'channels.push': { enabled: 'boolean' },
   'channels.email': { enabled: 'boolean' },
 };
+
+function assertSettingValue(path: string, key: string, expected: SettingType, entry: unknown): void {
+  if (expected === 'boolean' && typeof entry !== 'boolean') {
+    throw new BadRequestError(`settings.${path}.${key} must be a boolean`);
+  }
+}
 
 export function assertValidTenantSettings(patch: unknown): asserts patch is TenantSettingsPatch {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
@@ -62,9 +70,7 @@ export function assertValidTenantSettings(patch: unknown): asserts patch is Tena
       if (!expected) {
         throw new BadRequestError(`Unknown setting 'settings.${path}.${key}'`);
       }
-      if (typeof entry !== expected) {
-        throw new BadRequestError(`settings.${path}.${key} must be a ${expected}`);
-      }
+      assertSettingValue(path, key, expected, entry);
     }
   }
 }
@@ -80,7 +86,10 @@ type TenantSettingsPatch = {
 };
 
 export function resolveTenantSettings(raw: unknown): TenantSettings {
-  const stored = (raw ?? {}) as TenantSettingsPatch;
+  const stored = (raw ?? {}) as {
+    identity?: TenantSettingsPatch['identity'];
+    channels?: TenantSettingsPatch['channels'];
+  };
   return {
     identity: { requireVerification: false, ...stored.identity },
     channels: {
@@ -90,8 +99,11 @@ export function resolveTenantSettings(raw: unknown): TenantSettings {
   };
 }
 
-export function mergeTenantSettings(current: unknown, patch: TenantSettingsPatch): TenantSettingsPatch {
-  const stored = (current ?? {}) as TenantSettingsPatch;
+export function mergeTenantSettings(current: unknown, patch: TenantSettingsPatch): unknown {
+  const stored = (current ?? {}) as {
+    identity?: TenantSettingsPatch['identity'];
+    channels?: TenantSettingsPatch['channels'];
+  };
   return {
     ...stored,
     ...(patch.identity ? { identity: { ...stored.identity, ...patch.identity } } : {}),

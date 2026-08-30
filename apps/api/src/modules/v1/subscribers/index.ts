@@ -19,7 +19,7 @@ export const subscribers = new Elysia()
       const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('subscriber', id));
 
       const [rows, total] = await Promise.all([
-        listSubscribers(db, tenant.id, { limit, beforeId }),
+        listSubscribers(db, tenant.id, { limit, beforeId, search: query.search }),
         countSubscribers(db, tenant.id),
       ]);
 
@@ -39,6 +39,7 @@ export const subscribers = new Elysia()
       tenant: 'subscribers:read',
       query: t.Object({
         ...PaginationQuerySchema.properties,
+        search: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
       }),
     }
   );

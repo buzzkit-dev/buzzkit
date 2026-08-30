@@ -334,7 +334,7 @@ describe('ActorStore', () => {
       expect(store.listUnflushed(10).map((row) => row.sequence)).toEqual([4, 5]);
     });
 
-    it('honours the limit from the lowest unflushed sequence', () => {
+    it('honors the limit from the lowest unflushed sequence', () => {
       const { store } = createActorStore();
       insertMany(store, 6);
       store.advanceFlushedSequence(1);

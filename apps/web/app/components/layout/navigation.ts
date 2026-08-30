@@ -26,6 +26,7 @@ export const NAVIGATION: NavigationSection[] = [
         children: [
           { label: 'Catalog', path: '/workflows' },
           { label: 'Runs', path: '/runs' },
+          { label: 'Secrets', path: '/workflows/secrets' },
         ],
       },
       {

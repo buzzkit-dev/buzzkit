@@ -53,7 +53,7 @@ describe('GET /v1/stats', () => {
       messages: { total: 0 },
       deliveries: { total: 0, sent: 0, failed: 0, invalid: 0, pending: 0 },
       events: { total: 0 },
-      runs: { started: 0, live: 0, completed: 0, cancelled: 0, failed: 0 },
+      runs: { started: 0, live: 0, completed: 0, canceled: 0, failed: 0 },
     });
     expect(data.interval).toBe('day');
     expect(data.series.length).toBeGreaterThanOrEqual(7);
@@ -116,7 +116,7 @@ describe('GET /v1/stats', () => {
     expect(after.body.data?.previous.deliveries.total).toBe(1);
   });
 
-  it('picks the bucket from the window and honours an explicit interval', async () => {
+  it('picks the bucket from the window and honors an explicit interval', async () => {
     const { keyBearer } = await setupWorkspace();
     const now = Date.now();
     const hourly = await stats(
@@ -198,7 +198,7 @@ describe('GET /v1/stats', () => {
         name: 'Welcome',
         spec: {
           trigger: { event: 'signup' },
-          steps: [{ name: 'hold', waitFor: { event: 'never', until: '2d' } }],
+          steps: [{ name: 'hold', waitFor: { event: 'never', timeout: '2d' } }],
         },
       }),
     });

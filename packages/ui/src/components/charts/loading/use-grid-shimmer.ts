@@ -39,12 +39,12 @@ export function useGridShimmer({
       return;
     }
 
-    let cancelled = false;
+    let canceled = false;
     let timeoutId: number | undefined;
     let controls: ReturnType<typeof animate> | undefined;
 
     const runSyncedCycle = () => {
-      if (cancelled) {
+      if (canceled) {
         return;
       }
 
@@ -53,7 +53,7 @@ export function useGridShimmer({
         duration: shimmerCycleS,
         ease: [...LINE_LOADING_PULSE_EASE],
         onComplete: () => {
-          if (cancelled) {
+          if (canceled) {
             return;
           }
           timeoutId = window.setTimeout(runSyncedCycle, LINE_LOADING_LOOP_PAUSE_MS);
@@ -73,7 +73,7 @@ export function useGridShimmer({
     if (shimmerSync) {
       runSyncedCycle();
       return () => {
-        cancelled = true;
+        canceled = true;
         controls?.stop();
         if (timeoutId !== undefined) {
           window.clearTimeout(timeoutId);

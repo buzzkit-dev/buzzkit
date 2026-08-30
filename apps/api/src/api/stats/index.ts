@@ -52,7 +52,7 @@ export type RunTotals = {
   started: number;
   live: number;
   completed: number;
-  cancelled: number;
+  canceled: number;
   failed: number;
 };
 
@@ -95,7 +95,7 @@ type HourlyRuns = Array<{
   started: number;
   live: number;
   completed: number;
-  cancelled: number;
+  canceled: number;
   failed: number;
 }>;
 
@@ -199,18 +199,18 @@ async function listHourlyRuns(tenantId: number, range: StatsRange): Promise<Hour
     started: Number(row.started),
     live: Number(row.live),
     completed: Number(row.completed),
-    cancelled: Number(row.cancelled),
+    canceled: Number(row.canceled),
     failed: Number(row.failed),
   }));
 }
 
 function sumRuns(rows: HourlyRuns): RunTotals {
-  const totals: RunTotals = { started: 0, live: 0, completed: 0, cancelled: 0, failed: 0 };
+  const totals: RunTotals = { started: 0, live: 0, completed: 0, canceled: 0, failed: 0 };
   for (const row of rows) {
     totals.started += row.started;
     totals.live += row.live;
     totals.completed += row.completed;
-    totals.cancelled += row.cancelled;
+    totals.canceled += row.canceled;
     totals.failed += row.failed;
   }
   return totals;

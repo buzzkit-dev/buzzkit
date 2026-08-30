@@ -1,4 +1,4 @@
-export const RUN_STATUSES = ['running', 'sleeping', 'waiting', 'completed', 'cancelled', 'failed'] as const;
+export const RUN_STATUSES = ['running', 'sleeping', 'waiting', 'completed', 'canceled', 'failed'] as const;
 
 export const LIVE_RUN_STATUSES = ['running', 'sleeping', 'waiting'] as const;
 

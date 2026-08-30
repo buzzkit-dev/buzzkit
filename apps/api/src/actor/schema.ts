@@ -15,6 +15,9 @@ export const ACTOR_SCHEMA = [
   `CREATE UNIQUE INDEX IF NOT EXISTS events_idempotency_key
     ON events (idempotency_key) WHERE idempotency_key IS NOT NULL`,
   'CREATE INDEX IF NOT EXISTS events_name_sequence ON events (name, sequence)',
+  'CREATE INDEX IF NOT EXISTS events_name_timestamp ON events (name, timestamp)',
+  'CREATE INDEX IF NOT EXISTS events_message ON events (message_id) WHERE message_id IS NOT NULL',
+  'CREATE INDEX IF NOT EXISTS events_run_step ON events (run_id, step) WHERE run_id IS NOT NULL',
   `CREATE TABLE IF NOT EXISTS projections (
     name TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -41,7 +44,7 @@ export const ACTOR_SCHEMA = [
     event TEXT NOT NULL,
     condition TEXT,
     expires_at TEXT NOT NULL,
-    PRIMARY KEY (run_id, step)
+    PRIMARY KEY (run_id, step, event)
   )`,
   'CREATE INDEX IF NOT EXISTS waits_event ON waits (event)',
 ] as const;

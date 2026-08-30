@@ -611,3 +611,25 @@ describe('PUT /v1/subscribers/:externalId timezone', () => {
     expect(junk.body.error?.param).toBe('timezone');
   });
 });
+
+describe('search', () => {
+  it('narrows the list to external ids starting with the text or names at a word start', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const stem = uniq();
+    await identify(keyBearer, `${stem}_anna`, { name: 'Anna Schmidt' });
+    await identify(keyBearer, `${stem}_max`, { name: 'Max Andersen' });
+    await identify(keyBearer, `${stem}_tanaka`, { name: 'Sofia Tanaka' });
+    const ids = async (search: string) => {
+      const { status, body } = await api<{ items: Array<{ externalId: string }> }>(
+        `/v1/subscribers?search=${encodeURIComponent(search)}`,
+        { headers: keyBearer }
+      );
+      expect(status).toBe(200);
+      return (body.data?.items ?? []).map((item) => item.externalId).filter((id) => id.startsWith(stem));
+    };
+    expect(await ids(`${stem}_an`)).toEqual([`${stem}_anna`]);
+    expect((await ids('an')).sort()).toEqual([`${stem}_anna`, `${stem}_max`].sort());
+    expect(await ids('tanaka')).toEqual([`${stem}_tanaka`]);
+    expect(await ids('%')).toEqual([]);
+  });
+});

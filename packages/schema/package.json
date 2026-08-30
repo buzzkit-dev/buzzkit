@@ -1,0 +1,23 @@
+{
+  "name": "@buzzkit/schema",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./workflows": {
+      "types": "./src/workflows/index.ts",
+      "default": "./src/workflows/index.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "~4.1.10"
+  },
+  "dependencies": {
+    "buzzkit": "workspace:*"
+  }
+}

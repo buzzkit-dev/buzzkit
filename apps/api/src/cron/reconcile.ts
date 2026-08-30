@@ -7,17 +7,15 @@ import {
   listUnfinalizedMessages,
 } from '@buzzkit/api/api/deliveries/index';
 import { enqueueDeliveries, enqueueFanout, listStalledFanouts } from '@buzzkit/api/api/messages/index';
-import { createDb } from '@buzzkit/api/libs/database';
-import { log } from '@buzzkit/api/libs/logger';
-import { type Span, trace } from '@buzzkit/api/libs/telemetry';
 import type { Db } from '@buzzkit/database';
+import { sweep } from './sweep';
 
 const SWEEP_LIMIT = 1000;
 
 const SWEEP_ROUNDS = 10;
 
 export async function reconcileDeliveries(): Promise<void> {
-  await trace('scheduler.reconcile', async (t) => reconcileDeliveriesInner(t));
+  await sweep('reconcile', reconcile);
 }
 
 async function drain<T>(
@@ -36,9 +34,7 @@ async function drain<T>(
   return total;
 }
 
-async function reconcileDeliveriesInner(t: Span): Promise<void> {
-  const db = createDb({ max: 2 });
-
+async function reconcile(db: Db): Promise<Record<string, number>> {
   const dueRetries = await drain(listDueRetries, db, (rows) =>
     enqueueDeliveries(rows.map((row) => ({ deliveryId: row.id, attempt: row.attempts + 1 })))
   );
@@ -68,17 +64,11 @@ async function reconcileDeliveriesInner(t: Span): Promise<void> {
     if (await finalizeMessageIfComplete(db, row.id)) healed += 1;
   }
 
-  t.set('reconcile.due_retries', dueRetries);
-  t.set('reconcile.stale_pending', stale);
-  t.set('reconcile.expired_messages', expiredMessages);
-  t.set('reconcile.stalled_fanouts', stalled.length);
-  t.set('reconcile.healed_messages', healed);
-
-  log.info('[Reconcile] sweep', {
+  return {
     dueRetries,
     stalePending: stale,
     expiredMessages,
     stalledFanouts: stalled.length,
     healedMessages: healed,
-  });
+  };
 }

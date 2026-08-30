@@ -2,14 +2,14 @@
 
 **Status: Phases 0–4 ✅ (the API milestone). Phase 5 in progress: dashboard phase 1 (foundation + onboarding) is built and awaiting review; the dashboard's own phase plan lives in [dashboard.md](dashboard.md).**
 
-**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E9 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) and E2 (Webhooks) are built.**
+**Phases 8–9 and the webhooks item of Phase 10 are replaced by the engine phases E1–E8 in [engine.md](engine.md): an event-based engine on Durable Objects (one actor per subscriber, Agents SDK), Cloudflare Workflows (runs) and Tinybird (the event log, segments, timelines). E1 (Events) and E2 (Webhooks) are built.**
 
 Deviations from the original plan, all deliberate:
 - **Reordered after the API milestone:** dashboard first (Phase 5), then real-device verification + email (6), SDK (7), campaigns/segments + CLI (8), workflows (9). Full OneSignal feature parity — segments, rules, workflows — comes after the first dashboard version.
 - Observability (OTel + Axiom via `@buzzkit/observability`) landed in Phase 4 instead of Phase 10 — one Worker reports as `buzzkit-api` / `buzzkit-queue` / `buzzkit-scheduler`.
 - Event/audit ledger shipped with Phase 2 (webhooks build on it). Tenant selection uses the `BuzzKit-Tenant` header (Stripe-Account pattern) instead of path params.
 - Phase 3 grew: topics + per-subscriber, per-channel preferences (the OneSignal gap); subscribers have **subscriptions** (push device / email address / later SMS) each with its own `enabled` mute; `/v1/client/*` with optional HMAC identity verification (valid proof always stamps `verified`); Resend as the first email credential; tenant `settings` JSONB; provider registry.
-- Phase 4 delivered APNs **and** FCM `send()` through the registry (the abstraction proved itself a phase early); the Phase 0 spike endpoint is retired. The delivery layer is built to webhook-grade standards: append-only attempt ledger (request/response per attempt), one error taxonomy across providers with core-owned policy, durable progressive retries honouring Retry-After, self-chaining fan-out, batched counters, DLQ, reconciliation cron, message TTLs, and delivered/bounced states reserved for async-confirming channels.
+- Phase 4 delivered APNs **and** FCM `send()` through the registry (the abstraction proved itself a phase early); the Phase 0 spike endpoint is retired. The delivery layer is built to webhook-grade standards: append-only attempt ledger (request/response per attempt), one error taxonomy across providers with core-owned policy, durable progressive retries honoring Retry-After, self-chaining fan-out, batched counters, DLQ, reconciliation cron, message TTLs, and delivered/bounced states reserved for async-confirming channels.
 - Deferred: invite email delivery needs the Email Sending domain onboarded; profile DELETE needs an ownership-handover story; once-verified-always-require-proof mode; per-subscription×topic preferences (mute + topic×channel compose to cover it).
 
 The full build plan, staged into phases. Each phase ends in something shippable and verified. We go phase after phase, in order — a phase is not done until its **Done when** criteria pass.
@@ -201,7 +201,7 @@ The framework's public face. This is where "feels like a framework, not a platfo
   await tenant.send({ to: [...], … });
   ```
 
-- Subpath organization inside the one package: `buzzkit` (client + send), `buzzkit/config` (definition primitives for Phase 8), later `buzzkit/channels`, `buzzkit/workflows`.
+- Subpath organization inside the one package: `buzzkit` (client + send), `buzzkit/webhooks`, `buzzkit/expressions` (inline segments on a send), later `buzzkit/channels`. Nothing about workflows: they are defined in the dashboard or through the API, never from code (2026-08-29).
 - Devices/subscribers namespaces; typed errors; retry/backoff on the client for transient failures.
 - Docs: quickstart (native iOS/Android snippets for token registration → SDK on the backend), `docs/api/` complete for everything shipped.
 
@@ -213,7 +213,7 @@ The framework's public face. This is where "feels like a framework, not a platfo
 
 ## Phases 8–9 — The engine (events, webhooks, segments, campaigns, workflows, iOS SDK, code)
 
-Superseded by [engine.md](engine.md), which carries the design and the phase table **E1 Events → E2 Webhooks → E3 Segments → E4 Scheduled messages → E5/E6 Workflows → E7 iOS SDK + local delivery → E8 Code (builders, `buzzkit push`)**. What changed from the original Phases 8–9: the stored, versioned spec is the source of truth and the API is the way in (the CLI is diff + apply on top, last); product events are a stream through a per-subscriber Durable Object actor into Tinybird, not rows in Postgres; runs execute on Cloudflare Workflows; segments compile to ClickHouse SQL; campaigns are scheduled sends to a segment; webhooks move up from Phase 10 to E2.
+Superseded by [engine.md](engine.md), which carries the design and the phase table **E1 Events → E2 Webhooks → E3 Segments → E4 Scheduled messages → E5/E6 Workflows → E7 Sources → E8 iOS SDK + local delivery → E9 Workflows III (splits, goals, repeat, multi-event waits, send policy)**. What changed from the original Phases 8–9: the stored, versioned spec is the source of truth and the API is the way in (the CLI is diff + apply on top, last); product events are a stream through a per-subscriber Durable Object actor into Tinybird, not rows in Postgres; runs execute on Cloudflare Workflows; segments compile to ClickHouse SQL; campaigns are scheduled sends to a segment; webhooks move up from Phase 10 to E2.
 
 ---
 
@@ -269,6 +269,6 @@ Ship the framework to the world; the hosted product becomes deployment #1.
 | Decision | Phase | Leaning |
 |---|---|---|
 | APNs egress from Workers (HTTP/2) | 0 | Spike decides; fallback = minimal delivery sidecar |
-| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | E9 | No CLI at all (2026-08-28): the `buzzkit` package is the server SDK and applies definitions from code; `upsert` is diff + apply over the definitions API |
+| CLI inside `buzzkit` package as `bin` vs `@buzzkit/cli` | — | No CLI and no definitions from code at all (2026-08-28, 2026-08-29): the `buzzkit` package is the server SDK; segments and workflows are written in the dashboard or sent to the API. |
 | Workflow runner: CF Workflows vs Durable Objects | 8 | **Decided** (engine.md): Cloudflare Workflows for runs, a Durable Object actor per subscriber for state, ordering and timers; Tinybird for the event log |
 | App sub-entity under tenant | 2 | No — tenant ≈ app; multiple apps = multiple tenants |

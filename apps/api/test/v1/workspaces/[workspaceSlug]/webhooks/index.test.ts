@@ -309,7 +309,7 @@ describe('webhook delivery', () => {
     expect(deliveriesTo(path, 'tenant.created')).toHaveLength(1);
   });
 
-  it('delivers subscriber stream events, custom events included, honouring the subscription filter', async () => {
+  it('delivers subscriber stream events, custom events included, honoring the subscription filter', async () => {
     const { owner, workspace, keyBearer } = await setupWorkspace();
     const path = `/stream-${uniq()}`;
     const endpoint = await createEndpoint(owner.bearer, workspace.slug, {

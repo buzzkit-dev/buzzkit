@@ -1,14 +1,20 @@
 export * from './constants';
-export { evaluateExpression, type RefResolver, resolvePath, UnsupportedConditionError } from './evaluate';
-export type { ExpressionIssue, ExpressionPath, LintOptions, RefScope } from './lint';
-export { formatExpressionPath, lintExpression, SEGMENT_REFS } from './lint';
-export { expressionProblem, isExpression } from './parse';
-export * from './schema';
-export type * from './types';
+export type {
+  ConditionChecker,
+  ExpressionIssue,
+  ExpressionPath,
+  LintOptions,
+  LintTools,
+  RefScope,
+} from './lint';
 export {
-  assertExpressionShape,
-  durationSeconds,
-  ExpressionError,
-  kindOf,
-  listReferencedEvents,
-} from './validate';
+  COUNT_COMPARATORS,
+  describe,
+  formatExpressionPath,
+  lintExpression,
+  list,
+  SEGMENT_CONDITIONS,
+  SEGMENT_REFS,
+} from './lint';
+export { expressionProblem, isExpression } from './parse';
+export type * from './types';

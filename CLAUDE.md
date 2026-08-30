@@ -6,7 +6,7 @@ buzzkit — open-source, self-hostable, code-first push notification framework. 
 
 Two layers, one codebase:
 
-1. **The framework (headless core)** — multi-tenant push infrastructure defined entirely in code: workspaces with isolated APNs/FCM credentials, device token lifecycle, sending, scheduled sends, and code-defined segments/workflows created from code through the `buzzkit` package (in the spirit of SST / Alchemy — bring your own provider credentials, buzzkit is the framework around them).
+1. **The framework (headless core)** — multi-tenant push infrastructure defined entirely in code: workspaces with isolated APNs/FCM credentials, device token lifecycle, sending, scheduled sends, segments and workflows (bring your own provider credentials, buzzkit is the framework around them). Segments and workflows are defined in the dashboard or through the API; the `buzzkit` package is the server SDK (send, subscribers, events, inline segment expressions on a send), never a place to define and deploy workflows from code.
 2. **The platform (`apps/web` + hosted version)** — a full product built *on top of* the framework. The hosted version is just a deployment of the same multi-tenant core; it must never need anything the framework doesn't expose.
 
 **Multi-tenancy is the core primitive, not a feature.** Every design decision must work for both a single self-hoster and the hosted platform running thousands of workspaces.
@@ -18,7 +18,8 @@ Two layers, one codebase:
 ```
 apps/api/                → @buzzkit/api            Cloudflare Worker API (Elysia + CloudflareAdapter)
 apps/web/                → @buzzkit/web            Platform dashboard (Vite + React Router 8 SSR on CF Workers, dev port 5180)
-packages/buzzkit/        → buzzkit                 The framework itself — the main public package
+packages/buzzkit/        → buzzkit                 The public server SDK (send, subscribers, events, webhooks, segment expressions)
+packages/schema/         → @buzzkit/schema         Grammars the API and the dashboard both validate (`/workflows`: types, lint, parsers), private
 packages/database/       → @buzzkit/database       Drizzle ORM, PostgreSQL schema, migrations
 packages/auth/           → @buzzkit/auth           BetterAuth configuration (email/password, bearer tokens)
 packages/eden/           → @buzzkit/eden           Typed Eden Treaty API client (envelope-unwrapping, inferred from the contract)
@@ -27,7 +28,7 @@ packages/tinybird/       → @buzzkit/tinybird       The event log: Tinybird dat
 packages/ui/             → @buzzkit/ui             Design system: shadcn (Base UI style) + Tailwind v4 tokens, Central Icons
 ```
 
-**`buzzkit` is one package, not core + sdk.** The main package IS the framework (like `sst`): channel-agnostic primitives (connectors, workflows, segments), the send client, and device token APIs all live in `packages/buzzkit`, organized by subpath exports (`buzzkit/channels`, `buzzkit/workflows`, …) as it grows — never split into separate npm packages for organization's sake. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
+**`buzzkit` is one package, and it is the server SDK.** Only what a customer's backend uses lives in `packages/buzzkit`: the send client, subscriber and event APIs, webhook verification and the segment expression grammar (types + lint, so an inline segment on a send is typed and checked before it is sent), organized by subpath exports (`buzzkit/webhooks`, `buzzkit/expressions`, …) — never split into separate npm packages for organization's sake, and never holding anything that only runs on the server (request schemas, evaluators, renderers). Workflows are not defined from code: their language is the private `@buzzkit/schema/workflows` package, their runtime is the API. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
 
 The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side). `bun db:up` starts Postgres (5460) and Tinybird Local (7181); after a fresh Tinybird container, `bun run build` in `packages/tinybird` pushes the event tables and endpoints into it.
 
@@ -48,7 +49,7 @@ The API dev server runs on port **8790**, the web dev server on port **5180** (o
 | `bun lint`        | Biome lint                                   |
 | `bun format:fix`  | Biome auto-fix formatting                    |
 | `bun check-types` | TypeScript type checking across all packages |
-| `bun run test`    | The `buzzkit` package's unit tests (the API's suite is `bun run test` inside `apps/api`, it boots its own server) |
+| `bun run test`    | Unit tests of `buzzkit`, `@buzzkit/schema` and the dashboard's pure modules (the API's suite is `bun run test` inside `apps/api`, it boots its own server) |
 
 ## Key Conventions (inherited from feedbase)
 

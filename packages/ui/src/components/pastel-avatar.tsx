@@ -3,9 +3,9 @@ import type * as React from 'react';
 
 /**
  * Two palettes, so a workspace and a person never look alike even from the
- * same seed. Tiles (workspaces) blend two *neighbouring* accent ramps; orbs
+ * same seed. Tiles (workspaces) blend two *neighboring* accent ramps; orbs
  * (people) stay inside one ramp, lit from a corner, and use a different hash,
- * so the same string lands on different colours in each.
+ * so the same string lands on different colors in each.
  */
 const TILE_PAIRS = [
   ['purple', 'pink'],

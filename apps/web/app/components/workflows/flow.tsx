@@ -1,25 +1,47 @@
+import {
+  type BranchStep,
+  FALLBACK_CASE,
+  type Step,
+  type StepKind,
+  type WorkflowExpression,
+  type WorkflowSpec,
+} from '@buzzkit/schema/workflows';
 import { Badge } from '@buzzkit/ui/components/badge';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { cn } from '@buzzkit/ui/lib/utils';
-import type { Step, StepKind, WorkflowSpec } from 'buzzkit/workflows';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { ConditionSummary } from '@/app/components/conditions/chips';
 import { DetailRow } from '@/app/components/detail/row';
-import { describeStep, stepIcon, stepKind } from '@/app/components/workflows/describe';
-import { CancelConditions, TriggerConditions } from '@/app/components/workflows/trigger';
+import { stepIcon, stepKind } from '@/app/components/workflows/describe';
+import { StepDetails, type StepPayload, StepRules } from '@/app/components/workflows/details';
+import { CancelConditions, TriggerConditions, whereTree } from '@/app/components/workflows/trigger';
+import { TIME_TOOLTIP_DELAY } from '@/app/hooks/use-time-ago';
 
 type Counts = Record<string, number>;
 
 export type RunPath = {
   reached: Set<string>;
+  skipped: Set<string>;
   current: string | null;
-  taken: Record<string, 'then' | 'else'>;
-  status: 'running' | 'sleeping' | 'waiting' | 'completed' | 'cancelled' | 'failed';
+  taken: Record<string, string>;
+  status: 'running' | 'sleeping' | 'waiting' | 'completed' | 'canceled' | 'failed';
 };
 
 type Tone = 'green' | 'blue' | 'purple' | 'sky' | 'red' | 'amber' | 'muted';
 
 type NodeState = { label: string; tone: Tone } | null;
+
+type Lane = { name: string; label: string; steps: Step[]; open: boolean; when: WorkflowExpression | null };
+
+type Plan = { before: Step[]; fork: { step: BranchStep; lanes: Lane[]; rest: Step[] } | null };
+
+type Trail = {
+  path?: RunPath;
+  active: boolean;
+  after: boolean;
+};
 
 const LIVE_TONES: Record<'running' | 'sleeping' | 'waiting', Tone> = {
   running: 'blue',
@@ -32,7 +54,7 @@ const CURRENT_LABELS: Record<RunPath['status'], string> = {
   sleeping: 'Sleeping',
   waiting: 'Waiting',
   completed: 'Completed',
-  cancelled: 'Cancelled',
+  canceled: 'Canceled',
   failed: 'Failed',
 };
 
@@ -56,50 +78,84 @@ const STATE_RING: Record<Tone, string> = {
   muted: 'ring-green-4',
 };
 
-function stoppedAt(path: RunPath | undefined): NodeState {
-  if (!path) return null;
-  if (path.status === 'failed') return { label: 'Failed', tone: 'red' };
-  if (path.status === 'cancelled') return { label: 'Cancelled', tone: 'amber' };
-  return null;
-}
-
-function stateOf(path: RunPath | undefined, active: boolean, name: string): NodeState {
-  if (!path || !active) return null;
-  if (path.current === name && path.status !== 'completed') {
-    const tone: Tone =
-      path.status === 'failed' ? 'red' : path.status === 'cancelled' ? 'amber' : LIVE_TONES[path.status];
-    return { label: CURRENT_LABELS[path.status], tone };
-  }
-  if (path.reached.has(name) || path.current === name) return { label: 'Completed', tone: 'muted' };
-  return null;
-}
-
-function firstName(steps: Step[]): string | null {
-  const first = steps[0];
-  if (!first) return null;
-  return 'exit' in first ? 'exit' : first.name;
-}
-
 const KIND_LABELS: Record<StepKind, string> = {
   wait: 'Wait',
   waitUntil: 'Wait until',
   waitFor: 'Wait for',
   branch: 'Branch',
+  fetch: 'Fetch',
+  set: 'Set',
   send: 'Send',
   exit: 'Exit',
 };
+
+const TRIGGER_HEADS = {
+  event: { icon: 'IconZapFilled', label: 'Trigger' },
+  schedule: { icon: 'IconCalendarClockFilled', label: 'Schedule' },
+} satisfies Record<string, { icon: IconName; label: string }>;
+
+const LANE = 'minmax(max-content, 1fr)';
+
+function nameOf(step: Step): string {
+  return 'exit' in step ? 'exit' : step.name;
+}
 
 function endsRun(steps: Step[]): boolean {
   const last = steps.at(-1);
   if (!last) return false;
   if ('exit' in last) return true;
-  if ('branch' in last) return endsRun(last.branch.then) && endsRun(last.branch.else ?? []);
+  if ('branch' in last) {
+    const cases = Array.isArray(last.branch) ? last.branch : [];
+    return cases.every((entry) => endsRun(entry.steps)) && cases.some((entry) => entry.when === undefined);
+  }
   return false;
 }
 
-export type FlowVersion = { number: number; note: string | null };
+function planColumn(steps: Step[]): Plan {
+  const index = steps.findIndex((step) => 'branch' in step);
+  if (index === -1) return { before: steps, fork: null };
+  const step = steps[index] as BranchStep;
+  const cases = Array.isArray(step.branch) ? step.branch : [];
+  const lanes: Lane[] = cases.map((entry) => ({
+    name: entry.name,
+    label: entry.name,
+    steps: entry.steps,
+    open: !endsRun(entry.steps),
+    when: entry.when ?? null,
+  }));
+  if (!cases.some((entry) => entry.when === undefined)) {
+    lanes.push({ name: FALLBACK_CASE, label: 'Else', steps: [], open: true, when: null });
+  }
+  return { before: steps.slice(0, index), fork: { step, lanes, rest: steps.slice(index + 1) } };
+}
 
-function Rules({ spec, version }: { spec: WorkflowSpec; version?: FlowVersion }) {
+function stoppedAt(path: RunPath | undefined): NodeState {
+  if (!path) return null;
+  if (path.status === 'failed') return { label: 'Failed', tone: 'red' };
+  if (path.status === 'canceled') return { label: 'Canceled', tone: 'amber' };
+  return null;
+}
+
+function stateOf(trail: Trail, name: string, previousOn: boolean): NodeState {
+  const { path, active } = trail;
+  if (!path || !active) return null;
+  if (path.skipped.has(name)) return { label: 'Skipped', tone: 'amber' };
+  if (path.current === name && path.status !== 'completed') {
+    const tone: Tone =
+      path.status === 'failed' ? 'red' : path.status === 'canceled' ? 'amber' : LIVE_TONES[path.status];
+    return { label: CURRENT_LABELS[path.status], tone };
+  }
+  if (path.reached.has(name) || path.current === name) return { label: 'Completed', tone: 'muted' };
+  if (path.current === null && previousOn) return stoppedAt(path);
+  return null;
+}
+
+function reached(trail: Trail, name: string | null): boolean {
+  const { path, active } = trail;
+  return name !== null && active && path !== undefined && (path.reached.has(name) || path.current === name);
+}
+
+function Version({ spec, version }: { spec: WorkflowSpec; version?: FlowVersion }) {
   return (
     <dl className='flex flex-col border-bg-3 border-b'>
       {version && (
@@ -124,31 +180,73 @@ function Rules({ spec, version }: { spec: WorkflowSpec; version?: FlowVersion })
       <DetailRow label='Runs'>
         {spec.concurrency === 'one-per-subscriber'
           ? 'Once at a time per subscriber'
-          : 'Once for every matching event'}
+          : 'schedule' in spec.trigger
+            ? 'Once per subscriber every time it fires'
+            : 'Once for every matching event'}
       </DetailRow>
+      {spec.defaultTimezone && (
+        <DetailRow label='Timezone'>
+          {`${spec.defaultTimezone.replace(/_/g, ' ')} for subscribers without one of their own`}
+        </DetailRow>
+      )}
     </dl>
   );
 }
 
-function Line({ className, active = false }: { className?: string; active?: boolean }) {
-  return <span className={cn('w-0.5 shrink-0', active ? 'bg-green-4' : 'bg-bg-4', className)} />;
+const PHASE_MS = 150;
+
+const GROW =
+  'absolute inset-0 bg-green-4 transition-transform duration-150 ease-out motion-reduce:transition-none group-data-[still]/flow:transition-none';
+
+const SETTLE =
+  'transition-[box-shadow,background-color,color] duration-300 ease-out [transition-delay:var(--phase-delay,0ms)] motion-reduce:transition-none group-data-[still]/flow:transition-none';
+
+function delay(phase: number): React.CSSProperties {
+  return { transitionDelay: `${phase * PHASE_MS}ms` };
 }
 
-const PORT_RING = STATE_RING;
+const APPEAR =
+  'fade-in fill-mode-both animate-in duration-300 [--tw-animation-delay:var(--phase-delay,0ms)] motion-reduce:animate-none group-data-[still]/flow:animate-none';
+
+function phaseDelay(phase: number): React.CSSProperties {
+  return { '--phase-delay': `${phase * PHASE_MS}ms` } as React.CSSProperties;
+}
+
+function Line({
+  className,
+  active = false,
+  phase = 0,
+}: {
+  className?: string;
+  active?: boolean;
+  phase?: number;
+}) {
+  return (
+    <span className={cn('relative w-0.5 shrink-0 bg-bg-4', className)}>
+      <span className={cn(GROW, 'origin-top', active ? 'scale-y-100' : 'scale-y-0')} style={delay(phase)} />
+    </span>
+  );
+}
 
 function Port({ active = false, tone }: { active?: boolean; tone?: NodeState }) {
   return (
     <span
       className={cn(
         'relative z-10 size-2 shrink-0 rounded-[3px] bg-bg-1 ring-1',
-        tone ? PORT_RING[tone.tone] : active ? 'ring-green-4' : 'ring-bg-4'
+        SETTLE,
+        tone ? STATE_RING[tone.tone] : active ? 'ring-green-4' : 'ring-bg-4'
       )}
     />
   );
 }
 
-function EndDot({ active = false }: { active?: boolean }) {
-  return <span className={cn('size-2.5 shrink-0 rounded-[3px]', active ? 'bg-green-4' : 'bg-fg-1')} />;
+function EndDot({ active = false, phase = 0 }: { active?: boolean; phase?: number }) {
+  return (
+    <span
+      className={cn('size-2.5 shrink-0 rounded-[3px]', SETTLE, active ? 'bg-green-4' : 'bg-fg-1')}
+      style={delay(phase)}
+    />
+  );
 }
 
 function Header({
@@ -172,6 +270,7 @@ function Header({
         <span
           className={cn(
             'flex items-center gap-1.5 font-medium',
+            APPEAR,
             state.tone === 'muted' ? 'text-green-4' : 'text-fg-4'
           )}
         >
@@ -200,17 +299,19 @@ function Header({
 }
 
 function TriggerNode({ spec, active = false }: { spec: WorkflowSpec; active?: boolean }) {
+  const head = 'schedule' in spec.trigger ? TRIGGER_HEADS.schedule : TRIGGER_HEADS.event;
   return (
     <div className='flex flex-col items-center'>
       <div
         className={cn(
           '-mb-1 w-fit max-w-96 overflow-hidden rounded-xl bg-bg-1 shadow-black/5 shadow-sm ring-1',
+          SETTLE,
           active ? 'ring-green-4' : 'ring-bg-3'
         )}
       >
         <Header
-          icon='IconZapFilled'
-          label='Trigger'
+          icon={head.icon}
+          label={head.label}
           state={active ? { label: 'Completed', tone: 'muted' } : null}
         />
         <div className='px-2.5 py-2'>
@@ -226,42 +327,46 @@ function Node({
   step,
   count,
   state,
-  ghost = false,
+  payload,
+  phase = 0,
 }: {
   step: Exclude<Step, { exit: true }>;
   count: number | null;
   state: NodeState;
-  ghost?: boolean;
+  payload?: StepPayload;
+  phase?: number;
 }) {
   const kind = stepKind(step);
-  const reached = state !== null;
   return (
-    <div className={cn('flex flex-col items-center', ghost && !reached && 'opacity-50')}>
+    <div className='flex flex-col items-center' style={phaseDelay(phase)}>
       <Port tone={state} />
       <div
         className={cn(
           '-my-1 w-fit max-w-72 overflow-hidden rounded-xl bg-bg-1 shadow-black/5 shadow-sm ring-1',
+          SETTLE,
           state ? STATE_RING[state.tone] : 'ring-bg-3'
         )}
       >
-        <Header icon={stepIcon(kind)} label={KIND_LABELS[kind]} count={count} state={state} />
-        <div className='flex min-w-0 flex-col px-2.5 py-2'>
+        <Header icon={stepIcon(kind, step)} label={KIND_LABELS[kind]} count={count} state={state} />
+        <div className='flex min-w-0 flex-col gap-1 px-2.5 py-2'>
           <span className='truncate font-medium text-fg-4 text-sm'>{step.name}</span>
-          <span className='text-fg-2 text-xs'>{describeStep(step)}</span>
+          <StepDetails step={step} payload={payload} />
         </div>
+        <StepRules step={step} />
       </div>
       <Port tone={state} />
     </div>
   );
 }
 
-function ExitNode({ active = false, ghost = false }: { active?: boolean; ghost?: boolean }) {
+function ExitNode({ active = false, phase = 0 }: { active?: boolean; phase?: number }) {
   return (
-    <div className={cn('flex flex-col items-center', ghost && !active && 'opacity-50')}>
+    <div className='flex flex-col items-center' style={phaseDelay(phase)}>
       <Port active={active} />
       <div
         className={cn(
           '-my-1 flex items-center gap-1.5 rounded-xl bg-bg-1 px-2.5 py-1.5 shadow-black/5 shadow-sm ring-1',
+          SETTLE,
           active ? 'ring-green-4' : 'ring-bg-3'
         )}
       >
@@ -273,300 +378,360 @@ function ExitNode({ active = false, ghost = false }: { active?: boolean; ghost?:
   );
 }
 
-type BranchStep = Extract<Step, { branch: unknown }>;
-
-type Lane = { label: string; side: 'left' | 'right'; steps: Step[]; open: boolean; fold: Step[] };
-
-type Plan = {
-  before: Step[];
-  fork: { step: BranchStep; lanes: Lane[]; rest: Step[] } | null;
-};
-
-const TRACK = 'minmax(9rem, auto)';
-
-function planColumn(steps: Step[], continues: boolean): Plan {
-  const index = steps.findIndex((step) => 'branch' in step);
-  if (index === -1) return { before: steps, fork: null };
-  const step = steps[index] as BranchStep;
-  const before = steps.slice(0, index);
-  let rest = steps.slice(index + 1);
-  const lanes: Lane[] = [
-    { label: 'Then', side: 'left', steps: step.branch.then, open: false, fold: [] },
-    { label: 'Otherwise', side: 'right', steps: step.branch.else ?? [], open: false, fold: [] },
-  ];
-  for (const lane of lanes) lane.open = !endsRun(lane.steps) && (rest.length > 0 || continues);
-  const open = lanes.filter((lane) => lane.open);
-  if (open.length === 1 && !continues && rest.length > 0) {
-    open[0]!.fold = rest;
-    open[0]!.open = false;
-    rest = [];
-  }
-  return { before, fork: { step, lanes, rest } };
-}
-
-function rowsOf(plan: Plan): number {
-  return plan.before.length + (plan.fork ? 2 + (plan.fork.rest.length > 0 ? 1 : 0) : 0);
-}
-
-function laneRows(lane: Lane, continues: boolean): number {
-  return Math.max(1, rowsOf(planColumn(lane.steps, continues))) + (lane.fold.length > 0 ? 1 : 0);
-}
-
-function Corner({
-  side,
-  edge,
-  inset,
-  row,
-  active = false,
-}: {
-  side: 'left' | 'right';
-  edge: 'top' | 'bottom';
-  inset: boolean;
-  row?: number;
-  active?: boolean;
-}) {
+function Cell({ row, end, children }: { row: number; end?: number; children: React.ReactNode }) {
   return (
-    <span
-      className={cn(
-        'h-4',
-        active ? 'border-green-4' : 'border-bg-4',
-        edge === 'top' ? 'self-start border-t-2' : 'self-end border-b-2',
-        side === 'left' ? 'border-l-2' : 'border-r-2',
-        edge === 'top' && side === 'left' && 'rounded-tl-xl',
-        edge === 'top' && side === 'right' && 'rounded-tr-xl',
-        edge === 'bottom' && side === 'left' && 'rounded-bl-xl',
-        edge === 'bottom' && side === 'right' && 'rounded-br-xl',
-        inset
-          ? side === 'left'
-            ? 'absolute right-0 left-[calc(50%-1px)]'
-            : 'absolute right-[calc(50%-1px)] left-0'
-          : side === 'left'
-            ? '-ml-px w-[calc(100%+0.75rem+1px)] justify-self-start'
-            : '-mr-px w-[calc(100%+0.75rem+1px)] justify-self-end',
-        !inset && edge === 'top' && '-mt-4',
-        !inset && edge === 'bottom' && '-mb-4'
+    <div className='flex flex-col items-center' style={{ gridRow: end ? `${row} / ${end}` : row }}>
+      {children}
+    </div>
+  );
+}
+
+type Junction = { up: boolean; down: boolean; left: boolean; right: boolean };
+
+function spineOf(total: number): { lane: number | null; before: number } {
+  return total % 2 === 1
+    ? { lane: (total - 1) / 2, before: (total - 1) / 2 }
+    : { lane: null, before: total / 2 - 1 };
+}
+
+function forkJunction(index: number, total: number): Junction {
+  const spine = spineOf(total);
+  return { up: spine.lane === index, down: true, left: index > 0, right: index < total - 1 };
+}
+
+function mergeJunction(lanes: Lane[], index: number): Junction | null {
+  const open = lanes.flatMap((entry, at) => (entry.open ? [at] : []));
+  if (open.length === 0) return null;
+  const spine = spineOf(lanes.length);
+  const onSpine = spine.lane === index;
+  const leftReach =
+    open.some((at) => at < index) || (spine.lane === null ? index > spine.before : index > spine.lane);
+  const rightReach =
+    open.some((at) => at > index) || (spine.lane === null ? index <= spine.before : index < spine.lane);
+  const up = lanes[index]?.open ?? false;
+  const joins = up || onSpine;
+  const left = leftReach && (joins || rightReach);
+  const right = rightReach && (joins || leftReach);
+  if (!up && !onSpine && !(left && right)) return null;
+  return { up, down: onSpine, left, right };
+}
+
+type JunctionPath = { left: boolean; right: boolean; stub: boolean };
+
+const JUNCTION_OFF: JunctionPath = { left: false, right: false, stub: false };
+
+function junctionPath(index: number, total: number, taken: number, stubOn: boolean): JunctionPath {
+  if (taken < 0) return JUNCTION_OFF;
+  const spine = spineOf(total);
+  const origin = spine.lane ?? spine.before + 0.5;
+  const low = Math.min(origin, taken);
+  const high = Math.max(origin, taken);
+  return {
+    left: index - 0.5 >= low && index <= high,
+    right: index >= low && index + 0.5 <= high,
+    stub: stubOn && index === taken,
+  };
+}
+
+function JunctionMark({
+  edge,
+  junction,
+  path = JUNCTION_OFF,
+}: {
+  edge: 'top' | 'bottom';
+  junction: Junction | null;
+  path?: JunctionPath;
+}) {
+  if (!junction) return <span className='block h-4' />;
+  const { up, down, left, right } = junction;
+  const active = path.stub || path.left || path.right;
+  const color = active ? 'border-green-4' : 'border-bg-4';
+  const vertical = edge === 'top' ? down : up;
+  const through = edge === 'top' ? up : down;
+  const corner = vertical && !through && left !== right;
+  if (corner) {
+    return (
+      <span className='relative block h-4'>
+        <span
+          className={cn(
+            'absolute top-0 bottom-0',
+            SETTLE.replace('box-shadow,background-color,color', 'border-color'),
+            color,
+            edge === 'top' ? 'border-t-2' : 'border-b-2',
+            right ? 'right-0 border-l-2' : 'left-0 border-r-2',
+            right && edge === 'top' && 'rounded-tl-xl',
+            right && edge === 'bottom' && 'rounded-bl-xl',
+            !right && edge === 'top' && 'rounded-tr-xl',
+            !right && edge === 'bottom' && 'rounded-br-xl'
+          )}
+          style={{ ...(right ? { left: 'calc(50% - 1px)' } : { right: 'calc(50% - 1px)' }), ...delay(1) }}
+        />
+      </span>
+    );
+  }
+  const rail = edge === 'top' ? 'top-0' : 'bottom-0';
+  const barPhase = edge === 'top' ? 1 : 2;
+  const stubPhase = edge === 'top' ? 2 : 1;
+  const joint = path.left || path.right;
+  return (
+    <span className='relative block h-4'>
+      {left && (
+        <span className={cn('absolute left-0 h-0.5 bg-bg-4', rail)} style={{ right: 'calc(50% - 1px)' }}>
+          <span
+            className={cn(GROW, 'origin-right', path.left ? 'scale-x-100' : 'scale-x-0')}
+            style={delay(barPhase)}
+          />
+        </span>
       )}
-      style={inset ? { [edge]: 0 } : { gridRow: row, gridColumn: side === 'left' ? 2 : 1 }}
-    />
+      {right && (
+        <span className={cn('absolute right-0 h-0.5 bg-bg-4', rail)} style={{ left: 'calc(50% - 1px)' }}>
+          <span
+            className={cn(GROW, 'origin-left', path.right ? 'scale-x-100' : 'scale-x-0')}
+            style={delay(barPhase)}
+          />
+        </span>
+      )}
+      {(vertical || through) && (
+        <span className='-translate-x-1/2 absolute top-0 bottom-0 left-1/2 w-0.5 bg-bg-4'>
+          <span
+            className={cn(GROW, 'origin-top', path.stub ? 'scale-y-100' : 'scale-y-0')}
+            style={delay(stubPhase)}
+          />
+        </span>
+      )}
+      <span
+        className={cn(
+          '-translate-x-1/2 absolute left-1/2 h-0.5 w-0.5 bg-green-4 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+          rail,
+          joint ? 'opacity-100' : 'opacity-0'
+        )}
+        style={delay(barPhase)}
+      />
+    </span>
+  );
+}
+
+function CaseHint({ when, children }: { when: WorkflowExpression | null; children: React.ReactNode }) {
+  const tree = when ? whereTree(when) : null;
+  return (
+    <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
+      <Tooltip>
+        <TooltipTrigger render={<span className='flex cursor-default' />}>{children}</TooltipTrigger>
+        <TooltipContent className='max-w-md p-2'>
+          {tree ? <ConditionSummary tree={tree} /> : 'When no case above matches'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function rowsOf(steps: Step[]): number {
+  const plan = planColumn(steps);
+  return Math.max(1, plan.before.length + (plan.fork ? 3 : 0));
+}
+
+function LaneColumn({
+  lane,
+  lanes,
+  counts,
+  payloads,
+  rows,
+  trail,
+  index,
+  taken,
+  after,
+  terminal,
+}: {
+  lane: Lane;
+  lanes: Lane[];
+  counts?: Counts;
+  payloads?: Payloads;
+  rows: number;
+  trail: Trail;
+  index: number;
+  taken: number;
+  after: boolean;
+  terminal: boolean;
+}) {
+  const on = trail.active && trail.path !== undefined;
+  const completed = trail.path?.status === 'completed';
+  return (
+    <div
+      className='grid min-w-36 px-3'
+      style={{ gridRow: `1 / ${rows + 4}`, gridTemplateRows: 'subgrid', gridColumn: index + 1 }}
+    >
+      <div className='-mx-3' style={{ gridRow: 1 }}>
+        <JunctionMark
+          edge='top'
+          junction={forkJunction(index, lanes.length)}
+          path={junctionPath(index, lanes.length, taken, true)}
+        />
+      </div>
+      <Cell row={2}>
+        <CaseHint when={lane.when}>
+          <Badge size='sm' variant={on ? 'green' : 'default'} style={phaseDelay(3)}>
+            {lane.label}
+          </Badge>
+        </CaseHint>
+        <Line className='min-h-4 grow' active={on} phase={4} />
+      </Cell>
+      {lane.steps.length === 0 ? (
+        <Cell row={3}>
+          <span className='relative z-10 rounded-xl border border-bg-3 border-dashed bg-bg-1 px-2.5 py-1.5 text-fg-2 text-sm'>
+            Nothing
+          </span>
+          {terminal ? (
+            <>
+              <Line className='h-4' active={on && completed} />
+              <EndDot active={on && completed} phase={1} />
+            </>
+          ) : (
+            <Line className='min-h-4 grow' active={on && after} />
+          )}
+        </Cell>
+      ) : (
+        <Column
+          steps={lane.steps}
+          counts={counts}
+          payloads={payloads}
+          trail={trail}
+          after={after}
+          rows={rows}
+          lane
+          terminal={terminal}
+        />
+      )}
+      <div className='-mx-3' style={{ gridRow: rows + 3 }}>
+        <JunctionMark
+          edge='bottom'
+          junction={terminal ? null : mergeJunction(lanes, index)}
+          path={junctionPath(index, lanes.length, after ? taken : -1, true)}
+        />
+      </div>
+    </div>
   );
 }
 
 function Column({
   steps,
   counts,
-  continues,
-  lane,
+  trail,
+  after,
   rows,
-  subgrid,
-  head,
-  path,
-  active = true,
-  after = false,
+  lane = false,
+  terminal = false,
+  leadPhase = 1,
+  payloads,
 }: {
   steps: Step[];
   counts?: Counts;
-  continues: boolean;
-  lane?: Lane;
+  payloads?: Payloads;
+  trail: Trail;
+  after: boolean;
   rows?: number;
-  subgrid?: 'columns';
-  head?: React.ReactNode;
-  path?: RunPath;
-  active?: boolean;
-  after?: boolean;
+  lane?: boolean;
+  terminal?: boolean;
+  leadPhase?: number;
 }) {
-  const plan = planColumn(steps, continues);
-  const on = (name: string | null) =>
-    name !== null && active && path !== undefined && (path.reached.has(name) || path.current === name);
+  const plan = planColumn(steps);
+  const { path, active } = trail;
   const completed = path?.status === 'completed';
-  const stalled = path !== undefined && path.current === null && stoppedAt(path) !== null;
-  const stateFor = (name: string, previousOn: boolean): NodeState => {
-    const state = stateOf(path, active, name);
-    if (state) return state;
-    return stalled && active && previousOn ? stoppedAt(path) : null;
-  };
-  const twoTracks = plan.fork !== null || subgrid === 'columns';
-  const offset = lane || head ? 2 : 1;
-  const laneCount = rows ?? rowsOf(plan) + (lane || head ? 1 : 0);
-  const forkRow = offset + plan.before.length;
-  const forkRows = plan.fork
-    ? 1 +
-      Math.max(1, ...plan.fork.lanes.map((entry) => laneRows(entry, plan.fork!.rest.length > 0 || continues)))
-    : 0;
-  const restRow = forkRow + 1;
-  const lastRow = laneCount;
-
-  const cell = (row: number, children: React.ReactNode, key: string) => (
-    <div
-      key={key}
-      className={cn('flex flex-col items-center', twoTracks && 'translate-x-1/2 justify-self-end')}
-      style={{ gridRow: row, gridColumn: twoTracks ? 1 : undefined }}
-    >
-      {children}
-    </div>
-  );
-
   const items: React.ReactNode[] = [];
-
-  if (head) items.push(cell(1, head, 'head'));
-  const laneOn = lane !== undefined && active && path !== undefined;
-
-  if (lane && twoTracks) {
-    items.push(
-      <Corner key='corner-top' side={lane.side} edge='top' inset={false} row={1} active={laneOn} />,
-      ...(lane.open
-        ? [
-            <Corner
-              key='corner-bottom'
-              side={lane.side}
-              edge='bottom'
-              inset={false}
-              row={lastRow}
-              active={laneOn && after}
-            />,
-          ]
-        : [])
-    );
-  }
-
-  if (lane) {
-    items.push(
-      cell(
-        1,
-        <>
-          <Badge
-            size='sm'
-            variant={laneOn ? 'green' : 'default'}
-            className={cn(path && !laneOn && 'opacity-50')}
-          >
-            {lane.label}
-          </Badge>
-          <Line className='min-h-4 grow' active={laneOn && on(firstName(steps))} />
-        </>,
-        'label'
-      )
-    );
-  }
-
-  if (lane && steps.length === 0) {
-    items.push(
-      <div
-        key='empty'
-        className={cn(
-          'relative flex flex-col items-center justify-center pb-4',
-          twoTracks && 'translate-x-1/2 justify-self-end'
-        )}
-        style={{ gridRow: 2, gridColumn: twoTracks ? 1 : undefined }}
-      >
-        {lane.open && (
-          <Line className='-translate-x-1/2 absolute inset-y-0 left-1/2' active={laneOn && after} />
-        )}
-        <span className='relative z-10 rounded-xl border border-bg-3 border-dashed bg-bg-1 px-2.5 py-1.5 text-fg-2 text-sm'>
-          Nothing
-        </span>
-      </div>
-    );
-  }
+  const endOf = (last: boolean) => (lane && rows && last ? rows + 1 : undefined);
 
   plan.before.forEach((step, index) => {
-    const row = offset + index;
-    const last = !plan.fork && index === plan.before.length - 1;
-    const name = 'exit' in step ? 'exit' : step.name;
-    const here = on(name) && ('exit' in step ? completed : true);
+    const name = nameOf(step);
+    const here = reached(trail, name) && ('exit' in step ? completed : true);
     const previous = plan.before[index - 1];
     const previousOn =
-      index === 0
-        ? lane
-          ? laneOn
-          : active && path !== undefined
-        : on(previous && 'exit' in previous ? 'exit' : (previous?.name ?? null));
+      index === 0 ? active && path !== undefined : reached(trail, previous ? nameOf(previous) : null);
     const next = plan.before[index + 1] ?? plan.fork?.step ?? null;
-    const onward = next ? on('exit' in next ? 'exit' : next.name) : active && after;
+    const onward = next ? reached(trail, nameOf(next)) : active && after;
+    const last = !plan.fork && index === plan.before.length - 1;
+    const topPhase = index === 0 ? leadPhase : 1;
     if ('exit' in step) {
       items.push(
-        cell(
-          row,
-          <>
-            {!(lane && index === 0) && <Line className='h-4' active={here} />}
-            <ExitNode active={here} ghost={path !== undefined} />
-            <Line className='h-3' active={here} />
-            <EndDot active={here} />
-          </>,
-          'exit'
-        )
+        <Cell key='exit' row={index + 1} end={endOf(last)}>
+          {!(lane && index === 0) && <Line className='h-4' active={here} phase={topPhase} />}
+          <ExitNode active={here} phase={lane && index === 0 ? 0 : topPhase + 1} />
+          <Line className='h-3' active={here} phase={lane && index === 0 ? 1 : topPhase + 2} />
+          <EndDot active={here} phase={lane && index === 0 ? 2 : topPhase + 3} />
+        </Cell>
       );
       return;
     }
-    const finished = last && !continues && !lane?.open;
     items.push(
-      cell(
-        row,
-        <>
-          {!(lane && index === 0) && <Line className='h-4' active={here} />}
-          <Node
-            step={step}
-            count={counts ? (counts[step.name] ?? 0) : null}
-            state={stateFor(step.name, previousOn)}
-            ghost={path !== undefined}
-          />
-          {finished && (
-            <>
-              <Line className='h-4' active={here && completed} />
-              <EndDot active={here && completed} />
-            </>
-          )}
-          {!finished && <Line className='min-h-4 grow' active={onward} />}
-        </>,
-        step.name
-      )
+      <Cell key={step.name} row={index + 1} end={endOf(last)}>
+        {!(lane && index === 0) && <Line className='h-4' active={here} phase={topPhase} />}
+        <Node
+          step={step}
+          count={counts ? (counts[step.name] ?? 0) : null}
+          state={stateOf(trail, step.name, previousOn)}
+          payload={payloads?.[step.name]}
+          phase={lane && index === 0 ? 0 : topPhase + 1}
+        />
+        {last && (!lane || terminal) ? (
+          <>
+            <Line className='h-4' active={here && completed} phase={lane && index === 0 ? 1 : topPhase + 2} />
+            <EndDot active={here && completed} phase={lane && index === 0 ? 2 : topPhase + 3} />
+          </>
+        ) : (
+          <Line className='min-h-4 grow' active={onward} />
+        )}
+      </Cell>
     );
   });
 
   if (plan.fork) {
     const { step, lanes, rest } = plan.fork;
-    const laneContinues = rest.length > 0 || continues;
-    const merge = lanes.some((entry) => entry.open);
-    const here = on(step.name);
-    const decided = here && path?.taken[step.name] !== undefined;
-    const last = plan.before.at(-1);
-    const forkPreviousOn =
+    const row = plan.before.length + 1;
+    const here = reached(trail, step.name);
+    const taken = path?.taken[step.name];
+    const decided = here && taken !== undefined;
+    const previous = plan.before.at(-1);
+    const previousOn =
       plan.before.length === 0
-        ? lane
-          ? laneOn
-          : active && path !== undefined
-        : on(last && 'exit' in last ? 'exit' : (last?.name ?? null));
-    const restReached = rest.length > 0 ? on(firstName(rest)) : after;
+        ? active && path !== undefined
+        : reached(trail, previous ? nameOf(previous) : null);
+    const restOn = rest.length > 0 ? reached(trail, nameOf(rest[0] as Step)) : active && after;
+    const merges = rest.length > 0 && lanes.some((entry) => entry.open);
+    const laneRows = Math.max(...lanes.map((entry) => rowsOf(entry.steps)));
     items.push(
-      cell(
-        forkRow,
-        <>
-          {!(lane && plan.before.length === 0) && <Line className='h-4' active={here} />}
-          <Node
-            step={step}
-            count={counts ? (counts[step.name] ?? 0) : null}
-            state={stateFor(step.name, forkPreviousOn)}
-            ghost={path !== undefined}
-          />
-          <Line className='min-h-3 grow' active={decided} />
-        </>,
-        step.name
-      )
-    );
-    items.push(
+      <Cell key={step.name} row={row}>
+        {!(lane && plan.before.length === 0) && (
+          <Line className='h-4' active={here} phase={plan.before.length === 0 ? leadPhase : 1} />
+        )}
+        <Node
+          step={step}
+          count={counts ? (counts[step.name] ?? 0) : null}
+          state={stateOf(trail, step.name, previousOn)}
+          payload={payloads?.[step.name]}
+          phase={lane && plan.before.length === 0 ? 0 : (plan.before.length === 0 ? leadPhase : 1) + 1}
+        />
+        <Line className='min-h-3 grow' active={decided} />
+      </Cell>,
       <div
         key={`${step.name}-lanes`}
-        className='grid grid-cols-subgrid'
-        style={{ gridRow: forkRow + 1, gridColumn: '1 / 3', gridTemplateRows: `repeat(${forkRows}, auto)` }}
+        className='grid'
+        style={{
+          gridRow: row + 1,
+          gridTemplateColumns: `repeat(${lanes.length}, ${LANE})`,
+          gridTemplateRows: `auto auto repeat(${laneRows}, auto) auto`,
+        }}
       >
-        {lanes.map((entry) => (
+        {lanes.map((entry, index) => (
           <LaneColumn
-            key={entry.label}
+            key={entry.name}
             lane={entry}
+            lanes={lanes}
             counts={counts}
-            continues={laneContinues}
-            rows={forkRows}
-            path={path}
-            active={decided && path?.taken[step.name] === (entry.side === 'left' ? 'then' : 'else')}
-            after={restReached}
+            payloads={payloads}
+            rows={laneRows}
+            index={index}
+            taken={decided ? lanes.findIndex((candidate) => candidate.name === taken) : -1}
+            trail={{ path, active: decided && taken === entry.name, after: restOn }}
+            after={restOn}
+            terminal={rest.length === 0}
           />
         ))}
       </div>
@@ -575,221 +740,100 @@ function Column({
       items.push(
         <div
           key='rest'
-          className='grid grid-cols-subgrid'
-          style={{ gridRow: restRow + 1, gridColumn: '1 / 3' }}
+          className='flex flex-col items-center'
+          style={{ gridRow: lane && rows ? `${row + 2} / ${rows + 1}` : row + 2 }}
         >
-          {merge && cell(1, <Line className='h-3' active={restReached} />, 'merge')}
+          {merges && <Line className='h-3' active={restOn} phase={3} />}
           <Column
             steps={rest}
             counts={counts}
-            continues={continues}
-            subgrid='columns'
-            path={path}
-            active={active}
+            payloads={payloads}
+            trail={trail}
             after={after}
+            leadPhase={4}
           />
         </div>
       );
-    } else if (merge && (continues || lane?.open)) {
+    } else if (merges && lane) {
       items.push(
-        <div
-          key='onwards'
-          className={cn('flex flex-col items-center', twoTracks && 'translate-x-1/2 justify-self-end')}
-          style={{ gridRow: `${restRow + 1} / ${lastRow + 1}`, gridColumn: 1 }}
-        >
+        <Cell key='onwards' row={row + 2} end={endOf(true)}>
           <Line className='min-h-3 grow' active={active && after} />
-        </div>
+        </Cell>
       );
-    } else if (merge && !lane && !continues) {
+    } else if (merges) {
       const ended = completed && active && path !== undefined && !path.reached.has('exit');
       items.push(
-        cell(
-          restRow + 1,
-          <>
-            <Line className='h-4' active={ended} />
-            <EndDot active={ended} />
-          </>,
-          'end'
-        )
+        <Cell key='end' row={row + 2}>
+          <Line className='h-4' active={ended} />
+          <EndDot active={ended} />
+        </Cell>
       );
     }
   }
 
-  if (lane && lane.fold.length > 0) {
-    items.push(
-      <div
-        key='fold'
-        className={cn('flex flex-col items-center', twoTracks && 'translate-x-1/2 justify-self-end')}
-        style={{ gridRow: offset + rowsOf(plan), gridColumn: twoTracks ? 1 : undefined }}
-      >
-        <Column steps={lane.fold} counts={counts} continues={false} path={path} active={active} />
-      </div>
-    );
-  }
-
-  if (lane?.open && !plan.fork && steps.length > 0 && plan.before.length + offset <= lastRow) {
-    items.push(
-      <div
-        key='fill'
-        className='flex flex-col items-center'
-        style={{ gridRow: `${plan.before.length + offset} / ${lastRow + 1}` }}
-      >
-        <Line className='min-h-0 grow' active={laneOn && after} />
-      </div>
-    );
-  }
-
   return (
     <div
-      className={cn(
-        'grid',
-        subgrid === 'columns' ? 'grid-cols-subgrid' : twoTracks ? '' : 'justify-items-center'
-      )}
-      style={{
-        gridTemplateColumns: subgrid === 'columns' ? undefined : twoTracks ? `${TRACK} ${TRACK}` : undefined,
-        gridColumn: subgrid === 'columns' ? '1 / 3' : undefined,
-        gridTemplateRows: rows ? 'subgrid' : undefined,
-        gridRow: rows ? `1 / ${rows + 1}` : undefined,
-      }}
+      className='grid justify-items-center'
+      style={rows ? { gridRow: `3 / ${rows + 3}`, gridTemplateRows: 'subgrid' } : undefined}
     >
       {items}
     </div>
   );
 }
 
-function LaneColumn({
-  lane,
-  counts,
-  continues,
-  rows,
-  path,
-  active = true,
-  after = false,
-}: {
-  lane: Lane;
-  counts?: Counts;
-  continues: boolean;
-  rows: number;
-  path?: RunPath;
-  active?: boolean;
-  after?: boolean;
-}) {
-  const plan = planColumn(lane.steps, continues);
-  const twoTracks = plan.fork !== null;
-  const laneOn = active && path !== undefined;
-  const onward =
-    lane.fold.length > 0
-      ? laneOn && (path.reached.has(firstName(lane.fold) ?? '') || path.current === firstName(lane.fold))
-      : after;
-  return (
-    <div
-      className={cn(
-        'relative grid px-3 pt-4',
-        lane.side === 'left' ? 'justify-self-end' : 'justify-self-start',
-        lane.open && 'pb-4'
-      )}
-      style={{ gridRow: `1 / ${rows + 1}`, gridTemplateRows: 'subgrid' }}
-    >
-      {twoTracks ? null : (
-        <>
-          <Corner side={lane.side} edge='top' inset active={laneOn} />
-          {lane.open && <Corner side={lane.side} edge='bottom' inset active={laneOn && after} />}
-        </>
-      )}
-      <Column
-        steps={lane.steps}
-        counts={counts}
-        continues={lane.open ? continues : lane.fold.length > 0}
-        lane={lane}
-        rows={rows}
-        path={path}
-        active={active}
-        after={onward}
-      />
-    </div>
-  );
-}
-
-function useCentredBoundary(
-  scroller: React.RefObject<HTMLDivElement | null>,
-  marker: React.RefObject<HTMLDivElement | null>
-) {
-  const [padding, setPadding] = useState({ left: 0, right: 0 });
+function useCenteredScroll(scroller: React.RefObject<HTMLDivElement | null>) {
   const [ready, setReady] = useState(false);
-
   useLayoutEffect(() => {
     const frame = scroller.current;
-    const anchor = marker.current;
-    if (!frame || !anchor) return;
-    const content = frame.firstElementChild as HTMLElement | null;
-    if (!content) return;
-
-    const measure = () => {
-      const styles = getComputedStyle(content);
-      const inner = content.getBoundingClientRect();
-      const box = anchor.getBoundingClientRect();
-      const centre = box.left + box.width / 2 - inner.left - Number.parseFloat(styles.paddingLeft);
-      const width =
-        inner.width - Number.parseFloat(styles.paddingLeft) - Number.parseFloat(styles.paddingRight);
-      const left = Math.max(0, Math.round(width - 2 * centre));
-      const right = Math.max(0, Math.round(2 * centre - width));
-      setPadding((current) => (current.left === left && current.right === right ? current : { left, right }));
+    if (!frame) return;
+    const center = () => {
       frame.scrollLeft = (frame.scrollWidth - frame.clientWidth) / 2;
       setReady(true);
     };
-
-    measure();
-    const observer = new ResizeObserver(measure);
+    center();
+    const observer = new ResizeObserver(center);
     observer.observe(frame);
-    observer.observe(content);
     return () => observer.disconnect();
-  }, [scroller, marker]);
-
-  return { padding, ready };
+  }, [scroller]);
+  return ready;
 }
+
+export type FlowVersion = { number: number; note: string | null };
+
+export type Payloads = Record<string, StepPayload>;
 
 export function WorkflowFlow({
   spec,
   counts,
   path,
   version,
+  still = false,
+  payloads,
 }: {
   spec: WorkflowSpec;
   counts?: Counts;
   path?: RunPath;
   version?: FlowVersion;
+  still?: boolean;
+  payloads?: Payloads;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
-  const marker = useRef<HTMLDivElement>(null);
-  const { padding, ready } = useCentredBoundary(scroller, marker);
+  const ready = useCenteredScroll(scroller);
+  const trail: Trail = { path, active: true, after: false };
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col'>
-      <Rules spec={spec} version={version} />
+    <div className='group/flow flex min-h-0 flex-1 flex-col' data-still={still ? '' : undefined}>
+      <Version spec={spec} version={version} />
       <ScrollFade orientation='both' targetRef={scroller} />
       <div ref={scroller} className='min-h-0 flex-1 overflow-auto'>
         <div
           className={cn(
-            'mx-auto flex w-max min-w-full flex-col items-center py-6 transition-opacity duration-150 ease-out',
+            'mx-auto flex w-max min-w-full flex-col items-center px-4 py-6 transition-opacity duration-150 ease-out',
             ready ? 'opacity-100' : 'opacity-0'
           )}
-          style={{
-            paddingLeft: `calc(1rem + ${padding.left}px)`,
-            paddingRight: `calc(1rem + ${padding.right}px)`,
-          }}
         >
-          <Column
-            steps={spec.steps}
-            counts={counts}
-            continues={false}
-            path={path}
-            after={false}
-            head={
-              <div ref={marker} className='flex flex-col items-center'>
-                <TriggerNode spec={spec} active={path !== undefined} />
-              </div>
-            }
-          />
+          <TriggerNode spec={spec} active={path !== undefined} />
+          <Column steps={spec.steps} payloads={payloads} counts={counts} trail={trail} after={false} />
         </div>
       </div>
     </div>

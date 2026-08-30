@@ -21,6 +21,10 @@ src/
 │   └── sqids.ts          Sqids encoder/decoder + ID_PREFIXES catalog
 ├── api/                  Domain logic per resource (see Rules); `runs/` reads Tinybird's `runs_current` / `run_counts` / `run_steps` and the
 │                         actor (`findRun`, `listRecent`) so a live run is fresh and a finished one is history
+│                         `scheduling/` is the time logic messages and workflows share: timezones.ts (the zone list, the earliest and latest
+│                         zones a subscriber-timezone schedule spans, wall-clock parsing, `zonesFor`, `timezoneScoped` for segment audiences)
+│                         and cron.ts (`nextScheduleInstant`, `dueInstants` over the five-field grammar from `@buzzkit/schema/workflows`).
+│                         `messages/schedule.ts` and `workflows/schedules.ts` only add what is specific to a one-shot send or a recurring trigger
 ├── utils/errorCodes.ts   Error code → HTTP status mapping (includes PostgreSQL codes)
 ├── providers/            Provider registry: one module per provider (validate + send), aggregated in index.ts
 ├── actor/                The subscriber actor (Durable Object on the Agents SDK): subscriber.ts (the class: ingest, flush, the run RPCs),
@@ -30,14 +34,19 @@ src/
 ├── queue/                Queue consumers (deliveries: fan-out pages + batched delivery pipeline: select → claim → send → settle; 
 │                         events: actor flushes → gzipped Events API batches, `buzzkit-events-dlq` re-driven into the main queue; webhooks: audit ids and actor batches → event objects → signed deliveries with explicit delayed retries) and the reconciliation cron
 ├── engine/               `EngineWorkflow` (index.ts), the Cloudflare Workflow (binding `ENGINE`) that interprets one run's pinned spec:
-│                         context.ts (`RunContext`: params, step state, the actor stub, `record` → `$run.step`; `do` turns a 4xx `ApiError` into a `NonRetryableError` so permanent failures do not sit in retries), anchors.ts (`resolveAnchor`,
-│                         wall-clock times in a zone), steps/ (one file per step kind, `runSteps` dispatches), types.ts. Every step is its own
+│                         context.ts (`RunContext`: params, step state, the actor stub, `record` → `$run.step`; `do` turns a 4xx `ApiError` into a `NonRetryableError` so permanent failures do not sit in retries), moments.ts (`resolveMoment`:
+│                         a delay and a wall-clock time in a zone, over `nextLocalTime` from libs/timezone.ts), template.ts (rendering the
+│                         `@buzzkit/schema/workflows` template grammar: paths, the ternary, every filter), tenant.ts, dry-run.ts, steps/ (one file per
+│                         step kind, `runSteps` dispatches), types.ts. Every step is its own
 │                         `runInvocation(…, { traced: false })`: OTel has no Workflow instrumentation, so the context is declared untraced,
 │                         `trace()` hands out a silent span there, `send` uses an untraced db, and the step logs carry the run id and the
 │                         trace id of the request that triggered the run (`traceparent` in the run params)
-├── cron/                 The Worker's cron triggers, dispatched by `controller.cron` in index.ts: the `* * * * *` tick releases due scheduled sends
-│                         (scheduled-messages.ts, zone by zone for subscriber-timezone schedules); the `*/5 * * * *` sweep runs the delivery,
-│                         webhook and credential reconciliations (reconcile.ts, queue/webhooks.ts, rewrap.ts)
+├── cron/                 The Worker's cron triggers, dispatched by `controller.cron` in index.ts (constants.ts names the two expressions). Every
+│                         entry is `sweep(name, run)` (sweep.ts: a db, a `scheduler.<name>` span, the counts as attributes, one log line when
+│                         anything moved). `EVERY_MINUTE`: scheduled-messages.ts (`releaseScheduledMessages`, zone by zone for subscriber-timezone
+│                         sends) and workflow-schedules.ts (`releaseWorkflowSchedules`: record due fires, drain open ones). `EVERY_FIVE_MINUTES`:
+│                         reconcile.ts (deliveries), queue/webhooks.ts (`reconcileWebhooks`) and rewrap.ts (`rewrapSecrets`: credentials and
+│                         tenant workflow secrets under the current master key)
 └── modules/              File-based routes
     ├── contract.ts       `api` — the v1 router without runtime adapters; `@buzzkit/api/contract` for Eden clients
     ├── index.ts          App: CloudflareAdapter + CORS + logger + error + OpenAPI + v1
@@ -100,7 +109,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/workflows` (+ `/:slug`, `/:slug/publish`, `/:slug/pause`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
+`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/secrets` (+ `/:name`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/workflows` (+ `/:slug`, `/:slug/publish`, `/:slug/pause`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
 
 ## Commands
 

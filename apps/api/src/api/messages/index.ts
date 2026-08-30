@@ -27,7 +27,7 @@ import type { Expression } from 'buzzkit/expressions';
 import { DEFAULT_TTL_SECONDS, DUE_MESSAGES_LIMIT, MAX_PAYLOAD_BYTES } from './constants';
 import { enqueueFanout } from './enqueue';
 import { completeFanout } from './fanout';
-import { dueZones, firstInstant, followsSubscriber, lastInstant, resolveSchedule } from './schedule';
+import { dueZones, firstInstant, lastInstant, resolveSchedule, scheduleFollowsSubscriber } from './schedule';
 import type { Message, MessageFilters, MessageRun, MessageSchedule, MessageTargets } from './types';
 
 export * from './constants';
@@ -252,7 +252,7 @@ export async function createMessage(
                 status: 'scheduled' as const,
                 schedule,
                 scheduledFor: firstInstant(schedule),
-                scheduledZones: followsSubscriber(schedule) ? [] : null,
+                scheduledZones: scheduleFollowsSubscriber(schedule) ? [] : null,
               }
             : {}),
           expiresAt: new Date(
@@ -313,7 +313,7 @@ export async function cancelMessage(db: Db, tenantId: number, messageSqid: strin
   }
   const pendingZones =
     message.schedule !== null &&
-    followsSubscriber(message.schedule as MessageSchedule) &&
+    scheduleFollowsSubscriber(message.schedule as MessageSchedule) &&
     message.fanoutCompletedAt === null &&
     message.canceledAt === null;
   if (pendingZones) {
@@ -353,7 +353,7 @@ export async function releaseDueMessages(
   let batches = 0;
   for (const message of due) {
     const schedule = message.schedule as MessageSchedule;
-    if (!followsSubscriber(schedule)) {
+    if (!scheduleFollowsSubscriber(schedule)) {
       if (message.status !== 'scheduled') continue;
       await db
         .update(tables.message)

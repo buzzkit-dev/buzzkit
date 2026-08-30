@@ -6,6 +6,7 @@ import { eventTables } from './schema/event';
 import { inviteTables } from './schema/invite';
 import { apiKeyTables } from './schema/key';
 import { messageTables } from './schema/message';
+import { secretTables } from './schema/secret';
 import { segmentTables } from './schema/segment';
 import { subscriberTables } from './schema/subscriber';
 import { tenantTables } from './schema/tenant';
@@ -22,6 +23,7 @@ export const tables = {
   ...inviteTables,
   ...eventTables,
   ...credentialTables,
+  ...secretTables,
   ...subscriberTables,
   ...topicTables,
   ...messageTables,

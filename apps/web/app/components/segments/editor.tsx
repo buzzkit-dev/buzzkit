@@ -27,9 +27,9 @@ import { Truncate } from '@buzzkit/ui/components/truncate';
 import { type Expression, formatExpressionPath, lintExpression } from 'buzzkit/expressions';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useFetcher, useNavigate } from 'react-router';
+import { describeExpression } from '@/app/components/conditions/describe';
 import { SendDialog } from '@/app/components/messages/send-dialog';
 import { SegmentBuilder } from '@/app/components/segments/builder';
-import { describeExpression } from '@/app/components/segments/describe';
 import {
   emptyRow,
   expressionToRows,

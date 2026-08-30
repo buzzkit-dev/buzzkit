@@ -1,15 +1,18 @@
-import { SCHEDULE_TICK_CRON } from '@buzzkit/api/api/messages/constants';
 import { reconcileWebhooks } from '@buzzkit/api/queue/webhooks';
+import { EVERY_MINUTE } from './constants';
 import { reconcileDeliveries } from './reconcile';
-import { rewrapCredentialsSweep } from './rewrap';
-import { runScheduledMessagesTick } from './scheduled-messages';
+import { rewrapSecrets } from './rewrap';
+import { releaseScheduledMessages } from './scheduled-messages';
+import { releaseWorkflowSchedules } from './workflow-schedules';
 
 export async function handleScheduled(controller: ScheduledController): Promise<void> {
-  if (controller.cron === SCHEDULE_TICK_CRON) {
-    await runScheduledMessagesTick(new Date(controller.scheduledTime));
+  const now = new Date(controller.scheduledTime);
+  if (controller.cron === EVERY_MINUTE) {
+    await releaseScheduledMessages(now);
+    await releaseWorkflowSchedules(now);
     return;
   }
   await reconcileDeliveries();
   await reconcileWebhooks();
-  await rewrapCredentialsSweep();
+  await rewrapSecrets();
 }

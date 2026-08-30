@@ -3,6 +3,7 @@ import {
   assertTenantSlugAvailable,
   assertValidTenantSettings,
   findTenantBySlug,
+  resolveTenantSettings,
   serializeTenant,
   softDeleteTenant,
   TenantMetadataSchema,
@@ -55,7 +56,10 @@ export const tenant = new Elysia()
         event: 'tenant.updated',
         tenantId: tenant.id,
         target: { type: 'tenant', id: tenant.id },
-        data: diffForEvent(tenant, updated),
+        data: diffForEvent(
+          { ...tenant, settings: resolveTenantSettings(tenant.settings) },
+          { ...updated, settings: resolveTenantSettings(updated.settings) }
+        ),
       });
 
       return Response.success(serializeTenant(updated), { entity: 'tenant' }).send();

@@ -30,7 +30,7 @@ const STATUS_OPTIONS: { value: RunStatus; label: string }[] = [
   { value: 'sleeping', label: 'Sleeping' },
   { value: 'waiting', label: 'Waiting' },
   { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'canceled', label: 'Canceled' },
   { value: 'failed', label: 'Failed' },
 ];
 

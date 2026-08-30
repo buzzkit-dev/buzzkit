@@ -19,6 +19,8 @@ export class ActorStore {
   constructor(private readonly sql: Sql) {}
 
   migrate(): void {
+    const [waits] = this.sql<{ sql: string }>`SELECT sql FROM sqlite_master WHERE name = 'waits'`;
+    if (waits && !waits.sql.includes('PRIMARY KEY (run_id, step, event)')) this.sql`DROP TABLE waits`;
     for (const statement of ACTOR_SCHEMA) {
       this.sql([statement] as unknown as TemplateStringsArray);
     }
@@ -69,6 +71,11 @@ export class ActorStore {
     `;
   }
 
+  lastEventAt(name: string): string | null {
+    const [row] = this.sql<{ last_at: string }>`SELECT last_at FROM projections WHERE name = ${name}`;
+    return row?.last_at ?? null;
+  }
+
   listProjections(): ActorProjection[] {
     return this.sql<ActorProjection>`SELECT * FROM projections ORDER BY name ASC`;
   }
@@ -89,6 +96,11 @@ export class ActorStore {
     `;
   }
 
+  latestSequence(): number {
+    const [row] = this.sql<{ sequence: number | null }>`SELECT max(sequence) AS sequence FROM events`;
+    return row?.sequence ?? 0;
+  }
+
   readFlushedSequence(): number {
     return Number(this.readMeta('flushed_sequence') ?? 0);
   }
@@ -107,6 +119,27 @@ export class ActorStore {
     `;
     this.sql`DELETE FROM events WHERE sequence <= ${flushed} AND sequence < ${keepFrom}`;
     return count?.count ?? 0;
+  }
+
+  countEvents(name: string, from: string | null): number {
+    const [row] =
+      from === null
+        ? this.sql<{ count: number }>`SELECT count(*) AS count FROM events WHERE name = ${name}`
+        : this.sql<{ count: number }>`
+            SELECT count(*) AS count FROM events WHERE name = ${name} AND timestamp >= ${from}
+          `;
+    return row?.count ?? 0;
+  }
+
+  hasMessageEvent(name: string, runId: string, step: string): boolean {
+    const [row] = this.sql<{ found: number }>`
+      SELECT count(*) AS found FROM events
+      WHERE name = ${name} AND message_id IS NOT NULL AND message_id IN (
+        SELECT message_id FROM events
+        WHERE run_id = ${runId} AND step = ${step} AND name = '$run.step' AND message_id IS NOT NULL
+      )
+    `;
+    return (row?.found ?? 0) > 0;
   }
 
   readAttributes(): Record<string, unknown> {
@@ -182,7 +215,7 @@ export class ActorStore {
     this.sql`
       INSERT INTO waits (run_id, step, event, condition, expires_at)
       VALUES (${wait.run_id}, ${wait.step}, ${wait.event}, ${wait.condition}, ${wait.expires_at})
-      ON CONFLICT (run_id, step) DO UPDATE SET event = excluded.event, condition = excluded.condition, expires_at = excluded.expires_at
+      ON CONFLICT (run_id, step, event) DO UPDATE SET condition = excluded.condition, expires_at = excluded.expires_at
     `;
   }
 

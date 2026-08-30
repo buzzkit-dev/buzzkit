@@ -1,9 +1,10 @@
+import { WALL_CLOCK_PATTERN } from '@buzzkit/api/api/scheduling/index';
 import { SegmentExpressionSchema } from '@buzzkit/api/api/segments/index';
 import { ExternalIdSchema } from '@buzzkit/api/api/subscribers/index';
 import { TopicSlugSchema } from '@buzzkit/api/api/topics/index';
 import { ChannelSchema, SlugSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
 import { t } from 'elysia';
-import { MAX_DIRECT_TARGETS, MAX_TTL_SECONDS, MESSAGE_STATUSES, WALL_TIME_PATTERN } from './constants';
+import { MAX_DIRECT_TARGETS, MAX_TTL_SECONDS, MESSAGE_STATUSES } from './constants';
 
 export const MessagePayloadSchema = t.Object({
   title: t.Optional(t.String({ maxLength: 500 })),
@@ -29,7 +30,7 @@ export const MessagePayloadSchema = t.Object({
 });
 
 export const MessageScheduleSchema = t.Object({
-  at: t.String({ pattern: WALL_TIME_PATTERN.source }),
+  at: t.String({ pattern: WALL_CLOCK_PATTERN.source }),
   timezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
   defaultTimezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
 });

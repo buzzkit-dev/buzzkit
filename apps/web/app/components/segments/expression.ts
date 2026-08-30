@@ -1,5 +1,6 @@
 import type { IconName } from '@buzzkit/ui/components/icon';
 import type { Expression } from 'buzzkit/expressions';
+import { WINDOWS } from '@/app/components/conditions/describe';
 
 export type Match = 'all' | 'any';
 
@@ -57,12 +58,7 @@ export const COUNT_COMPARATORS: { value: CountComparator; label: string }[] = [
   { value: 'lt', label: 'fewer than' },
 ];
 
-export const WINDOWS: { value: Exclude<Window, 'any'>; label: string }[] = [
-  { value: '24h', label: '24 hours' },
-  { value: '7d', label: '7 days' },
-  { value: '30d', label: '30 days' },
-  { value: '90d', label: '90 days' },
-];
+export { WINDOWS };
 
 export const CHANNEL_CHOICES: { value: 'push' | 'email'; label: string; icon: IconName }[] = [
   { value: 'push', label: 'Push', icon: 'IconPhoneFilled' },

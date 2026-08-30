@@ -64,6 +64,20 @@
       "when": 1788003370485,
       "tag": "0008_cuddly_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788028214636,
+      "tag": "0009_narrow_wasp",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788100811985,
+      "tag": "0010_orange_colleen_wing",
+      "breakpoints": true
     }
   ]
 }

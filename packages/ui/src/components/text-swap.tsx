@@ -35,7 +35,7 @@ const variants = {
  * that zone. While the width is still catching up, whatever pokes past the
  * text area dissolves into the edge instead of being hard-cut or spilling
  * into the button's padding. An invisible in-flow copy of the current text
- * is what gets measured (the visible labels are absolute and centred by the
+ * is what gets measured (the visible labels are absolute and centered by the
  * flex box's static positioning), so measuring never depends on a ref that an
  * exiting label can null out on its way out. Every change mounts a fresh
  * label (keyed by a counter, not by the text), so a text that returns while

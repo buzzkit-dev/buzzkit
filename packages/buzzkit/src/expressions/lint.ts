@@ -1,4 +1,5 @@
 import {
+  ATTRIBUTE_KEY_PATTERN,
   CHANNELS,
   DURATION_PATTERN,
   EVENT_NAME_PATTERN,
@@ -14,21 +15,43 @@ export type ExpressionIssue = { path: ExpressionPath; message: string };
 
 export type RefScope = { roots: readonly string[]; bare: readonly string[]; label: string };
 
-export type LintOptions = { refs?: RefScope; kinds?: readonly string[] };
+export type LintTools = {
+  report: (path: ExpressionPath, message: string) => void;
+  checkUnknownKeys: (
+    path: ExpressionPath,
+    node: Record<string, unknown>,
+    allowed: readonly string[],
+    label: string
+  ) => void;
+  checkEventName: (path: ExpressionPath, key: string, raw: unknown) => void;
+  checkDuration: (path: ExpressionPath, raw: unknown) => void;
+  describe: (value: unknown) => string;
+  list: (items: readonly string[]) => string;
+};
+
+export type ConditionChecker = (
+  path: ExpressionPath,
+  node: Record<string, unknown>,
+  tools: LintTools
+) => void;
+
+export type LintOptions = {
+  refs?: RefScope;
+  kinds?: readonly string[];
+  checkers?: Record<string, ConditionChecker>;
+};
 
 export const SEGMENT_REFS: RefScope = { roots: ['attributes'], bare: ['externalId'], label: 'a segment' };
 
-const GROUP_KEYS = ['all', 'any', 'not'] as const;
+export const SEGMENT_CONDITIONS = ['ref', 'count', 'never', 'lastSeen', 'channel'] as const;
 
-const CONDITION_KEYS = ['ref', 'count', 'never', 'lastSeen', 'channel'] as const;
+const GROUP_KEYS = ['all', 'any', 'not'] as const;
 
 const REF_COMPARATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'exists'] as const;
 
-const COUNT_COMPARATORS = ['eq', 'gt', 'gte', 'lt', 'lte'] as const;
+export const COUNT_COMPARATORS = ['eq', 'gt', 'gte', 'lt', 'lte'] as const;
 
 const ORDERED = ['gt', 'gte', 'lt', 'lte'] as const;
-
-const ATTRIBUTE_KEY_PATTERN = /^[A-Za-z0-9_$-]+$/;
 
 export function formatExpressionPath(path: ExpressionPath): string {
   if (path.length === 0) return 'the expression';
@@ -46,7 +69,7 @@ function isScalar(value: unknown): boolean {
   return value === null || ['string', 'number', 'boolean'].includes(typeof value);
 }
 
-function describe(value: unknown): string {
+export function describe(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'a list';
   if (typeof value === 'object') return 'an object';
@@ -54,14 +77,16 @@ function describe(value: unknown): string {
   return String(value);
 }
 
-function list(items: readonly string[]): string {
+export function list(items: readonly string[]): string {
   return items.map((item) => `"${item}"`).join(', ');
 }
 
 export function lintExpression(value: unknown, options: LintOptions = {}): ExpressionIssue[] {
   const issues: ExpressionIssue[] = [];
   const refs = options.refs ?? SEGMENT_REFS;
-  const kinds = options.kinds ?? CONDITION_KEYS;
+  const checkers = options.checkers ?? {};
+  const kinds = options.kinds ?? [...SEGMENT_CONDITIONS, ...Object.keys(checkers)];
+  const known = [...new Set<string>([...SEGMENT_CONDITIONS, ...Object.keys(checkers)])];
   let leaves = 0;
   const report = (path: ExpressionPath, message: string) => issues.push({ path, message });
 
@@ -220,6 +245,8 @@ export function lintExpression(value: unknown, options: LintOptions = {}): Expre
     }
   };
 
+  const tools: LintTools = { report, checkUnknownKeys, checkEventName, checkDuration, describe, list };
+
   const walk = (node: unknown, path: ExpressionPath, depth: number) => {
     if (!isRecord(node)) {
       report(
@@ -232,7 +259,7 @@ export function lintExpression(value: unknown, options: LintOptions = {}): Expre
       report(path, `Groups nest at most ${MAX_EXPRESSION_DEPTH} levels deep.`);
       return;
     }
-    const present = [...GROUP_KEYS, ...CONDITION_KEYS].filter((key) => key in node);
+    const present = [...GROUP_KEYS, ...known].filter((key) => key in node);
     if (present.length === 0) {
       report(
         path,
@@ -274,6 +301,11 @@ export function lintExpression(value: unknown, options: LintOptions = {}): Expre
     leaves += 1;
     if (leaves > MAX_EXPRESSION_LEAVES) {
       report(path, `An expression holds at most ${MAX_EXPRESSION_LEAVES} conditions.`);
+      return;
+    }
+    const checker = checkers[kind];
+    if (checker) {
+      checker(path, node, tools);
       return;
     }
     switch (kind) {

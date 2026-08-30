@@ -50,7 +50,7 @@ describe('uuidv7', () => {
     );
   });
 
-  it('honours an older millisecond after a newer one, sorting it before the newer id', () => {
+  it('honors an older millisecond after a newer one, sorting it before the newer id', () => {
     const newer = uuidv7(1_500_000_000_500);
     const older = uuidv7(1_500_000_000_100);
     expect(embeddedMs(older)).toBe(1_500_000_000_100);

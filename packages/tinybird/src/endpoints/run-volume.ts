@@ -16,7 +16,7 @@ export const runVolume = defineEndpoint('run_volume', {
           count() AS started,
           countIf(status IN ('running', 'sleeping', 'waiting')) AS live,
           countIf(status = 'completed') AS completed,
-          countIf(status = 'cancelled') AS cancelled,
+          countIf(status = 'canceled') AS canceled,
           countIf(status = 'failed') AS failed
         FROM runs_current FINAL
         WHERE tenant_id = {{UInt64(tenant_id)}}
@@ -32,7 +32,7 @@ export const runVolume = defineEndpoint('run_volume', {
     started: t.uint64(),
     live: t.uint64(),
     completed: t.uint64(),
-    cancelled: t.uint64(),
+    canceled: t.uint64(),
     failed: t.uint64(),
   },
 });

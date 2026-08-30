@@ -1,12 +1,69 @@
-import type { IconName } from '@buzzkit/ui/components/icon';
 import {
-  type Anchor,
-  type Duration,
+  type CronFields,
   describeDuration,
+  FALLBACK_CASE,
+  type Moment,
+  parseCron,
+  SCHEDULE_TRIGGER_NAME,
+  type Schedule,
   type Step,
   type StepKind,
+  SUBSCRIBER_TIMEZONE,
   type WorkflowSpec,
-} from 'buzzkit/workflows';
+} from '@buzzkit/schema/workflows';
+import type { IconName } from '@buzzkit/ui/components/icon';
+import type { Duration, Expression } from 'buzzkit/expressions';
+import { describeCondition as describeLeaf } from '@/app/components/conditions/describe';
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function clock(hour: number, minute: number): string {
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+function ordinal(day: number): string {
+  const rest = day % 100;
+  if (rest >= 11 && rest <= 13) return `${day}th`;
+  const suffix = { 1: 'st', 2: 'nd', 3: 'rd' }[day % 10] ?? 'th';
+  return `${day}${suffix}`;
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+export function describeSchedule(schedule: Schedule): string {
+  if ('daily' in schedule) return `every day at ${schedule.daily}`;
+  let fields: CronFields;
+  try {
+    fields = parseCron(schedule.cron);
+  } catch {
+    return schedule.cron;
+  }
+  const single = fields.hours.length === 1 && fields.minutes.length === 1;
+  const time = single ? clock(fields.hours[0] as number, fields.minutes[0] as number) : null;
+  const everyMonth = fields.months.length === 12;
+  if (fields.anyDay && fields.anyWeekday && everyMonth) {
+    if (fields.minutes.length === 60 && fields.hours.length === 24) return 'every minute';
+    if (fields.minutes.length === 1 && fields.hours.length === 24) return 'every hour';
+    if (time) return `every day at ${time}`;
+  }
+  if (fields.anyDay && !fields.anyWeekday && everyMonth && time) {
+    const weekdays = fields.weekdays;
+    if (weekdays.join(',') === '1,2,3,4,5') return `on weekdays at ${time}`;
+    if (weekdays.join(',') === '0,6') return `on weekends at ${time}`;
+    return `every ${joinNames(weekdays.map((day) => WEEKDAY_NAMES[day] as string))} at ${time}`;
+  }
+  if (!fields.anyDay && fields.anyWeekday && everyMonth && time) {
+    return `on the ${joinNames(fields.days.map(ordinal))} of every month at ${time}`;
+  }
+  return schedule.cron;
+}
 
 export type StepRow = {
   key: string;
@@ -15,7 +72,7 @@ export type StepRow = {
   icon: IconName;
   summary: string;
   depth: number;
-  lane: 'then' | 'else' | null;
+  lane: string | null;
 };
 
 export type RunEventDescription = { icon: IconName; label: string; detail: string | null };
@@ -25,18 +82,24 @@ const STEP_ICONS: Record<StepKind, { icon: IconName }> = {
   waitUntil: { icon: 'IconCalendarClockFilled' },
   waitFor: { icon: 'IconEarFilled' },
   branch: { icon: 'IconSplitFilled' },
+  fetch: { icon: 'IconGlobeFilled' },
+  set: { icon: 'IconPencilFilled' },
   send: { icon: 'IconPaperPlaneTopRightFilled' },
   exit: { icon: 'IconArrowBoxRight' },
 };
 
 const STEP_STATUS_ICONS: Record<string, { icon: IconName }> = {
   completed: { icon: 'IconCircleCheckFilled' },
+  skipped: { icon: 'IconCircleBanSignFilled' },
   waiting: { icon: 'IconEarFilled' },
   sleeping: { icon: 'IconHourglassFilled' },
   running: { icon: 'IconCircleDashedFilled' },
 };
 
-export function stepIcon(kind: StepKind): IconName {
+const SETTLE_ICON = { icon: 'IconMoonFilled' } satisfies { icon: IconName };
+
+export function stepIcon(kind: StepKind, step?: Step): IconName {
+  if (step && 'waitFor' in step && step.waitFor.settleFor) return SETTLE_ICON.icon;
   return STEP_ICONS[kind].icon;
 }
 
@@ -57,6 +120,14 @@ function value(input: unknown): string {
   return JSON.stringify(input);
 }
 
+function describeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 export function describeCondition(node: unknown): string {
   if (!node || typeof node !== 'object') return 'conditions';
   const record = node as Record<string, unknown>;
@@ -69,27 +140,36 @@ export function describeCondition(node: unknown): string {
     const [operator, operand] = comparator;
     return `${record.ref} ${OPERATORS[operator] ?? operator} ${value(operand)}`;
   }
-  return 'conditions';
+  return describeLeaf(node as Expression);
 }
 
 export function describeTrigger(spec: WorkflowSpec): string {
-  const sources = spec.trigger.sources?.length ? ` from ${spec.trigger.sources.join(', ')}` : '';
-  const where = spec.trigger.where ? ` where ${describeCondition(spec.trigger.where)}` : '';
-  return `on ${spec.trigger.event}${sources}${where}`;
+  const { trigger } = spec;
+  const where = trigger.where ? ` where ${describeCondition(trigger.where)}` : '';
+  if ('schedule' in trigger) {
+    const segment = trigger.segment ? ` for ${trigger.segment}` : '';
+    return `${describeSchedule(trigger.schedule)}${segment}${where}`;
+  }
+  const sources = trigger.sources?.length ? ` from ${trigger.sources.join(', ')}` : '';
+  return `on ${trigger.event}${sources}${where}`;
 }
 
-function describeAnchor(anchor: Anchor): string {
-  const base = anchor.after === 'trigger' ? 'the trigger' : anchor.after.replace('steps.', 'step ');
-  const plus = anchor.plus ? `${describeDuration(anchor.plus)} after ${base}` : base;
-  const at = anchor.at ? ` at ${anchor.at}` : '';
-  const timezone = anchor.timezone ? ` ${anchor.timezone.replace(/_/g, ' ')}` : '';
-  return `${plus}${at}${timezone}`;
+export function describeMoment(moment: Moment): string {
+  const delay = moment.delay ? `${describeDuration(moment.delay)} after the start` : '';
+  const zone =
+    moment.timezone === SUBSCRIBER_TIMEZONE
+      ? " in the subscriber's timezone"
+      : moment.timezone
+        ? ` ${moment.timezone.replace(/_/g, ' ')}`
+        : '';
+  const time = moment.time ? `${delay ? ', then ' : ''}${moment.time}${zone}` : '';
+  return `${delay}${time}`;
 }
 
-function describeUntil(until: Anchor | Duration): string {
-  return typeof until === 'string'
-    ? `for up to ${describeDuration(until)}`
-    : `until ${describeAnchor(until)}`;
+export function describeTimeout(timeout: Moment | Duration): string {
+  return typeof timeout === 'string'
+    ? `for up to ${describeDuration(timeout)}`
+    : `until ${describeMoment(timeout)}`;
 }
 
 export function stepKind(step: Step): StepKind {
@@ -97,15 +177,35 @@ export function stepKind(step: Step): StepKind {
   if ('waitUntil' in step) return 'waitUntil';
   if ('waitFor' in step) return 'waitFor';
   if ('branch' in step) return 'branch';
+  if ('fetch' in step) return 'fetch';
+  if ('set' in step) return 'set';
   if ('send' in step) return 'send';
   return 'exit';
 }
 
 export function describeStep(step: Step): string {
   if ('wait' in step) return `Wait ${describeDuration(step.wait)}`;
-  if ('waitUntil' in step) return `Wait until ${describeAnchor(step.waitUntil)}`;
-  if ('waitFor' in step) return `Wait for ${step.waitFor.event} ${describeUntil(step.waitFor.until)}`;
-  if ('branch' in step) return `If ${describeCondition(step.branch.if)}`;
+  if ('waitUntil' in step) return `Wait until ${describeMoment(step.waitUntil)}`;
+  if ('waitFor' in step) {
+    const settle = step.waitFor.settleFor
+      ? `, then ${describeDuration(step.waitFor.settleFor)} of quiet (restarted by ${(step.waitFor.resetOn ?? []).join(', ')})`
+      : '';
+    return `Wait for ${step.waitFor.event}${settle} ${describeTimeout(step.waitFor.timeout)}`;
+  }
+  if ('branch' in step) {
+    const cases = Array.isArray(step.branch) ? step.branch : [];
+    const names = cases.map((entry) => entry.name);
+    if (!cases.some((entry) => entry.when === undefined)) names.push(FALLBACK_CASE);
+    return `Cases: ${names.join(' · ')}`;
+  }
+  if ('fetch' in step) {
+    const method = step.fetch.method ?? (step.fetch.body === undefined ? 'GET' : 'POST');
+    return `${method} ${describeHost(step.fetch.url)}`;
+  }
+  if ('set' in step) {
+    const target = 'attribute' in step.set ? `attribute ${step.set.attribute}` : `variable ${step.set.var}`;
+    return `Set ${target} to ${value(step.set.value)}`;
+  }
   if ('send' in step) {
     const title = step.send.title ?? step.send.body ?? 'a message';
     return `Send “${title}”${step.send.topic ? ` to ${step.send.topic}` : ''}`;
@@ -123,14 +223,15 @@ export function flattenSteps(steps: Step[], depth = 0, lane: StepRow['lane'] = n
       key,
       name,
       kind,
-      icon: stepIcon(kind),
+      icon: stepIcon(kind, step),
       summary: describeStep(step),
       depth,
       lane: index === 0 ? lane : null,
     });
     if ('branch' in step) {
-      rows.push(...flattenSteps(step.branch.then, depth + 1, 'then', `${key}.then.`));
-      if (step.branch.else) rows.push(...flattenSteps(step.branch.else, depth + 1, 'else', `${key}.else.`));
+      (Array.isArray(step.branch) ? step.branch : []).forEach((entry, caseIndex) => {
+        rows.push(...flattenSteps(entry.steps, depth + 1, entry.name, `${key}.${caseIndex}.`));
+      });
     }
   });
   return rows;
@@ -145,12 +246,14 @@ export function describeRunEvent(event: {
   const summary = typeof data.summary === 'string' ? data.summary : null;
   switch (event.name) {
     case '$run.started': {
-      const trigger = data.trigger as { name?: string } | undefined;
-      return {
-        icon: 'IconPlayFilled',
-        label: 'Started',
-        detail: trigger?.name ? `on ${trigger.name}` : null,
-      };
+      const trigger = data.trigger as { name?: string; zone?: string } | undefined;
+      const detail =
+        trigger?.name === SCHEDULE_TRIGGER_NAME
+          ? `on schedule${trigger.zone ? ` in ${trigger.zone.replace(/_/g, ' ')}` : ''}`
+          : trigger?.name
+            ? `on ${trigger.name}`
+            : null;
+      return { icon: 'IconPlayFilled', label: 'Started', detail };
     }
     case '$run.step': {
       const status = typeof data.status === 'string' ? data.status : 'running';
@@ -159,10 +262,10 @@ export function describeRunEvent(event: {
     }
     case '$run.completed':
       return { icon: 'IconCircleCheckFilled', label: 'Completed', detail: null };
-    case '$run.cancelled':
+    case '$run.canceled':
       return {
         icon: 'IconCircleBanSignFilled',
-        label: 'Cancelled',
+        label: 'Canceled',
         detail: typeof data.reason === 'string' ? data.reason : null,
       };
     case '$run.failed':
@@ -180,8 +283,7 @@ function stepsByName(steps: Step[], into = new Map<string, string>()): Map<strin
   for (const step of steps) {
     if ('name' in step) into.set(step.name, JSON.stringify(step));
     if ('branch' in step) {
-      stepsByName(step.branch.then, into);
-      if (step.branch.else) stepsByName(step.branch.else, into);
+      for (const entry of Array.isArray(step.branch) ? step.branch : []) stepsByName(entry.steps, into);
     }
   }
   return into;

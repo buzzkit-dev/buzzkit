@@ -12,7 +12,7 @@ This is the load-bearing constraint: if the platform ever needs something the fr
 ## Core goals
 
 - Fully open source and free to self-host
-- Code-first: segments, triggers, and workflow logic are versioned specs stored in buzzkit; code (`defineWorkflow` + `buzzkit push`, or the SDK) is the best way to write them, and the dashboard, an agent or the API create the very same objects — there is no deploy step
+- Spec-first: segments and workflows are versioned JSON specs stored in buzzkit, written in the dashboard or sent to the API, validated by one shared lint wherever they are edited. The `buzzkit` package is the server SDK (send, subscribers, events); a send can carry an inline segment expression, typed and linted by the SDK, but workflows are never defined from customer code.
 - Multi-tenant by design: workspaces with full credential and data isolation
 - Excellent DX for both one-off sends and complex workflows
 - Support platforms offering push to *their* customers (each tenant brings their own APNs keys / FCM projects)

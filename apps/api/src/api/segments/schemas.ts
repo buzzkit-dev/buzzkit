@@ -1,6 +1,7 @@
 import { NameSchema, SlugSchema } from '@buzzkit/api/libs/schemas';
-import { type Expression, ExpressionSchema } from 'buzzkit/expressions';
+import type { Expression } from 'buzzkit/expressions';
 import { t } from 'elysia';
+import { ExpressionSchema } from './expression-schema';
 
 export const SegmentExpressionSchema = t.Unsafe<Expression>(ExpressionSchema);
 

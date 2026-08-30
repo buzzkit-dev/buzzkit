@@ -38,6 +38,6 @@ Sends, statuses and outcomes are defined in [messages.md](messages.md).
 The same window also carries the event stream and the engine (Tinybird behind them, so a few seconds behind the pages that read the actor):
 
 - `events: { total }` and `events` per bucket in `series`; `topEvents: [{ name, count }]`, the five most tracked names in the window. Both count what the product and its users did (custom events and SDK signals) and leave out `source: system` bookkeeping such as `$run.*` and `$subscriber.*`; the catalog and the stream show everything.
-- `runs: { started, live, completed, cancelled, failed }` for runs **started** in the window, split by where they stand now, and `runsStarted` / `runsCompleted` / `runsFailed` per bucket in `series`; `previous` carries `events` and `runs` for the deltas.
+- `runs: { started, live, completed, canceled, failed }` for runs **started** in the window, split by where they stand now, and `runsStarted` / `runsCompleted` / `runsFailed` per bucket in `series`; `previous` carries `events` and `runs` for the deltas.
 - `workflows: [{ slug, name, running, sleeping, waiting, lastRunAt }]`, the active workflows with the most live runs (up to five) and when each last started a run.
 - `scheduled: { count, nextAt }`, the messages still waiting for their moment and the earliest one.

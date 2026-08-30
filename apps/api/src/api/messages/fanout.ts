@@ -1,14 +1,16 @@
 import { failDeliveriesImmediately, finalizeMessageIfComplete } from '@buzzkit/api/api/deliveries/index';
 import { STALLED_FANOUT_MINUTES } from '@buzzkit/api/api/deliveries/policy';
+import { timezoneScoped } from '@buzzkit/api/api/scheduling/index';
 import { findSegmentVersionById, listSegmentMembers } from '@buzzkit/api/api/segments/index';
 import { type Channel, type Topic, topicDefault } from '@buzzkit/api/api/topics/index';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { type ProviderName, PUSH_PROVIDER_BY_PLATFORM } from '@buzzkit/api/providers/index';
 import { and, asc, type Db, eq, gt, inArray, isNull, lt, ne, sql, tables } from '@buzzkit/database';
+import { SUBSCRIBER_TIMEZONE } from '@buzzkit/schema/workflows';
 import type { Expression } from 'buzzkit/expressions';
-import { FANOUT_PAGE_SIZE, SUBSCRIBER_TIMEZONE } from './constants';
+import { FANOUT_PAGE_SIZE } from './constants';
 import { enqueueDeliveries, enqueueFanout } from './enqueue';
-import { fallbackTimezone, timezoneScoped } from './schedule';
+import { fallbackTimezone } from './schedule';
 import type { Message, MessageSchedule, MessageTargets, TargetPage } from './types';
 
 export type FanoutBatch = { zones?: string[]; final?: boolean };

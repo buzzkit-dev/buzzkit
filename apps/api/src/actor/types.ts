@@ -1,4 +1,4 @@
-import type { WorkflowSpec } from 'buzzkit/workflows';
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
 
 export type ActorIdentity = {
   tenantId: number;
@@ -46,7 +46,7 @@ export type ActorProjection = {
 
 export type ActorFlushOutcome = { flushed: number; batches: number; retryScheduled: boolean; pruned: number };
 
-export type ActorRunStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'cancelled' | 'failed';
+export type ActorRunStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'canceled' | 'failed';
 
 export type ActorRunRow = {
   run_id: string;
@@ -69,9 +69,11 @@ export type ActorWaitRow = {
   expires_at: string;
 };
 
+export type ActorStepStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'skipped';
+
 export type ActorStepRecord = {
   step: string;
-  status: ActorRunStatus;
+  status: ActorStepStatus;
   summary: string;
   detail?: Record<string, unknown>;
 };
@@ -87,3 +89,13 @@ export type ActorDefinition = {
 };
 
 export type ActorDefinitions = { version: number; workflows: ActorDefinition[] };
+
+export type ActorScheduleFire = { at: string; zone: string };
+
+export type ActorScheduledRunInput = ActorIdentity & {
+  definition: ActorDefinition;
+  fire: ActorScheduleFire;
+  traceparent?: string;
+};
+
+export type ActorScheduledRunOutcome = 'started' | 'skipped' | 'duplicate';

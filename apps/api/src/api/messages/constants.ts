@@ -8,8 +8,4 @@ export const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 export const MAX_TTL_SECONDS = 28 * 24 * 60 * 60;
 
 export const MESSAGE_STATUSES = messageStatus.enumValues;
-export const SUBSCRIBER_TIMEZONE = 'subscriber';
-export const DEFAULT_TIMEZONE = 'UTC';
-export const WALL_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
-export const SCHEDULE_TICK_CRON = '* * * * *';
 export const DUE_MESSAGES_LIMIT = 200;

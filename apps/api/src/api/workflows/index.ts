@@ -8,13 +8,17 @@ import {
   lintWorkflow,
   type WorkflowSpec,
   workflowProblem,
-} from 'buzzkit/workflows';
+} from '@buzzkit/schema/workflows';
+import { Value } from '@sinclair/typebox/value';
 import { WORKFLOW_RESERVED_SLUGS } from './constants';
 import { publishDefinitions } from './definitions';
+import { assertScheduleSegment } from './schedules';
+import { WorkflowSpecSchema } from './spec-schema';
 import type { Workflow, WorkflowInput, WorkflowPatch, WorkflowVersion, WorkflowWithVersions } from './types';
 
 export * from './constants';
 export * from './definitions';
+export * from './schedules';
 export * from './schemas';
 export { serializeVersion, serializeWorkflow } from './serialize';
 export type * from './types';
@@ -27,11 +31,12 @@ export function assertWorkflowSpec(value: unknown, param = 'spec'): asserts valu
       param: issue.path.length === 0 ? param : `${param}.${formatWorkflowPath(issue.path)}`,
     });
   }
-  if (!isWorkflowSpec(value)) {
-    throw new BadRequestError(workflowProblem(value) ?? 'Not a valid workflow', {
-      code: 'invalid_spec',
-      param,
-    });
+  if (!isWorkflowSpec(value) || !Value.Check(WorkflowSpecSchema, value)) {
+    const error = Value.Errors(WorkflowSpecSchema, value).First();
+    throw new BadRequestError(
+      workflowProblem(value) ?? (error ? `${error.message} at ${error.path || '/'}` : 'Not a valid workflow'),
+      { code: 'invalid_spec', param }
+    );
   }
 }
 
@@ -108,6 +113,7 @@ export async function createWorkflow(
   input: WorkflowInput
 ): Promise<WorkflowWithVersions> {
   assertWorkflowSpec(input.spec);
+  await assertScheduleSegment(db, tenantId, input.spec);
   if (WORKFLOW_RESERVED_SLUGS.has(input.slug)) {
     throw new BadRequestError(`'${input.slug}' is reserved`, { code: 'slug_reserved', param: 'slug' });
   }
@@ -137,7 +143,10 @@ export async function updateWorkflow(
   existing: WorkflowWithVersions,
   patch: WorkflowPatch
 ): Promise<WorkflowWithVersions> {
-  if (patch.spec !== undefined) assertWorkflowSpec(patch.spec);
+  if (patch.spec !== undefined) {
+    assertWorkflowSpec(patch.spec);
+    await assertScheduleSegment(db, existing.tenantId, patch.spec);
+  }
   return await trace('workflows.update', async () =>
     db.transaction(async (tx) => {
       let latest = existing.latest;

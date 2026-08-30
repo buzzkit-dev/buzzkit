@@ -46,11 +46,11 @@ import {
   MessageStatusBadge,
   PlatformBadge,
 } from '@/app/components/badges';
+import { Conditions } from '@/app/components/conditions/chips';
 import { DetailRow } from '@/app/components/detail/row';
 import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
 import { describeTarget } from '@/app/components/messages/target';
-import { Conditions } from '@/app/components/segments/conditions';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';

@@ -1,3 +1,4 @@
+import { SUBSCRIBER_TIMEZONE } from '@buzzkit/schema/workflows';
 import { Button } from '@buzzkit/ui/components/button';
 import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem } from '@buzzkit/ui/components/combobox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
@@ -14,8 +15,6 @@ import { CHANNEL_OPTIONS, type Channel, channelLabel } from '@/app/lib/channels'
 type SendTarget = 'subscriber' | 'topic' | 'segment';
 
 type SendWhen = 'now' | 'later';
-
-const SUBSCRIBER_TIMEZONE = 'subscriber';
 
 const SUBSCRIBER_TIMEZONE_LABEL = "Each subscriber's local time";
 

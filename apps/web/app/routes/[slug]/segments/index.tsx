@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { Conditions } from '@/app/components/segments/conditions';
+import { Conditions } from '@/app/components/conditions/chips';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { segmentsAction } from '@/app/lib/actions/segments.server';
 import { listSegments, type Segment } from '@/app/lib/api.server';

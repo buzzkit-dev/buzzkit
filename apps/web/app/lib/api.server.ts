@@ -1,6 +1,6 @@
 import { createVersionedClient, type VersionedApiClient } from '@buzzkit/eden';
+import type { TriggerSource, WorkflowSpec } from '@buzzkit/schema/workflows';
 import type { Expression } from 'buzzkit/expressions';
-import type { WorkflowSpec } from 'buzzkit/workflows';
 import { signedOutRedirect } from '@/app/lib/session.server';
 
 export type RequestContext = { request: Request; env: Env };
@@ -185,7 +185,15 @@ export function updateTenant(
   token: string,
   workspaceSlug: string,
   tenantSlug: string,
-  patch: { name?: string; slug?: string; metadata?: Record<string, unknown> }
+  patch: {
+    name?: string;
+    slug?: string;
+    metadata?: Record<string, unknown>;
+    settings?: {
+      identity?: { requireVerification?: boolean };
+      channels?: Partial<Record<'push' | 'email', { enabled?: boolean }>>;
+    };
+  }
 ) {
   return unwrap(
     ctx,
@@ -246,6 +254,40 @@ export function validateCredential(
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
       .credentials({ id })
       .validate.post()
+  );
+}
+
+export function listSecrets(ctx: RequestContext, token: string, workspaceSlug: string, tenantSlug: string) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).secrets.get()
+  ).then((page) => page.items);
+}
+
+export function putSecret(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  name: string,
+  value: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).secrets({ name }).put({ value })
+  );
+}
+
+export function deleteSecret(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  name: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).secrets({ name }).delete()
   );
 }
 
@@ -393,7 +435,7 @@ export function listSubscribers(
   token: string,
   workspaceSlug: string,
   tenantSlug: string,
-  query: { limit?: number; cursor?: string } = {}
+  query: { limit?: number; cursor?: string; search?: string } = {}
 ) {
   return unwrap(
     ctx,
@@ -877,7 +919,7 @@ export type WorkflowInput = { slug: string; name: string; description?: string; 
 
 export type WorkflowPatch = { name?: string; description?: string | null; spec?: WorkflowSpec };
 
-export type RunStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'cancelled' | 'failed';
+export type RunStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'canceled' | 'failed';
 
 export type RunQuery = { limit?: number; cursor?: string; status?: RunStatus; workflow?: string };
 
@@ -991,6 +1033,46 @@ export function listWorkflowRuns(
   );
 }
 
+export function getWorkflowSchedule(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .schedule.get()
+  );
+}
+
+export type WorkflowTestInput = {
+  version?: number;
+  externalId?: string;
+  attributes?: Record<string, unknown>;
+  event?: { name: string; data?: Record<string, unknown>; source?: TriggerSource };
+  at?: string;
+  assume?: Record<string, { matched?: boolean; data?: unknown; status?: number }>;
+};
+
+export function testWorkflow(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  workflowSlug: string,
+  input: WorkflowTestInput
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .workflows({ workflowSlug })
+      .test.post(input)
+  );
+}
+
 export function listRuns(
   ctx: RequestContext,
   token: string,
@@ -1054,6 +1136,7 @@ export type EventVolume = Awaited<ReturnType<typeof getEventVolume>>;
 export type EventsToken = Awaited<ReturnType<typeof getEventsToken>>;
 export type Stats = Awaited<ReturnType<typeof getStats>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
+export type TenantDetail = Awaited<ReturnType<typeof getTenant>>;
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];
 export type Webhook = Awaited<ReturnType<typeof listWebhooks>>[number];
@@ -1067,6 +1150,9 @@ export type DeliveryAttempt = Awaited<ReturnType<typeof listDeliveryAttempts>>[n
 export type Workflow = Awaited<ReturnType<typeof listWorkflows>>[number];
 export type WorkflowDetail = Awaited<ReturnType<typeof getWorkflow>>;
 export type WorkflowVersion = NonNullable<WorkflowDetail['versions']>[number];
+export type WorkflowSchedule = Awaited<ReturnType<typeof getWorkflowSchedule>>;
+export type WorkflowTest = Awaited<ReturnType<typeof testWorkflow>>;
+export type SecretItem = Awaited<ReturnType<typeof listSecrets>>[number];
 export type WorkflowRun = Awaited<ReturnType<typeof listWorkflowRuns>>['items'][number];
 export type Run = Awaited<ReturnType<typeof listRuns>>['items'][number];
 export type RunDetail = Awaited<ReturnType<typeof getRun>>;

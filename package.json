@@ -11,7 +11,7 @@
     "format:fix": "biome check . --write",
     "prepare": "husky",
     "check-types": "turbo run check-types",
-    "test": "turbo run test --filter=buzzkit"
+    "test": "turbo run test --filter=buzzkit --filter=@buzzkit/schema --filter=@buzzkit/web"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",

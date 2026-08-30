@@ -403,7 +403,7 @@ describe('listUndeliveredAuditRows and listReconcilableAuditIds', () => {
     expect([before.id, after.id, sinceEdit.id].filter((id) => reconcilable.has(id))).toEqual([sinceEdit.id]);
   });
 
-  it('honours the limit and the lookback', async () => {
+  it('honors the limit and the lookback', async () => {
     const workspace = await createWorkspaceRow();
     await createEndpointRow(workspace.id);
     const first = await createAuditRow(workspace.id, 'topic.created');

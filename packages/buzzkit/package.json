@@ -15,10 +15,6 @@
     "./expressions": {
       "types": "./src/expressions/index.ts",
       "default": "./src/expressions/index.ts"
-    },
-    "./workflows": {
-      "types": "./src/workflows/index.ts",
-      "default": "./src/workflows/index.ts"
     }
   },
   "scripts": {
@@ -28,8 +24,5 @@
   "devDependencies": {
     "typescript": "^7.0.2",
     "vitest": "~4.1.10"
-  },
-  "dependencies": {
-    "@sinclair/typebox": "^0.34.52"
   }
 }

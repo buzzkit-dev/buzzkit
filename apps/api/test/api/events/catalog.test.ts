@@ -180,7 +180,7 @@ const systemPayloads: Record<keyof typeof SYSTEM_EVENTS, { valid: unknown; inval
     invalid: { ...run, step: 'settle', status: 'sleeping' },
   },
   'run.completed': { valid: run, invalid: { ...run, startedAt: 1 } },
-  'run.cancelled': { valid: { ...run, reason: 'subscription.started' }, invalid: run },
+  'run.canceled': { valid: { ...run, reason: 'subscription.started' }, invalid: run },
   'run.failed': { valid: { ...run, error: 'Tenant is gone' }, invalid: { ...run, error: 500 } },
 };
 

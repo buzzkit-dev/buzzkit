@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, type Db, eq, inArray, isNull, tables } from '@buzzkit/database';
-import type { WorkflowSpec } from 'buzzkit/workflows';
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
 import { DEFINITIONS_KEY_PREFIX, DEFINITIONS_VERSION_KEY_PREFIX } from './constants';
 import type { WorkflowDefinitions } from './types';
 

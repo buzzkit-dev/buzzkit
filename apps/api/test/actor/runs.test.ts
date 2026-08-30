@@ -1,4 +1,5 @@
-import { advanceRuns, type RunPorts, runIdFor } from '@buzzkit/api/actor/runs';
+import { acceptEvent } from '@buzzkit/api/actor/ingest';
+import { advanceRuns, type RunPorts, runIdFor, scheduleRun } from '@buzzkit/api/actor/runs';
 import type { ActorDefinitions, ActorEventInput, ActorIdentity } from '@buzzkit/api/actor/types';
 import { describe, expect, it, vi } from 'vitest';
 import { createActorStore } from '../utils/actorStore';
@@ -77,7 +78,7 @@ describe('advanceRuns', () => {
     );
 
     const runId = runIdFor(identity, 'wf_trial', 4);
-    expect(outcome).toEqual({ started: [runId], cancelled: [], delivered: [] });
+    expect(outcome).toEqual({ started: [runId], canceled: [], delivered: [] });
     expect(store.findRun(runId)).toMatchObject({
       status: 'running',
       workflow_slug: 'trial',
@@ -104,7 +105,7 @@ describe('advanceRuns', () => {
     ];
     expect(await advanceRuns(store, identity, definitions(), misses, hooks)).toEqual({
       started: [],
-      cancelled: [],
+      canceled: [],
       delivered: [],
     });
     expect(
@@ -115,7 +116,7 @@ describe('advanceRuns', () => {
         [{ event: event('trial.started', { data: { plan: 'monthly' } }), sequence: 5 }],
         hooks
       )
-    ).toEqual({ started: [], cancelled: [], delivered: [] });
+    ).toEqual({ started: [], canceled: [], delivered: [] });
     expect(hooks.createRun).not.toHaveBeenCalled();
     expect(store.listLiveRuns()).toEqual([]);
   });
@@ -163,7 +164,7 @@ describe('advanceRuns', () => {
       [{ event: event('trial.started', { data: { plan: 'monthly' } }), sequence: 1 }],
       hooks
     );
-    const cancelled = await advanceRuns(
+    const canceled = await advanceRuns(
       store,
       identity,
       definitions(),
@@ -171,10 +172,10 @@ describe('advanceRuns', () => {
       hooks
     );
     const runId = runIdFor(identity, 'wf_trial', 1);
-    expect(cancelled.cancelled).toEqual([runId]);
+    expect(canceled.canceled).toEqual([runId]);
     expect(hooks.terminateRun).toHaveBeenCalledWith(runId);
-    expect(store.findRun(runId)?.status).toBe('cancelled');
-    expect(runEvents(store)).toEqual(['$run.started:', '$run.cancelled:cancelOn:subscription.started']);
+    expect(store.findRun(runId)?.status).toBe('canceled');
+    expect(runEvents(store)).toEqual(['$run.started:', '$run.canceled:cancelOn:subscription.started']);
 
     await advanceRuns(
       store,
@@ -190,8 +191,8 @@ describe('advanceRuns', () => {
       [{ event: event('app.opened'), sequence: 4 }],
       hooks
     );
-    expect(gone.cancelled).toEqual([runIdFor(identity, 'wf_trial', 3)]);
-    expect(runEvents(store).at(-1)).toBe('$run.cancelled:workflow_deleted');
+    expect(gone.canceled).toEqual([runIdFor(identity, 'wf_trial', 3)]);
+    expect(runEvents(store).at(-1)).toBe('$run.canceled:workflow_deleted');
   });
 
   it('delivers a registered wait once when its event and condition match, then forgets it', async () => {
@@ -212,7 +213,7 @@ describe('advanceRuns', () => {
     store.insertWait({
       run_id: 'run_1',
       step: 'cancel',
-      event: 'trial.cancelled',
+      event: 'trial.canceled',
       condition: JSON.stringify({ ref: 'event.data.reason', eq: 'price' }),
       expires_at: '2026-09-01T00:00:00.000Z',
     });
@@ -221,18 +222,18 @@ describe('advanceRuns', () => {
       store,
       identity,
       definitions(),
-      [{ event: event('trial.cancelled', { data: { reason: 'bugs' } }), sequence: 2 }],
+      [{ event: event('trial.canceled', { data: { reason: 'bugs' } }), sequence: 2 }],
       hooks
     );
     expect(wrong.delivered).toEqual([]);
-    const match = event('trial.cancelled', { data: { reason: 'price' } });
+    const match = event('trial.canceled', { data: { reason: 'price' } });
     const right = await advanceRuns(store, identity, definitions(), [{ event: match, sequence: 3 }], hooks);
     expect(right.delivered).toEqual(['run_1']);
     expect(hooks.deliverWait).toHaveBeenCalledWith(
       expect.objectContaining({ run_id: 'run_1', step: 'cancel' }),
       match
     );
-    expect(store.listWaitsFor('trial.cancelled', '2026-08-29T10:00:00.000Z')).toEqual([]);
+    expect(store.listWaitsFor('trial.canceled', '2026-08-29T10:00:00.000Z')).toEqual([]);
 
     const expired = await advanceRuns(
       store,
@@ -240,7 +241,7 @@ describe('advanceRuns', () => {
       definitions(),
       [
         {
-          event: event('trial.cancelled', {
+          event: event('trial.canceled', {
             data: { reason: 'price' },
             receivedAt: '2026-09-02T00:00:00.000Z',
           }),
@@ -250,5 +251,116 @@ describe('advanceRuns', () => {
       hooks
     );
     expect(expired.delivered).toEqual([]);
+  });
+
+  it("answers history conditions in triggers and waits from the subscriber's own events", async () => {
+    const { store } = createActorStore();
+    const hooks = ports();
+    const defs = definitions({
+      spec: {
+        trigger: { event: 'workout.completed', where: { count: 'workout.completed', within: '1d', gte: 2 } },
+        concurrency: 'per-event',
+        steps: [{ name: 'settle', wait: '2h' }],
+      },
+    });
+    const stamp = (timestamp: string) => ({ timestamp, receivedAt: timestamp });
+
+    acceptEvent(store, event('workout.completed', stamp('2026-08-29T09:00:00.000Z')));
+    const second = event('workout.completed', stamp('2026-08-29T10:00:00.000Z'));
+    const { sequence } = acceptEvent(store, second);
+    const started = await advanceRuns(store, identity, defs, [{ event: second, sequence }], hooks);
+    expect(started.started).toHaveLength(1);
+
+    const lonely = event('workout.completed', stamp('2026-09-30T10:00:00.000Z'));
+    const { sequence: lonelySequence } = acceptEvent(store, lonely);
+    const skipped = await advanceRuns(
+      store,
+      identity,
+      defs,
+      [{ event: lonely, sequence: lonelySequence }],
+      hooks
+    );
+    expect(skipped.started).toEqual([]);
+
+    const startedAt = '2026-08-29T10:00:00.000Z';
+    store.insertRun({
+      run_id: 'run_h',
+      workflow_id: 'wf_trial',
+      workflow_slug: 'trial',
+      version_id: 'wfv_1',
+      status: 'waiting',
+      step: 'cancel',
+      detail: null,
+      trigger_sequence: sequence,
+      started_at: startedAt,
+      updated_at: startedAt,
+    });
+    store.insertWait({
+      run_id: 'run_h',
+      step: 'cancel',
+      event: 'trial.canceled',
+      condition: JSON.stringify({ occurred: 'workout.completed', since: 'trigger' }),
+      expires_at: '2026-12-01T00:00:00.000Z',
+    });
+    const cancel = event('trial.canceled', stamp('2026-10-01T00:00:00.000Z'));
+    const { sequence: cancelSequence } = acceptEvent(store, cancel);
+    const delivered = await advanceRuns(
+      store,
+      identity,
+      defs,
+      [{ event: cancel, sequence: cancelSequence }],
+      hooks
+    );
+    expect(delivered.delivered).toEqual(['run_h']);
+  });
+
+  it('starts a scheduled run once per fire, honoring where and concurrency', async () => {
+    const { store } = createActorStore();
+    const hooks = ports();
+    const definition = definitions({
+      id: 'wf_streak',
+      slug: 'streak',
+      spec: {
+        trigger: {
+          schedule: { daily: '19:00' },
+          timezone: 'subscriber',
+          where: { count: 'workout.completed', since: 'localMidnight', eq: 0 },
+        },
+        concurrency: 'one-per-subscriber',
+        steps: [{ name: 'nudge', send: { title: 'Log a workout' } }],
+      },
+    }).workflows[0]!;
+    store.writeAttributes({ $timezone: 'Europe/Berlin' });
+    const zone = 'Europe/Berlin';
+    const first = { at: '2026-08-29T17:00:00.000Z', zone };
+
+    expect(await scheduleRun(store, identity, definition, first, hooks)).toBe('started');
+    expect(hooks.createRun).toHaveBeenCalledTimes(1);
+    const runId = `1-wf_streak-2-${Date.parse(first.at)}`;
+    expect(hooks.createRun.mock.calls[0]?.[0]).toMatchObject({ run_id: runId, status: 'running' });
+    expect(hooks.createRun.mock.calls[0]?.[2]).toMatchObject({
+      name: '$schedule',
+      source: 'system',
+      timestamp: first.at,
+      data: { firedAt: first.at, zone },
+    });
+    expect(await scheduleRun(store, identity, definition, first, hooks)).toBe('duplicate');
+
+    const second = { at: '2026-08-30T17:00:00.000Z', zone };
+    expect(await scheduleRun(store, identity, definition, second, hooks)).toBe('skipped');
+    store.updateRun(runId, 'completed', null, null, '2026-08-29T17:05:00.000Z');
+    acceptEvent(
+      store,
+      event('workout.completed', {
+        timestamp: '2026-08-30T10:00:00.000Z',
+        receivedAt: '2026-08-30T10:00:00.000Z',
+      })
+    );
+    expect(await scheduleRun(store, identity, definition, second, hooks)).toBe('skipped');
+    expect(
+      await scheduleRun(store, identity, definition, { at: '2026-08-31T17:00:00.000Z', zone }, hooks)
+    ).toBe('started');
+    expect(runEvents(store).filter((item) => item.startsWith('$run.started'))).toHaveLength(2);
+    expect(hooks.createRun).toHaveBeenCalledTimes(2);
   });
 });

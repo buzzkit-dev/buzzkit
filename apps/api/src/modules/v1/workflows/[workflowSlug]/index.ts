@@ -12,7 +12,7 @@ import { BadRequestError } from '@buzzkit/api/libs/error';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { SlugSchema } from '@buzzkit/api/libs/schemas';
 import { encodeId } from '@buzzkit/api/libs/sqids';
-import type { WorkflowSpec } from 'buzzkit/workflows';
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
 import Elysia, { t } from 'elysia';
 
 export const workflow = new Elysia()

@@ -1,5 +1,9 @@
-import { type Expression, evaluateExpression, resolvePath } from 'buzzkit/expressions';
-import type { BranchStep, Step } from 'buzzkit/workflows';
+import {
+  type BranchStep,
+  FALLBACK_CASE,
+  type Step,
+  type WorkflowExpression,
+} from '@buzzkit/schema/workflows';
 import type { RunContext } from '../context';
 
 export async function runBranch(
@@ -9,13 +13,16 @@ export async function runBranch(
 ): Promise<void> {
   const { name, branch } = current;
   const taken = await context.do(`${name}:branch`, async () => {
-    const scope = context.scope();
-    const yes = evaluateExpression(branch.if as Expression, (ref) => resolvePath(scope, ref));
-    await context.report(name, 'completed', yes ? 'Took then' : 'Took else', {
-      taken: yes ? 'then' : 'else',
-    });
-    return { at: new Date().toISOString(), taken: yes ? 'then' : 'else' };
+    let chosen = FALLBACK_CASE;
+    for (const entry of branch) {
+      if (entry.when === undefined || (await context.evaluate(entry.when as WorkflowExpression))) {
+        chosen = entry.name;
+        break;
+      }
+    }
+    await context.report(name, 'completed', `Took ${chosen}`, { taken: chosen });
+    return { at: new Date(context.now()).toISOString(), taken: chosen };
   });
   context.state.steps[name] = taken;
-  await runSteps(context, taken.taken === 'then' ? branch.then : (branch.else ?? []));
+  await runSteps(context, branch.find((entry) => entry.name === taken.taken)?.steps ?? []);
 }

@@ -1,6 +1,5 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
-import { isTimezone } from '@buzzkit/api/api/messages/schedule';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import {
   ChannelSchema,
@@ -21,12 +20,15 @@ import {
   desc,
   eq,
   getTableColumns,
+  ilike,
   inArray,
   isNull,
   lt,
+  or,
   sql,
   tables,
 } from '@buzzkit/database';
+import { isTimezone } from '@buzzkit/schema/workflows';
 import { t } from 'elysia';
 
 export type Subscriber = typeof tables.subscriber.$inferSelect;
@@ -341,10 +343,19 @@ export function serializeSubscriberListItem(item: SubscriberListItem) {
   };
 }
 
+function searchClause(search: string) {
+  const prefix = `${search.replace(/[%_\\]/g, '\\$&')}%`;
+  const wordStart = `(^|[^[:alnum:]])${search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`;
+  return or(
+    ilike(tables.subscriber.externalId, prefix),
+    sql`${tables.subscriber.attributes} ->> 'name' ~* ${wordStart}`
+  );
+}
+
 export async function listSubscribers(
   db: Db,
   tenantId: number,
-  options: { limit: number; beforeId?: number; ids?: number[] }
+  options: { limit: number; beforeId?: number; ids?: number[]; search?: string }
 ): Promise<SubscriberListItem[]> {
   const live = sql`${tables.subscription.subscriberId} = ${tables.subscriber.id} and ${tables.subscription.deletedAt} is null`;
   const rows = await trace(
@@ -369,7 +380,8 @@ export async function listSubscribers(
             eq(tables.subscriber.tenantId, tenantId),
             isNull(tables.subscriber.deletedAt),
             options.beforeId ? lt(tables.subscriber.id, options.beforeId) : undefined,
-            options.ids ? inArray(tables.subscriber.id, options.ids) : undefined
+            options.ids ? inArray(tables.subscriber.id, options.ids) : undefined,
+            options.search ? searchClause(options.search) : undefined
           )
         )
         .orderBy(desc(tables.subscriber.id))

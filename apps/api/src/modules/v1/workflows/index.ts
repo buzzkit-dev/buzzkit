@@ -8,7 +8,7 @@ import {
 import { auth } from '@buzzkit/api/libs/auth';
 import { Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
-import type { WorkflowSpec } from 'buzzkit/workflows';
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
 import Elysia from 'elysia';
 
 export const workflows = new Elysia()

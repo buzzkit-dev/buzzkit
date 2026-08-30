@@ -68,11 +68,11 @@ function useGrowExitClip(
     }
 
     const halfCycleS = LINE_LOADING_PULSE_CYCLE_S / 2;
-    let cancelled = false;
+    let canceled = false;
     let controls: ReturnType<typeof animate> | undefined;
 
     const finish = () => {
-      if (!cancelled) {
+      if (!canceled) {
         onComplete?.();
       }
     };
@@ -94,7 +94,7 @@ function useGrowExitClip(
         onComplete: finish,
       });
       return () => {
-        cancelled = true;
+        canceled = true;
         controls?.stop();
       };
     }
@@ -108,7 +108,7 @@ function useGrowExitClip(
           duration: Math.max(growDuration, 0.01),
           ease: [...LINE_LOADING_PULSE_EASE],
           onComplete: () => {
-            if (!cancelled) {
+            if (!canceled) {
               runShrink(0.5);
             }
           },
@@ -118,7 +118,7 @@ function useGrowExitClip(
       }
 
       return () => {
-        cancelled = true;
+        canceled = true;
         controls?.stop();
       };
     }
@@ -131,7 +131,7 @@ function useGrowExitClip(
         onComplete: finish,
       });
       return () => {
-        cancelled = true;
+        canceled = true;
         controls?.stop();
       };
     }

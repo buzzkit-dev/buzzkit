@@ -20,12 +20,14 @@
         "@buzzkit/auth": "workspace:*",
         "@buzzkit/database": "workspace:*",
         "@buzzkit/observability": "workspace:*",
+        "@buzzkit/schema": "workspace:*",
         "@buzzkit/tinybird": "workspace:*",
         "@elysiajs/cors": "^1.4.2",
         "@elysiajs/openapi": "^1.4.15",
         "@kubiks/otel-better-auth": "^2.0.2",
         "@kubiks/otel-drizzle": "^2.1.0",
         "@opentelemetry/api": "^1.9.1",
+        "@sinclair/typebox": "^0.34.52",
         "agents": "^0.21.0",
         "better-auth": "1.6.25",
         "buzzkit": "workspace:*",
@@ -46,6 +48,7 @@
       "dependencies": {
         "@buzzkit/auth": "workspace:*",
         "@buzzkit/eden": "workspace:*",
+        "@buzzkit/schema": "workspace:*",
         "@buzzkit/ui": "workspace:*",
         "@number-flow/react": "^0.6.2",
         "better-auth": "1.6.25",
@@ -74,6 +77,7 @@
         "vaul": "^1.1.2",
         "vite": "^7.3.1",
         "vite-tsconfig-paths": "^6.1.1",
+        "vitest": "~4.1.10",
         "wrangler": "^4.118.0",
       },
     },
@@ -95,9 +99,6 @@
     "packages/buzzkit": {
       "name": "buzzkit",
       "version": "0.0.0",
-      "dependencies": {
-        "@sinclair/typebox": "^0.34.52",
-      },
       "devDependencies": {
         "typescript": "^7.0.2",
         "vitest": "~4.1.10",
@@ -142,6 +143,17 @@
         "@cloudflare/workers-types": "^4.20250601.0",
         "@types/node": "^24.0.0",
         "typescript": "^7.0.2",
+      },
+    },
+    "packages/schema": {
+      "name": "@buzzkit/schema",
+      "version": "0.0.0",
+      "dependencies": {
+        "buzzkit": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^7.0.2",
+        "vitest": "~4.1.10",
       },
     },
     "packages/tinybird": {
@@ -315,6 +327,8 @@
     "@buzzkit/eden": ["@buzzkit/eden@workspace:packages/eden"],
 
     "@buzzkit/observability": ["@buzzkit/observability@workspace:packages/observability"],
+
+    "@buzzkit/schema": ["@buzzkit/schema@workspace:packages/schema"],
 
     "@buzzkit/tinybird": ["@buzzkit/tinybird@workspace:packages/tinybird"],
 

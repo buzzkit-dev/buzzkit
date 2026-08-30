@@ -1,6 +1,6 @@
 import type { RunCounts } from '@buzzkit/api/api/runs/index';
 import { encodeId } from '@buzzkit/api/libs/sqids';
-import type { WorkflowSpec } from 'buzzkit/workflows';
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
 import type { Workflow, WorkflowVersion } from './types';
 
 export function serializeVersion(version: WorkflowVersion) {

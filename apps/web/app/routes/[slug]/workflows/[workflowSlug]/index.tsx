@@ -1,3 +1,4 @@
+import { SUBSCRIBER_TIMEZONE } from '@buzzkit/schema/workflows';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,6 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@buzzkit/ui/components/alert-dialog';
+import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardAction, CardFooter, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
@@ -33,23 +35,31 @@ import {
   TableRow,
 } from '@buzzkit/ui/components/table';
 import { Textarea } from '@buzzkit/ui/components/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge, WorkflowStatusBadge } from '@/app/components/badges';
-import { describeTrigger, describeVersionChanges } from '@/app/components/workflows/describe';
+import { DetailRow } from '@/app/components/detail/row';
+import {
+  describeSchedule,
+  describeTrigger,
+  describeVersionChanges,
+} from '@/app/components/workflows/describe';
 import { WorkflowFlow } from '@/app/components/workflows/flow';
 import { parseSpec, prettySpec, SpecEditor } from '@/app/components/workflows/spec-editor';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
-import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
+import { TIME_TOOLTIP_DELAY, Time, TimeAgo, useTimeAgo } from '@/app/hooks/use-time-ago';
 import { workflowsAction } from '@/app/lib/actions/workflows.server';
 import {
   getWorkflow,
+  getWorkflowSchedule,
   listWorkflowRuns,
   type RunStatus,
   type WorkflowDetail,
   type WorkflowRun,
+  type WorkflowSchedule,
   type WorkflowVersion,
 } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
@@ -60,6 +70,7 @@ import type { Route } from './+types/index';
 
 const TABS = [
   { value: 'steps', label: 'Steps' },
+  { value: 'schedule', label: 'Schedule' },
   { value: 'code', label: 'Code' },
   { value: 'versions', label: 'Versions' },
   { value: 'runs', label: 'Runs' },
@@ -71,13 +82,21 @@ const RUN_FILTERS: { value: RunFilter; label: string }[] = [
   { value: 'sleeping', label: 'Sleeping' },
   { value: 'waiting', label: 'Waiting' },
   { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'canceled', label: 'Canceled' },
   { value: 'failed', label: 'Failed' },
 ];
 
 type Tab = (typeof TABS)[number]['value'];
 
 type RunFilter = RunStatus | 'all';
+
+function zoneLabel(zone: string): string {
+  return zone === SUBSCRIBER_TIMEZONE ? "Each subscriber's local time" : zone.replace(/_/g, ' ');
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export function meta({ loaderData }: Route.MetaArgs) {
   return [{ title: loaderData ? `${loaderData.workflow.name} · BuzzKit` : 'Workflow · BuzzKit' }];
@@ -89,18 +108,23 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
   const search = requestUrl(request).searchParams;
-  const tab = TABS.find((entry) => entry.value === search.get('tab'))?.value ?? 'steps';
+  const requested = TABS.find((entry) => entry.value === search.get('tab'))?.value ?? 'steps';
   const runStatus = RUN_FILTERS.find((entry) => entry.value === search.get('status'))?.value ?? 'all';
-  const [workflow, runs] = await Promise.all([
-    getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug),
+  const workflow = await getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug);
+  const scheduled = 'schedule' in workflow.spec.trigger;
+  const tab = requested === 'schedule' && !scheduled ? 'steps' : requested;
+  const [runs, schedule] = await Promise.all([
     tab === 'runs'
       ? listWorkflowRuns(ctx, token, params.slug, tenant, params.workflowSlug, {
           ...readPage(request),
           ...(runStatus === 'all' ? {} : { status: runStatus }),
         })
       : Promise.resolve(null),
+    tab === 'schedule'
+      ? getWorkflowSchedule(ctx, token, params.slug, tenant, params.workflowSlug).catch(() => null)
+      : Promise.resolve(null),
   ]);
-  return { workflow, tab, runStatus, runs: runs ? paginate(request, runs) : null };
+  return { workflow, scheduled, tab, runStatus, runs: runs ? paginate(request, runs) : null, schedule };
 }
 
 export const action = workflowsAction;
@@ -198,7 +222,7 @@ function CodeTab({ workflow }: { workflow: WorkflowDetail }) {
       <div className='flex min-h-0 shrink flex-col p-4'>
         <SpecEditor text={text} result={result} onChange={setText} fill />
       </div>
-      <CardFooter className='justify-end gap-2'>
+      <CardFooter className='gap-2'>
         {dirty && (
           <Button variant='ghost' size='sm' onClick={() => setText(saved)}>
             Discard
@@ -216,6 +240,202 @@ function CodeTab({ workflow }: { workflow: WorkflowDetail }) {
         </Button>
       </CardFooter>
     </>
+  );
+}
+
+function localClock(at: string, zone: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeStyle: 'short', timeZone: zone }).format(new Date(at));
+}
+
+function cityOf(zone: string): string {
+  return (zone.split('/').pop() ?? zone).replace(/_/g, ' ');
+}
+
+const REGION_ORDER = ['America', 'Europe', 'Asia', 'Australia', 'Africa', 'Pacific'];
+
+function regionRank(zone: string): number {
+  const index = REGION_ORDER.indexOf(zone.split('/')[0] ?? '');
+  return index === -1 ? REGION_ORDER.length : index;
+}
+
+function familiarFirst(zones: string[]): string[] {
+  return [...zones].sort((left, right) => regionRank(left) - regionRank(right) || left.localeCompare(right));
+}
+
+function ZoneCell({ at, zones, perSubscriber }: { at: string; zones: string[]; perSubscriber: boolean }) {
+  const ordered = familiarFirst(zones);
+  const first = ordered[0] ?? 'UTC';
+  const shown = ordered.slice(0, 2).map(cityOf).join(', ');
+  const more = ordered.length - 2;
+  const label = perSubscriber ? (more > 0 ? `${shown} +${more}` : shown) : first.replace(/_/g, ' ');
+  const detail = `${ordered.map((zone) => zone.replace(/_/g, ' ')).join(', ')} · ${utcOffset(at, first)}`;
+  return (
+    <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
+      <Tooltip>
+        <TooltipTrigger render={<span className='cursor-default'>{label}</span>} />
+        <TooltipContent className='max-w-xs text-pretty'>{detail}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function NextZone({ at, zone }: { at: string; zone: string }) {
+  const label = useTimeAgo(at);
+  return (
+    <span className='text-fg-2'>
+      <TimeAgo
+        at={at}
+        label={label === 'Now' ? 'next now' : `next ${label}`}
+        detail={`${zone.replace(/_/g, ' ')} · ${utcOffset(at, zone)}`}
+      />
+    </span>
+  );
+}
+
+function utcOffset(at: string, zone: string): string {
+  return (
+    new Intl.DateTimeFormat('en-US', { timeZoneName: 'shortOffset', timeZone: zone })
+      .formatToParts(new Date(at))
+      .find((part) => part.type === 'timeZoneName')?.value ?? zone
+  );
+}
+
+function ScheduleTab({
+  schedule,
+  slug,
+  status,
+}: {
+  schedule: WorkflowSchedule | null;
+  slug: string;
+  status: 'draft' | 'active' | 'paused';
+}) {
+  if (!schedule) {
+    return (
+      <EmptyState
+        size='sm'
+        icon='IconCalendarClockFilled'
+        title='Schedule unavailable'
+        description='The schedule could not be read. Reload the page to try again.'
+      />
+    );
+  }
+  const next = schedule.next[0] ?? null;
+  return (
+    <div className='flex min-h-0 flex-col overflow-y-auto'>
+      <dl className='flex flex-col border-bg-3 border-b'>
+        <DetailRow label='Schedule'>{capitalize(describeSchedule(schedule.schedule))}</DetailRow>
+        <DetailRow label='Timezone'>
+          {schedule.timezone === SUBSCRIBER_TIMEZONE ? (
+            <span className='flex items-center gap-1.5'>
+              {zoneLabel(schedule.timezone)}
+              <span className='text-fg-2'>
+                {schedule.defaultTimezone.replace(/_/g, ' ')} for subscribers without one
+              </span>
+            </span>
+          ) : (
+            zoneLabel(schedule.timezone)
+          )}
+        </DetailRow>
+        <DetailRow label='Audience'>
+          {schedule.segment ? (
+            <Link
+              to={`/${slug}/segments/${schedule.segment}`}
+              className='truncate underline-offset-2 hover:underline'
+            >
+              {schedule.segment}
+            </Link>
+          ) : (
+            'Every subscriber'
+          )}
+        </DetailRow>
+        <DetailRow label='Next'>
+          {!next ? (
+            status === 'draft' ? (
+              'Once published'
+            ) : status === 'paused' ? (
+              'Paused'
+            ) : (
+              'Never'
+            )
+          ) : schedule.timezone === SUBSCRIBER_TIMEZONE ? (
+            <span className='flex items-center gap-1.5'>
+              {localClock(next.at, next.zone)} in each subscriber's timezone
+              <NextZone
+                at={next.at}
+                zone={
+                  familiarFirst(
+                    schedule.next.filter((fire) => fire.at === next.at).map((fire) => fire.zone)
+                  )[0] ?? next.zone
+                }
+              />
+            </span>
+          ) : (
+            <TimeAgo at={next.at} />
+          )}
+        </DetailRow>
+      </dl>
+      {schedule.fires.length === 0 ? (
+        <EmptyState
+          size='sm'
+          className='pt-6'
+          icon='IconCalendarClockFilled'
+          title='No scheduled runs yet'
+          description={
+            status === 'active'
+              ? 'The schedule has not come due yet. Every time it does appears here with the runs it started.'
+              : 'The schedule starts runs once the workflow is published. Every time it comes due appears here with the runs it started.'
+          }
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Due</TableHead>
+              <TableHead>Timezone</TableHead>
+              <TableHead>Version</TableHead>
+              <TableHead className='text-right'>Runs</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {schedule.fires.map((fire) => (
+              <TableRow key={`${fire.firedAt}:${fire.version}`}>
+                <TableCell>
+                  <TimeAgo at={fire.firedAt} />
+                </TableCell>
+                <TableCell>
+                  <ZoneCell
+                    at={fire.firedAt}
+                    zones={fire.zones}
+                    perSubscriber={schedule.timezone === SUBSCRIBER_TIMEZONE}
+                  />
+                </TableCell>
+                <TableCell>Version {fire.version}</TableCell>
+                <TableCell className='text-right tabular-nums'>
+                  {fire.started.toLocaleString('en-US')}
+                </TableCell>
+                <TableCell>
+                  {fire.finishedAt ? (
+                    <span className='flex items-center gap-1.5'>
+                      <Badge size='sm' variant='green'>
+                        Completed
+                      </Badge>
+                      <span className='text-fg-2'>
+                        <TimeAgo at={fire.finishedAt} />
+                      </span>
+                    </span>
+                  ) : (
+                    <Badge size='sm' variant='blue'>
+                      Starting runs
+                    </Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
   );
 }
 
@@ -289,7 +509,7 @@ function DetailsDialog({
 export default function WorkflowRoute({ loaderData, params }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
-  const { workflow, tab, runStatus, runs } = loaderData;
+  const { workflow, scheduled, tab, runStatus, runs, schedule } = loaderData;
   const base = `/${params.slug}/workflows`;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const spec = workflow.spec;
@@ -316,6 +536,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
     }
   });
 
+  const tabs = scheduled ? [...TABS] : TABS.filter((entry) => entry.value !== 'schedule');
   const publishLabel =
     workflow.draft !== null ? 'Publish draft' : workflow.status === 'paused' ? 'Resume' : 'Publish';
   const canPublish = workflow.status !== 'active' || workflow.draft !== null;
@@ -381,6 +602,9 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
                 }
               />
               <DropdownMenuContent align='end'>
+                <DropdownMenuItem nativeButton={false} render={<Link to={`${base}/${workflow.slug}/test`} />}>
+                  Test
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setDetailsOpen(true)}>Edit details</DropdownMenuItem>
                 <DropdownMenuItem variant='destructive' onClick={() => setDeleteOpen(true)}>
                   Delete
@@ -396,7 +620,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
           <CardTitle>{TABS.find((entry) => entry.value === tab)?.label}</CardTitle>
           <CardAction>
             <PillTabs
-              items={[...TABS]}
+              items={tabs}
               value={tab}
               itemClassName='h-6.5 px-2.5 text-xs'
               onValueChange={(value: Tab) => go({ tab: value === 'steps' ? null : value, status: null })}
@@ -417,6 +641,10 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
                 : 'Draft, not published yet',
             }}
           />
+        )}
+
+        {tab === 'schedule' && (
+          <ScheduleTab schedule={schedule} slug={params.slug} status={workflow.status} />
         )}
 
         {tab === 'code' && (
@@ -501,7 +729,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
             </DialogTitle>
           </DialogHeader>
           {openVersion && (
-            <div className='flex max-h-[70vh] w-full min-h-0 flex-col overflow-hidden rounded-2xl ring-1 ring-bg-3'>
+            <div className='flex max-h-[65vh] w-full min-h-0 flex-col overflow-hidden rounded-2xl ring-1 ring-bg-3'>
               <WorkflowFlow
                 spec={openVersion.spec}
                 version={{
@@ -516,6 +744,14 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
               />
             </div>
           )}
+          <Button
+            variant='soft'
+            className='w-fit'
+            nativeButton={false}
+            render={<Link to={`${base}/${workflow.slug}/test?version=${openVersion?.number ?? ''}`} />}
+          >
+            Test this version
+          </Button>
         </DialogContent>
       </Dialog>
 

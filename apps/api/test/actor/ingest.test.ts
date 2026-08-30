@@ -1,4 +1,4 @@
-import { acceptEvent, acceptEvents } from '@buzzkit/api/actor/ingest';
+import { acceptEvent, acceptEvents, systemEvent } from '@buzzkit/api/actor/ingest';
 import type { ActorEventInput } from '@buzzkit/api/actor/types';
 import { describe, expect, it, vi } from 'vitest';
 import { createActorStore } from '../utils/actorStore';
@@ -274,5 +274,18 @@ describe('acceptEvents', () => {
     acceptEvents(store, [event({ id: 'evt_1' }), event({ id: 'evt_2' })]);
     expect(store.readFlushedSequence()).toBe(0);
     expect(store.listUnflushed(10)).toHaveLength(2);
+  });
+
+  it('files the message id of a notification event and of a step record', () => {
+    const { store } = createActorStore();
+    acceptEvent(store, event({ id: 'evt_o', name: '$notification.opened', data: { messageId: 'msg_1' } }));
+    acceptEvent(
+      store,
+      systemEvent('$run.step', { step: 'nudge' }, { runId: 'run_1', step: 'nudge', messageId: 'msg_1' })
+    );
+    expect(store.listRecent(10).map((row) => [row.name, row.message_id, row.run_id, row.step])).toEqual([
+      ['$run.step', 'msg_1', 'run_1', 'nudge'],
+      ['$notification.opened', 'msg_1', null, null],
+    ]);
   });
 });

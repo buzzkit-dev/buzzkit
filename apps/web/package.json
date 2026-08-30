@@ -9,15 +9,17 @@
     "deploy": "bun run build && wrangler deploy",
     "preview": "bun run build && vite preview",
     "cf-typegen": "wrangler types && react-router typegen",
-    "check-types": "bun run cf-typegen && tsc --noEmit"
+    "check-types": "bun run cf-typegen && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@buzzkit/auth": "workspace:*",
     "@buzzkit/eden": "workspace:*",
+    "@buzzkit/schema": "workspace:*",
     "@buzzkit/ui": "workspace:*",
-    "buzzkit": "workspace:*",
     "@number-flow/react": "^0.6.2",
     "better-auth": "1.6.25",
+    "buzzkit": "workspace:*",
     "isbot": "^5.2.1",
     "motion": "^12.43.0",
     "react": "^19.2.8",
@@ -42,6 +44,7 @@
     "vaul": "^1.1.2",
     "vite": "^7.3.1",
     "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "~4.1.10",
     "wrangler": "^4.118.0"
   }
 }

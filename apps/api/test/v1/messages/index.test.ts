@@ -1238,7 +1238,7 @@ describe('isolation, pagination, and delivery-time credential state', () => {
     expect(row?.lastErrorMessage).toContain('production');
   });
 
-  it('fan-out honours per-channel topic defaults', async () => {
+  it('fan-out honors per-channel topic defaults', async () => {
     const { keyBearer } = await setupWorkspace({ push: 'unusable' });
     const topic = `quiet-${uniq()}`;
     await api('/v1/topics', {

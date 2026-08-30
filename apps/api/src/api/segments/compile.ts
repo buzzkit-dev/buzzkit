@@ -1,13 +1,8 @@
 import { BadRequestError } from '@buzzkit/api/libs/error';
-import {
-  assertExpressionShape,
-  durationSeconds,
-  type Expression,
-  ExpressionError,
-  kindOf,
-  type Scalar,
-} from 'buzzkit/expressions';
+import { durationSeconds } from '@buzzkit/schema/workflows';
+import type { Expression, Scalar } from 'buzzkit/expressions';
 import { ATTRIBUTE_KEY_PATTERN } from './constants';
+import { assertExpressionShape, ExpressionError, kindOf } from './validate';
 
 type Comparators = {
   eq?: Scalar;

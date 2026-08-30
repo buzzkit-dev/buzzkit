@@ -27,6 +27,10 @@ export const AUDIT_CATALOG = {
   'credential.validated': { webhook: true },
   'credential.revoked': { webhook: true },
 
+  'secret.created': { webhook: true },
+  'secret.updated': { webhook: true },
+  'secret.deleted': { webhook: true },
+
   'topic.created': { webhook: true },
   'topic.updated': { webhook: true },
   'topic.deleted': { webhook: true },

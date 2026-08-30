@@ -18,9 +18,11 @@ import type {
 
 export * from './compile';
 export * from './constants';
+export * from './expression-schema';
 export * from './schemas';
 export { serializeSegment } from './serialize';
 export type * from './types';
+export * from './validate';
 
 export async function findSegmentBySlug(db: Db, tenantId: number, slug: string): Promise<SegmentWithVersion> {
   const [row] = await trace(

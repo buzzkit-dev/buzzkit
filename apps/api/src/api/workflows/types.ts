@@ -1,5 +1,5 @@
 import type { tables } from '@buzzkit/database';
-import type { WorkflowSpec } from 'buzzkit/workflows';
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
 import type { WORKFLOW_STATUSES } from './constants';
 
 export type Workflow = typeof tables.workflow.$inferSelect;

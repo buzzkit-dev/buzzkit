@@ -25,7 +25,7 @@ type Run = {
 const holdSpec = {
   trigger: { event: 'order.placed' },
   steps: [
-    { name: 'hold', waitFor: { event: 'order.paid', until: '2d' } },
+    { name: 'hold', waitFor: { event: 'order.paid', timeout: '2d' } },
     { name: 'thanks', send: { title: 'Thanks' } },
   ],
 };

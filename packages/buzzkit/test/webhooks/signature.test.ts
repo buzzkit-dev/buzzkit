@@ -366,7 +366,7 @@ describe('verifyWebhook', () => {
     );
   });
 
-  it('honours a custom tolerance', async () => {
+  it('honors a custom tolerance', async () => {
     const headers = await headersFor();
     expect(await verifyWebhook(body, headers, secret, { now: timestamp + 10, toleranceSeconds: 10 })).toEqual(
       {

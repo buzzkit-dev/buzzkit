@@ -181,7 +181,7 @@ const RUN_STATUSES: Record<string, Entry> = {
   sleeping: { label: 'Sleeping', tone: 'sky' },
   waiting: { label: 'Waiting', tone: 'purple' },
   completed: { label: 'Completed', tone: 'green' },
-  cancelled: { label: 'Cancelled', tone: 'default' },
+  canceled: { label: 'Canceled', tone: 'default' },
   failed: { label: 'Failed', tone: 'red' },
 };
 

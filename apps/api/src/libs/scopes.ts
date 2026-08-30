@@ -38,6 +38,9 @@ export const SCOPE_CATALOG = {
   'credentials:read': { context: 'tenant', role: 'member', key: true },
   'credentials:write': { context: 'tenant', role: 'admin', key: true },
 
+  'secrets:read': { context: 'tenant', role: 'member', key: true },
+  'secrets:write': { context: 'tenant', role: 'admin', key: true },
+
   'subscribers:read': { context: 'tenant', role: 'member', key: true },
   'subscribers:write': { context: 'tenant', role: 'member', key: true },
 

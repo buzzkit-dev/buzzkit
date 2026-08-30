@@ -123,8 +123,8 @@ const RESERVED: Record<string, Definition> = {
     icon: 'IconCircleCheckFilled',
     describe: (data) => ({ detail: text(data, 'workflow') }),
   },
-  '$run.cancelled': {
-    label: 'Workflow cancelled',
+  '$run.canceled': {
+    label: 'Workflow canceled',
     icon: 'IconCircleBanSignFilled',
     describe: (data) => ({
       detail: [text(data, 'workflow'), text(data, 'reason')].filter(Boolean).join(' · ') || null,

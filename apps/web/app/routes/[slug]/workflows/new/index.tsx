@@ -71,7 +71,8 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
             New workflow
           </h1>
           <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Send a sequence of messages that starts on an event and follows what the subscriber does next.
+            Send a sequence of messages that starts on an event or a schedule and follows what the subscriber
+            does next.
           </p>
         </div>
         <Button disabled={!canCreate} loading={pending} onClick={create}>

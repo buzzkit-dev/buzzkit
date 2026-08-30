@@ -7,7 +7,11 @@ export function acceptEvents(store: ActorStore, events: ActorEventInput[]): Acto
 }
 
 export function acceptEvent(store: ActorStore, input: ActorEventInput): ActorIngestOutcome {
-  const event = { ...input, idempotencyKey: input.idempotencyKey || null };
+  const event = {
+    ...input,
+    idempotencyKey: input.idempotencyKey || null,
+    messageId: input.messageId ?? messageIdOf(input.data),
+  };
   const existing = event.idempotencyKey ? store.findByIdempotencyKey(event.idempotencyKey) : null;
   if (existing) {
     return { id: existing.id, sequence: existing.sequence, status: 'duplicate' };
@@ -21,6 +25,10 @@ export function acceptEvent(store: ActorStore, input: ActorEventInput): ActorIng
 
 const SNAPSHOT_EVENTS = new Set(['$subscriber.created', '$subscriber.updated']);
 
+function messageIdOf(data: Record<string, unknown>): string | null {
+  return typeof data.messageId === 'string' && data.messageId.length > 0 ? data.messageId : null;
+}
+
 function mirrorAttributes(store: ActorStore, event: ActorEventInput): void {
   const attributes = event.data.attributes;
   if (typeof attributes !== 'object' || attributes === null || Array.isArray(attributes)) return;
@@ -31,13 +39,14 @@ function mirrorAttributes(store: ActorStore, event: ActorEventInput): void {
   }
 }
 
+export type SystemEventOrigin = { runId: string; step: string | null; messageId?: string | null; now?: Date };
+
 export function systemEvent(
   name: string,
   data: Record<string, unknown>,
-  runId: string,
-  step: string | null,
-  now = new Date()
+  origin: SystemEventOrigin
 ): ActorEventInput {
+  const now = origin.now ?? new Date();
   return {
     id: `evt_${uuidv7(now.getTime())}`,
     idempotencyKey: null,
@@ -46,7 +55,8 @@ export function systemEvent(
     timestamp: now.toISOString(),
     receivedAt: now.toISOString(),
     data,
-    runId,
-    step,
+    runId: origin.runId,
+    step: origin.step,
+    messageId: origin.messageId ?? null,
   };
 }

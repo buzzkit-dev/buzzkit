@@ -1,6 +1,6 @@
 import type { IconName } from '@buzzkit/ui/components/icon';
 import type { Expression } from 'buzzkit/expressions';
-import { describeExpression } from '@/app/components/segments/describe';
+import { describeExpression } from '@/app/components/conditions/describe';
 
 type MessageTargets = {
   to?: string[];

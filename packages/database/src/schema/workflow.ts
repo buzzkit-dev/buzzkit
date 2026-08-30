@@ -44,4 +44,35 @@ export const workflowVersion = pgTable(
   (table) => [uniqueIndex('workflow_version_unique').on(table.workflowId, table.version)]
 );
 
-export const workflowTables = { workflow, workflowVersion };
+export const workflowSchedule = pgTable(
+  'workflow_schedule',
+  {
+    id: bigId(),
+    tenantId: bigRef('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    workflowId: bigRef('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowVersionId: bigRef('workflow_version_id')
+      .notNull()
+      .references(() => workflowVersion.id, { onDelete: 'cascade' }),
+    fireAt: timestamptz('fire_at').notNull(),
+    zone: text('zone').notNull(),
+    memberCursor: bigRef('member_cursor').notNull().default(0),
+    started: integer('started').notNull().default(0),
+    finishedAt: timestamptz('finished_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: deletedAt(),
+  },
+  (table) => [
+    uniqueIndex('workflow_schedule_fire_unique').on(table.workflowVersionId, table.fireAt, table.zone),
+    index('workflow_schedule_open_idx')
+      .on(table.fireAt)
+      .where(sql`${table.finishedAt} is null and ${table.deletedAt} is null`),
+    index('workflow_schedule_workflow_idx').on(table.workflowId, table.fireAt),
+  ]
+);
+
+export const workflowTables = { workflow, workflowVersion, workflowSchedule };

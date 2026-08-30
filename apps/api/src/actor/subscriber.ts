@@ -10,6 +10,7 @@ import {
   withTraceparent,
 } from '@buzzkit/api/libs/telemetry';
 import type { EventsQueueMessage } from '@buzzkit/api/queue/events';
+import type { WorkflowExpression } from '@buzzkit/schema/workflows';
 import { Agent } from 'agents';
 import {
   ACTOR_DEFINITIONS_CHECK_MS,
@@ -20,9 +21,11 @@ import {
   ACTOR_RUNS_LIMIT,
   ACTOR_SERVICE,
 } from './constants';
+import { evaluateExpression, resolvePath } from './evaluate';
 import { flushEvents } from './flush';
+import { historyOptions } from './history';
 import { acceptEvent, acceptEvents, systemEvent } from './ingest';
-import { advanceRuns, runEventData } from './runs';
+import { advanceRuns, runEventData, scheduleRun } from './runs';
 import { ActorStore } from './store';
 import type {
   ActorDefinitions,
@@ -35,6 +38,8 @@ import type {
   ActorProjection,
   ActorRunFinish,
   ActorRunRow,
+  ActorScheduledRunInput,
+  ActorScheduledRunOutcome,
   ActorStepRecord,
 } from './types';
 
@@ -81,7 +86,7 @@ export class SubscriberActor extends Agent<Env> {
             }
           );
           t.set('runs.started', runs.started.length);
-          t.set('runs.cancelled', runs.cancelled.length);
+          t.set('runs.canceled', runs.canceled.length);
           t.set('waits.delivered', runs.delivered.length);
         }
 
@@ -89,6 +94,19 @@ export class SubscriberActor extends Agent<Env> {
         return outcomes;
       }
     );
+  }
+
+  async startScheduledRun(input: ActorScheduledRunInput): Promise<ActorScheduledRunOutcome> {
+    return await this.invoke('actor.schedule', input.traceparent, this.spanAttributes(input), async (t) => {
+      this.store.writeIdentity(input);
+      const outcome = await scheduleRun(this.store, input, input.definition, input.fire, {
+        createRun: (run, definition, trigger, sequence) =>
+          this.startRun(input, run, definition.versionId, definition.spec, trigger, sequence),
+      });
+      t.set('run.outcome', outcome);
+      if (outcome === 'started') this.ctx.waitUntil(this.flush());
+      return outcome;
+    });
   }
 
   async flush(): Promise<ActorFlushOutcome> {
@@ -131,15 +149,16 @@ export class SubscriberActor extends Agent<Env> {
 
   async recordStep(runId: string, record: ActorStepRecord): Promise<void> {
     const run = this.store.findRun(runId);
-    if (!run || run.status === 'cancelled') return;
+    if (!run || run.status === 'canceled') return;
     const now = new Date().toISOString();
     this.store.updateRun(
       runId,
-      record.status === 'completed' ? 'running' : record.status,
+      record.status === 'completed' || record.status === 'skipped' ? 'running' : record.status,
       record.step,
       record.summary,
       now
     );
+    const messageId = record.detail?.messageId;
     acceptEvent(
       this.store,
       systemEvent(
@@ -151,11 +170,35 @@ export class SubscriberActor extends Agent<Env> {
           summary: record.summary,
           ...(record.detail ?? {}),
         },
-        runId,
-        record.step
+        { runId, step: record.step, messageId: typeof messageId === 'string' ? messageId : null }
       )
     );
     this.ctx.waitUntil(this.flush());
+  }
+
+  quietSince(after: string | null, unless: string[]): string | null {
+    const started = after === null ? new Date().toISOString() : this.store.lastEventAt(after);
+    if (started === null) return null;
+    const reset = unless
+      .map((event) => this.store.lastEventAt(event))
+      .filter((at): at is string => at !== null)
+      .sort()
+      .at(-1);
+    return reset !== undefined && reset >= started ? null : started;
+  }
+
+  evaluate(
+    runId: string,
+    expression: WorkflowExpression,
+    scope: Record<string, unknown>,
+    timezone: string
+  ): boolean {
+    const run = this.store.findRun(runId);
+    return evaluateExpression(
+      expression,
+      (ref) => resolvePath(scope, ref),
+      historyOptions(this.store, run, timezone)
+    );
   }
 
   registerWait(runId: string, step: string, event: string, condition: unknown, expiresAt: string): void {
@@ -174,7 +217,7 @@ export class SubscriberActor extends Agent<Env> {
 
   async finishRun(runId: string, finish: ActorRunFinish): Promise<void> {
     const run = this.store.findRun(runId);
-    if (!run || run.status === 'cancelled') return;
+    if (!run || run.status === 'canceled') return;
     const now = new Date().toISOString();
     const step = finish.step ?? run.step;
     this.store.updateRun(runId, finish.status, step, finish.error ?? null, now);
@@ -183,9 +226,12 @@ export class SubscriberActor extends Agent<Env> {
       this.store,
       systemEvent(
         finish.status === 'completed' ? '$run.completed' : '$run.failed',
-        { ...runEventData(run), ...(finish.error ? { error: finish.error } : {}) },
-        runId,
-        step
+        {
+          ...runEventData(run),
+          ...(finish.status === 'failed' && step ? { step } : {}),
+          ...(finish.error ? { error: finish.error } : {}),
+        },
+        { runId, step }
       )
     );
     this.ctx.waitUntil(this.flush());
@@ -244,7 +290,11 @@ export class SubscriberActor extends Agent<Env> {
       this.store.updateRun(run.run_id, 'failed', null, 'engine_unavailable', now);
       acceptEvent(
         this.store,
-        systemEvent('$run.failed', { ...runEventData(run), error: 'engine_unavailable' }, run.run_id, null)
+        systemEvent(
+          '$run.failed',
+          { ...runEventData(run), error: 'engine_unavailable' },
+          { runId: run.run_id, step: null }
+        )
       );
     }
   }
