@@ -1,3 +1,4 @@
+import { sendRunCancelPush, specHasLocalDelivery } from '@buzzkit/api/api/messages/local';
 import { type RunParams, toWaitPayload } from '@buzzkit/api/engine/types';
 import { log } from '@buzzkit/api/libs/logger';
 import {
@@ -69,22 +70,25 @@ export class SubscriberActor extends Agent<Env> {
         const accepted = outcomes.flatMap((outcome, index) =>
           outcome.status === 'accepted' ? [{ event: input.events[index]!, sequence: outcome.sequence }] : []
         );
+
         if (accepted.length > 0) {
-          const runs = await advanceRuns(
-            this.store,
-            input,
-            await this.definitions(input.tenantId),
-            accepted,
-            {
-              createRun: (run, definition, trigger, sequence) =>
-                this.startRun(input, run, definition.versionId, definition.spec, trigger, sequence),
-              terminateRun: (runId) => this.terminateRun(runId),
-              deliverWait: async (wait, event) => {
-                const instance = await this.env.ENGINE.get(wait.run_id);
-                await instance.sendEvent({ type: `evt:${wait.step}`, payload: toWaitPayload(event) });
-              },
-            }
-          );
+          const definitions = await this.definitions(input.tenantId);
+          const runs = await advanceRuns(this.store, input, definitions, accepted, {
+            createRun: (run, definition, trigger, sequence) =>
+              this.startRun(input, run, definition.versionId, definition.spec, trigger, sequence),
+            terminateRun: (runId) => this.terminateRun(runId),
+            deliverWait: async (wait, event) => {
+              const instance = await this.env.ENGINE.get(wait.run_id);
+              await instance.sendEvent({ type: `evt:${wait.step}`, payload: toWaitPayload(event) });
+            },
+            cancelLocal: async (run) => {
+              const spec = definitions?.workflows.find(
+                (definition) => definition.id === run.workflow_id
+              )?.spec;
+              if (spec && !specHasLocalDelivery(spec)) return;
+              this.ctx.waitUntil(sendRunCancelPush(input.tenantId, input.subscriberId, run.run_id));
+            },
+          });
           t.set('runs.started', runs.started.length);
           t.set('runs.canceled', runs.canceled.length);
           t.set('waits.delivered', runs.delivered.length);

@@ -323,7 +323,7 @@ describe('webhookEventGroups', () => {
     for (const group of groups) {
       const dotted = group.options.some((option) => option.includes('.'));
       if (dotted) {
-        expect(group.wildcard, group.label).toMatch(/^\$?[a-z]+\.\*$/);
+        expect(group.wildcard, group.label).toMatch(/^\$?[a-z_]+\.\*$/);
       } else {
         expect(group, group.label).not.toHaveProperty('wildcard');
       }
@@ -371,7 +371,7 @@ describe('webhookEventGroups', () => {
     expect(groups.find((group) => group.label === 'app')).toEqual({
       label: 'app',
       wildcard: '$app.*',
-      options: ['$app.opened', '$app.backgrounded'],
+      options: ['$app.installed', '$app.updated', '$app.opened', '$app.backgrounded'],
     });
   });
 

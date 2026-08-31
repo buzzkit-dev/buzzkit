@@ -116,9 +116,17 @@ export async function listEnabledEndpoints(
     );
 }
 
-export function endpointReceives(endpoint: WebhookEndpoint, eventName: string, occurredAt: Date): boolean {
+export const ENDPOINT_HORIZON_CLOCK_SKEW_MS = 1000;
+
+export function endpointReceives(
+  endpoint: WebhookEndpoint,
+  eventName: string,
+  occurredAt: Date,
+  skewMs = 0
+): boolean {
   return (
-    endpoint.createdAt.getTime() <= occurredAt.getTime() && subscriptionMatches(endpoint.events, eventName)
+    endpoint.createdAt.getTime() - skewMs <= occurredAt.getTime() &&
+    subscriptionMatches(endpoint.events, eventName)
   );
 }
 

@@ -185,11 +185,20 @@ const systemPayloads: Record<keyof typeof SYSTEM_EVENTS, { valid: unknown; inval
 };
 
 const sdkPayloads: Record<keyof typeof SDK_EVENTS, { valid: unknown; invalid: unknown }> = {
+  'app.installed': { valid: { version: '1.2.0', build: '42' }, invalid: { version: 1 } },
+  'app.updated': { valid: { fromVersion: '1.1', toVersion: '1.2' }, invalid: { toVersion: 2 } },
   'app.opened': { valid: {}, invalid: 'opened' },
   'app.backgrounded': { valid: {}, invalid: null },
   'session.ended': { valid: { durationSec: 12.5 }, invalid: { durationSec: '12' } },
   'notification.delivered': { valid: { messageId: 'msg_1' }, invalid: { messageId: 1 } },
   'notification.opened': { valid: { messageId: 'msg_1', action: 'view' }, invalid: { action: false } },
+  'notification.dismissed': { valid: { messageId: 'msg_1' }, invalid: { messageId: 9 } },
+  'activity.started': { valid: { activityId: 'a1', attributesType: 'Match' }, invalid: { activityId: 1 } },
+  'activity.ended': { valid: { activityId: 'a1' }, invalid: { attributesType: 2 } },
+  'activity.dismissed': { valid: {}, invalid: 'gone' },
+  'activity.stale': { valid: { activityId: 'a1' }, invalid: { activityId: [] } },
+  'deeplink.opened': { valid: { url: 'app://offers/9', via: 'handler' }, invalid: {} },
+  'action.triggered': { valid: { name: 'show_offer', handled: true }, invalid: { handled: 'yes' } },
   'permission.changed': { valid: { status: 'granted' }, invalid: {} },
   identify: { valid: {}, invalid: { attributes: 'Ada' } },
 };

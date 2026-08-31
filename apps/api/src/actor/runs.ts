@@ -30,6 +30,7 @@ export type RunPorts = {
   ) => Promise<void>;
   terminateRun: (runId: string) => Promise<void>;
   deliverWait: (wait: ActorWaitRow, event: ActorEventInput) => Promise<void>;
+  cancelLocal?: (run: ActorRunRow) => Promise<void>;
 };
 
 export type RunOutcome = { started: string[]; canceled: string[]; delivered: string[] };
@@ -200,6 +201,7 @@ async function cancelRun(
     systemEvent('$run.canceled', { ...runEventData(run), reason }, { runId: run.run_id, step: run.step })
   );
   await ports.terminateRun(run.run_id);
+  if (ports.cancelLocal) await ports.cancelLocal(run);
   outcome.canceled.push(run.run_id);
 }
 

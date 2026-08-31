@@ -16,6 +16,26 @@ export const MessagePayloadSchema = t.Object({
   data: t.Optional(t.Record(t.String(), t.Any())),
   collapseId: t.Optional(t.String({ maxLength: 64 })),
   priority: t.Optional(t.Union([t.Literal('high'), t.Literal('normal')])),
+  threadId: t.Optional(t.String({ maxLength: 64 })),
+  category: t.Optional(t.String({ maxLength: 64 })),
+  interruptionLevel: t.Optional(
+    t.Union([t.Literal('passive'), t.Literal('active'), t.Literal('timeSensitive'), t.Literal('critical')])
+  ),
+  relevanceScore: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  targetContentId: t.Optional(t.String({ maxLength: 64 })),
+  actions: t.Optional(
+    t.Array(
+      t.Object({
+        id: t.String({ minLength: 1, maxLength: 64 }),
+        title: t.String({ minLength: 1, maxLength: 64 }),
+        destructive: t.Optional(t.Boolean()),
+        foreground: t.Optional(t.Boolean()),
+        input: t.Optional(t.Boolean()),
+        placeholder: t.Optional(t.String({ maxLength: 64 })),
+      }),
+      { minItems: 1, maxItems: 4 }
+    )
+  ),
   apns: t.Optional(
     t.Object({
       payload: t.Optional(t.Record(t.String(), t.Any())),

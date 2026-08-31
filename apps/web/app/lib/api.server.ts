@@ -642,10 +642,54 @@ export type TopicInput = {
   slug: string;
   name: string;
   description?: string;
+  category?: string | null;
   channels?: ('push' | 'email')[];
   defaultOptedIn?: boolean;
   channelDefaults?: Record<string, boolean>;
 };
+
+export function listTopicCategories(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })['topic-categories'].get()
+  );
+}
+
+export function renameTopicCategory(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string,
+  name: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      ['topic-categories']({ id })
+      .patch({ name })
+  );
+}
+
+export function deleteTopicCategory(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  id: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      ['topic-categories']({ id })
+      .delete()
+  );
+}
 
 export function createTopic(
   ctx: RequestContext,
@@ -656,7 +700,10 @@ export function createTopic(
 ) {
   return unwrap(
     ctx,
-    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.post(input)
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.post({
+      ...input,
+      category: input.category ?? undefined,
+    })
   );
 }
 

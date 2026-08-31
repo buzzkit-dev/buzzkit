@@ -192,7 +192,7 @@ describe('sources hardening', () => {
           }
         );
         const entry = body.data?.items.find((item) => item.name === webhookEvent);
-        return entry && entry.providers.includes('custom') ? entry : undefined;
+        return entry?.providers.includes('custom') ? entry : undefined;
       },
       { label: 'catalog providers', timeoutMs: 60_000 }
     );

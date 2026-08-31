@@ -9,6 +9,7 @@ import {
 import { SEND_CONCURRENCY } from '@buzzkit/api/api/deliveries/policy';
 import { recordSystemEvents } from '@buzzkit/api/api/events/index';
 import { resolveSubscriptionEventData } from '@buzzkit/api/api/subscribers/index';
+import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import {
   type MessagePayload,
@@ -24,7 +25,7 @@ export function createCredentialMemo(): CredentialMemo {
   return new Map();
 }
 
-async function resolveCredential(
+export async function resolveCredential(
   db: Db,
   tenantId: number,
   provider: ProviderName,
@@ -192,7 +193,15 @@ export async function processDeliveryBatch(
     const outcomes: AttemptOutcome[] = [];
     await runWithConcurrency(sending, SEND_CONCURRENCY, async ({ job, row }) => {
       const provider = row.delivery.provider;
-      const payload = row.message.payload as MessagePayload;
+      const stored = row.message.payload as MessagePayload;
+      const payload: MessagePayload = {
+        ...stored,
+        bk: {
+          messageId: encodeId('message', row.message.id),
+          ...(stored.imageUrl !== undefined ? { image: stored.imageUrl } : {}),
+          ...(stored.bk ?? {}),
+        },
+      };
       const credential = await resolveCredential(
         db,
         row.delivery.tenantId,

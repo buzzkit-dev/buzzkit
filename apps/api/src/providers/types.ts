@@ -28,6 +28,26 @@ export type ProviderValidationInput = {
   environment: ProviderEnvironment;
 };
 
+export type MessageAction = {
+  id: string;
+  title: string;
+  destructive?: boolean;
+  foreground?: boolean;
+  input?: boolean;
+  placeholder?: string;
+};
+
+export type LiveActivityPayload = {
+  event: 'start' | 'update' | 'end';
+  contentState: Record<string, unknown>;
+  attributesType?: string;
+  attributes?: Record<string, unknown>;
+  alert?: { title?: string; body?: string; sound?: string };
+  staleDate?: string;
+  dismissalDate?: string;
+  timestamp?: number;
+};
+
 export type MessagePayload = {
   title?: string;
   body?: string;
@@ -38,6 +58,17 @@ export type MessagePayload = {
   data?: Record<string, unknown>;
   collapseId?: string;
   priority?: 'high' | 'normal';
+  deliver?: 'push' | 'local';
+  local?: { id: string; at: string; cancelOn?: string[] };
+  silent?: boolean;
+  threadId?: string;
+  category?: string;
+  interruptionLevel?: 'passive' | 'active' | 'timeSensitive' | 'critical';
+  relevanceScore?: number;
+  targetContentId?: string;
+  actions?: MessageAction[];
+  liveActivity?: LiveActivityPayload;
+  bk?: Record<string, unknown>;
   apns?: { payload?: Record<string, unknown> };
   fcm?: { android?: Record<string, unknown>; payload?: Record<string, unknown> };
 };

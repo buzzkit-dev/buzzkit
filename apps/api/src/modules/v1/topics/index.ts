@@ -71,6 +71,7 @@ export const topics = new Elysia()
         slug: TopicSlugSchema,
         name: TopicNameSchema,
         description: t.Optional(t.String({ maxLength: 500 })),
+        category: t.Optional(t.String({ maxLength: 100 })),
         channels: t.Optional(TopicChannelsSchema),
         defaultOptedIn: t.Optional(t.Boolean()),
         channelDefaults: t.Optional(ChannelDefaultsSchema),

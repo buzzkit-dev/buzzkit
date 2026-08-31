@@ -2,9 +2,17 @@ import { createMessage, enqueueFanout } from '@buzzkit/api/api/messages/index';
 import { findTopicBySlug } from '@buzzkit/api/api/topics/index';
 import { createDb } from '@buzzkit/api/libs/database';
 import { encodeId } from '@buzzkit/api/libs/sqids';
+import { wallClock } from '@buzzkit/api/libs/timezone';
 import { and, type Db, eq, gte, like, or, sql, tables } from '@buzzkit/database';
-import { describeDuration, durationSeconds, type SendStep } from '@buzzkit/schema/workflows';
+import {
+  describeDuration,
+  durationSeconds,
+  type SendStep,
+  type WaitUntilStep,
+  type WorkflowSpec,
+} from '@buzzkit/schema/workflows';
 import type { RunContext } from '../context';
+import { describeInstant } from '../moments';
 import { renderTemplate, renderValue } from '../template';
 import { loadTenant } from '../tenant';
 
@@ -29,7 +37,40 @@ async function sentRecently(db: Db, context: RunContext, current: SendStep, from
   return rows.length > 0;
 }
 
-export async function runSend(context: RunContext, current: SendStep): Promise<void> {
+function unconditionalCancelEvents(spec: WorkflowSpec): string[] {
+  return (spec.cancelOn ?? []).filter((rule) => !rule.where).map((rule) => rule.event);
+}
+
+export async function runLocalWindow(
+  context: RunContext,
+  waitStep: WaitUntilStep,
+  sendStep: SendStep
+): Promise<void> {
+  const { name, waitUntil } = waitStep;
+  const target = await context.do(`${name}:resolve`, async () => context.moment(waitUntil));
+  const zone = target.timezone ?? context.timezone();
+
+  context.current = sendStep.name;
+  await runSend(context, sendStep, {
+    local: {
+      at: wallClock(new Date(target.at), zone),
+      cancelOn: unconditionalCancelEvents(context.params.spec),
+    },
+  });
+
+  context.current = name;
+  const until = new Date(target.at).toISOString();
+  const moment = describeInstant(target.at, target.timezone);
+  await context.record(name, 'sleeping', `Waiting until ${moment}`, { until, timezone: target.timezone });
+  await context.sleep(`${name}:sleep`, target.at - context.now());
+  context.state.steps[name] = await context.record(name, 'completed', `Reached ${moment}`);
+}
+
+export async function runSend(
+  context: RunContext,
+  current: SendStep,
+  options?: { local?: { at: string; cancelOn: string[] } }
+): Promise<void> {
   const { name, send } = current;
   context.state.steps[name] = await context.do(`${name}:send`, async () => {
     const db = createDb({ max: 1 }, { traced: false });
@@ -46,16 +87,33 @@ export async function runSend(context: RunContext, current: SendStep): Promise<v
     }
 
     const scope = context.scope();
-    const options = context.rendering();
-    const title = send.title !== undefined ? renderTemplate(send.title, scope, options) : null;
+    const rendering = context.rendering();
+    const title = send.title !== undefined ? renderTemplate(send.title, scope, rendering) : null;
+    const local =
+      send.deliver === 'local'
+        ? (options?.local ?? {
+            at: wallClock(new Date(context.now()), context.timezone()),
+            cancelOn: unconditionalCancelEvents(context.params.spec),
+          })
+        : null;
     const payload = {
       ...(send.channel ? { channel: send.channel } : {}),
       ...(send.topic ? { topic: send.topic } : {}),
       ...(title !== null ? { title } : {}),
-      ...(send.body !== undefined ? { body: renderTemplate(send.body, scope, options) } : {}),
-      ...(send.subtitle !== undefined ? { subtitle: renderTemplate(send.subtitle, scope, options) } : {}),
+      ...(send.body !== undefined ? { body: renderTemplate(send.body, scope, rendering) } : {}),
+      ...(send.subtitle !== undefined ? { subtitle: renderTemplate(send.subtitle, scope, rendering) } : {}),
       ...(send.data !== undefined
-        ? { data: renderValue(send.data, scope, options) as Record<string, unknown> }
+        ? { data: renderValue(send.data, scope, rendering) as Record<string, unknown> }
+        : {}),
+      ...(local
+        ? {
+            deliver: 'local' as const,
+            local: {
+              id: `${context.params.runId}:${name}`,
+              at: local.at,
+              ...(local.cancelOn.length > 0 ? { cancelOn: local.cancelOn } : {}),
+            },
+          }
         : {}),
     };
 
@@ -76,7 +134,14 @@ export async function runSend(context: RunContext, current: SendStep): Promise<v
     await enqueueFanout(message.id);
 
     const messageId = encodeId('message', message.id);
-    await context.report(name, 'completed', title ? `Sent “${title}”` : 'Sent a message', { messageId });
+    const summary = local
+      ? title
+        ? `Scheduled “${title}” on the device`
+        : 'Scheduled a local notification on the device'
+      : title
+        ? `Sent “${title}”`
+        : 'Sent a message';
+    await context.report(name, 'completed', summary, { messageId });
     return { at: new Date(context.now()).toISOString(), messageId, skipped: false };
   });
 }

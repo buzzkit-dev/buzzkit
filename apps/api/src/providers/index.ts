@@ -6,6 +6,8 @@ import type { ProviderDefinition, ProviderName } from './types';
 
 export type {
   DeliveryErrorCode,
+  LiveActivityPayload,
+  MessageAction,
   MessagePayload,
   ProviderChannel,
   ProviderDefinition,

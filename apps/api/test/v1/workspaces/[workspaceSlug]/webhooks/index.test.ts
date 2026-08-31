@@ -676,7 +676,7 @@ describe('webhook endpoint edges', () => {
     ]);
     for (const group of dotted) {
       expect(group.label).not.toContain('$');
-      expect(group.label).toMatch(/^[a-z]+$/);
+      expect(group.label).toMatch(/^[a-z_]+$/);
       expect(group.wildcard!.replace(/^\$/, '')).toBe(`${group.label}.*`);
       expect(group.options.every((option) => option.startsWith(group.wildcard!.slice(0, -1)))).toBe(true);
     }

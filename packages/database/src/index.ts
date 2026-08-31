@@ -5,6 +5,7 @@ import { credentialTables } from './schema/credential';
 import { eventTables } from './schema/event';
 import { inviteTables } from './schema/invite';
 import { apiKeyTables } from './schema/key';
+import { liveActivityTables } from './schema/live-activity';
 import { messageTables } from './schema/message';
 import { secretTables } from './schema/secret';
 import { segmentTables } from './schema/segment';
@@ -26,6 +27,7 @@ export const tables = {
   ...credentialTables,
   ...secretTables,
   ...sourceTables,
+  ...liveActivityTables,
   ...subscriberTables,
   ...topicTables,
   ...messageTables,

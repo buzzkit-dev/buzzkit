@@ -115,8 +115,19 @@ async function resolveTargetObject(db: Db, row: AuditRow): Promise<Record<string
       return record ? transformIds(serializeCredential(record), ['details'], [], 'credential') : null;
     }
     case 'topic': {
-      const [record] = await db.select().from(tables.topic).where(eq(tables.topic.id, id));
-      return record ? transformIds(serializeTopic(record), ['channelDefaults'], [], 'topic') : null;
+      const [row] = await db
+        .select({ record: tables.topic, category: tables.topicCategory.name })
+        .from(tables.topic)
+        .leftJoin(tables.topicCategory, eq(tables.topic.categoryId, tables.topicCategory.id))
+        .where(eq(tables.topic.id, id));
+      return row
+        ? transformIds(
+            serializeTopic({ ...row.record, category: row.category }),
+            ['channelDefaults'],
+            [],
+            'topic'
+          )
+        : null;
     }
     case 'message': {
       const [record] = await db.select().from(tables.message).where(eq(tables.message.id, id));

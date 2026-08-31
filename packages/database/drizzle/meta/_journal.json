@@ -99,6 +99,34 @@
       "when": 1788114680401,
       "tag": "0013_custom_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788188239703,
+      "tag": "0014_spotty_nehzno",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788192102878,
+      "tag": "0015_dark_ultimates",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788202936084,
+      "tag": "0016_exotic_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788202936394,
+      "tag": "0017_closed_proemial_gods",
+      "breakpoints": true
     }
   ]
 }

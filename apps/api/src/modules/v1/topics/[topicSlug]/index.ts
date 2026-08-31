@@ -45,6 +45,7 @@ export const topic = new Elysia()
         body.slug === undefined &&
         body.name === undefined &&
         body.description === undefined &&
+        body.category === undefined &&
         body.channels === undefined &&
         body.defaultOptedIn === undefined &&
         body.channelDefaults === undefined
@@ -56,7 +57,7 @@ export const topic = new Elysia()
         await assertTopicSlugAvailable(db, tenant.id, body.slug);
       }
 
-      const updated = await updateTopic(db, topic.id, {
+      const updated = await updateTopic(db, tenant.id, topic.id, {
         ...body,
         channelDefaults: resolveChannelDefaults(body.channelDefaults ?? topic.channelDefaults, channels),
       });
@@ -76,6 +77,7 @@ export const topic = new Elysia()
         slug: t.Optional(TopicSlugSchema),
         name: t.Optional(TopicNameSchema),
         description: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
+        category: t.Optional(t.Union([t.String({ maxLength: 100 }), t.Null()])),
         channels: t.Optional(TopicChannelsSchema),
         defaultOptedIn: t.Optional(t.Boolean()),
         channelDefaults: t.Optional(ChannelDefaultsSchema),

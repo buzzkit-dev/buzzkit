@@ -1,7 +1,10 @@
 import { recordSystemEvents } from '@buzzkit/api/api/events/index';
 import {
   ClientIdentitySchema,
+  DeviceContextSchema,
+  deviceSystemAttributes,
   findSubscriptionOwnedBy,
+  PushPermissionSchema,
   recordRegistration,
   registerSubscription,
   resolveSubscriptionEventData,
@@ -31,7 +34,12 @@ export const clientSubscriptions = new Elysia()
         externalId: body.externalId,
         ...resolved,
         verifiedNow: verified,
-        systemAttributes: resolveSystemAttributes(request),
+        systemAttributes: {
+          ...resolveSystemAttributes(request),
+          ...deviceSystemAttributes(body.device),
+          ...(resolved.platform ? { $platform: resolved.platform } : {}),
+          ...(body.pushPermission !== undefined ? { $pushPermission: body.pushPermission } : {}),
+        },
         rebind: verified,
       });
 
@@ -52,7 +60,14 @@ export const clientSubscriptions = new Elysia()
     },
     {
       client: true,
-      body: t.Composite([ClientIdentitySchema, SubscriptionInputSchema]),
+      body: t.Composite([
+        ClientIdentitySchema,
+        SubscriptionInputSchema,
+        t.Object({
+          pushPermission: t.Optional(PushPermissionSchema),
+          device: t.Optional(DeviceContextSchema),
+        }),
+      ]),
     }
   )
   .patch(

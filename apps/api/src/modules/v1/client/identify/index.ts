@@ -1,8 +1,13 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
+  AttributesSchema,
+  assertNoSystemAttributes,
   ClientIdentitySchema,
+  DeviceContextSchema,
+  deviceSystemAttributes,
   EmailAddressSchema,
+  PushPermissionSchema,
   recordRegistration,
   registerSubscription,
   resolveSystemAttributes,
@@ -25,9 +30,16 @@ export const clientIdentify = new Elysia()
 
       if (body.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
+      assertNoSystemAttributes(body.attributes);
+
       const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, body.externalId, {
+        ...(body.attributes !== undefined ? { attributes: body.attributes, mergeAttributes: true } : {}),
         verifiedNow: verified,
-        systemAttributes: resolveSystemAttributes(request),
+        systemAttributes: {
+          ...resolveSystemAttributes(request),
+          ...deviceSystemAttributes(body.device),
+          ...(body.pushPermission !== undefined ? { $pushPermission: body.pushPermission } : {}),
+        },
       });
 
       const registered = body.email
@@ -69,6 +81,14 @@ export const clientIdentify = new Elysia()
     },
     {
       client: true,
-      body: t.Composite([ClientIdentitySchema, t.Object({ email: t.Optional(EmailAddressSchema) })]),
+      body: t.Composite([
+        ClientIdentitySchema,
+        t.Object({
+          email: t.Optional(EmailAddressSchema),
+          attributes: t.Optional(AttributesSchema),
+          pushPermission: t.Optional(PushPermissionSchema),
+          device: t.Optional(DeviceContextSchema),
+        }),
+      ]),
     }
   );

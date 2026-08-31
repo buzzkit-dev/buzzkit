@@ -515,15 +515,7 @@ function BecomesStatus({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Becomes({
-  mapping,
-  sample,
-  server,
-}: {
-  mapping: SourceMapping;
-  sample: SampleResult;
-  server: ServerPreview | null;
-}) {
+function Becomes({ sample, server }: { sample: SampleResult; server: ServerPreview | null }) {
   if (sample.kind === 'empty') {
     return (
       <BecomesStatus>Paste a payload, or pick a delivery below, to see the event it becomes.</BecomesStatus>
@@ -1070,7 +1062,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
                     />
                   </div>
                   <div className='min-w-0 self-start rounded-xl border border-bg-3 bg-bg-2/60 p-3'>
-                    <Becomes mapping={mapping} sample={parsedSample} server={serverPreview} />
+                    <Becomes sample={parsedSample} server={serverPreview} />
                   </div>
                 </div>
                 {parsedSample.kind === 'syntax' && (

@@ -133,22 +133,49 @@ async function requestAccessToken(account: FcmServiceAccount): Promise<AccessTok
   };
 }
 
+function resolveFcmEnvelope(payload: ProviderSendInput['payload']): Record<string, unknown> | undefined {
+  const local =
+    payload.deliver === 'local' && payload.local
+      ? {
+          ...payload.local,
+          ...(payload.title !== undefined ? { title: payload.title } : {}),
+          ...(payload.body !== undefined ? { body: payload.body } : {}),
+          ...(payload.data !== undefined ? { data: payload.data } : {}),
+        }
+      : undefined;
+  const envelope = {
+    ...(payload.bk ?? {}),
+    ...(local ? { local } : {}),
+    ...(payload.actions?.length
+      ? { actions: payload.actions, ...(payload.category ? { category: payload.category } : {}) }
+      : {}),
+  };
+  return Object.keys(envelope).length > 0 ? envelope : undefined;
+}
+
 export function buildFcmMessage(
   token: string,
   payload: ProviderSendInput['payload'],
   expiresAt: Date | null
 ) {
+  const silent = payload.silent === true || payload.deliver === 'local';
   const notification: Record<string, unknown> = {};
-  if (payload.title !== undefined) notification.title = payload.title;
-  if (payload.body !== undefined) notification.body = payload.body;
-  if (payload.imageUrl !== undefined) notification.image = payload.imageUrl;
+  if (!silent) {
+    if (payload.title !== undefined) notification.title = payload.title;
+    if (payload.body !== undefined) notification.body = payload.body;
+    if (payload.imageUrl !== undefined) notification.image = payload.imageUrl;
+  }
 
-  const data = Object.fromEntries(
-    Object.entries(payload.data ?? {}).map(([key, value]) => [
-      key,
-      typeof value === 'string' ? value : JSON.stringify(value),
-    ])
-  );
+  const envelope = resolveFcmEnvelope(payload);
+  const data = {
+    ...Object.fromEntries(
+      Object.entries(payload.data ?? {}).map(([key, value]) => [
+        key,
+        typeof value === 'string' ? value : JSON.stringify(value),
+      ])
+    ),
+    ...(envelope !== undefined ? { bk: JSON.stringify(envelope) } : {}),
+  };
 
   const ttlSeconds = expiresAt ? Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) : null;
 

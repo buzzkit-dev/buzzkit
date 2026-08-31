@@ -216,7 +216,7 @@ async function fanoutPageInner(
   }
 
   const targets = message.targets as MessageTargets;
-  const topic =
+  const topicRecord =
     targets.topic && message.topicId
       ? ((
           await db
@@ -231,6 +231,8 @@ async function fanoutPageInner(
             )
         )[0] ?? null)
       : null;
+
+  const topic = topicRecord ? { ...topicRecord, category: null } : null;
 
   if (targets.topic && !topic) {
     await completeFanout(db, message.id);

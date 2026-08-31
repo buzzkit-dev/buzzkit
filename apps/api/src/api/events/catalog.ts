@@ -51,11 +51,53 @@ export const SYSTEM_EVENTS = {
 } as const satisfies Record<string, TSchema>;
 
 export const SDK_EVENTS = {
+  'app.installed': t.Object({
+    version: t.Optional(t.String()),
+    build: t.Optional(t.String()),
+  }),
+  'app.updated': t.Object({
+    fromVersion: t.Optional(t.String()),
+    toVersion: t.Optional(t.String()),
+    fromBuild: t.Optional(t.String()),
+    toBuild: t.Optional(t.String()),
+  }),
   'app.opened': t.Object({}),
   'app.backgrounded': t.Object({}),
   'session.ended': t.Object({ durationSec: t.Optional(t.Number()) }),
   'notification.delivered': t.Object({ messageId: t.Optional(t.String()) }),
-  'notification.opened': t.Object({ messageId: t.Optional(t.String()), action: t.Optional(t.String()) }),
+  'notification.opened': t.Object({
+    messageId: t.Optional(t.String()),
+    action: t.Optional(t.String()),
+    input: t.Optional(t.String()),
+    deepLink: t.Optional(t.String()),
+  }),
+  'notification.dismissed': t.Object({ messageId: t.Optional(t.String()) }),
+  'activity.started': t.Object({
+    activityId: t.Optional(t.String()),
+    attributesType: t.Optional(t.String()),
+  }),
+  'activity.ended': t.Object({
+    activityId: t.Optional(t.String()),
+    attributesType: t.Optional(t.String()),
+  }),
+  'activity.dismissed': t.Object({
+    activityId: t.Optional(t.String()),
+    attributesType: t.Optional(t.String()),
+  }),
+  'activity.stale': t.Object({
+    activityId: t.Optional(t.String()),
+    attributesType: t.Optional(t.String()),
+  }),
+  'deeplink.opened': t.Object({
+    url: t.String(),
+    via: t.Optional(t.String()),
+    messageId: t.Optional(t.String()),
+  }),
+  'action.triggered': t.Object({
+    name: t.String(),
+    handled: t.Optional(t.Boolean()),
+    messageId: t.Optional(t.String()),
+  }),
   'permission.changed': t.Object({ status: t.String() }),
   identify: t.Object({ attributes: t.Optional(AttributesSchema) }),
 } as const satisfies Record<string, TSchema>;

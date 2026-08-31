@@ -61,3 +61,9 @@ export function nextLocalTime(from: Date, hour: number, minute: number, timezone
     timezone
   );
 }
+
+export function wallClock(date: Date, timezone: string): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const { year, month, day, hour, minute } = localTime(date, timezone);
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
+}

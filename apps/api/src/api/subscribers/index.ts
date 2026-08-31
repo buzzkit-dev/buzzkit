@@ -43,6 +43,39 @@ export const EmailAddressSchema = EmailSchema;
 
 export const AttributesSchema = t.Record(t.String(), t.Any());
 
+export const PushPermissionSchema = t.Union([
+  t.Literal('notDetermined'),
+  t.Literal('denied'),
+  t.Literal('authorized'),
+  t.Literal('provisional'),
+  t.Literal('ephemeral'),
+]);
+
+export const DeviceContextSchema = t.Object({
+  appVersion: t.Optional(t.String({ maxLength: 40 })),
+  appBuild: t.Optional(t.String({ maxLength: 40 })),
+  sdkVersion: t.Optional(t.String({ maxLength: 40 })),
+  osVersion: t.Optional(t.String({ maxLength: 40 })),
+  model: t.Optional(t.String({ maxLength: 60 })),
+  locale: t.Optional(t.String({ maxLength: 20 })),
+  installedAt: t.Optional(t.String({ maxLength: 40 })),
+});
+
+export type DeviceContext = typeof DeviceContextSchema.static;
+
+export function deviceSystemAttributes(device: DeviceContext | undefined): Record<string, string> {
+  if (!device) return {};
+  const attributes: Record<string, string> = {};
+  if (device.appVersion) attributes.$appVersion = device.appVersion;
+  if (device.appBuild) attributes.$appBuild = device.appBuild;
+  if (device.sdkVersion) attributes.$sdkVersion = device.sdkVersion;
+  if (device.osVersion) attributes.$osVersion = device.osVersion;
+  if (device.model) attributes.$deviceModel = device.model;
+  if (device.locale) attributes.$locale = device.locale;
+  if (device.installedAt) attributes.$appInstalledAt = device.installedAt;
+  return attributes;
+}
+
 export const ClientIdentitySchema = t.Object({
   externalId: ExternalIdSchema,
   identityHash: t.Optional(IdentityHashSchema),
@@ -187,6 +220,7 @@ function splitAttributes(attributes: Record<string, unknown>) {
 
 type SubscriberInput = {
   attributes?: Record<string, unknown>;
+  mergeAttributes?: boolean;
   systemAttributes?: Record<string, unknown>;
   verifiedNow?: boolean;
 };
@@ -197,8 +231,14 @@ function resolveAttributes(
 ): Record<string, unknown> | undefined {
   if (input.attributes === undefined && input.systemAttributes === undefined) return undefined;
   const current = splitAttributes((existing?.attributes ?? {}) as Record<string, unknown>);
+  const custom =
+    input.attributes === undefined
+      ? current.custom
+      : input.mergeAttributes
+        ? { ...current.custom, ...input.attributes }
+        : input.attributes;
   return {
-    ...(input.attributes ?? current.custom),
+    ...custom,
     ...current.system,
     ...(input.systemAttributes ?? {}),
   };

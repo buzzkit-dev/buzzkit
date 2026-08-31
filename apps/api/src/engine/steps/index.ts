@@ -3,15 +3,24 @@ import type { RunContext } from '../context';
 import { runBranch } from './branch';
 import { runExit } from './exit';
 import { runFetch } from './fetch';
-import { runSend } from './send';
+import { runLocalWindow, runSend } from './send';
 import { runSet } from './set';
 import { runWait } from './wait';
 import { runWaitFor } from './wait-for';
 import { runWaitUntil } from './wait-until';
 
 export async function runSteps(context: RunContext, steps: Step[]): Promise<void> {
-  for (const current of steps) {
+  for (let index = 0; index < steps.length; index += 1) {
+    const current = steps[index]!;
     context.current = 'exit' in current ? 'exit' : current.name;
+
+    const next = steps[index + 1];
+
+    if ('waitUntil' in current && next !== undefined && 'send' in next && next.send.deliver === 'local') {
+      await runLocalWindow(context, current, next);
+      index += 1;
+      continue;
+    }
     if ('exit' in current) await runExit(context);
     else if ('wait' in current) await runWait(context, current);
     else if ('waitUntil' in current) await runWaitUntil(context, current);

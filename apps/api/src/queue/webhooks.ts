@@ -5,6 +5,7 @@ import { isDeliverableEvent } from '@buzzkit/api/api/webhooks/catalog';
 import {
   claimDeliveryAttempt,
   createDeliveries,
+  ENDPOINT_HORIZON_CLOCK_SKEW_MS,
   endpointReceives,
   findDeliveryById,
   findEnabledEndpointById,
@@ -122,7 +123,7 @@ async function processStreamRows(
   for (const row of message.rows) {
     if (!isDeliverableEvent(row.name)) continue;
     const matched = endpoints.filter((endpoint) =>
-      endpointReceives(endpoint, row.name, new Date(row.received_at))
+      endpointReceives(endpoint, row.name, new Date(row.received_at), ENDPOINT_HORIZON_CLOCK_SKEW_MS)
     );
     if (matched.length === 0) continue;
     const event = await recordWebhookEvent(db, {

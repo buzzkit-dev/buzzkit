@@ -12,12 +12,15 @@ import {
   inArray,
   isNull,
   lt,
+  ne,
   sql,
   tables,
 } from '@buzzkit/database';
 import { t } from 'elysia';
 
-export type Topic = typeof tables.topic.$inferSelect;
+export type TopicRecord = typeof tables.topic.$inferSelect;
+export type Topic = TopicRecord & { category: string | null };
+export type TopicCategory = typeof tables.topicCategory.$inferSelect;
 
 export const CHANNELS = channel.enumValues;
 export type Channel = (typeof CHANNELS)[number];
@@ -36,6 +39,7 @@ export function serializeTopic(topic: Topic) {
     slug: topic.slug,
     name: topic.name,
     description: topic.description,
+    category: topic.category ?? null,
     channels: topic.channels,
     defaultOptedIn: topic.defaultOptedIn,
     channelDefaults: topic.channelDefaults,
@@ -81,6 +85,118 @@ export function topicDefault(topic: Topic, channel: Channel): boolean {
   return overrides[channel] ?? topic.defaultOptedIn;
 }
 
+export function serializeTopicCategory(category: TopicCategory & { topicCount?: number }) {
+  return {
+    id: category.id,
+    name: category.name,
+    ...(category.topicCount !== undefined ? { topicCount: category.topicCount } : {}),
+    createdAt: category.createdAt,
+    updatedAt: category.updatedAt,
+  };
+}
+
+export async function listTopicCategories(db: Db, tenantId: number): Promise<TopicCategory[]> {
+  return await trace(
+    'topics.categories.list',
+    async () =>
+      await db
+        .select()
+        .from(tables.topicCategory)
+        .where(and(eq(tables.topicCategory.tenantId, tenantId), isNull(tables.topicCategory.deletedAt)))
+        .orderBy(asc(tables.topicCategory.name))
+  );
+}
+
+export async function resolveTopicCategory(
+  db: Db,
+  tenantId: number,
+  name: string | null | undefined
+): Promise<TopicCategory | null> {
+  if (name === undefined || name === null) return null;
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return null;
+  const [existing] = await db
+    .select()
+    .from(tables.topicCategory)
+    .where(
+      and(
+        eq(tables.topicCategory.tenantId, tenantId),
+        sql`lower(${tables.topicCategory.name}) = lower(${trimmed})`,
+        isNull(tables.topicCategory.deletedAt)
+      )
+    );
+  if (existing) return existing;
+  const [created] = await db.insert(tables.topicCategory).values({ tenantId, name: trimmed }).returning();
+  return created as TopicCategory;
+}
+
+export async function findTopicCategoryById(
+  db: Db,
+  tenantId: number,
+  id: number | undefined
+): Promise<TopicCategory> {
+  if (id === undefined) {
+    throw new NotFoundError('Category not found');
+  }
+  const [category] = await db
+    .select()
+    .from(tables.topicCategory)
+    .where(
+      and(
+        eq(tables.topicCategory.id, id),
+        eq(tables.topicCategory.tenantId, tenantId),
+        isNull(tables.topicCategory.deletedAt)
+      )
+    );
+  if (!category) {
+    throw new NotFoundError('Category not found');
+  }
+  return category;
+}
+
+export async function renameTopicCategory(
+  db: Db,
+  tenantId: number,
+  category: TopicCategory,
+  name: string
+): Promise<TopicCategory> {
+  const trimmed = name.trim();
+  const [duplicate] = await db
+    .select({ id: tables.topicCategory.id })
+    .from(tables.topicCategory)
+    .where(
+      and(
+        eq(tables.topicCategory.tenantId, tenantId),
+        sql`lower(${tables.topicCategory.name}) = lower(${trimmed})`,
+        isNull(tables.topicCategory.deletedAt),
+        ne(tables.topicCategory.id, category.id)
+      )
+    );
+  if (duplicate) {
+    throw new ConflictError('A category with this name already exists');
+  }
+  const [updated] = await db
+    .update(tables.topicCategory)
+    .set({ name: trimmed })
+    .where(eq(tables.topicCategory.id, category.id))
+    .returning();
+  return updated as TopicCategory;
+}
+
+export async function softDeleteTopicCategory(db: Db, category: TopicCategory): Promise<TopicCategory> {
+  await db.update(tables.topic).set({ categoryId: null }).where(eq(tables.topic.categoryId, category.id));
+  const [deleted] = await db
+    .update(tables.topicCategory)
+    .set({ deletedAt: new Date() })
+    .where(eq(tables.topicCategory.id, category.id))
+    .returning();
+  return deleted as TopicCategory;
+}
+
+function withCategory(record: typeof tables.topic.$inferSelect, category: string | null): Topic {
+  return { ...record, category };
+}
+
 export async function assertTopicSlugAvailable(db: Db, tenantId: number, slug: string): Promise<void> {
   const [existing] = await trace(
     'topics.findBySlug',
@@ -109,11 +225,13 @@ export async function createTopic(
     slug: string;
     name: string;
     description?: string;
+    category?: string;
     channels?: Channel[];
     defaultOptedIn?: boolean;
     channelDefaults?: Partial<Record<Channel, boolean>>;
   }
 ): Promise<Topic> {
+  const category = await resolveTopicCategory(db, tenantId, input.category);
   const [topic] = await trace(
     'topics.create',
     async () =>
@@ -124,6 +242,7 @@ export async function createTopic(
           slug: input.slug,
           name: input.name,
           description: input.description,
+          categoryId: category?.id ?? null,
           channels: input.channels ?? [...CHANNELS],
           defaultOptedIn: input.defaultOptedIn ?? true,
           channelDefaults: input.channelDefaults ?? {},
@@ -131,7 +250,7 @@ export async function createTopic(
         .returning()
   );
 
-  return topic!;
+  return withCategory(topic!, category?.name ?? null);
 }
 
 export async function listTopics(
@@ -139,12 +258,13 @@ export async function listTopics(
   tenantId: number,
   options: { limit: number; beforeId?: number }
 ): Promise<Topic[]> {
-  return await trace(
+  const rows = await trace(
     'topics.list',
     async () =>
       await db
-        .select()
+        .select({ record: tables.topic, categoryName: tables.topicCategory.name })
         .from(tables.topic)
+        .leftJoin(tables.topicCategory, eq(tables.topic.categoryId, tables.topicCategory.id))
         .where(
           and(
             eq(tables.topic.tenantId, tenantId),
@@ -155,6 +275,7 @@ export async function listTopics(
         .orderBy(desc(tables.topic.id))
         .limit(options.limit + 1)
   );
+  return rows.map((row) => withCategory(row.record, row.categoryName));
 }
 
 export async function countTopics(db: Db, tenantId: number): Promise<number> {
@@ -170,12 +291,13 @@ export async function countTopics(db: Db, tenantId: number): Promise<number> {
 }
 
 export async function findTopicBySlug(db: Db, tenantId: number, slug: string): Promise<Topic> {
-  const [topic] = await trace(
+  const [row] = await trace(
     'topics.findBySlug',
     async () =>
       await db
-        .select()
+        .select({ record: tables.topic, categoryName: tables.topicCategory.name })
         .from(tables.topic)
+        .leftJoin(tables.topicCategory, eq(tables.topic.categoryId, tables.topicCategory.id))
         .where(
           and(
             eq(tables.topic.tenantId, tenantId),
@@ -185,25 +307,29 @@ export async function findTopicBySlug(db: Db, tenantId: number, slug: string): P
         )
   );
 
-  if (!topic) {
+  if (!row) {
     throw new NotFoundError('Topic not found');
   }
 
-  return topic;
+  return withCategory(row.record, row.categoryName);
 }
 
 export async function updateTopic(
   db: Db,
+  tenantId: number,
   topicId: number,
   patch: {
     slug?: string;
     name?: string;
     description?: string | null;
+    category?: string | null;
     channels?: Channel[];
     defaultOptedIn?: boolean;
     channelDefaults?: Partial<Record<Channel, boolean>>;
   }
 ): Promise<Topic> {
+  const category =
+    patch.category === undefined ? undefined : await resolveTopicCategory(db, tenantId, patch.category);
   const [updated] = await trace(
     'topics.update',
     async () =>
@@ -213,6 +339,7 @@ export async function updateTopic(
           slug: patch.slug,
           name: patch.name,
           description: patch.description,
+          ...(category === undefined ? {} : { categoryId: category?.id ?? null }),
           channels: patch.channels,
           defaultOptedIn: patch.defaultOptedIn,
           channelDefaults: patch.channelDefaults,
@@ -221,7 +348,19 @@ export async function updateTopic(
         .returning()
   );
 
-  return updated!;
+  return withCategory(
+    updated!,
+    category === undefined ? await categoryNameOf(db, updated!) : (category?.name ?? null)
+  );
+}
+
+async function categoryNameOf(db: Db, record: TopicRecord): Promise<string | null> {
+  if (!record.categoryId) return null;
+  const [row] = await db
+    .select({ name: tables.topicCategory.name })
+    .from(tables.topicCategory)
+    .where(eq(tables.topicCategory.id, record.categoryId));
+  return row?.name ?? null;
 }
 
 export async function softDeleteTopic(db: Db, topicId: number): Promise<Topic> {
@@ -235,7 +374,7 @@ export async function softDeleteTopic(db: Db, topicId: number): Promise<Topic> {
         .returning()
   );
 
-  return deleted!;
+  return withCategory(deleted!, await categoryNameOf(db, deleted!));
 }
 
 export type ChannelPreference = {
@@ -248,6 +387,7 @@ export type SubscriberPreference = {
   slug: string;
   name: string;
   description: string | null;
+  category: string | null;
   channels: Partial<Record<Channel, ChannelPreference>>;
 };
 
@@ -268,9 +408,11 @@ export async function listPreferences(
     const rows = await db
       .select({
         topic: tables.topic,
+        categoryName: tables.topicCategory.name,
         preference: tables.subscriberPreference,
       })
       .from(tables.topic)
+      .leftJoin(tables.topicCategory, eq(tables.topic.categoryId, tables.topicCategory.id))
       .leftJoin(
         tables.subscriberPreference,
         and(
@@ -282,7 +424,8 @@ export async function listPreferences(
       .orderBy(asc(tables.topic.id));
 
     const byTopic = new Map<number, { topic: Topic; overrides: Map<Channel, boolean> }>();
-    for (const { topic, preference } of rows) {
+    for (const { topic: record, categoryName, preference } of rows) {
+      const topic = withCategory(record, categoryName);
       const entry = byTopic.get(topic.id) ?? { topic, overrides: new Map<Channel, boolean>() };
       if (preference) {
         entry.overrides.set(preference.channel as Channel, preference.optedIn);
@@ -295,6 +438,7 @@ export async function listPreferences(
       slug: topic.slug,
       name: topic.name,
       description: topic.description,
+      category: topic.category,
       channels: Object.fromEntries(
         (topic.channels as Channel[]).map((channel) => [
           channel,

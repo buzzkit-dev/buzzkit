@@ -39,6 +39,9 @@ export const AUDIT_CATALOG = {
   'topic.updated': { webhook: true },
   'topic.deleted': { webhook: true },
 
+  'topic_category.renamed': { webhook: true },
+  'topic_category.deleted': { webhook: true },
+
   'segment.created': { webhook: true },
   'segment.updated': { webhook: true },
   'segment.deleted': { webhook: true },

@@ -55,7 +55,25 @@ function duration(data: Data): string | null {
   return seconds < 60 ? `${Math.round(seconds)}s` : `${Math.round(seconds / 60)} min`;
 }
 
+const PERMISSION_DENIED = { icon: 'IconShieldCrossedFilled' } as const;
+const PERMISSION_GRANTED = { icon: 'IconShieldCheckFilled' } as const;
+
 const RESERVED: Record<string, Definition> = {
+  '$app.installed': {
+    label: 'App installed',
+    icon: 'IconSquareArrowDownFilled',
+    describe: (data) => ({ detail: text(data, 'version') }),
+  },
+  '$app.updated': {
+    label: 'App updated',
+    icon: 'IconArrowRotateClockwiseFilled',
+    describe: (data) => ({
+      detail:
+        typeof data.fromVersion === 'string' && typeof data.toVersion === 'string'
+          ? `${data.fromVersion} to ${data.toVersion}`
+          : text(data, 'toVersion'),
+    }),
+  },
   '$app.opened': { label: 'App opened', icon: 'IconPhoneFilled' },
   '$app.backgrounded': { label: 'App backgrounded', icon: 'IconSleepFilled' },
   '$session.ended': {
@@ -69,10 +87,49 @@ const RESERVED: Record<string, Definition> = {
     icon: 'IconBellActiveFilled',
     describe: (data) => ({ detail: text(data, 'action') }),
   },
+  '$notification.dismissed': {
+    label: 'Notification dismissed',
+    icon: 'IconBellOffFilled',
+  },
+  '$activity.started': {
+    label: 'Live Activity started',
+    icon: 'IconLiveFullFilled',
+    describe: (data) => ({ detail: text(data, 'attributesType') }),
+  },
+  '$activity.ended': {
+    label: 'Live Activity ended',
+    icon: 'IconBell2SnoozeFilled',
+    describe: (data) => ({ detail: text(data, 'attributesType') }),
+  },
+  '$activity.dismissed': {
+    label: 'Live Activity dismissed',
+    icon: 'IconBellOffFilled',
+    describe: (data) => ({ detail: text(data, 'attributesType') }),
+  },
+  '$activity.stale': {
+    label: 'Live Activity went stale',
+    icon: 'IconBell2SnoozeFilled',
+    describe: (data) => ({ detail: text(data, 'attributesType') }),
+  },
+  '$deeplink.opened': {
+    label: 'Deep link opened',
+    icon: 'IconChainLink3Filled',
+    describe: (data) => ({ detail: text(data, 'url') }),
+  },
+  '$action.triggered': {
+    label: 'Action triggered',
+    icon: 'IconCodeLargeFilled',
+    describe: (data) => ({
+      detail: data.handled === false ? `${data.name} (no handler)` : text(data, 'name'),
+    }),
+  },
   '$permission.changed': {
     label: 'Push permission changed',
     icon: 'IconShieldCheckFilled',
-    describe: (data) => ({ detail: text(data, 'status') }),
+    describe: (data) => ({
+      icon: data.status === 'denied' ? PERMISSION_DENIED.icon : PERMISSION_GRANTED.icon,
+      detail: text(data, 'status'),
+    }),
   },
   $identify: {
     label: 'Identified',

@@ -33,7 +33,7 @@ import {
 } from '@buzzkit/ui/components/table';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Truncate } from '@buzzkit/ui/components/truncate';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { OptInBadge } from '@/app/components/badges';
@@ -42,7 +42,7 @@ import { slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { topicsAction } from '@/app/lib/actions/topics.server';
-import { listTopics, type Topic } from '@/app/lib/api.server';
+import { listTopicCategories, listTopics, type Topic } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
@@ -69,8 +69,11 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const page = await listTopics({ request, env }, token, params.slug, tenant, readPage(request));
-  return paginate(request, page);
+  const [page, categories] = await Promise.all([
+    listTopics({ request, env }, token, params.slug, tenant, readPage(request)),
+    listTopicCategories({ request, env }, token, params.slug, tenant),
+  ]);
+  return { ...paginate(request, page), categories: categories.items };
 }
 
 export const action = topicsAction;
@@ -100,14 +103,19 @@ function choicesFor(channels: typeof AVAILABLE_CHANNELS, topic: Topic | null): R
   return Object.fromEntries(channels.map((channel) => [channel.id, choiceFor(topic, channel.id)]));
 }
 
+const NEW_CATEGORY = '__new__';
+const NO_CATEGORY = '__none__';
+
 function TopicDialog({
   topic,
   connected,
+  categories,
   open,
   onOpenChange,
 }: {
   topic: Topic | null;
   connected: string[];
+  categories: Array<{ id: string; name: string }>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -116,6 +124,8 @@ function TopicDialog({
   const [slug, setSlug] = useState(topic?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(Boolean(topic));
   const [description, setDescription] = useState(topic?.description ?? '');
+  const [category, setCategory] = useState(topic?.category ?? '');
+  const [newCategory, setNewCategory] = useState('');
   const [optedIn, setOptedIn] = useState(topic?.defaultOptedIn ?? true);
   const [choices, setChoices] = useState<Record<string, ChannelChoice>>(() => choicesFor(channels, topic));
   const { submit, pending } = useActionFetcher(() => onOpenChange(false));
@@ -129,6 +139,7 @@ function TopicDialog({
       name: name.trim(),
       slug: slugValue,
       description: description.trim(),
+      category: category === NEW_CATEGORY ? newCategory.trim() : category,
       defaultOptedIn: String(optedIn),
       channels: offered.map(([channel]) => channel).join(','),
     };
@@ -143,6 +154,8 @@ function TopicDialog({
     setSlug(topic?.slug ?? '');
     setSlugTouched(Boolean(topic));
     setDescription(topic?.description ?? '');
+    setCategory(topic?.category ?? '');
+    setNewCategory('');
     setOptedIn(topic?.defaultOptedIn ?? true);
     setChoices(choicesFor(channelsFor(connected, topic), topic));
   }, [open, topic, connected]);
@@ -192,6 +205,44 @@ function TopicDialog({
             />
             <FieldDescription>
               Shown to subscribers next to the topic in their notification settings.
+            </FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor='topic-category'>Category</FieldLabel>
+            <Select
+              items={[
+                { value: NO_CATEGORY, label: 'No category' },
+                ...categories.map((option) => ({ value: option.name, label: option.name })),
+                { value: NEW_CATEGORY, label: 'New category' },
+              ]}
+              value={category === '' ? NO_CATEGORY : category}
+              onValueChange={(value) => setCategory(value === NO_CATEGORY ? '' : (value as string))}
+            >
+              <SelectTrigger id='topic-category'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_CATEGORY}>No category</SelectItem>
+                {categories.map((option) => (
+                  <SelectItem key={option.id} value={option.name}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+                <SelectItem value={NEW_CATEGORY}>New category</SelectItem>
+              </SelectContent>
+            </Select>
+            {category === NEW_CATEGORY && (
+              <Input
+                value={newCategory}
+                onChange={(event) => setNewCategory(event.target.value)}
+                placeholder='Events you attend'
+                maxLength={100}
+                autoFocus
+              />
+            )}
+            <FieldDescription>
+              Groups the topic under a heading in notification settings. Topics without a category are listed
+              on their own.
             </FieldDescription>
           </Field>
           <Field orientation='horizontal'>
@@ -246,6 +297,26 @@ function TopicDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function groupTopics(topics: Topic[]) {
+  const order: Array<string | null> = [];
+  const buckets = new Map<string | null, Topic[]>();
+  for (const topic of topics) {
+    const key = topic.category ?? null;
+    if (!buckets.has(key)) {
+      order.push(key);
+      buckets.set(key, []);
+    }
+    buckets.get(key)?.push(topic);
+  }
+  const showsHeaders = order.some((key) => key !== null);
+  const sorted = [...order.filter((key) => key !== null), ...(buckets.has(null) ? [null] : [])];
+  return sorted.map((key) => ({
+    category: key,
+    topics: buckets.get(key) ?? [],
+    showsHeader: showsHeaders,
+  }));
 }
 
 function TopicRow({
@@ -306,13 +377,20 @@ function TopicRow({
 
 export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
   const { connected } = useOutletContext<WorkspaceOutletContext>();
-  const { items: topics, pagination } = loaderData;
+  const { items: topics, pagination, categories } = loaderData;
   const columns = AVAILABLE_CHANNELS.filter((channel) => (connected as string[]).includes(channel.id));
   const [editing, setEditing] = useState<Topic | null>(null);
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<Topic | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [renamingCategory, setRenamingCategory] = useState<{ id: string; name: string } | null>(null);
+  const [categoryName, setCategoryName] = useState('');
+  const [deletingCategory, setDeletingCategory] = useState<{ id: string; name: string } | null>(null);
   const { submit, pending } = useActionFetcher(() => setDeleteOpen(false));
+  const categoryActions = useActionFetcher(() => {
+    setRenamingCategory(null);
+    setDeletingCategory(null);
+  });
 
   const openDialog = (topic: Topic | null) => {
     setEditing(topic);
@@ -321,6 +399,16 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
   const openDelete = (topic: Topic) => {
     setDeleting(topic);
     setDeleteOpen(true);
+  };
+  const onRenameCategory = (name: string) => {
+    const match = categories.find((option) => option.name === name);
+    if (!match) return;
+    setCategoryName(match.name);
+    setRenamingCategory(match);
+  };
+  const onDeleteCategory = (name: string) => {
+    const match = categories.find((option) => option.name === name);
+    if (match) setDeletingCategory(match);
   };
 
   return (
@@ -361,14 +449,55 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {topics.map((topic) => (
-                <TopicRow
-                  key={topic.id}
-                  topic={topic}
-                  columns={columns}
-                  onEdit={openDialog}
-                  onDelete={openDelete}
-                />
+              {groupTopics(topics).map((group) => (
+                <Fragment key={group.category ?? 'uncategorized'}>
+                  {group.showsHeader && (
+                    <TableRow className='hover:bg-transparent'>
+                      <TableCell
+                        colSpan={columns.length + 3}
+                        className='py-1.5 font-medium text-fg-2 text-xs'
+                      >
+                        {group.category ?? 'No category'}
+                      </TableCell>
+                      <TableCell className='w-0 py-0.5 text-right'>
+                        {group.category !== null && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  variant='ghost'
+                                  size='icon-xs'
+                                  icon='IconDotGrid1x3Horizontal'
+                                  aria-label='Category actions'
+                                />
+                              }
+                            />
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem onClick={() => onRenameCategory(group.category as string)}>
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant='destructive'
+                                onClick={() => onDeleteCategory(group.category as string)}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {group.topics.map((topic) => (
+                    <TopicRow
+                      key={topic.id}
+                      topic={topic}
+                      columns={columns}
+                      onEdit={openDialog}
+                      onDelete={openDelete}
+                    />
+                  ))}
+                </Fragment>
               ))}
             </TableBody>
             <TablePagination {...pagination} />
@@ -376,7 +505,73 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
         )}
       </Card>
 
-      <TopicDialog topic={editing} connected={connected} open={open} onOpenChange={setOpen} />
+      <TopicDialog
+        topic={editing}
+        connected={connected}
+        open={open}
+        onOpenChange={setOpen}
+        categories={categories}
+      />
+
+      <Dialog open={renamingCategory !== null} onOpenChange={(next) => !next && setRenamingCategory(null)}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Rename category</DialogTitle>
+          </DialogHeader>
+          <FieldGroup className='w-full'>
+            <Field>
+              <FieldLabel htmlFor='category-name'>Name</FieldLabel>
+              <Input
+                id='category-name'
+                value={categoryName}
+                onChange={(event) => setCategoryName(event.target.value)}
+                maxLength={100}
+              />
+              <FieldDescription>Every topic in the category picks up the new name.</FieldDescription>
+            </Field>
+            <Button
+              className='w-full'
+              disabled={categoryName.trim().length === 0 || categoryActions.pending}
+              loading={categoryActions.pending}
+              onClick={() =>
+                renamingCategory &&
+                categoryActions.submit('renameCategory', {
+                  id: renamingCategory.id,
+                  name: categoryName.trim(),
+                })
+              }
+            >
+              Rename category
+            </Button>
+          </FieldGroup>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deletingCategory !== null}
+        onOpenChange={(next) => !next && setDeletingCategory(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{deletingCategory?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Its topics stay and are listed without a category.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant='destructive'
+              loading={categoryActions.pending}
+              onClick={() =>
+                deletingCategory && categoryActions.submit('deleteCategory', { id: deletingCategory.id })
+              }
+            >
+              Delete category
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

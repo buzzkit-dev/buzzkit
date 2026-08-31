@@ -1,6 +1,14 @@
 import type { ActionFunctionArgs } from 'react-router';
 import { beginAction } from '@/app/lib/actions/context.server';
-import { ApiError, createTopic, deleteTopic, type TopicInput, updateTopic } from '@/app/lib/api.server';
+import {
+  ApiError,
+  createTopic,
+  deleteTopic,
+  deleteTopicCategory,
+  renameTopicCategory,
+  type TopicInput,
+  updateTopic,
+} from '@/app/lib/api.server';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -10,6 +18,7 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
     .toLowerCase();
   const name = String(form.get('name') ?? '').trim();
   const description = String(form.get('description') ?? '').trim();
+  const category = String(form.get('category') ?? '').trim();
   if (!name) return { ok: false, error: 'Give the topic a name.' };
   if (!slug || slug.length > 64 || !SLUG_PATTERN.test(slug)) {
     return { ok: false, error: 'Slugs are lowercase letters, numbers and single hyphens.' };
@@ -30,6 +39,7 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
       slug,
       name,
       description: description || undefined,
+      category: category || null,
       channels,
       defaultOptedIn: form.get('defaultOptedIn') === 'true',
       channelDefaults,
@@ -43,6 +53,16 @@ export async function topicsAction(args: ActionFunctionArgs) {
 
   try {
     switch (intent) {
+      case 'renameCategory': {
+        const name = String(form.get('name') ?? '').trim();
+        if (!name) return { error: 'Give the category a name.' };
+        await renameTopicCategory(ctx, token, slug, tenant, String(form.get('id')), name);
+        return { ok: `Renamed to “${name}”` };
+      }
+      case 'deleteCategory': {
+        await deleteTopicCategory(ctx, token, slug, tenant, String(form.get('id')));
+        return { ok: 'Category deleted' };
+      }
       case 'create': {
         const topic = readTopic(form);
         if (!topic.ok) return { error: topic.error };

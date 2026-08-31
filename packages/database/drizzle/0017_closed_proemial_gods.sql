@@ -1,0 +1,1 @@
+ALTER TABLE "topic" DROP COLUMN "category";

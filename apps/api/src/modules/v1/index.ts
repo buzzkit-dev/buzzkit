@@ -2,6 +2,7 @@ import { response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 import { clientEvents } from './client/events';
 import { clientIdentify } from './client/identify';
+import { clientLiveActivities } from './client/live-activities';
 import { clientPreferences } from './client/preferences';
 import { clientSubscriptions } from './client/subscriptions';
 import { credentials } from './credentials';
@@ -17,6 +18,7 @@ import { eventVolume } from './events/volume';
 import { health } from './health';
 import { invitePreview } from './invites/[token]';
 import { inviteAccept } from './invites/[token]/accept';
+import { liveActivities } from './live-activities';
 import { messages } from './messages';
 import { message } from './messages/[id]';
 import { messageCancel } from './messages/[id]/cancel';
@@ -49,6 +51,7 @@ import { tenants } from './tenants';
 import { tenant } from './tenants/[tenantSlug]';
 import { tenantIdentitySecret } from './tenants/[tenantSlug]/identity-secret';
 import { tenantIdentitySecretRotate } from './tenants/[tenantSlug]/identity-secret/rotate';
+import { topicCategories } from './topic-categories';
 import { topics } from './topics';
 import { topic } from './topics/[topicSlug]';
 import { workflows } from './workflows';
@@ -264,6 +267,10 @@ export const v1 = new Elysia({ prefix: '/v1' })
    */
   .use(topics)
   /*
+   * /v1/topic-categories
+   */
+  .use(topicCategories)
+  /*
    * /v1/topics/:topicSlug
    */
   .use(topic)
@@ -382,4 +389,12 @@ export const v1 = new Elysia({ prefix: '/v1' })
   /*
    * /v1/client/events
    */
-  .use(clientEvents);
+  .use(clientEvents)
+  /*
+   * /v1/client/live-activities
+   */
+  .use(clientLiveActivities)
+  /*
+   * /v1/live-activities/send
+   */
+  .use(liveActivities);

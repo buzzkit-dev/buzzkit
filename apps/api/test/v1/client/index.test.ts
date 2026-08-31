@@ -118,6 +118,46 @@ describe('client keys', () => {
   });
 });
 
+describe('client identify attributes', () => {
+  it('merges custom attributes across identifies and keeps system attributes', async () => {
+    const { clientBearer } = await setupClient();
+    const externalId = `user_${uniq()}`;
+
+    const first = await api<{ attributes: Record<string, unknown> }>('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId, attributes: { plan: 'trial', streak: 3 } }),
+    });
+    expect(first.status).toBe(201);
+    expect(first.body.data?.attributes.plan).toBe('trial');
+    expect(first.body.data?.attributes.streak).toBe(3);
+
+    const second = await api<{ attributes: Record<string, unknown> }>('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId, attributes: { plan: 'pro' } }),
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.data?.attributes.plan).toBe('pro');
+    expect(second.body.data?.attributes.streak).toBe(3);
+  });
+
+  it('refuses $ attributes from the device', async () => {
+    const { clientBearer } = await setupClient();
+
+    const response = await api('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({
+        externalId: `user_${uniq()}`,
+        attributes: { $country: 'DE' },
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.error?.param).toBe('attributes');
+  });
+});
+
 describe('client key boundaries', () => {
   it('refuses a buzzkit-tenant header naming another tenant, accepts its own', async () => {
     const { clientBearer, keyBearer } = await setupClient();
