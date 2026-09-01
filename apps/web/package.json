@@ -8,7 +8,7 @@
     "build": "react-router build",
     "deploy": "bun run build && wrangler deploy",
     "preview": "bun run build && vite preview",
-    "cf-typegen": "wrangler types && react-router typegen",
+    "cf-typegen": "[ -f .dev.vars ] || cp .dev.vars.example .dev.vars; wrangler types && react-router typegen",
     "check-types": "bun run cf-typegen && tsc --noEmit",
     "test": "vitest run"
   },
