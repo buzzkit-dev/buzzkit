@@ -1,5 +1,5 @@
 import { listEventNames } from '@buzzkit/api/api/events/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -10,7 +10,6 @@ export const eventNames = new Elysia()
     '/events/names',
     async ({ tenant }) => {
       const names = await listEventNames(tenant.id);
-
       return Response.list(names).send();
     },
     { tenant: 'events:read' }

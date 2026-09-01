@@ -1,4 +1,4 @@
-import { localInstant } from '@buzzkit/api/libs/timezone';
+import { localInstant, parseWallTime } from '@buzzkit/api/libs/timezone';
 import { DEFAULT_TIMEZONE, isTimezone, SUBSCRIBER_TIMEZONE } from '@buzzkit/schema/workflows';
 import type { Expression } from 'buzzkit/expressions';
 
@@ -13,14 +13,15 @@ let zones: string[] | null = null;
 function wallParts(wall: string): [number, number, number, number, number] {
   const [datePart, timePart] = wall.split('T');
   const [year, month, day] = (datePart ?? '').split('-').map(Number);
-  const [hour, minute] = (timePart ?? '').split(':').map(Number);
-  return [year ?? 0, month ?? 1, day ?? 1, hour ?? 0, minute ?? 0];
+  const { hour, minute } = parseWallTime(timePart ?? '');
+  return [year ?? 0, month ?? 1, day ?? 1, hour, minute];
 }
 
 export function isWallClock(wall: string): boolean {
   if (!WALL_CLOCK_PATTERN.test(wall)) return false;
   const [year, month, day, hour, minute] = wallParts(wall);
   const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+
   return (
     !Number.isNaN(date.getTime()) &&
     date.getUTCFullYear() === year &&
@@ -59,8 +60,8 @@ export function isKnownTimezone(timezone: string): boolean {
   return followsSubscriber(timezone) || isTimezone(timezone);
 }
 
-export function timezoneScoped(expression: Expression, zones: string[], fallback: string): Expression {
-  const inZones: Expression = { ref: 'attributes.$timezone', in: zones };
+export function timezoneScoped(expression: Expression, allowedZones: string[], fallback: string): Expression {
+  const inZones: Expression = { ref: 'attributes.$timezone', in: allowedZones };
   const unknownZone: Expression = { ref: 'attributes.$timezone', exists: false };
-  return { all: [expression, zones.includes(fallback) ? { any: [inZones, unknownZone] } : inZones] };
+  return { all: [expression, allowedZones.includes(fallback) ? { any: [inZones, unknownZone] } : inZones] };
 }

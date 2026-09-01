@@ -6,7 +6,7 @@ import {
   serializeMember,
   updateMemberRole,
 } from '@buzzkit/api/api/members/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { MemberRoleSchema } from '@buzzkit/api/libs/schemas';
 import { requireScope } from '@buzzkit/api/libs/scopes';
@@ -18,9 +18,8 @@ export const member = new Elysia()
   .get(
     '/workspaces/:workspaceSlug/members/:id',
     async ({ db, params, workspace }) => {
-      const member = await findMemberWithUser(db, workspace.id, params.id);
-
-      return Response.success(member, { entity: 'member' }).send();
+      const target = await findMemberWithUser(db, workspace.id, params.id);
+      return Response.success(target, { entity: 'member' }).send();
     },
     { scope: 'members:read' }
   )

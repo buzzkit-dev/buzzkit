@@ -5,8 +5,8 @@ import {
   buildStreamPayload,
   resolveWebhookScope,
   WEBHOOK_API_VERSION,
-  type WebhookScope,
 } from '@buzzkit/api/api/webhooks/payload';
+import type { WebhookScope } from '@buzzkit/api/api/webhooks/types';
 import { encodeId, s } from '@buzzkit/api/libs/sqids';
 import { type Db, tables } from '@buzzkit/database';
 import { describe, expect, it, vi } from 'vitest';

@@ -66,7 +66,7 @@ function TenantDialog({
   const valid = name.trim().length > 0 && slugValue.length > 0;
   const save = () => {
     if (!valid || pending) return;
-    submit(tenant ? 'update' : 'create', {
+    void submit(tenant ? 'update' : 'create', {
       ...(tenant ? { tenant: tenant.slug } : {}),
       name: name.trim(),
       slug: slugLocked ? tenant!.slug : slugValue,

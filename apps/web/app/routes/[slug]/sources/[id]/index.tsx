@@ -446,7 +446,7 @@ function MappingEditor({
     area.setSelectionRange(start, start + (lines[line - 1]?.length ?? 0));
   };
   return (
-    <div className='flex flex-col gap-3 px-4 pb-4 pt-3'>
+    <div className='flex flex-col gap-3 px-4 pt-3 pb-4'>
       <Textarea
         ref={areaRef}
         value={text}
@@ -455,7 +455,7 @@ function MappingEditor({
         spellCheck={false}
         aria-label='Mapping'
         aria-invalid={result.syntax || result.problems.length > 0 ? true : undefined}
-        className='font-mono text-xs'
+        className='text-xs'
       />
       {result.syntax ? (
         <button
@@ -625,7 +625,7 @@ function DeliveryRow({
         </TableCell>
       </TableRow>
       <TableDetail open={expanded} colSpan={5}>
-        <div className='flex flex-col gap-3 px-4 pb-4 pt-3'>
+        <div className='flex flex-col gap-3 px-4 pt-3 pb-4'>
           <div className='flex items-center justify-between gap-3'>
             <span className='text-fg-2 text-sm'>{delivery.detail ?? 'Turned into an event.'}</span>
             <span className='flex shrink-0 gap-2'>
@@ -877,7 +877,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
   const applyPreset = () => {
     const preset = SOURCE_PRESETS[setupAs as keyof typeof SOURCE_PRESETS];
     if (!preset) return;
-    submitPreset('update', {
+    void submitPreset('update', {
       id: source.id,
       provider: preset.provider,
       verification: JSON.stringify(preset.verification),
@@ -912,7 +912,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
   useEffect(() => {
     if (parsedSample.kind !== 'parsed') return;
     const timer = setTimeout(() => {
-      previewFetcher.submit(
+      void previewFetcher.submit(
         {
           intent: 'preview',
           id: source.id,
@@ -1058,7 +1058,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
                       aria-label='Sample payload'
                       aria-invalid={parsedSample.kind === 'syntax' ? true : undefined}
                       placeholder='{ "type": "…" }'
-                      className='min-h-0 flex-1 font-mono text-xs'
+                      className='min-h-0 flex-1 text-xs'
                     />
                   </div>
                   <div className='min-w-0 self-start rounded-xl border border-bg-3 bg-bg-2/60 p-3'>
@@ -1282,7 +1282,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
               disabled={pending}
               onClick={() => {
                 setPauseOpen(false);
-                submit('pause', { id: source.id });
+                void submit('pause', { id: source.id });
               }}
             >
               Pause source

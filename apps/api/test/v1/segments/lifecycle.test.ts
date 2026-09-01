@@ -101,7 +101,7 @@ async function send(headers: Headers, input: Record<string, unknown>) {
       );
       return message.body.data?.status === 'completed' ? message.body.data : undefined;
     },
-    { label: 'message completed', timeoutMs: 60_000, intervalMs: 250 }
+    { label: 'message completed', timeoutMs: 120_000, intervalMs: 250 }
   );
 }
 

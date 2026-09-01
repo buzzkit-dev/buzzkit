@@ -7,6 +7,7 @@ import {
   listUnfinalizedMessages,
 } from '@buzzkit/api/api/deliveries/index';
 import { enqueueDeliveries, enqueueFanout, listStalledFanouts } from '@buzzkit/api/api/messages/index';
+import { drain } from '@buzzkit/api/utils/drain';
 import type { Db } from '@buzzkit/database';
 import { sweep } from './sweep';
 
@@ -18,40 +19,25 @@ export async function reconcileDeliveries(): Promise<void> {
   await sweep('reconcile', reconcile);
 }
 
-async function drain<T>(
-  list: (db: Db, limit: number) => Promise<T[]>,
-  db: Db,
-  handle: (rows: T[]) => Promise<void>
-) {
-  let total = 0;
-  for (let round = 0; round < SWEEP_ROUNDS; round++) {
-    const rows = await list(db, SWEEP_LIMIT);
-    if (rows.length === 0) break;
-    await handle(rows);
-    total += rows.length;
-    if (rows.length < SWEEP_LIMIT) break;
-  }
-  return total;
-}
+const SWEEP_OPTIONS = { limit: SWEEP_LIMIT, rounds: SWEEP_ROUNDS };
 
 async function reconcile(db: Db): Promise<Record<string, number>> {
-  const dueRetries = await drain(listDueRetries, db, (rows) =>
-    enqueueDeliveries(rows.map((row) => ({ deliveryId: row.id, attempt: row.attempts + 1 })))
-  );
-  const stale = await drain(listStaleUnsettled, db, (rows) =>
-    enqueueDeliveries(rows.map((row) => ({ deliveryId: row.id, attempt: row.attempts + 1 })))
-  );
+  const enqueueRetries = (rows: Array<{ id: number; attempts: number }>) =>
+    enqueueDeliveries(rows.map((row) => ({ deliveryId: row.id, attempt: row.attempts + 1 })));
 
-  let expiredMessages = 0;
-  for (let round = 0; round < SWEEP_ROUNDS; round++) {
-    const expired = await expireOverdueDeliveries(db, SWEEP_LIMIT);
-    if (expired.size === 0) break;
-    for (const [messageId, count] of expired) {
-      await applyMessageCounters(db, messageId, { sent: 0, failed: count, invalid: 0 });
-      await finalizeMessageIfComplete(db, messageId);
-    }
-    expiredMessages += expired.size;
-  }
+  const dueRetries = await drain((limit) => listDueRetries(db, limit), enqueueRetries, SWEEP_OPTIONS);
+  const stale = await drain((limit) => listStaleUnsettled(db, limit), enqueueRetries, SWEEP_OPTIONS);
+
+  const expiredMessages = await drain(
+    async (limit) => [...(await expireOverdueDeliveries(db, limit))],
+    async (expired) => {
+      for (const [messageId, count] of expired) {
+        await applyMessageCounters(db, messageId, { sent: 0, failed: count, invalid: 0 });
+        await finalizeMessageIfComplete(db, messageId);
+      }
+    },
+    SWEEP_OPTIONS
+  );
 
   const stalled = await listStalledFanouts(db, SWEEP_LIMIT);
   for (const row of stalled) {

@@ -1,7 +1,6 @@
 import {
   assertTenantMetadataSize,
   assertTenantSlugAvailable,
-  countTenants,
   createTenant,
   listTenants,
   serializeTenant,
@@ -9,10 +8,9 @@ import {
   TenantNameSchema,
   TenantSlugSchema,
 } from '@buzzkit/api/api/tenants/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const tenants = new Elysia()
@@ -21,25 +19,12 @@ export const tenants = new Elysia()
   .get(
     '/tenants',
     async ({ db, query, workspace }) => {
-      const limit = clampLimit(query.limit);
-      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('tenant', id));
-
-      const [rows, total] = await Promise.all([
-        listTenants(db, workspace.id, { limit, beforeId }),
-        countTenants(db, workspace.id),
-      ]);
-
-      const page = toPage(rows, limit, (id) => encodeId('tenant', id));
-
-      return Response.success(page.items.map(serializeTenant), { entity: 'tenant' })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
-        .send();
+      const page = await listTenants(db, workspace.id, query);
+      return Response.page(page, { entity: 'tenant' }).send();
     },
     {
       scope: 'tenants:read',
-      query: t.Object({
-        ...PaginationQuerySchema.properties,
-      }),
+      query: PaginationQuerySchema,
     }
   )
   .post(

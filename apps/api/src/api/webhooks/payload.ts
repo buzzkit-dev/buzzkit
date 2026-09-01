@@ -24,14 +24,16 @@ export async function resolveWebhookScope(
     .from(tables.workspace)
     .where(eq(tables.workspace.id, workspaceId));
   if (!workspace) return null;
-  const [tenant] =
-    tenantId === null
-      ? []
-      : await db
-          .select({ id: tables.tenant.id, slug: tables.tenant.slug, name: tables.tenant.name })
-          .from(tables.tenant)
-          .where(eq(tables.tenant.id, tenantId));
-  return { workspace, tenant: tenant ?? null };
+  let tenant: { id: number; slug: string; name: string } | null = null;
+  if (tenantId !== null) {
+    const [row] = await db
+      .select({ id: tables.tenant.id, slug: tables.tenant.slug, name: tables.tenant.name })
+      .from(tables.tenant)
+      .where(eq(tables.tenant.id, tenantId));
+    tenant = row ?? null;
+  }
+
+  return { workspace, tenant };
 }
 
 function scopeFields(scope: WebhookScope) {
@@ -44,6 +46,7 @@ function scopeFields(scope: WebhookScope) {
 export async function buildAuditPayload(db: Db, row: AuditRow, scope: WebhookScope): Promise<WebhookPayload> {
   const data = ((row.data as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
   const targetEntity = row.targetType ? TARGET_ENTITIES[row.targetType] : undefined;
+
   return {
     id: null,
     type: row.event,
@@ -115,14 +118,15 @@ async function resolveTargetObject(db: Db, row: AuditRow): Promise<Record<string
       return record ? transformIds(serializeCredential(record), ['details'], [], 'credential') : null;
     }
     case 'topic': {
-      const [row] = await db
+      const [joined] = await db
         .select({ record: tables.topic, category: tables.topicCategory.name })
         .from(tables.topic)
         .leftJoin(tables.topicCategory, eq(tables.topic.categoryId, tables.topicCategory.id))
         .where(eq(tables.topic.id, id));
-      return row
+
+      return joined
         ? transformIds(
-            serializeTopic({ ...row.record, category: row.category }),
+            serializeTopic({ ...joined.record, category: joined.category }),
             ['channelDefaults'],
             [],
             'topic'

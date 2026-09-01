@@ -4,7 +4,7 @@ import {
   listSegments,
   serializeSegment,
 } from '@buzzkit/api/api/segments/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -26,14 +26,12 @@ export const segments = new Elysia()
     '/segments',
     async ({ audit, body, db, set, tenant }) => {
       const segment = await createSegment(db, tenant.id, body);
-
       await audit({
         event: 'segment.created',
         tenantId: tenant.id,
         target: { type: 'segment', id: segment.id },
         data: { slug: segment.slug, name: segment.name },
       });
-
       return Response.success(serializeSegment(segment, segment.version), { ignoreTransform: ['expression'] })
         .status(201)
         .send(set);

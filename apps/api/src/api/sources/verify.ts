@@ -50,6 +50,7 @@ async function verifyStripe(
     };
   }
   const expected = await hmacHex(secret, `${timestamp}.${body}`);
+
   return presented.some((signature) => constantTimeEqual(signature, expected))
     ? null
     : { reason: 'invalid_signature', detail: 'The signature does not match the secret' };
@@ -88,13 +89,14 @@ export async function verifyDelivery(
   now = Math.floor(Date.now() / 1000)
 ): Promise<Rejection | null> {
   if (verification.scheme === 'stripe') {
-    return verifyStripe(body, headers, verification.header ?? 'stripe-signature', secret, now);
+    return await verifyStripe(body, headers, verification.header ?? 'stripe-signature', secret, now);
   }
   if (verification.scheme === 'standard-webhooks') {
-    return verifyStandard(body, headers, verification.headers, secret, now);
+    return await verifyStandard(body, headers, verification.headers, secret, now);
   }
   const presented = header(headers, verification.header);
   if (!presented) return { reason: 'missing_headers', detail: `No ${verification.header} header` };
+
   return constantTimeEqual(presented, secret)
     ? null
     : { reason: 'invalid_signature', detail: `${verification.header} does not match the secret` };

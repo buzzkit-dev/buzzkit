@@ -79,7 +79,7 @@ describe('advanceRuns', () => {
 
     const runId = runIdFor(identity, 'wf_trial', 4);
     expect(outcome).toEqual({ started: [runId], canceled: [], delivered: [] });
-    expect(store.findRun(runId)).toMatchObject({
+    expect(store.selectRun(runId)).toMatchObject({
       status: 'running',
       workflow_slug: 'trial',
       version_id: 'wfv_1',
@@ -174,7 +174,7 @@ describe('advanceRuns', () => {
     const runId = runIdFor(identity, 'wf_trial', 1);
     expect(canceled.canceled).toEqual([runId]);
     expect(hooks.terminateRun).toHaveBeenCalledWith(runId);
-    expect(store.findRun(runId)?.status).toBe('canceled');
+    expect(store.selectRun(runId)?.status).toBe('canceled');
     expect(runEvents(store)).toEqual(['$run.started:', '$run.canceled:cancelOn:subscription.started']);
 
     await advanceRuns(

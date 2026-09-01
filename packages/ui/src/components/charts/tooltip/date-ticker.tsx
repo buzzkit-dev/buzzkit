@@ -13,7 +13,7 @@ export interface DateTickerProps {
   visible: boolean;
 }
 
-const DateTickerCompact = memo(function DateTickerCompact({
+const DateTickerCompact = memo(function DateTickerCompactBase({
   currentIndex,
   labels,
 }: Omit<DateTickerProps, 'visible'>) {
@@ -28,7 +28,7 @@ const DateTickerCompact = memo(function DateTickerCompact({
   );
 });
 
-const DateTickerInner = memo(function DateTickerInner({
+const DateTickerInner = memo(function DateTickerInnerBase({
   currentIndex,
   labels,
 }: Omit<DateTickerProps, 'visible'>) {
@@ -136,5 +136,3 @@ export function DateTicker({ currentIndex, labels, visible }: DateTickerProps) {
 }
 
 DateTicker.displayName = 'DateTicker';
-
-export default DateTicker;

@@ -99,8 +99,13 @@ describe('workflows CRUD', () => {
       'trial.started',
     ]);
 
-    const empty = await api(`/v1/workflows/${slug}`, { method: 'PATCH', headers: keyBearer, body: '{}' });
-    expect(empty.status).toBe(400);
+    const empty = await api<WorkflowBody>(`/v1/workflows/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: '{}',
+    });
+    expect(empty.status).toBe(200);
+    expect(empty.body.data?.slug).toBe(slug);
 
     const deleted = await api<WorkflowBody>(`/v1/workflows/${slug}`, {
       method: 'DELETE',
@@ -247,7 +252,7 @@ describe('workflow runs', () => {
 
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
-      { label: 'run completed', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'run completed', timeoutMs: 120_000, intervalMs: 500 }
     );
     expect(await sentTitles(keyBearer)).toEqual(['Your trial is canceled', 'Thanks Ada']);
     const events = await runEvents(keyBearer, user);
@@ -373,12 +378,15 @@ describe('workflow runs', () => {
       { headers: keyBearer }
     );
     expect(run.body.data).toMatchObject({ status: 'failed', step: 'notify', summary: 'Topic not found' });
-    expect((await runEvents(keyBearer, user)).map((item) => item.name)).toEqual([
+    const events = await runEvents(keyBearer, user);
+    expect(events.map((item) => item.name)).toEqual([
       '$run.started',
+      '$run.step',
       '$run.step',
       '$run.step',
       '$run.failed',
     ]);
+    expect(events[3]!.data).toMatchObject({ step: 'notify', status: 'failed' });
   }, 60_000);
 
   it('ends the run from an exit inside a branch and skips the steps after the branch', async () => {
@@ -413,7 +421,7 @@ describe('workflow runs', () => {
       async () =>
         (await runEvents(keyBearer, paid)).some((item) => item.name === '$run.completed') &&
         (await runEvents(keyBearer, open)).some((item) => item.name === '$run.completed'),
-      { label: 'both runs completed', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'both runs completed', timeoutMs: 120_000, intervalMs: 500 }
     );
     const steps = async (user: string) =>
       (await runEvents(keyBearer, user))

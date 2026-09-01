@@ -25,7 +25,7 @@ export async function flushEvents(
       outcome.retryScheduled = true;
       break;
     }
-    store.advanceFlushedSequence(batch[batch.length - 1]!.sequence);
+    store.advanceFlushedSequence(batch.at(-1)!.sequence);
     outcome.flushed += batch.length;
     outcome.batches += 1;
     batch = batch.length < options.batchRows ? [] : store.listUnflushed(options.batchRows);
@@ -34,5 +34,6 @@ export async function flushEvents(
   if (!outcome.retryScheduled) {
     outcome.pruned = store.prune(options.retainedRows);
   }
+
   return outcome;
 }

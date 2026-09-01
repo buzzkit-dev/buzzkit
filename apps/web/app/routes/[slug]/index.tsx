@@ -279,7 +279,7 @@ function PeriodChart({
     <AreaChart
       data={data}
       xDataKey='date'
-      xDomain={[data[0]!.date, data[data.length - 1]!.date]}
+      xDomain={[data[0]!.date, data.at(-1)!.date]}
       margin={{ top: 12, right: 24, bottom: 28, left: 24 }}
       aspectRatio='auto'
       animationDuration={700}
@@ -319,6 +319,8 @@ const DELIVERY_LINES: Line[] = [
   { key: 'sent', label: 'Sent', tone: 'green', pick: (day) => day.sent },
   { key: 'failed', label: 'Failed', tone: 'red', pick: (day) => day.failed + day.invalid },
 ];
+
+const CAPPED_LINE: Line = { key: 'capped', label: 'Capped', tone: 'amber', pick: (day) => day.capped };
 
 const EVENT_LINES: Line[] = [{ key: 'events', label: 'Events', tone: 'amber', pick: (day) => day.events }];
 
@@ -444,6 +446,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
 
   const delivered = stats.deliveries.sent;
   const failed = stats.deliveries.failed + stats.deliveries.invalid;
+  const deliveryLines = stats.deliveries.capped > 0 ? [...DELIVERY_LINES, CAPPED_LINE] : DELIVERY_LINES;
   const points = (pick: (day: Stats['series'][number]) => number) =>
     stats.series.map((day) => ({ date: dayOf(day.date), value: pick(day) }));
   let running = 0;
@@ -573,6 +576,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
             <CardAction className='gap-3'>
               <Key tone='green'>Sent</Key>
               <Key tone='red'>Failed</Key>
+              {stats.deliveries.capped > 0 && <Key tone='amber'>Capped</Key>}
             </CardAction>
           )}
         </CardHeader>
@@ -586,7 +590,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           />
         ) : (
           <CardContent className='pt-1 pb-3'>
-            <PeriodChart series={stats.series} interval={stats.interval} lines={DELIVERY_LINES} />
+            <PeriodChart series={stats.series} interval={stats.interval} lines={deliveryLines} />
           </CardContent>
         )}
       </Card>

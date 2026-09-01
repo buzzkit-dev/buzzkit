@@ -4,7 +4,7 @@ import {
   listSources,
   serializeSource,
 } from '@buzzkit/api/api/sources/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import Elysia from 'elysia';
@@ -16,12 +16,8 @@ export const sources = new Elysia()
     '/sources',
     async ({ db, tenant }) => {
       const rows = await listSources(db, tenant.id);
-      return Response.success(
-        rows.map((row) => serializeSource(row, encodeId('source', row.id))),
-        { entity: 'source' }
-      )
-        .paginated({ hasMore: false, nextCursor: null, total: rows.length })
-        .send();
+      const items = rows.map((row) => serializeSource(row, encodeId('source', row.id)));
+      return Response.list(items, { entity: 'source', total: rows.length }).send();
     },
     { tenant: 'sources:read' }
   )
@@ -36,6 +32,7 @@ export const sources = new Elysia()
         data: { name: created.name, provider: created.provider },
       });
       set.status = 201;
+
       return Response.success(serializeSource(created, encodeId('source', created.id)), {
         entity: 'source',
       }).send();

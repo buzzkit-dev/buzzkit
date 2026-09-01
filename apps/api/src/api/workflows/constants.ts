@@ -4,9 +4,13 @@ export const WORKFLOW_STATUSES = workflowStatus.enumValues;
 
 export const WORKFLOW_RESERVED_SLUGS = new Set(['new']);
 
-export const DEFINITIONS_KEY_PREFIX = 'defs:';
+export function definitionsKey(tenantId: number): string {
+  return `defs:${tenantId}`;
+}
 
-export const DEFINITIONS_VERSION_KEY_PREFIX = 'defs-version:';
+export function definitionsVersionKey(tenantId: number): string {
+  return `defs-version:${tenantId}`;
+}
 
 export const SCHEDULE_LOOKBACK_MS = 10 * 60_000;
 

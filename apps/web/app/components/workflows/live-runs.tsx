@@ -24,7 +24,7 @@ export function LiveRuns({ runs }: { runs: LiveCounts }) {
                 <NumberFlow
                   value={runs[status]}
                   className={cn(
-                    'text-sm leading-none tabular-nums',
+                    'text-sm tabular-nums leading-none',
                     runs[status] === 0 ? 'text-fg-1' : 'font-medium text-fg-4'
                   )}
                 />

@@ -77,10 +77,10 @@ describe('acceptEvent', () => {
 
   it('stores an empty idempotency key as NULL, invisible to the key lookup', () => {
     const { store } = createActorStore();
-    const findByIdempotencyKey = vi.spyOn(store, 'findByIdempotencyKey');
+    const selectByIdempotencyKey = vi.spyOn(store, 'selectByIdempotencyKey');
     acceptEvent(store, event({ id: 'evt_1', idempotencyKey: '' }));
-    expect(findByIdempotencyKey).not.toHaveBeenCalled();
-    expect(store.findByIdempotencyKey('')).toBeNull();
+    expect(selectByIdempotencyKey).not.toHaveBeenCalled();
+    expect(store.selectByIdempotencyKey('')).toBeNull();
     expect(store.listRecent(1)[0]!.idempotency_key).toBeNull();
   });
 
@@ -132,9 +132,9 @@ describe('acceptEvent', () => {
 
   it('does not look up the key when it is null', () => {
     const { store } = createActorStore();
-    const findByIdempotencyKey = vi.spyOn(store, 'findByIdempotencyKey');
+    const selectByIdempotencyKey = vi.spyOn(store, 'selectByIdempotencyKey');
     acceptEvent(store, event({ id: 'evt_1' }));
-    expect(findByIdempotencyKey).not.toHaveBeenCalled();
+    expect(selectByIdempotencyKey).not.toHaveBeenCalled();
   });
 
   it('propagates a duplicate event id as a store error', () => {

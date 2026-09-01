@@ -15,19 +15,22 @@ export async function createEventsToken(tenantId: number): Promise<EventsToken &
   }
 
   const expiresAt = new Date(Date.now() + EVENTS_TOKEN_TTL_SECONDS * 1000);
-  const token = await trace('events.createToken', async () =>
-    signTinybirdJwt({
+  const token = await trace('events.createToken', async () => {
+    return await signTinybirdJwt({
       name: `dashboard_tenant_${tenantId}`,
       expiresAt,
-      scopes: DASHBOARD_ENDPOINTS.map((resource) => ({
-        type: 'PIPES:READ' as const,
-        resource,
-        fixed_params: { tenant_id: tenantId },
-      })),
+      scopes: DASHBOARD_ENDPOINTS.map((resource) => {
+        return {
+          type: 'PIPES:READ' as const,
+          resource,
+          fixed_params: { tenant_id: tenantId },
+        };
+      }),
       limits: { rps: EVENTS_TOKEN_RPS },
-    })
-  );
+    });
+  });
   const minted = { token, expiresAt: expiresAt.toISOString() };
   await writeCache(env.AUTH_CACHE, cacheKey, minted, EVENTS_TOKEN_TTL_SECONDS - 10 * 60);
+
   return { ...minted, url: env.TINYBIRD_URL };
 }

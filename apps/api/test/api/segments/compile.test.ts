@@ -17,8 +17,8 @@ function invalid(expression: Expression): InstanceType<typeof BadRequestError> {
   let thrown: unknown;
   try {
     compileSegment(tenantId, expression);
-  } catch (error) {
-    thrown = error;
+  } catch (caught) {
+    thrown = caught;
   }
   expect(thrown).toBeInstanceOf(BadRequestError);
   const error = thrown as InstanceType<typeof BadRequestError>;

@@ -1,7 +1,7 @@
 import {
   type Duration,
   describeDuration,
-  durationSeconds,
+  durationMs,
   type EventMatcher,
   type WaitForStep,
 } from '@buzzkit/schema/workflows';
@@ -19,6 +19,7 @@ type Settled = {
 
 function waitedMatchers(waitFor: WaitForStep['waitFor']): EventMatcher[] {
   if (waitFor.events !== undefined) return waitFor.events;
+
   return [
     { event: waitFor.event as string, ...(waitFor.where !== undefined ? { where: waitFor.where } : {}) },
   ];
@@ -49,19 +50,21 @@ async function settle(
   deadline: number
 ): Promise<WaitPayload | null | false> {
   const { name, waitFor } = current;
-  const settleMs = durationSeconds(waitFor.settleFor as Duration) * 1000;
+  const settleMs = durationMs(waitFor.settleFor as Duration);
   const resetOn = resetEventNames(waitFor);
   const waitedEvent = (waitFor.event ?? waitedMatchers(waitFor)[0]?.event) as string;
   let latest = first;
   for (let round = 0; round < MAX_SETTLE_ROUNDS; round += 1) {
     const suffix = round === 0 ? '' : `:${round}`;
-    const since = latest
-      ? latest.timestamp
-      : await context.do(`${name}:since${suffix}`, async () => {
-          const actor = await context.actor();
-          return await actor.quietSince(waitedEvent, resetOn);
-        });
-    if (since === null) {
+    if (!latest) {
+      latest = (await context.do(`${name}:since${suffix}`, async () => {
+        const actor = await context.actor();
+        const anchor = await actor.quietAnchor(waitedEvent, resetOn);
+        if (!anchor) return null;
+        return { name: anchor.name, dataJson: anchor.dataJson, timestamp: anchor.timestamp, id: anchor.id };
+      })) as WaitPayload | null;
+    }
+    if (!latest) {
       await context.do(`${name}:listen${suffix}`, async () => {
         const actor = await context.actor();
         await actor.registerWait(
@@ -78,9 +81,11 @@ async function settle(
       latest = arrived;
       continue;
     }
-    const remaining = Math.min(Date.parse(since) + settleMs - context.now(), deadline - context.now());
-    if (remaining <= 0)
-      return deadline - context.now() <= 0 && Date.parse(since) + settleMs > context.now() ? null : latest;
+    const since = Date.parse(latest.timestamp);
+    const remaining = Math.min(since + settleMs - context.now(), deadline - context.now());
+    if (remaining <= 0) {
+      return deadline - context.now() <= 0 && since + settleMs > context.now() ? null : latest;
+    }
     await context.do(`${name}:watch${suffix}`, async () => {
       const actor = await context.actor();
       const expiresAt = new Date(context.now() + remaining).toISOString();
@@ -93,6 +98,7 @@ async function settle(
     if (!reset) return deadline - context.now() <= 0 ? null : latest;
     latest = null;
   }
+
   return false;
 }
 
@@ -119,11 +125,7 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
     await context.report(name, 'waiting', `Waiting for ${waited}${settling}`, { until: expiresAt });
     await context.sleep(
       `${name}:assumed`,
-      outcome
-        ? waitFor.settleFor
-          ? durationSeconds(waitFor.settleFor as Duration) * 1000
-          : 0
-        : deadline - context.now()
+      outcome ? (waitFor.settleFor ? durationMs(waitFor.settleFor as Duration) : 0) : deadline - context.now()
     );
     await context.report(name, 'completed', received(outcome, waited, null), { matched: outcome !== null });
     context.state.steps[name] = {
@@ -132,6 +134,7 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
       event: outcome ? (matchers[0]?.event ?? null) : null,
       data: outcome ? (JSON.parse(outcome.dataJson) as Record<string, unknown>) : null,
     };
+
     return;
   }
 
@@ -159,13 +162,16 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
   const endedBy = outcome !== null && endNames.has(outcome.name) ? outcome.name : null;
   const matched = outcome !== null && endedBy === null;
 
-  const settled = (await context.do(`${name}:settle`, async () => {
+  const settled = (await context.do(`${name}:settle`, async (t) => {
     const actor = await context.actor();
     await actor.deregisterWait(context.params.runId, name);
+    t?.set('wait.matched', matched);
+    if (endedBy) t?.set('wait.ended_by', endedBy);
     await context.report(name, 'completed', received(outcome, waited, endedBy), {
       matched,
       ...(endedBy ? { endedBy } : {}),
     });
+
     return {
       at: new Date(context.now()).toISOString(),
       matched,

@@ -38,7 +38,7 @@ function children(nodes: unknown[]): ConditionTree[] {
   return nodes.map(whereTree).filter((tree): tree is ConditionTree => tree !== null);
 }
 
-export function triggerTree(spec: WorkflowSpec): ConditionTree {
+function triggerTree(spec: WorkflowSpec): ConditionTree {
   const { trigger } = spec;
   const where = whereTree(trigger.where);
   if ('schedule' in trigger) {
@@ -67,7 +67,7 @@ export function triggerTree(spec: WorkflowSpec): ConditionTree {
     match: 'all',
     children: [
       { kind: 'leaf', part: { kind: 'trigger', subject: '', operator: 'on', value: trigger.event } },
-      ...(trigger.sources?.length
+      ...(trigger.sources && trigger.sources.length > 0
         ? [
             {
               kind: 'leaf' as const,

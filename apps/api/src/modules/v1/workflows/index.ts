@@ -5,7 +5,7 @@ import {
   listWorkflows,
   serializeWorkflow,
 } from '@buzzkit/api/api/workflows/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import type { WorkflowSpec } from '@buzzkit/schema/workflows';
@@ -19,11 +19,11 @@ export const workflows = new Elysia()
     async ({ db, tenant }) => {
       const [rows, counts] = await Promise.all([listWorkflows(db, tenant.id), countLiveRuns(tenant.id)]);
       return Response.list(
-        rows.map((row) =>
-          serializeWorkflow(row, row.current, row.latest, {
+        rows.map((row) => {
+          return serializeWorkflow(row, row.current, row.latest, {
             runs: counts.get(encodeId('workflow', row.id)) ?? emptyRunCounts(),
-          })
-        ),
+          });
+        }),
         { ignoreTransform: ['spec', 'trigger', 'runs'] }
       ).send();
     },
@@ -33,14 +33,12 @@ export const workflows = new Elysia()
     '/workflows',
     async ({ audit, body, db, set, tenant }) => {
       const workflow = await createWorkflow(db, tenant.id, { ...body, spec: body.spec as WorkflowSpec });
-
       await audit({
         event: 'workflow.created',
         tenantId: tenant.id,
         target: { type: 'workflow', id: workflow.id },
         data: { slug: workflow.slug, name: workflow.name },
       });
-
       return Response.success(serializeWorkflow(workflow, workflow.current, workflow.latest), {
         ignoreTransform: ['spec', 'trigger'],
       })

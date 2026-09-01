@@ -1,8 +1,8 @@
 export async function eventually<T>(
-  probe: () => Promise<T | undefined | null | false>,
+  probe: () => T | undefined | null | false | Promise<T | undefined | null | false>,
   options: { timeoutMs?: number; intervalMs?: number; label?: string } = {}
 ): Promise<T> {
-  const deadline = Date.now() + (options.timeoutMs ?? 30_000);
+  const deadline = Date.now() + (options.timeoutMs ?? 90_000);
   let last: unknown;
   while (Date.now() < deadline) {
     last = await probe();

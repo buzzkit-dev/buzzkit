@@ -112,6 +112,7 @@ export function lintSourceMapping(raw: unknown): MappingProblem[] {
       report(['where', ...issue.path], issue.message);
     }
   }
+
   return problems;
 }
 
@@ -150,6 +151,7 @@ export function lintVerification(raw: unknown): MappingProblem[] {
       for (const key of ['id', 'timestamp', 'signature'] as const) header(['headers', key], raw.headers[key]);
     }
   }
+
   return problems;
 }
 

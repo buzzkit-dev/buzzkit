@@ -3,11 +3,9 @@ import {
   backoffSeconds,
   decide,
   ERROR_POLICY,
-  MAX_BACKOFF_SECONDS,
-  MAX_DELIVERY_ATTEMPTS,
+  MAX_PUSH_ATTEMPTS,
   OVERLOAD_PENALTY_SECONDS,
-  RETRY_JITTER_RATIO,
-  RETRY_SCHEDULE_SECONDS,
+  PUSH_RETRY_POLICY,
 } from '@buzzkit/api/api/deliveries/policy';
 import type { DeliveryErrorCode, ProviderSendResult } from '@buzzkit/api/providers/index';
 import { describe, expect, it } from 'vitest';
@@ -31,22 +29,22 @@ const success: ProviderSendResult = {
 };
 
 const within = (value: number, base: number) => {
-  expect(value).toBeGreaterThanOrEqual(Math.floor(base * (1 - RETRY_JITTER_RATIO)));
-  expect(value).toBeLessThanOrEqual(Math.ceil(base * (1 + RETRY_JITTER_RATIO)));
+  expect(value).toBeGreaterThanOrEqual(Math.floor(base * (1 - PUSH_RETRY_POLICY.jitterRatio)));
+  expect(value).toBeLessThanOrEqual(Math.ceil(base * (1 + PUSH_RETRY_POLICY.jitterRatio)));
 };
 
 describe('retry schedule', () => {
   it('is explicit, bounded, and lives inside the default 24h ttl', () => {
-    expect(RETRY_SCHEDULE_SECONDS).toEqual([5, 30, 120, 600, 1800, 3600, 7200]);
-    expect(MAX_DELIVERY_ATTEMPTS).toBe(8);
-    expect(RETRY_SCHEDULE_SECONDS.reduce((sum, s) => sum + s, 0)).toBeLessThan(24 * 60 * 60);
+    expect(PUSH_RETRY_POLICY.scheduleSeconds).toEqual([5, 30, 120, 600, 1800, 3600, 7200]);
+    expect(MAX_PUSH_ATTEMPTS).toBe(8);
+    expect(PUSH_RETRY_POLICY.scheduleSeconds.reduce((sum, s) => sum + s, 0)).toBeLessThan(24 * 60 * 60);
     expect(ATTEMPT_LEASE_SECONDS).toBeGreaterThanOrEqual(30);
   });
 
   it('follows the schedule per attempt with ±20% jitter', () => {
-    for (let attempt = 1; attempt <= RETRY_SCHEDULE_SECONDS.length; attempt++) {
+    for (let attempt = 1; attempt <= PUSH_RETRY_POLICY.scheduleSeconds.length; attempt++) {
       for (let i = 0; i < 50; i++) {
-        within(backoffSeconds(attempt, 'transport'), RETRY_SCHEDULE_SECONDS[attempt - 1]!);
+        within(backoffSeconds(attempt, 'transport'), PUSH_RETRY_POLICY.scheduleSeconds[attempt - 1]!);
       }
     }
     const spread = new Set(Array.from({ length: 200 }, () => backoffSeconds(3, 'transport')));
@@ -64,9 +62,9 @@ describe('retry schedule', () => {
   });
 
   it('caps at 24h (Cloudflare delaySeconds max) and clamps past the schedule end', () => {
-    expect(backoffSeconds(1, 'rate_limited', 10 * 24 * 60 * 60)).toBe(MAX_BACKOFF_SECONDS);
-    within(backoffSeconds(50, 'transport'), RETRY_SCHEDULE_SECONDS[RETRY_SCHEDULE_SECONDS.length - 1]!);
-    within(backoffSeconds(0, 'transport'), RETRY_SCHEDULE_SECONDS[0]!);
+    expect(backoffSeconds(1, 'rate_limited', 10 * 24 * 60 * 60)).toBe(PUSH_RETRY_POLICY.maxDelaySeconds);
+    within(backoffSeconds(50, 'transport'), PUSH_RETRY_POLICY.scheduleSeconds.at(-1)!);
+    within(backoffSeconds(0, 'transport'), PUSH_RETRY_POLICY.scheduleSeconds[0]!);
   });
 });
 
@@ -106,7 +104,7 @@ describe('decision matrix', () => {
     const transient: DeliveryErrorCode[] = ['rate_limited', 'provider_unavailable', 'transport', 'timeout'];
     for (const code of transient) {
       expect(ERROR_POLICY[code].retryable).toBe(true);
-      for (let attempt = 1; attempt < MAX_DELIVERY_ATTEMPTS; attempt++) {
+      for (let attempt = 1; attempt < MAX_PUSH_ATTEMPTS; attempt++) {
         const decision = decide(attempt, failure(code), now);
         expect(decision).toMatchObject({
           status: 'retrying',
@@ -117,7 +115,7 @@ describe('decision matrix', () => {
         });
         expect(decision.nextAttemptAt!.getTime()).toBeGreaterThan(now.getTime());
       }
-      expect(decide(MAX_DELIVERY_ATTEMPTS, failure(code), now)).toMatchObject({
+      expect(decide(MAX_PUSH_ATTEMPTS, failure(code), now)).toMatchObject({
         status: 'failed',
         outcome: 'failed',
         terminal: true,

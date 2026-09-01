@@ -37,7 +37,7 @@ describe('POST /v1/credentials (apns)', () => {
     expect(status).toBe(400);
     expect(body.error?.message).toContain('.p8');
 
-    const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
+    const list = await api<{ items: unknown[] }>('/v1/credentials', { headers: keyBearer });
     expect(list.body.data?.items).toHaveLength(0);
   });
 
@@ -88,7 +88,7 @@ describe('POST /v1/credentials (apns)', () => {
     await uploadApns(keyBearer);
     await uploadApns(keyBearer);
 
-    const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
+    const list = await api<{ items: unknown[] }>('/v1/credentials', { headers: keyBearer });
     expect(list.body.data?.items).toHaveLength(1);
   });
 });
@@ -400,7 +400,7 @@ describe('credential lifecycle', () => {
     const revoke = await api(`/v1/credentials/${credentialId}`, { method: 'DELETE', headers: keyBearer });
     expect(revoke.status).toBe(200);
 
-    const list = await api<unknown[]>('/v1/credentials', { headers: keyBearer });
+    const list = await api<{ items: unknown[] }>('/v1/credentials', { headers: keyBearer });
     expect(list.body.data?.items).toHaveLength(0);
 
     const events = await api<{ items: Array<{ event: string; targetId: string }> }>(

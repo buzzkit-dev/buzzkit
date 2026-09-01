@@ -43,7 +43,7 @@ async function collectPages(headers: Headers, externalId: string, limit: number)
       throw new Error(`timeline page failed: ${status} ${JSON.stringify(body)}`);
     pages.push(body.data);
     cursor = body.data.nextCursor;
-  } while (pages[pages.length - 1]?.hasMore);
+  } while (pages.at(-1)?.hasMore);
   return pages;
 }
 
@@ -150,7 +150,7 @@ describe('GET /v1/subscribers/:externalId/timeline', () => {
           headers: keyBearer,
         }
       );
-      return body.data?.items.length ? true : undefined;
+      return (body.data?.items.length ?? 0) > 0 ? true : undefined;
     });
 
     const foreign = await api(`/v1/subscribers/${externalId}/timeline`, {
@@ -176,16 +176,16 @@ describe('GET /v1/subscribers/:externalId/timeline — paging across the actor a
         const count = collected.reduce((sum, page) => sum + page.items.length, 0);
         return count === total ? collected : undefined;
       },
-      { timeoutMs: 60_000, label: 'every page of the timeline' }
+      { timeoutMs: 120_000, label: 'every page of the timeline' }
     );
 
     expect(pages).toHaveLength(6);
     expect(pages.map((page) => page.items.length)).toEqual([25, 25, 25, 25, 25, 10]);
     expect(pages.map((page) => page.hasMore)).toEqual([true, true, true, true, true, false]);
     for (const page of pages.slice(0, -1)) {
-      expect(page.nextCursor).toBe(String(page.items[page.items.length - 1]?.sequence));
+      expect(page.nextCursor).toBe(String(page.items.at(-1)?.sequence));
     }
-    expect(pages[pages.length - 1]?.nextCursor).toBeNull();
+    expect(pages.at(-1)?.nextCursor).toBeNull();
 
     const items = pages.flatMap((page) => page.items);
     expect(items.map((item) => item.sequence)).toEqual(
@@ -227,7 +227,7 @@ describe('GET /v1/subscribers/:externalId/timeline — paging across the actor a
         const { body } = await timelinePage(keyBearer, externalId, `?limit=25&cursor=${total + 1}`);
         return body.data?.items.length === 25 ? body.data : undefined;
       },
-      { timeoutMs: 60_000, label: 'the head of the timeline in Tinybird' }
+      { timeoutMs: 120_000, label: 'the head of the timeline in Tinybird' }
     );
     expect(mirrored.items).toEqual(head.body.data?.items);
     expect(mirrored.hasMore).toBe(true);

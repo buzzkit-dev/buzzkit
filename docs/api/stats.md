@@ -12,22 +12,22 @@ Scope `messages:read` (tenant context: tenant keys imply their tenant, workspace
   "interval": "day",
   "subscribers": { "total": 118, "added": 9 },
   "messages": { "total": 42 },
-  "deliveries": { "total": 1180, "sent": 1032, "failed": 91, "invalid": 12, "pending": 45 },
+  "deliveries": { "total": 1180, "sent": 1032, "failed": 84, "capped": 7, "invalid": 12, "pending": 45 },
   "previous": {
     "subscribers": { "added": 6 },
     "messages": { "total": 37 },
-    "deliveries": { "total": 990, "sent": 901, "failed": 60, "invalid": 9, "pending": 20 }
+    "deliveries": { "total": 990, "sent": 901, "failed": 55, "capped": 5, "invalid": 9, "pending": 20 }
   },
   "series": [
-    { "date": "2026-08-18T00:00:00Z", "subscribers": 3, "messages": 2, "sent": 130, "failed": 12, "invalid": 1, "pending": 0 },
-    { "date": "2026-08-19T00:00:00Z", "subscribers": 0, "messages": 0, "sent": 0, "failed": 0, "invalid": 0, "pending": 0 }
+    { "date": "2026-08-18T00:00:00Z", "subscribers": 3, "messages": 2, "sent": 130, "failed": 11, "capped": 1, "invalid": 1, "pending": 0 },
+    { "date": "2026-08-19T00:00:00Z", "subscribers": 0, "messages": 0, "sent": 0, "failed": 0, "capped": 0, "invalid": 0, "pending": 0 }
   ]
 }
 ```
 
 - `subscribers.total` counts every live subscriber of the tenant regardless of the window; `subscribers.added` counts those created inside it.
 - `messages.total` counts messages created inside the window.
-- `deliveries` counts deliveries created inside the window by outcome: `sent` is `sent` + `delivered`, `failed` is `failed` + `bounced`, `invalid` is `invalid`, `pending` is `pending` + `retrying`; `total` is their sum.
+- `deliveries` counts deliveries created inside the window by outcome: `sent` is `sent` + `delivered`, `failed` is `failed` + `bounced`, `invalid` is `invalid`, `pending` is `pending` + `retrying`; `total` is their sum. A failed delivery whose error code is `capped` counts as `capped` instead of `failed`: a send policy doing its job is not a delivery problem.
 - `previous` repeats `subscribers.added`, `messages.total` and `deliveries` for the window of the same length that ends where this one starts, so a dashboard can show a change against the prior period without a second call.
 - `series` has one entry per bucket (`interval`) from the bucket containing `from` to the one containing `to`, in order, every bucket present even when empty; `date` is the bucket's start in UTC (weeks start on Monday, months on the 1st): `subscribers` and `messages` created in it, and the four delivery buckets. Rows are cut by their `createdAt`.
 

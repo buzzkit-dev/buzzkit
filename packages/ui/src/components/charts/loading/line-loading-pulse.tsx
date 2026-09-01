@@ -187,5 +187,3 @@ export function LineLoadingPulseStroke({
 }
 
 LineLoadingPulseStroke.displayName = 'LineLoadingPulseStroke';
-
-export default LineLoadingPulseStroke;

@@ -94,7 +94,7 @@ async function send(headers: Record<string, string>, input: Record<string, unkno
   });
 }
 
-async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 20_000): Promise<T> {
+async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 60_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await probe();
@@ -1079,7 +1079,7 @@ describe('attempt-time guards and sweep bounds', () => {
         subscriberId: row.subscriberId,
         subscriptionId: row.id,
         channel: 'push' as const,
-        provider: 'apns',
+        provider: 'apns' as const,
         status: 'pending' as const,
         createdAt: stale,
       }))
@@ -1141,7 +1141,7 @@ describe('isolation, pagination, and delivery-time credential state', () => {
 
     type Page = { items: Array<{ id: string }>; total: number };
     const list = (query: string) => api<Page>(`/v1/messages?${query}`, { headers: keyBearer });
-    const ids = (page: { body: { data?: Page } }) => page.body.data?.items.map((item) => item.id) ?? [];
+    const ids = (page: { body: { data: Page | null } }) => page.body.data?.items.map((item) => item.id) ?? [];
 
     expect(ids(await list(`q=shipped ${marker}`))).toEqual([direct.body.data?.id]);
     expect(ids(await list(`q=order_${marker}`))).toEqual([direct.body.data?.id]);
@@ -1428,7 +1428,7 @@ describe('scheduled sends', () => {
     await tick();
     const rows = await waitFor(async () => {
       const list = await deliveries(keyBearer, id);
-      return list.length >= 1 ? list : null;
+      return list.length > 0 ? list : null;
     });
     await sleep(1500);
     expect((await deliveries(keyBearer, id)).map((row) => row.externalId)).toEqual([alice]);

@@ -53,7 +53,7 @@ function WorkspaceCard({ workspace, canEdit }: { workspace: Workspace; canEdit: 
         value={name}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && dirty && !pending) save();
+          if (event.key === 'Enter' && dirty && !pending) void save();
         }}
         aria-label='Workspace name'
         maxLength={100}
@@ -82,7 +82,7 @@ function SlugCard({ workspace, canEdit }: { workspace: Workspace; canEdit: boole
     }
     setClientError(null);
     setSubmitted(trimmed);
-    fetcher.submit({ intent: 'set-slug', slug: trimmed }, { method: 'post' });
+    void fetcher.submit({ intent: 'set-slug', slug: trimmed }, { method: 'post' });
   };
 
   return (
@@ -165,7 +165,7 @@ function DeleteCard({ workspace }: { workspace: Workspace }) {
               onChange={(event) => setConfirm(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && confirm.trim() === workspace.slug && !pending)
-                  submit('delete', { confirm: confirm.trim() });
+                  void submit('delete', { confirm: confirm.trim() });
               }}
               autoComplete='off'
               spellCheck={false}

@@ -2,7 +2,8 @@ import {
   createActorInstrument,
   createInstrument,
   createTraceRunner,
-  getActiveSpan,
+  currentSpan,
+  recordRequestId,
   type Span,
 } from '@buzzkit/observability';
 import { Elysia } from 'elysia';
@@ -35,8 +36,8 @@ type AuthAttributes = {
   membership?: { role: string } | null;
 };
 
-export function setAuthSpanAttributes(auth: AuthAttributes): void {
-  const span = getActiveSpan();
+export function applyAuthSpanAttributes(auth: AuthAttributes): void {
+  const span = currentSpan();
   if (!span) return;
 
   span.setAttribute('auth.method', auth.apiKey ? `${auth.apiKey.kind}_key` : 'session');
@@ -51,8 +52,9 @@ export const telemetry = new Elysia({ name: 'telemetry' })
   .onRequest(({ request, set }) => {
     const requestId = request.headers.get('cf-ray') ?? crypto.randomUUID();
     set.headers['request-id'] = requestId;
+    recordRequestId(requestId);
 
-    const span = getActiveSpan();
+    const span = currentSpan();
     if (!span) return;
 
     span.setAttribute('http.method', request.method);
@@ -60,14 +62,14 @@ export const telemetry = new Elysia({ name: 'telemetry' })
     span.setAttribute('request.id', requestId);
   })
   .onAfterHandle({ as: 'global' }, ({ route, set }) => {
-    const span = getActiveSpan();
+    const span = currentSpan();
     if (!span) return;
 
     span.setAttribute('http.route', route);
     if (set.status !== undefined) span.setAttribute('http.status_code', String(set.status));
   })
   .onError({ as: 'global' }, ({ error, route, set }) => {
-    const span = getActiveSpan();
+    const span = currentSpan();
     if (!span) return;
 
     span.recordException(error as Error);

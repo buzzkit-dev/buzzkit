@@ -10,7 +10,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 import { useRef } from 'react';
 import { lineOf, parseJson } from '@/app/lib/utils/json';
 
-export type SpecIssue = { path: string; message: string; line: number | null };
+type SpecIssue = { path: string; message: string; line: number | null };
 
 export type SpecResult = {
   spec: WorkflowSpec | null;
@@ -18,7 +18,7 @@ export type SpecResult = {
   issues: SpecIssue[];
 };
 
-export const SPEC_PLACEHOLDER = JSON.stringify(
+const SPEC_PLACEHOLDER = JSON.stringify(
   {
     trigger: { event: 'trial.started' },
     steps: [
@@ -156,7 +156,7 @@ export function SpecEditor({
         disabled={disabled}
         aria-label='Workflow definition'
         aria-invalid={problem ? true : undefined}
-        className={cn('font-mono text-xs', fill && 'h-[32rem] min-h-0 shrink resize-none')}
+        className={cn('text-xs', fill && 'h-[32rem] min-h-0 shrink resize-none')}
         placeholder={SPEC_PLACEHOLDER}
       />
       {result.syntax ? (
@@ -183,7 +183,7 @@ export function SpecEditor({
                 {issue.line === null ? '' : `Line ${issue.line}`}
               </span>
               <span className='text-red-text'>
-                <span className='font-mono text-xs'>{issue.path}</span> · {issue.message}
+                <span className='text-xs'>{issue.path}</span> · {issue.message}
               </span>
             </button>
           ))}

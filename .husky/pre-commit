@@ -1,2 +1,8 @@
-echo "\n\033[1;36m🎨 Running lint-staged...\033[0m"
+echo "\033[1;36m🎨 lint-staged — biome check --write on staged files\033[0m"
 bun lint-staged
+
+echo "\033[1;36m📏 conventions — comments ban + verb catalog\033[0m"
+bun lint:conventions
+
+echo "\033[1;36m🧹 sherif — workspace hygiene\033[0m"
+bunx sherif -i @types/node

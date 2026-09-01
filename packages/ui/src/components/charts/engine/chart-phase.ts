@@ -34,19 +34,3 @@ export function resolveRestingChartPhase(status: ChartStatus): ChartPhase {
 export function isChartInteractionPhase(phase: ChartPhase): boolean {
   return phase === 'ready';
 }
-
-export const DEFAULT_CHART_LIFECYCLE = {
-  chartPhase: 'ready',
-  chartStatus: 'ready',
-  loadingLabel: undefined,
-  yDomainTweenDuration: DEFAULT_Y_DOMAIN_TWEEN_MS,
-  yDomainSkeletonByAxis: { left: [0, 100] as [number, number] },
-  yDomainTargetByAxis: { left: [0, 100] as [number, number] },
-} as const satisfies {
-  chartPhase: ChartPhase;
-  chartStatus: ChartStatus;
-  loadingLabel: undefined;
-  yDomainTweenDuration: number;
-  yDomainSkeletonByAxis: Record<string, [number, number]>;
-  yDomainTargetByAxis: Record<string, [number, number]>;
-};

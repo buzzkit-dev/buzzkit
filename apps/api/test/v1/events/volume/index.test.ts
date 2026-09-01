@@ -27,7 +27,7 @@ async function volumeUntil(headers: Headers, query: string, count: number) {
       const { status, body } = await volume(headers, query);
       return status === 200 && total(body.data!) >= count ? body.data! : undefined;
     },
-    { label: `volume ${query}`, timeoutMs: 60_000 }
+    { label: `volume ${query}`, timeoutMs: 120_000 }
   );
 }
 
@@ -73,7 +73,7 @@ describe('GET /v1/events/volume', () => {
   });
 
   it('counts every event inside the window, optionally for one name', async () => {
-    const { keyBearer } = await setupWorkspace({ bare: true });
+    const { keyBearer: bareKeyBearer } = await setupWorkspace({ bare: true });
     const name = `volume.${uniq()}`;
     const other = `other.${uniq()}`;
     const [a, b, c] = [`user_${uniq()}`, `user_${uniq()}`, `user_${uniq()}`];
@@ -82,7 +82,7 @@ describe('GET /v1/events/volume', () => {
 
     await api('/v1/events', {
       method: 'POST',
-      headers: keyBearer,
+      headers: bareKeyBearer,
       body: JSON.stringify({
         events: [
           { externalId: a, name },
@@ -96,30 +96,30 @@ describe('GET /v1/events/volume', () => {
       }),
     });
 
-    const named = await volumeUntil(keyBearer, `?range=7d&name=${name}`, 5);
+    const named = await volumeUntil(bareKeyBearer, `?range=7d&name=${name}`, 5);
     expect(total(named)).toBe(5);
     expect(named.buckets.map((bucket) => bucket.subscribers).sort()).toEqual([2, 2]);
 
-    const day = await volume(keyBearer, `?range=24h&name=${name}`);
+    const day = await volume(bareKeyBearer, `?range=24h&name=${name}`);
     expect(total(day.body.data!)).toBe(3);
     expect(
       day.body.data?.buckets.every((bucket) => new Date(bucket.at).getTime() > now - 25 * 3_600_000)
     ).toBe(true);
     expect(day.body.data?.buckets.reduce((sum, bucket) => sum + bucket.subscribers, 0)).toBe(2);
 
-    const month = await volume(keyBearer, `?range=30d&name=${name}`);
+    const month = await volume(bareKeyBearer, `?range=30d&name=${name}`);
     expect(total(month.body.data!)).toBe(5);
 
-    const otherName = await volumeUntil(keyBearer, `?range=7d&name=${other}`, 2);
+    const otherName = await volumeUntil(bareKeyBearer, `?range=7d&name=${other}`, 2);
     expect(total(otherName)).toBe(2);
 
-    const unknown = await volume(keyBearer, `?range=7d&name=never.${uniq()}`);
+    const unknown = await volume(bareKeyBearer, `?range=7d&name=never.${uniq()}`);
     expect(unknown.status).toBe(200);
     expect(unknown.body.data?.buckets).toEqual([]);
 
-    const everything = await volumeUntil(keyBearer, '?range=7d', 10);
+    const everything = await volumeUntil(bareKeyBearer, '?range=7d', 10);
     expect(total(everything)).toBe(10);
-    const everythingToday = await volume(keyBearer, '?range=24h');
+    const everythingToday = await volume(bareKeyBearer, '?range=24h');
     expect(total(everythingToday.body.data!)).toBe(7);
 
     for (const bucket of everything.buckets) {

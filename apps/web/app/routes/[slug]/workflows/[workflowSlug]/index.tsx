@@ -527,7 +527,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
   const { submit, pending } = useActionFetcher((data) => {
     if (data.deleted) {
       toast.success('Workflow deleted');
-      navigate(base);
+      void navigate(base);
     } else if (data.published) {
       toast.success(workflow.status === 'paused' ? 'Workflow resumed' : 'Workflow published');
     } else if (data.paused) {
@@ -549,7 +549,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
       else search.set(key, value);
     }
     const query = search.toString();
-    navigate(query ? `?${query}` : '.', { preventScrollReset: true, replace: true });
+    void navigate(query ? `?${query}` : '.', { preventScrollReset: true, replace: true });
   };
 
   useEffect(() => setFilter(runStatus), [runStatus]);
@@ -729,7 +729,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
             </DialogTitle>
           </DialogHeader>
           {openVersion && (
-            <div className='flex max-h-[65vh] w-full min-h-0 flex-col overflow-hidden rounded-2xl ring-1 ring-bg-3'>
+            <div className='flex max-h-[65vh] min-h-0 w-full flex-col overflow-hidden rounded-2xl ring-1 ring-bg-3'>
               <WorkflowFlow
                 spec={openVersion.spec}
                 version={{

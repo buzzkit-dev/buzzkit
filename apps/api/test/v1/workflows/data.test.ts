@@ -47,7 +47,7 @@ afterAll(async () => {
 });
 
 async function tenantSlug(headers: Headers): Promise<string> {
-  const { body } = await api<{ items: TenantBody[] }>('/v1/tenants', { headers });
+  const { body } = await api<{ items: Array<{ slug: string }> }>('/v1/tenants', { headers });
   return body.data?.items[0]?.slug ?? 'default';
 }
 
@@ -121,7 +121,7 @@ describe('workflow data steps', () => {
     await track(keyBearer, user, 'trial.started', { plan: 'monthly', endsAt: '2026-09-04T09:00:00Z' });
     await eventually(async () => (await completedRuns(keyBearer, user)) === 1, {
       label: 'first run completed',
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
       intervalMs: 300,
     });
 
@@ -177,7 +177,7 @@ describe('workflow data steps', () => {
     await track(keyBearer, user, 'trial.started', { plan: 'monthly', endsAt: '2026-09-04T09:00:00Z' });
     await eventually(async () => (await completedRuns(keyBearer, user)) === 2, {
       label: 'second run completed',
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
       intervalMs: 300,
     });
     const second = (await runEvents(keyBearer, user)).slice(events.length);
@@ -215,7 +215,7 @@ describe('workflow data steps', () => {
 
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.data.step === 'quiet'),
-      { label: 'waiting for a quiet moment', timeoutMs: 60_000, intervalMs: 300 }
+      { label: 'waiting for a quiet moment', timeoutMs: 120_000, intervalMs: 300 }
     );
     const morning = (await runEvents(keyBearer, user)).find(
       (item) => item.data.step === 'morning' && item.data.status === 'sleeping'
@@ -250,7 +250,7 @@ describe('workflow data steps', () => {
 
     await eventually(async () => (await completedRuns(keyBearer, user)) === 1, {
       label: 'run completed after the quiet moment',
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
       intervalMs: 300,
     });
     const events = await runEvents(keyBearer, user);

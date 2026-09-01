@@ -1,6 +1,7 @@
+import type { AuditFn } from '@buzzkit/api/api/audit/index';
+import { createVersioned, payloadChanged, updateVersioned } from '@buzzkit/api/api/versioning/index';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { stableStringify } from '@buzzkit/api/utils/json';
 import { and, asc, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
 import {
   formatWorkflowPath,
@@ -70,6 +71,7 @@ async function withVersions(
   const latest = versions[0];
   if (!latest) throw new NotFoundError('Workflow has no version');
   const current = versions.find((version) => version.id === workflow.currentVersionId) ?? null;
+
   return { ...workflow, current, latest, versions };
 }
 
@@ -96,9 +98,11 @@ export async function listWorkflows(db: Db, tenantId: number): Promise<WorkflowW
     .innerJoin(tables.workflow, eq(tables.workflow.id, tables.workflowVersion.workflowId))
     .where(and(eq(tables.workflow.tenantId, tenantId), isNull(tables.workflow.deletedAt)))
     .then((rows) => rows.map((row) => row.version));
+
   return workflows.map((workflow) => {
     const own = versions.filter((version) => version.workflowId === workflow.id);
     const latest = own.reduce((best, version) => (version.version > best.version ? version : best), own[0]!);
+
     return {
       ...workflow,
       current: own.find((version) => version.id === workflow.currentVersionId) ?? null,
@@ -123,19 +127,26 @@ export async function createWorkflow(
       param: 'slug',
     });
   }
-  return await trace('workflows.create', async () =>
-    db.transaction(async (tx) => {
-      const [workflow] = await tx
-        .insert(tables.workflow)
-        .values({ tenantId, slug: input.slug, name: input.name, description: input.description ?? null })
-        .returning();
-      const [version] = await tx
-        .insert(tables.workflowVersion)
-        .values({ workflowId: workflow!.id, version: 1, spec: input.spec })
-        .returning();
-      return { ...workflow!, current: null, latest: version! };
-    })
-  );
+
+  return await trace('workflows.create', async () => {
+    const { entity, version } = await createVersioned(db, {
+      insertEntity: async (tx) => {
+        const [workflow] = await tx
+          .insert(tables.workflow)
+          .values({ tenantId, slug: input.slug, name: input.name, description: input.description ?? null })
+          .returning();
+        return workflow!;
+      },
+      insertVersion: async (tx, workflow) => {
+        const [inserted] = await tx
+          .insert(tables.workflowVersion)
+          .values({ workflowId: workflow.id, version: 1, spec: input.spec })
+          .returning();
+        return inserted!;
+      },
+    });
+    return { ...entity, current: null, latest: version };
+  });
 }
 
 export async function updateWorkflow(
@@ -147,30 +158,33 @@ export async function updateWorkflow(
     assertWorkflowSpec(patch.spec);
     await assertScheduleSegment(db, existing.tenantId, patch.spec);
   }
-  return await trace('workflows.update', async () =>
-    db.transaction(async (tx) => {
-      let latest = existing.latest;
-      const specChanged =
-        patch.spec !== undefined && stableStringify(patch.spec) !== stableStringify(existing.latest.spec);
-      if (specChanged) {
-        const [version] = await tx
+
+  return await trace('workflows.update', async () => {
+    const { entity, version } = await updateVersioned(db, {
+      latest: existing.latest,
+      changed: payloadChanged(patch.spec, existing.latest.spec),
+      insertVersion: async (tx, nextVersion) => {
+        const [inserted] = await tx
           .insert(tables.workflowVersion)
-          .values({ workflowId: existing.id, version: existing.latest.version + 1, spec: patch.spec })
+          .values({ workflowId: existing.id, version: nextVersion, spec: patch.spec })
           .returning();
-        latest = version!;
-      }
-      const [workflow] = await tx
-        .update(tables.workflow)
-        .set({
-          ...(patch.name !== undefined ? { name: patch.name } : {}),
-          ...(patch.description !== undefined ? { description: patch.description } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(tables.workflow.id, existing.id))
-        .returning();
-      return { ...workflow!, current: existing.current, latest };
-    })
-  );
+        return inserted!;
+      },
+      updateEntity: async (tx) => {
+        const [workflow] = await tx
+          .update(tables.workflow)
+          .set({
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+            ...(patch.description !== undefined ? { description: patch.description } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(tables.workflow.id, existing.id))
+          .returning();
+        return workflow!;
+      },
+    });
+    return { ...entity, current: existing.current, latest: version };
+  });
 }
 
 export async function publishWorkflow(db: Db, existing: WorkflowWithVersions): Promise<WorkflowWithVersions> {
@@ -198,6 +212,7 @@ export async function pauseWorkflow(db: Db, existing: WorkflowWithVersions): Pro
   if (existing.status !== 'active') {
     throw new BadRequestError('Only an active workflow can be paused', { code: 'workflow_not_active' });
   }
+
   return await trace('workflows.pause', { 'workflow.id': existing.id }, async () => {
     const [workflow] = await db
       .update(tables.workflow)
@@ -207,6 +222,35 @@ export async function pauseWorkflow(db: Db, existing: WorkflowWithVersions): Pro
     await publishDefinitions(db, existing.tenantId);
     return { ...workflow!, current: existing.current, latest: existing.latest };
   });
+}
+
+export async function transitionWorkflow(
+  db: Db,
+  audit: AuditFn,
+  tenantId: number,
+  workflowSlug: string,
+  action: 'publish' | 'pause'
+): Promise<WorkflowWithVersions> {
+  const existing = await findWorkflowBySlug(db, tenantId, workflowSlug);
+
+  let transitioned: WorkflowWithVersions;
+  if (action === 'publish') {
+    transitioned = await publishWorkflow(db, existing);
+  } else {
+    transitioned = await pauseWorkflow(db, existing);
+  }
+
+  await audit({
+    event: action === 'publish' ? 'workflow.published' : 'workflow.paused',
+    tenantId,
+    target: { type: 'workflow', id: existing.id },
+    data: {
+      slug: existing.slug,
+      ...(action === 'publish' ? { version: transitioned.latest.version } : {}),
+    },
+  });
+
+  return transitioned;
 }
 
 export async function softDeleteWorkflow(db: Db, existing: WorkflowWithVersions): Promise<Workflow> {

@@ -8,14 +8,12 @@ export function serializeUser(user: Pick<User, 'id' | 'name' | 'email' | 'image'
 }
 
 export async function updateProfile(db: Db, userId: string, patch: { name: string }): Promise<User> {
-  const [updated] = await trace(
-    'profile.update',
-    async () =>
-      await db
-        .update(tables.auth.user)
-        .set({ name: patch.name })
-        .where(eq(tables.auth.user.id, userId))
-        .returning()
-  );
+  const [updated] = await trace('profile.update', async () => {
+    return await db
+      .update(tables.auth.user)
+      .set({ name: patch.name })
+      .where(eq(tables.auth.user.id, userId))
+      .returning();
+  });
   return updated!;
 }

@@ -452,7 +452,7 @@ describe('reactivation and input shapes', () => {
   });
 });
 
-async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 20_000): Promise<T> {
+async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 60_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await probe();

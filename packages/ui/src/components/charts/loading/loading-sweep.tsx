@@ -54,7 +54,7 @@ function hashFract(n: number): number {
 }
 
 /** Deterministic heights (percentages of the available height) for a seed. */
-export function getSkeletonHeights(
+export function resolveSkeletonHeights(
   count: number,
   seed = 0,
   min = HEIGHT_MIN_PCT,
@@ -68,7 +68,7 @@ export function getSkeletonHeights(
 }
 
 /** Deterministic up/down (±1) per bar for the "center" baseline. */
-function getSkeletonSigns(count: number, seed = 0): number[] {
+function resolveSkeletonSigns(count: number, seed = 0): number[] {
   return Array.from({ length: count }, (_, i) => (hashFract((i + 1) * 78.233 + seed) < 0.5 ? -1 : 1));
 }
 
@@ -207,7 +207,7 @@ export function LineLoadingSweep({
       setTick((prev) => prev + 1);
     }
   }, [isLoop]);
-  const heights = useMemo(() => getSkeletonHeights(pointCount, tick), [pointCount, tick]);
+  const heights = useMemo(() => resolveSkeletonHeights(pointCount, tick), [pointCount, tick]);
 
   // With reduced motion there is no fade to await, so signal the handoff
   // immediately or the phase machine would stall mid-transition.
@@ -227,8 +227,8 @@ export function LineLoadingSweep({
   });
   const yScale = scaleLinear({ domain: [0, 100], range: [innerHeight, 0] });
   const points = heights.map((value, index) => ({ index, value }));
-  const getX = (d: { index: number }) => xScale(d.index);
-  const getY = (d: { value: number }) => yScale(d.value);
+  const xOf = (d: { index: number }) => xScale(d.index);
+  const yOf = (d: { value: number }) => yScale(d.value);
 
   const silhouette = (
     <>
@@ -237,8 +237,8 @@ export function LineLoadingSweep({
           curve={curve}
           data={points}
           fill={`url(#${chartId}-area)`}
-          x={getX}
-          y={getY}
+          x={xOf}
+          y={yOf}
           yScale={yScale}
         />
       ) : null}
@@ -250,8 +250,8 @@ export function LineLoadingSweep({
         strokeLinecap='round'
         strokeOpacity={strokeOpacity}
         strokeWidth={strokeWidth}
-        x={getX}
-        y={getY}
+        x={xOf}
+        y={yOf}
       />
     </>
   );
@@ -407,8 +407,8 @@ export function BarLoadingSkeleton({
   const chartId = `bar-sweep-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const [tick, setTick] = useState(0);
   const onSweepComplete = useCallback(() => setTick((prev) => prev + 1), []);
-  const heights = useMemo(() => getSkeletonHeights(barCount, tick), [barCount, tick]);
-  const signs = useMemo(() => getSkeletonSigns(barCount, tick), [barCount, tick]);
+  const heights = useMemo(() => resolveSkeletonHeights(barCount, tick), [barCount, tick]);
+  const signs = useMemo(() => resolveSkeletonSigns(barCount, tick), [barCount, tick]);
 
   if (innerWidth <= 0 || innerHeight <= 0) {
     return null;

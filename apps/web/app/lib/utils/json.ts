@@ -10,6 +10,17 @@ function pointerOf(path: Array<string | number>): string {
 
 const WHITESPACE = new Set([' ', '\t', '\n', '\r']);
 
+class JsonParseError extends Error {
+  readonly line: number;
+  readonly column: number;
+
+  constructor(message: string, line: number, column: number) {
+    super(message);
+    this.line = line;
+    this.column = column;
+  }
+}
+
 export function parseJson(text: string): JsonParseResult {
   const locations = new Map<string, JsonLocation>();
   let index = 0;
@@ -17,7 +28,7 @@ export function parseJson(text: string): JsonParseResult {
   let column = 1;
 
   const fail = (message: string): never => {
-    throw { message, line, column };
+    throw new JsonParseError(message, line, column);
   };
   const peek = () => text[index];
   const advance = () => {
@@ -174,12 +185,10 @@ export function parseJson(text: string): JsonParseResult {
     if (index < text.length) fail(`Unexpected "${peek()}" after the end of the expression.`);
     return { ok: true, value, locations };
   } catch (error) {
-    const {
-      message,
-      line: atLine,
-      column: atColumn,
-    } = error as { message: string; line: number; column: number };
-    return { ok: false, message, line: atLine, column: atColumn };
+    if (error instanceof JsonParseError) {
+      return { ok: false, message: error.message, line: error.line, column: error.column };
+    }
+    throw error;
   }
 }
 

@@ -1,5 +1,3 @@
-import { env } from 'cloudflare:workers';
-import type { SubscriberActor } from '@buzzkit/api/actor/subscriber';
 import {
   dueInstants,
   nextScheduleInstant,
@@ -7,6 +5,7 @@ import {
   zonesFor,
 } from '@buzzkit/api/api/scheduling/index';
 import { findSegmentBySlug, listSegmentMembers } from '@buzzkit/api/api/segments/index';
+import { subscriberActor } from '@buzzkit/api/libs/actor';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { currentTraceparent, trace } from '@buzzkit/api/libs/telemetry';
@@ -17,7 +16,6 @@ import {
   SUBSCRIBER_TIMEZONE,
   type WorkflowSpec,
 } from '@buzzkit/schema/workflows';
-import { getAgentByName } from 'agents';
 import type { Expression } from 'buzzkit/expressions';
 import {
   SCHEDULE_DRAIN_ROUNDS,
@@ -80,6 +78,7 @@ async function listScheduledWorkflows(db: Db): Promise<ScheduledWorkflow[]> {
       )
     )
     .orderBy(tables.workflow.id);
+
   return rows.flatMap(({ workflow, version }) => {
     const trigger = scheduleTriggerOf(version.spec as WorkflowSpec);
     return trigger ? [{ workflow, version, trigger }] : [];
@@ -89,17 +88,19 @@ async function listScheduledWorkflows(db: Db): Promise<ScheduledWorkflow[]> {
 export async function recordDueFires(db: Db, now: Date): Promise<number> {
   let recorded = 0;
   for (const { workflow, version, trigger } of await listScheduledWorkflows(db)) {
-    const values = zonesFor(trigger.timezone).flatMap((zone) =>
-      dueInstants(trigger.schedule, zone, now, SCHEDULE_LOOKBACK_MS, SCHEDULE_MAX_FIRES_PER_TICK).map(
-        (fireAt) => ({
-          tenantId: workflow.tenantId,
-          workflowId: workflow.id,
-          workflowVersionId: version.id,
-          fireAt,
-          zone,
-        })
-      )
-    );
+    const values = zonesFor(trigger.timezone).flatMap((zone) => {
+      return dueInstants(trigger.schedule, zone, now, SCHEDULE_LOOKBACK_MS, SCHEDULE_MAX_FIRES_PER_TICK).map(
+        (fireAt) => {
+          return {
+            tenantId: workflow.tenantId,
+            workflowId: workflow.id,
+            workflowVersionId: version.id,
+            fireAt,
+            zone,
+          };
+        }
+      );
+    });
     if (values.length === 0) continue;
     const inserted = await db
       .insert(tables.workflowSchedule)
@@ -113,6 +114,7 @@ export async function recordDueFires(db: Db, now: Date): Promise<number> {
 
 function zoneClause(zone: string, fallback: string) {
   const attribute = sql`${tables.subscriber.attributes} ->> '$timezone'`;
+
   return zone === fallback
     ? sql`(${attribute} = ${zone} or ${attribute} is null)`
     : sql`${attribute} = ${zone}`;
@@ -133,6 +135,7 @@ async function listMembers(
     const audience = segment.version.expression as Expression;
     const expression = zoned ? timezoneScoped(audience, [zone], fallback) : audience;
     const page = await listSegmentMembers(tenantId, expression, { afterSubscriberId: afterId, limit });
+
     return {
       items: page.items.map((item) => ({ subscriberId: item.subscriber_id, externalId: item.external_id })),
       hasMore: page.hasMore,
@@ -154,7 +157,8 @@ async function listMembers(
     .limit(limit + 1);
   const items = rows.slice(0, limit).map((row) => ({ subscriberId: row.id, externalId: row.externalId }));
   const hasMore = rows.length > limit;
-  return { items, hasMore, nextCursor: hasMore ? (items[items.length - 1]?.subscriberId ?? null) : null };
+
+  return { items, hasMore, nextCursor: hasMore ? (items.at(-1)?.subscriberId ?? null) : null };
 }
 
 async function startRun(
@@ -162,10 +166,8 @@ async function startRun(
   definition: WorkflowDefinition,
   member: ScheduleMember
 ): Promise<string> {
-  const actor = await getAgentByName<Env, SubscriberActor>(
-    env.SUBSCRIBER_ACTOR,
-    `${fire.tenantId}:${member.subscriberId}`
-  );
+  const actor = await subscriberActor(fire.tenantId, member.subscriberId);
+
   return await actor.startScheduledRun({
     tenantId: fire.tenantId,
     subscriberId: member.subscriberId,
@@ -210,7 +212,7 @@ async function drainFire(
       const outcomes = await Promise.all(chunk.map((member) => startRun(fire, definition, member)));
       started += outcomes.filter((outcome) => outcome === 'started').length;
     }
-    const nextCursor = page.nextCursor ?? page.items[page.items.length - 1]?.subscriberId ?? cursor;
+    const nextCursor = page.nextCursor ?? page.items.at(-1)?.subscriberId ?? cursor;
     finished = !page.hasMore;
     const claimed = await db
       .update(tables.workflowSchedule)
@@ -226,6 +228,7 @@ async function drainFire(
     cursor = nextCursor;
     if (finished) break;
   }
+
   return { started, finished };
 }
 
@@ -273,6 +276,7 @@ export async function drainOpenFires(db: Db, now: Date): Promise<{ started: numb
     }
     if (open.length < SCHEDULE_OPEN_FIRES_PER_ROUND) break;
   }
+
   return { started, finished };
 }
 
@@ -283,6 +287,7 @@ export async function releaseDueSchedules(db: Db, now: Date) {
     t.set('schedules.recorded', recorded);
     t.set('schedules.started', drained.started);
     t.set('schedules.finished', drained.finished);
+
     return { recorded, ...drained };
   });
 }

@@ -1,5 +1,5 @@
-import { nextLocalTime } from '@buzzkit/api/libs/timezone';
-import { durationSeconds, type Moment, SUBSCRIBER_TIMEZONE } from '@buzzkit/schema/workflows';
+import { nextLocalTime, parseWallTime } from '@buzzkit/api/libs/timezone';
+import { durationMs, type Moment, SUBSCRIBER_TIMEZONE } from '@buzzkit/schema/workflows';
 
 export type ResolvedMoment = { at: number; timezone: string | null };
 
@@ -8,10 +8,11 @@ export function resolveMoment(
   trigger: { timestamp: string },
   subscriberTimezone: string
 ): ResolvedMoment {
-  const target = Date.parse(trigger.timestamp) + (moment.delay ? durationSeconds(moment.delay) * 1000 : 0);
+  const target = Date.parse(trigger.timestamp) + (moment.delay ? durationMs(moment.delay) : 0);
   const timezone = moment.timezone === SUBSCRIBER_TIMEZONE ? subscriberTimezone : (moment.timezone ?? null);
   if (!moment.time || !timezone) return { at: target, timezone };
-  const [hour, minute] = moment.time.split(':').map(Number) as [number, number];
+  const { hour, minute } = parseWallTime(moment.time);
+
   return { at: nextLocalTime(new Date(target), hour, minute, timezone).getTime(), timezone };
 }
 

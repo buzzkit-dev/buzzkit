@@ -126,7 +126,7 @@ function EditProfileDialog({
 
   const save = () => {
     if (!canSave) return;
-    submit('profile', { name: trimmed });
+    void submit('profile', { name: trimmed });
   };
 
   useEffect(() => {

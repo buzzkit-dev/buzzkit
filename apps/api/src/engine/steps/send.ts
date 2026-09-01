@@ -2,13 +2,13 @@ import { createMessage, enqueueFanout } from '@buzzkit/api/api/messages/index';
 import { policyTimezone, shiftOutOfQuietHours } from '@buzzkit/api/api/messages/policy';
 import { resolveTenantSettings } from '@buzzkit/api/api/tenants/index';
 import { findTopicBySlug } from '@buzzkit/api/api/topics/index';
-import { createDb } from '@buzzkit/api/libs/database';
+import { stepDb } from '@buzzkit/api/libs/database';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { wallClock } from '@buzzkit/api/libs/timezone';
 import { and, type Db, eq, gte, like, or, sql, tables } from '@buzzkit/database';
 import {
   describeDuration,
-  durationSeconds,
+  durationMs,
   type SendStep,
   type WaitUntilStep,
   type WorkflowSpec,
@@ -16,7 +16,6 @@ import {
 import type { RunContext } from '../context';
 import { describeInstant } from '../moments';
 import { renderTemplate, renderValue } from '../template';
-import { loadTenant } from '../tenant';
 
 async function sentRecently(db: Db, context: RunContext, current: SendStep, from: Date): Promise<boolean> {
   const { tenantId, subscriberId, workflowId } = context.params;
@@ -36,6 +35,7 @@ async function sentRecently(db: Db, context: RunContext, current: SendStep, from
     .from(message)
     .where(and(eq(message.tenantId, tenantId), gte(message.createdAt, from), same, reached))
     .limit(1);
+
   return rows.length > 0;
 }
 
@@ -53,12 +53,12 @@ export async function runLocalWindow(
     const moment = context.moment(waitUntil);
     const momentZone = moment.timezone ?? context.timezone();
     if (sendStep.send.policy === 'ignore') return { at: moment.at, timezone: momentZone };
-    const db = createDb({ max: 1 }, { traced: false });
-    const tenant = await loadTenant(db, context.params.tenantId);
+    const tenant = await context.tenant(stepDb());
     const quiet = resolveTenantSettings(tenant.settings).sendPolicy.quietHours;
     if (!quiet) return { at: moment.at, timezone: momentZone };
     const policyZone = policyTimezone(quiet, momentZone) ?? momentZone;
     const shifted = shiftOutOfQuietHours(new Date(moment.at), quiet, policyZone);
+
     return { at: shifted.getTime(), timezone: momentZone };
   });
   const zone = target.timezone ?? context.timezone();
@@ -100,15 +100,16 @@ export async function runSend(
   options?: { local?: { at: string; cancelOn: string[] }; fallback?: boolean }
 ): Promise<void> {
   const { name, send } = current;
-  context.state.steps[name] = await context.do(`${name}:send`, async () => {
-    const db = createDb({ max: 1 }, { traced: false });
-    const tenant = await loadTenant(db, context.params.tenantId);
+  context.state.steps[name] = await context.do(`${name}:send`, async (t) => {
+    const db = stepDb();
+    const tenant = await context.tenant(db);
 
     if (send.skipIfSentWithin && context.hasSubscriber && !options?.fallback) {
-      const from = new Date(context.now() - durationSeconds(send.skipIfSentWithin) * 1000);
+      const from = new Date(context.now() - durationMs(send.skipIfSentWithin));
       if (await sentRecently(db, context, current, from)) {
         const what = send.topic ? `A ${send.topic} message` : 'This message';
         const window = describeDuration(send.skipIfSentWithin);
+        t?.set('send.skipped', true);
         await context.report(name, 'skipped', `Skipped: ${what.toLowerCase()} went out within ${window}`);
         return { at: new Date(context.now()).toISOString(), skipped: true };
       }
@@ -185,6 +186,9 @@ export async function runSend(
     await enqueueFanout(message.id);
 
     const messageId = encodeId('message', message.id);
+    t?.set('message.id', message.id);
+    t?.set('send.local', local !== null);
+    if (options?.fallback) t?.set('send.fallback', true);
     const summary = options?.fallback
       ? 'No device confirmed the local schedule; sent as a push instead'
       : local
@@ -195,6 +199,7 @@ export async function runSend(
           ? `Sent “${title}”`
           : 'Sent a message';
     await context.report(name, 'completed', summary, { messageId });
+
     return { at: new Date(context.now()).toISOString(), messageId, skipped: false };
   });
 }

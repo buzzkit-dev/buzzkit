@@ -55,6 +55,7 @@ const ORDERED = ['gt', 'gte', 'lt', 'lte'] as const;
 
 export function formatExpressionPath(path: ExpressionPath): string {
   if (path.length === 0) return 'the expression';
+
   return path.reduce<string>(
     (text, part) => (typeof part === 'number' ? `${text}[${part}]` : text ? `${text}.${part}` : part),
     ''
@@ -74,6 +75,7 @@ export function describe(value: unknown): string {
   if (Array.isArray(value)) return 'a list';
   if (typeof value === 'object') return 'an object';
   if (typeof value === 'string') return `"${value}"`;
+
   return String(value);
 }
 
@@ -291,6 +293,7 @@ export function lintExpression(value: unknown, options: LintOptions = {}): Expre
         return;
       }
       for (const [index, child] of children.entries()) walk(child, [...path, kind, index], depth + 1);
+
       return;
     }
     if (kind === 'not') {
@@ -328,5 +331,6 @@ export function lintExpression(value: unknown, options: LintOptions = {}): Expre
   };
 
   walk(value, [], 1);
+
   return issues;
 }

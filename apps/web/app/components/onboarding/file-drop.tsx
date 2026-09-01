@@ -189,7 +189,7 @@ export function FileDrop({
     onChange({ name: file.name, text: await file.text() });
   };
 
-  const dragState = useWindowDrop(accept, read);
+  const dragState = useWindowDrop(accept, (file) => void read(file));
 
   const shownError = error ?? rejected;
   const invalid = Boolean(shownError);

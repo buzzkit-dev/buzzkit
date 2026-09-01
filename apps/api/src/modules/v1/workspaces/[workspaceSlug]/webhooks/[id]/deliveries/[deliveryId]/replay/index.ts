@@ -1,11 +1,11 @@
 import { env } from 'cloudflare:workers';
 import {
-  findDelivery,
   findEndpoint,
+  findWebhookDelivery,
   resetDelivery,
-  serializeDelivery,
+  serializeWebhookDelivery,
 } from '@buzzkit/api/api/webhooks/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
@@ -24,7 +24,7 @@ export const webhookReplay = new Elysia()
         });
       }
 
-      const delivery = await findDelivery(db, endpoint.id, params.deliveryId);
+      const delivery = await findWebhookDelivery(db, endpoint.id, params.deliveryId);
 
       await resetDelivery(db, delivery.id);
       await env.WEBHOOKS.send({ kind: 'deliver', deliveryId: delivery.id });
@@ -35,7 +35,7 @@ export const webhookReplay = new Elysia()
         data: { deliveryId: params.deliveryId, url: endpoint.url },
       });
 
-      return Response.success({ ...serializeDelivery(delivery), status: 'pending' as const })
+      return Response.success({ ...serializeWebhookDelivery(delivery), status: 'pending' as const })
         .status(202)
         .send(set);
     },

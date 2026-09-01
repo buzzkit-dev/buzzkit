@@ -2,55 +2,17 @@ import { resolveCredential } from '@buzzkit/api/api/messages/send';
 import type { Subscriber } from '@buzzkit/api/api/subscribers/index';
 import type { Tenant } from '@buzzkit/api/api/tenants/index';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
+import { log } from '@buzzkit/api/libs/logger';
 import { encodeId } from '@buzzkit/api/libs/sqids';
+import { trace } from '@buzzkit/api/libs/telemetry';
 import { type LiveActivityPayload, PROVIDERS } from '@buzzkit/api/providers/index';
 import { and, type Db, eq, isNull, tables } from '@buzzkit/database';
-import { t } from 'elysia';
+import type { SendLiveActivitySchema } from './schemas';
+import type { LiveActivity } from './types';
 
-export type LiveActivity = typeof tables.liveActivity.$inferSelect;
-
-export const LiveActivityTokenSchema = t.String({ minLength: 32, maxLength: 512, pattern: '^[0-9a-fA-F]+$' });
-
-export const RegisterLiveActivitySchema = t.Object({
-  kind: t.Optional(t.Union([t.Literal('activity'), t.Literal('start')])),
-  activityId: t.Optional(t.String({ minLength: 1, maxLength: 128 })),
-  attributesType: t.String({ minLength: 1, maxLength: 128 }),
-  token: LiveActivityTokenSchema,
-  environment: t.Optional(t.Union([t.Literal('production'), t.Literal('sandbox')])),
-});
-
-export const SendLiveActivitySchema = t.Object({
-  to: t.String({ minLength: 1, maxLength: 256 }),
-  event: t.Union([t.Literal('start'), t.Literal('update'), t.Literal('end')]),
-  activityId: t.Optional(t.String({ minLength: 1, maxLength: 128 })),
-  attributesType: t.Optional(t.String({ minLength: 1, maxLength: 128 })),
-  contentState: t.Record(t.String(), t.Any()),
-  attributes: t.Optional(t.Record(t.String(), t.Any())),
-  alert: t.Optional(
-    t.Object({
-      title: t.Optional(t.String({ maxLength: 500 })),
-      body: t.Optional(t.String({ maxLength: 4000 })),
-      sound: t.Optional(t.String({ maxLength: 100 })),
-    })
-  ),
-  staleDate: t.Optional(t.String({ maxLength: 40 })),
-  dismissalDate: t.Optional(t.String({ maxLength: 40 })),
-  priority: t.Optional(t.Union([t.Literal('high'), t.Literal('normal')])),
-  timestamp: t.Optional(t.Integer({ minimum: 0 })),
-});
-
-export function serializeLiveActivity(activity: LiveActivity) {
-  return {
-    id: encodeId('liveActivity', activity.id),
-    kind: activity.kind,
-    activityId: activity.activityId,
-    attributesType: activity.attributesType,
-    environment: activity.environment,
-    endedAt: activity.endedAt,
-    createdAt: activity.createdAt,
-    updatedAt: activity.updatedAt,
-  };
-}
+export * from './schemas';
+export * from './serialize';
+export type * from './types';
 
 export async function registerLiveActivity(
   db: Db,
@@ -72,6 +34,29 @@ export async function registerLiveActivity(
     });
   }
 
+  return await trace(
+    'liveActivities.register',
+    { 'tenant.id': tenantId, 'subscriber.id': subscriber.id, 'live_activity.kind': kind },
+    async (span) => {
+      const { activity, created } = await registerLiveActivityRow(db, tenantId, subscriber, kind, input);
+      span.set('live_activity.created', created);
+      return { activity, created };
+    }
+  );
+}
+
+async function registerLiveActivityRow(
+  db: Db,
+  tenantId: number,
+  subscriber: Subscriber,
+  kind: 'activity' | 'start',
+  input: {
+    activityId?: string;
+    attributesType: string;
+    token: string;
+    environment?: 'production' | 'sandbox';
+  }
+): Promise<{ activity: LiveActivity; created: boolean }> {
   const token = input.token.toLowerCase();
   const environment = input.environment ?? 'production';
   const identity =
@@ -121,23 +106,29 @@ export async function endLiveActivityByClient(
   subscriberId: number,
   activityId: string
 ): Promise<LiveActivity> {
-  const [updated] = await db
-    .update(tables.liveActivity)
-    .set({ endedAt: new Date() })
-    .where(
-      and(
-        eq(tables.liveActivity.tenantId, tenantId),
-        eq(tables.liveActivity.subscriberId, subscriberId),
-        eq(tables.liveActivity.kind, 'activity'),
-        eq(tables.liveActivity.activityId, activityId),
-        isNull(tables.liveActivity.deletedAt)
-      )
-    )
-    .returning();
-  if (!updated) {
-    throw new NotFoundError('Live activity not found');
-  }
-  return updated as LiveActivity;
+  return await trace(
+    'liveActivities.end',
+    { 'tenant.id': tenantId, 'subscriber.id': subscriberId },
+    async () => {
+      const [updated] = await db
+        .update(tables.liveActivity)
+        .set({ endedAt: new Date() })
+        .where(
+          and(
+            eq(tables.liveActivity.tenantId, tenantId),
+            eq(tables.liveActivity.subscriberId, subscriberId),
+            eq(tables.liveActivity.kind, 'activity'),
+            eq(tables.liveActivity.activityId, activityId),
+            isNull(tables.liveActivity.deletedAt)
+          )
+        )
+        .returning();
+      if (!updated) {
+        throw new NotFoundError('Live activity not found');
+      }
+      return updated as LiveActivity;
+    }
+  );
 }
 
 export async function sendLiveActivity(
@@ -176,6 +167,7 @@ export async function sendLiveActivity(
       isNull(tables.liveActivity.endedAt)
     );
   }
+
   const rows = await db
     .select()
     .from(tables.liveActivity)
@@ -188,50 +180,81 @@ export async function sendLiveActivity(
     );
   }
 
-  const results: Array<{ id: string; ok: boolean; code?: string; reason?: string }> = [];
-  for (const row of rows) {
-    const credential = await resolveCredential(db, tenant.id, 'apns', row.environment);
-    if (!credential) {
-      results.push({
-        id: encodeId('liveActivity', row.id),
-        ok: false,
-        code: 'no_credential',
-        reason: `No ${row.environment} APNs credential configured`,
-      });
-      continue;
+  return await trace(
+    'liveActivities.send',
+    { 'tenant.id': tenant.id, 'subscriber.id': subscriber.id, 'live_activity.event': input.event },
+    async (outer) => {
+      const results: Array<{ id: string; ok: boolean; code?: string; reason?: string }> = [];
+      for (const row of rows) {
+        const credential = await resolveCredential(db, tenant.id, 'apns', row.environment);
+        if (!credential) {
+          results.push({
+            id: encodeId('liveActivity', row.id),
+            ok: false,
+            code: 'no_credential',
+            reason: `No ${row.environment} APNs credential configured`,
+          });
+          continue;
+        }
+
+        const liveActivity: LiveActivityPayload = {
+          event: input.event,
+          contentState: input.contentState,
+          ...(input.event === 'start'
+            ? { attributesType: row.attributesType, attributes: input.attributes ?? {} }
+            : {}),
+          ...(input.alert ? { alert: input.alert } : {}),
+          ...(input.staleDate ? { staleDate: input.staleDate } : {}),
+          ...(input.dismissalDate ? { dismissalDate: input.dismissalDate } : {}),
+          ...(input.timestamp !== undefined ? { timestamp: input.timestamp } : {}),
+        };
+        const result = await trace(
+          'deliveries.send',
+          { 'delivery.provider': 'apns', 'tenant.id': tenant.id, 'live_activity.id': row.id },
+          async (span) => {
+            const sent = await PROVIDERS.apns.send({
+              credentialId: credential.id,
+              credentialUpdatedAt: credential.updatedAt.getTime(),
+              secret: credential.secret,
+              details: credential.details,
+              environment: credential.environment,
+              endpoint: row.token,
+              payload: { ...(input.priority ? { priority: input.priority } : {}), liveActivity },
+              expiresAt: null,
+            });
+            span.set('delivery.ok', sent.ok);
+            if (!sent.ok) span.set('delivery.code', sent.code);
+            return sent;
+          }
+        );
+
+        if (!result.ok) {
+          log.warn('[Deliveries] Live activity send failed', {
+            tenantId: tenant.id,
+            subscriberId: subscriber.id,
+            liveActivityId: row.id,
+            event: input.event,
+            code: result.code,
+            reason: result.reason,
+          });
+        }
+        if (result.ok && input.event === 'end') {
+          await db
+            .update(tables.liveActivity)
+            .set({ endedAt: new Date() })
+            .where(eq(tables.liveActivity.id, row.id));
+        }
+
+        results.push({
+          id: encodeId('liveActivity', row.id),
+          ok: result.ok,
+          ...(result.ok ? {} : { code: result.code, reason: result.reason }),
+        });
+      }
+      outer.set('liveActivities.sent', results.filter((entry) => entry.ok).length);
+      outer.set('liveActivities.failed', results.filter((entry) => !entry.ok).length);
+
+      return results;
     }
-    const liveActivity: LiveActivityPayload = {
-      event: input.event,
-      contentState: input.contentState,
-      ...(input.event === 'start'
-        ? { attributesType: row.attributesType, attributes: input.attributes ?? {} }
-        : {}),
-      ...(input.alert ? { alert: input.alert } : {}),
-      ...(input.staleDate ? { staleDate: input.staleDate } : {}),
-      ...(input.dismissalDate ? { dismissalDate: input.dismissalDate } : {}),
-      ...(input.timestamp !== undefined ? { timestamp: input.timestamp } : {}),
-    };
-    const result = await PROVIDERS.apns.send({
-      credentialId: credential.id,
-      credentialUpdatedAt: credential.updatedAt.getTime(),
-      secret: credential.secret,
-      details: credential.details,
-      environment: credential.environment,
-      endpoint: row.token,
-      payload: { ...(input.priority ? { priority: input.priority } : {}), liveActivity },
-      expiresAt: null,
-    });
-    if (result.ok && input.event === 'end') {
-      await db
-        .update(tables.liveActivity)
-        .set({ endedAt: new Date() })
-        .where(eq(tables.liveActivity.id, row.id));
-    }
-    results.push({
-      id: encodeId('liveActivity', row.id),
-      ok: result.ok,
-      ...(result.ok ? {} : { code: result.code, reason: result.reason }),
-    });
-  }
-  return results;
+  );
 }

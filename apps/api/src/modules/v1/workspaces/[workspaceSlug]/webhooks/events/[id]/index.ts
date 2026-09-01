@@ -1,5 +1,5 @@
 import { findWebhookEvent, serializeWebhookEvent } from '@buzzkit/api/api/webhooks/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 

@@ -115,7 +115,7 @@ export function useProviderGuide({
   const [state, setState] = useState<GuideState>(() => initialState(providerId, initialStep));
   if (state.providerId !== providerId) setState(initialState(providerId, initialStep));
   const { current, values, files, touched, derived } = state;
-  const patch = (next: Partial<GuideState>) => setState((previous) => ({ ...previous, ...next }));
+  const patch = (changes: Partial<GuideState>) => setState((previous) => ({ ...previous, ...changes }));
 
   const steps = (guide?.steps ?? []).filter(
     (entry) => !(entry.skipWhenDerived && (entry.fields ?? []).every((field) => derived[field.name]))
@@ -182,7 +182,7 @@ export function useProviderGuide({
     if (url.searchParams.get('step') === stepParam) return;
     if (stepParam) url.searchParams.set('step', stepParam);
     else url.searchParams.delete('step');
-    navigate(`${url.pathname}${url.search}`, { replace: true, preventScrollReset: true });
+    void navigate(`${url.pathname}${url.search}`, { replace: true, preventScrollReset: true });
   }, [guide, trackStep, current, navigate]);
 
   useEffect(() => {
@@ -316,7 +316,7 @@ export function useProviderGuide({
           </Button>
         )}
         <NumberFlow
-          className='-translate-x-1/2 absolute left-1/2 text-fg-2 text-xs tabular-nums'
+          className='absolute left-1/2 -translate-x-1/2 text-fg-2 text-xs tabular-nums'
           value={current + 1}
           suffix={` of ${total}`}
         />

@@ -37,9 +37,9 @@ async function landed(headers: Headers, name: string) {
   await eventually(
     async () => {
       const { body } = await api<{ items: unknown[] }>(`/v1/events?name=${name}`, { headers });
-      return body.data?.items.length ? true : undefined;
+      return (body.data?.items.length ?? 0) > 0 ? true : undefined;
     },
-    { label: `${name} landed`, timeoutMs: 60_000 }
+    { label: `${name} landed`, timeoutMs: 120_000 }
   );
 }
 

@@ -24,6 +24,7 @@ import {
   PROVIDERS,
   type ProviderEnvironment,
   type ProviderName,
+  type ProviderSendResult,
 } from '@buzzkit/api/providers/index';
 import type { TokenMemo } from '@buzzkit/api/providers/shared/cache';
 import { and, count, type Db, eq, gte, inArray, isNull, ne, tables } from '@buzzkit/database';
@@ -33,7 +34,7 @@ export function createCredentialMemo(): CredentialMemo {
   return new Map();
 }
 
-export async function resolveCredential(
+export function resolveCredential(
   db: Db,
   tenantId: number,
   provider: ProviderName,
@@ -46,6 +47,7 @@ export async function resolveCredential(
 
   const pending = findCredentialForProvider(db, tenantId, provider, environment);
   memo?.set(memoKey, pending);
+
   return pending;
 }
 
@@ -81,6 +83,7 @@ async function findCredentialForProvider(
 
 async function listDeliveriesForProcessing(db: Db, ids: number[]): Promise<ProcessableRow[]> {
   if (ids.length === 0) return [];
+
   return await db
     .select({
       delivery: {
@@ -320,9 +323,17 @@ export async function processDeliveryBatch(
         row.subscription.environment,
         memo
       );
-      const result = credential
-        ? await trace(`deliver.${provider}`, async () =>
-            PROVIDERS[provider].send({
+      let result: ProviderSendResult;
+      if (credential) {
+        result = await trace(
+          'deliveries.send',
+          {
+            'delivery.provider': provider,
+            'delivery.id': row.delivery.id,
+            'tenant.id': row.delivery.tenantId,
+          },
+          async (span) => {
+            const sent = await PROVIDERS[provider].send({
               credentialId: credential.id,
               credentialUpdatedAt: credential.updatedAt.getTime(),
               secret: credential.secret,
@@ -332,16 +343,22 @@ export async function processDeliveryBatch(
               payload,
               expiresAt: row.message.expiresAt,
               tokens,
-            })
-          )
-        : ({
-            ok: false,
-            code: 'no_credential',
-            reason: `No ${row.subscription.environment} credential configured for ${provider}`,
-            request: null,
-            response: null,
-            latencyMs: 0,
-          } as const);
+            });
+            span.set('delivery.ok', sent.ok);
+            if (!sent.ok) span.set('delivery.code', sent.code);
+            return sent;
+          }
+        );
+      } else {
+        result = {
+          ok: false,
+          code: 'no_credential',
+          reason: `No ${row.subscription.environment} credential configured for ${provider}`,
+          request: null,
+          response: null,
+          latencyMs: 0,
+        };
+      }
       outcomes.push({
         deliveryId: row.delivery.id,
         tenantId: row.delivery.tenantId,
@@ -376,7 +393,6 @@ export async function processDeliveryBatch(
     for (const application of applications.filter((entry) => entry.invalidatedSubscription)) {
       const row = rows.get(application.deliveryId)!;
       const outcome = outcomes.find((candidate) => candidate.deliveryId === application.deliveryId)!;
-
       await recordSystemEvents(
         row.delivery.tenantId,
         { id: row.delivery.subscriberId, externalId: row.subscriber.externalId },
@@ -395,6 +411,7 @@ export async function processDeliveryBatch(
     for (const outcome of ['sent', 'retrying', 'failed', 'invalid', 'skipped'] as const) {
       t.set(`deliveries.${outcome}`, processed.filter((entry) => entry.outcome === outcome).length);
     }
+
     return processed;
   });
 }

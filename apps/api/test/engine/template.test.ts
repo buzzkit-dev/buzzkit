@@ -1,4 +1,4 @@
-import { renderTemplate, renderTemplateValue } from '@buzzkit/api/engine/template';
+import { renderTemplate, renderTemplateValue, renderValue } from '@buzzkit/api/engine/template';
 import { describe, expect, it } from 'vitest';
 
 const context = {
@@ -123,5 +123,36 @@ describe('renderTemplate', () => {
     expect(renderTemplateValue('{{ vars.cancel }}', context)).toBe(true);
     expect(renderTemplateValue('{{ trigger.data.checks }}!', context)).toBe('1234.5!');
     expect(renderTemplateValue('plain', context)).toBe('plain');
+  });
+});
+
+describe('filter edge cases', () => {
+  it('blanks undateable values and empty strings in date filters', () => {
+    const bad = { trigger: { data: { when: false } } };
+    const empty = { trigger: { data: { when: '' } } };
+    expect(renderTemplateValue('{{trigger.data.when | date}}', bad)).toBe('');
+    expect(renderTemplateValue('{{trigger.data.when | date}}', empty)).toBe('');
+  });
+
+  it('floors a sub-minute gap to zero minutes', () => {
+    const soon = { trigger: { data: { when: new Date(Date.now() + 10_000).toISOString() } } };
+    expect(renderTemplateValue('{{trigger.data.when | until}}', soon)).toBe('0 minutes');
+  });
+
+  it('sizes objects and scalar fallbacks', () => {
+    const bag = (value: unknown) => ({ trigger: { data: { bag: value } } });
+    expect(renderTemplateValue('{{trigger.data.bag | size}}', bag({ a: 1, b: 2 }))).toBe(2);
+    expect(renderTemplateValue('{{trigger.data.bag | size}}', bag(12345))).toBe(5);
+    expect(renderTemplateValue('{{trigger.data.bag | size}}', bag(null))).toBe(0);
+  });
+
+  it('renders nested objects and passes non-template values through renderValue', () => {
+    expect(
+      renderValue(
+        { deep: { name: '{{subscriber.attributes.name}}' }, list: ['{{trigger.data.n}}', 3], keep: 7 },
+        context,
+        {}
+      )
+    ).toEqual({ deep: { name: 'Ada' }, list: [2, 3], keep: 7 });
   });
 });

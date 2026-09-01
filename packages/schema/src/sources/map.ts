@@ -53,6 +53,7 @@ export function mapPayload(mapping: SourceMapping, payload: unknown): MappingOut
     const value = readPath(payload, path);
     if (value !== undefined) data[key] = value;
   }
+
   return {
     outcome: 'event',
     event: {

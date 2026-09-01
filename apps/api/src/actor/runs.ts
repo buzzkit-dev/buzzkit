@@ -1,3 +1,4 @@
+import { log } from '@buzzkit/api/libs/logger';
 import {
   type CancelRule,
   SCHEDULE_TRIGGER_NAME,
@@ -30,7 +31,7 @@ export type RunPorts = {
   ) => Promise<void>;
   terminateRun: (runId: string) => Promise<void>;
   deliverWait: (wait: ActorWaitRow, event: ActorEventInput) => Promise<void>;
-  cancelLocal?: (run: ActorRunRow) => Promise<void>;
+  cancelLocal?: (run: ActorRunRow) => void | Promise<void>;
 };
 
 export type RunOutcome = { started: string[]; canceled: string[]; delivered: string[] };
@@ -73,6 +74,7 @@ type EventContext = {
 function eventContext(store: ActorStore, identity: ActorIdentity, event: ActorEventInput): EventContext {
   const attributes = store.readAttributes();
   const now = new Date(event.receivedAt);
+
   return {
     scope: {
       trigger: { name: event.name, data: event.data, source: event.source },
@@ -98,7 +100,11 @@ function passes(
       (ref) => resolvePath(context.scope, ref),
       context.options(spec, run)
     );
-  } catch {
+  } catch (error) {
+    log.warn('[Actor] Expression evaluation failed', {
+      runId: run?.run_id,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 }
@@ -143,10 +149,10 @@ export async function advanceRuns(
 
     for (const wait of store.listWaitsFor(event.name, event.receivedAt)) {
       const condition = wait.condition ? (JSON.parse(wait.condition) as WorkflowExpression) : undefined;
-      const run = store.findRun(wait.run_id);
+      const run = store.selectRun(wait.run_id);
       const spec = run ? specOf(run.workflow_id) : undefined;
       if (!run || !spec || !passes(condition, context, spec, run)) continue;
-      store.deleteWait(wait.run_id, wait.step);
+      store.removeWait(wait.run_id, wait.step);
       await ports.deliverWait(wait, event);
       outcome.delivered.push(wait.run_id);
     }
@@ -165,7 +171,7 @@ export async function advanceRuns(
       if (spec.concurrency === 'one-per-subscriber' && store.listLiveRuns(definition.id).length > 0) continue;
 
       const runId = runIdFor(identity, definition.id, sequence);
-      if (store.findRun(runId)) continue;
+      if (store.selectRun(runId)) continue;
       const run = newRun(definition, runId, sequence, new Date().toISOString());
       store.insertRun(run);
       acceptEvent(
@@ -183,6 +189,7 @@ export async function advanceRuns(
       outcome.started.push(runId);
     }
   }
+
   return outcome;
 }
 
@@ -195,7 +202,7 @@ async function cancelRun(
 ): Promise<void> {
   const now = new Date().toISOString();
   store.updateRun(run.run_id, 'canceled', run.step, reason, now);
-  store.deleteWaitsOfRun(run.run_id);
+  store.removeWaitsOfRun(run.run_id);
   acceptEvent(
     store,
     systemEvent('$run.canceled', { ...runEventData(run), reason }, { runId: run.run_id, step: run.step })
@@ -215,7 +222,7 @@ export async function scheduleRun(
   const spec = definition.spec;
   if (!('schedule' in spec.trigger) || definition.status !== 'active') return 'skipped';
   const runId = `${identity.tenantId}-${definition.id}-${identity.subscriberId}-${Date.parse(fire.at)}`;
-  if (store.findRun(runId)) return 'duplicate';
+  if (store.selectRun(runId)) return 'duplicate';
 
   const firedAt = new Date(fire.at);
   const trigger = systemEvent(
@@ -241,5 +248,6 @@ export async function scheduleRun(
     )
   );
   await ports.createRun(run, definition, trigger, sequence);
+
   return 'started';
 }

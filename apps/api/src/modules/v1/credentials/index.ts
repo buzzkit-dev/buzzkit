@@ -5,7 +5,7 @@ import {
   resolveCredentialUpload,
   serializeCredential,
 } from '@buzzkit/api/api/credentials/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -16,7 +16,6 @@ export const credentials = new Elysia()
     '/credentials',
     async ({ db, tenant }) => {
       const rows = await listCredentials(db, tenant.id);
-
       return Response.list(rows, { entity: 'credential' }).send();
     },
     { tenant: 'credentials:read' }

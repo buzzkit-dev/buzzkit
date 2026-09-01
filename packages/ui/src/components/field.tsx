@@ -56,7 +56,7 @@ const fieldVariants = cva('group/field flex w-full gap-2 data-[invalid=true]:tex
       horizontal:
         'flex-row items-center has-[>[data-slot=field-content]]:items-start *:data-[slot=field-label]:flex-auto has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
       responsive:
-        'flex-col *:w-full @md/field-group:flex-row @md/field-group:items-center @md/field-group:*:w-auto @md/field-group:has-[>[data-slot=field-content]]:items-start @md/field-group:*:data-[slot=field-label]:flex-auto [&>.sr-only]:w-auto @md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
+        '@md/field-group:flex-row flex-col @md/field-group:items-center *:w-full @md/field-group:*:w-auto @md/field-group:has-[>[data-slot=field-content]]:items-start @md/field-group:*:data-[slot=field-label]:flex-auto [&>.sr-only]:w-auto @md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
     },
   },
   defaultVariants: {
@@ -96,7 +96,7 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
     <Label
       data-slot='field-label'
       className={cn(
-        'group/field-label peer/field-label corner-superellipse/1.125 flex w-fit gap-2 leading-tighter group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary-a3 has-data-checked:bg-primary-a1 has-[>[data-slot=field]]:rounded-xl has-[>[data-slot=field]]:border has-[>[data-slot=field]]:border-bg-3 *:data-[slot=field]:p-2.5',
+        'group/field-label peer/field-label corner-superellipse/1.125 flex w-fit gap-2 leading-tighter has-[>[data-slot=field]]:rounded-xl has-[>[data-slot=field]]:border has-[>[data-slot=field]]:border-bg-3 has-data-checked:border-primary-a3 has-data-checked:bg-primary-a1 *:data-[slot=field]:p-2.5 group-data-[disabled=true]/field:opacity-50',
         'has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
         className
       )}
@@ -123,9 +123,9 @@ function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot='field-description'
       className={cn(
-        'text-left text-pretty text-fg-2 text-sm [[data-variant=legend]+&]:-mt-1.5',
+        'text-pretty text-left text-fg-2 text-sm [[data-variant=legend]+&]:-mt-1.5',
         'nth-last-2:-mt-1 last:mt-0',
-        '[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-fg-4',
+        '[&>a:hover]:text-fg-4 [&>a]:underline [&>a]:underline-offset-4',
         className
       )}
       {...props}
@@ -144,7 +144,7 @@ function FieldSeparator({
     <div
       data-slot='field-separator'
       data-content={!!children}
-      className={cn('-my-2 relative h-5 text-sm', className)}
+      className={cn('relative -my-2 h-5 text-sm', className)}
       {...props}
     >
       <Separator className='absolute inset-0 top-1/2' />
@@ -173,7 +173,7 @@ function FieldError({
       return children;
     }
 
-    if (!errors?.length) {
+    if (!errors || errors.length === 0) {
       return null;
     }
 

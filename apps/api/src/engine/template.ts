@@ -1,6 +1,6 @@
 import { resolvePath } from '@buzzkit/api/actor/evaluate';
 import {
-  durationSeconds,
+  durationMs,
   isDuration,
   NOW_PATH,
   parseTemplate,
@@ -80,6 +80,7 @@ function formatDate(date: Date, style: unknown, part: 'date' | 'time', options: 
     | 'long'
     | 'medium'
     | 'short';
+
   return new Intl.DateTimeFormat(locale, {
     ...(part === 'date' ? { dateStyle: chosen } : { timeStyle: chosen }),
     timeZone,
@@ -87,7 +88,7 @@ function formatDate(date: Date, style: unknown, part: 'date' | 'time', options: 
 }
 
 function shiftDate(date: Date, duration: string, direction: 1 | -1): string {
-  return new Date(date.getTime() + direction * durationSeconds(duration as never) * 1000).toISOString();
+  return new Date(date.getTime() + direction * durationMs(duration as never)).toISOString();
 }
 
 function arithmetic(value: unknown, operand: unknown, direction: 1 | -1): unknown {
@@ -126,6 +127,7 @@ function applyFilter(
       const raw = String(value);
       const length = toNumber(first) ?? 0;
       if (!Number.isInteger(length) || length < 1 || raw.length <= length) return raw;
+
       return `${raw.slice(0, Math.max(length - 1, 1)).trimEnd()}…`;
     }
     case 'append':
@@ -139,6 +141,7 @@ function applyFilter(
       if (amount === null) return '';
       const singular = text(first);
       const noun = amount === 1 ? singular : second === undefined ? `${singular}s` : text(second);
+
       return `${new Intl.NumberFormat(locale).format(amount)} ${noun}`;
     }
     case 'size':
@@ -148,7 +151,7 @@ function applyFilter(
     case 'first':
       return Array.isArray(value) ? value[0] : value;
     case 'last':
-      return Array.isArray(value) ? value[value.length - 1] : value;
+      return Array.isArray(value) ? value.at(-1) : value;
     case 'join':
       return Array.isArray(value)
         ? value.map(text).join(first === undefined ? ' ' : text(first))
@@ -161,6 +164,7 @@ function applyFilter(
       const number = toNumber(value);
       if (number === null) return '';
       const digits = toNumber(first);
+
       return new Intl.NumberFormat(locale, {
         maximumFractionDigits: digits ?? 2,
         minimumFractionDigits: digits ?? 0,
@@ -198,6 +202,7 @@ function applyFilter(
       if (filter.name === 'divided_by') return right === 0 ? '' : left / right;
       if (filter.name === 'modulo') return right === 0 ? '' : left % right;
       if (filter.name === 'at_least') return Math.max(left, right);
+
       return Math.min(left, right);
     }
     case 'date':
@@ -212,6 +217,7 @@ function applyFilter(
       const now = options.now ?? new Date();
       const seconds =
         (filter.name === 'until' ? date.getTime() - now.getTime() : now.getTime() - date.getTime()) / 1000;
+
       return distance(Math.max(seconds, 0), first, locale);
     }
   }
@@ -232,6 +238,7 @@ function evaluate(placeholder: TemplatePlaceholder, context: unknown, options: T
   for (const filter of placeholder.filters) {
     value = applyFilter(value, filter, filter.arguments.map(read), options);
   }
+
   return value;
 }
 
@@ -240,19 +247,23 @@ function stringify(value: unknown): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
-export function renderTemplate(text: string, context: unknown, options: TemplateOptions = {}): string {
-  return parseTemplate(text)
+export function renderTemplate(template: string, context: unknown, options: TemplateOptions = {}): string {
+  return parseTemplate(template)
     .map((part) =>
       part.kind === 'text' ? part.text : stringify(evaluate(part.placeholder, context, options))
     )
     .join('');
 }
 
-export function renderTemplateValue(text: string, context: unknown, options: TemplateOptions = {}): unknown {
-  const parts = parseTemplate(text);
+export function renderTemplateValue(
+  template: string,
+  context: unknown,
+  options: TemplateOptions = {}
+): unknown {
+  const parts = parseTemplate(template);
   const [only] = parts;
   if (parts.length === 1 && only?.kind === 'placeholder') return evaluate(only.placeholder, context, options);
-  return renderTemplate(text, context, options);
+  return renderTemplate(template, context, options);
 }
 
 export function renderValue(value: unknown, scope: unknown, options: TemplateOptions): unknown {

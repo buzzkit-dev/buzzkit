@@ -173,7 +173,7 @@ export function EventSourceBadge({
   return <Typed entry={{ label: 'Webhook', tone: 'purple' }} />;
 }
 
-export function SourceBadge({ source, className }: { source: string; className?: string }) {
+function SourceBadge({ source, className }: { source: string; className?: string }) {
   const entry = SOURCES[source];
   if (!entry) return <Badge size='sm'>{source}</Badge>;
   return (

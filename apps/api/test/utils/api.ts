@@ -7,10 +7,17 @@ export type Envelope<T = unknown> = {
   metadata: { timestamp: string; requestId?: string };
 };
 
+export type PageData<T = unknown> = {
+  items: T[];
+  hasMore: boolean;
+  nextCursor: string | null;
+  total?: number;
+};
+
 export async function api<T = unknown>(
   path: string,
   init?: RequestInit
-): Promise<{ status: number; body: Envelope<T> }> {
+): Promise<{ status: number; headers: Headers; body: Envelope<T> }> {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: {

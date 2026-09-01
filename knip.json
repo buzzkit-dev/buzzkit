@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": [".claude/**"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.ts"]
+    },
+    "apps/api": {
+      "entry": ["test/**/*.test.ts", "test/utils/*Stub.ts"],
+      "project": ["src/**", "test/**"],
+      "ignoreDependencies": ["cloudflare"]
+    },
+    "apps/web": {
+      "ignoreDependencies": ["tailwindcss"]
+    }
+  }
+}

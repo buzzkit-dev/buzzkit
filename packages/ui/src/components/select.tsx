@@ -121,14 +121,14 @@ function SelectTrigger({
         "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:transition-[background-color,box-shadow,inset] before:duration-150 before:ease-out before:content-['']",
         'enabled:active:before:inset-x-(--press-inset-x) enabled:active:before:inset-y-(--press-inset-y)',
         variant === 'ghost'
-          ? 'enabled:hover:before:bg-bg-a2/70 enabled:active:before:bg-bg-a2/70 aria-expanded:before:bg-bg-a2'
-          : 'before:bg-bg-2 enabled:hover:before:bg-bg-3/80 enabled:active:before:bg-bg-3/80 aria-expanded:before:bg-bg-3/80',
+          ? 'enabled:active:before:bg-bg-a2/70 enabled:hover:before:bg-bg-a2/70 aria-expanded:before:bg-bg-a2'
+          : 'before:bg-bg-2 enabled:active:before:bg-bg-3/80 enabled:hover:before:bg-bg-3/80 aria-expanded:before:bg-bg-3/80',
         'outline-[1.5px] outline-transparent focus-visible:outline-primary-4/40 focus-visible:ring-[1.5px] focus-visible:ring-primary-2/60',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'aria-invalid:focus-visible:outline-red-4 aria-invalid:focus-visible:ring-red-2',
         'data-placeholder:text-fg-2',
         '*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5',
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
       )}
       {...props}
@@ -178,7 +178,7 @@ function SelectContent({
             // static shell: the list scrolls, and the surface lives on ::before so
             // only the background animates while text lands instantly.
             'corner-superellipse/1.125 relative isolate z-50 flex max-h-(--available-height) min-w-(--anchor-width) flex-col whitespace-nowrap rounded-xl text-popover-foreground',
-            "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:corner-superellipse/1.125 before:rounded-[inherit] before:bg-popover before:shadow-md before:content-['']",
+            "before:corner-superellipse/1.125 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-popover before:shadow-md before:content-['']",
             // Entry only; closing is instant.
             'before:origin-(--transform-origin) before:duration-150 before:ease-out data-open:before:animate-in',
             // Beside the trigger: the surface fades and grows from 95%.
@@ -186,13 +186,13 @@ function SelectContent({
             // Over the trigger (Base UI reports side "none" when the selected item
             // is aligned with it): the surface takes over from the trigger's press,
             // growing 0.975 → 1 in place, no fade.
-            'data-[side=none]:before:origin-center data-open:data-[side=none]:before:fade-in-100 data-open:data-[side=none]:before:zoom-in-[0.975]',
+            'data-open:data-[side=none]:before:fade-in-100 data-open:data-[side=none]:before:zoom-in-[0.975] data-[side=none]:before:origin-center',
             className
           )}
           {...props}
         >
           <SelectScrollUpButton />
-          <SelectPrimitive.List className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto'>
+          <SelectPrimitive.List className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
             <HighlightList>{children}</HighlightList>
           </SelectPrimitive.List>
           <SelectScrollDownButton />
@@ -227,7 +227,7 @@ function SelectItem({
         // The sliding indicator draws the highlight; items only shift text color.
         // pl-1.5 is load-bearing: list p-1 (4px) + pl-1.5 (6px) equals the
         // trigger's px-2.5, so the aligned popup sits exactly over the trigger.
-        "relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-1.5 font-medium text-fg-3 text-sm outline-hidden select-none data-indicator-here:text-fg-4 [&[data-indicator-here]_span]:text-fg-4 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&[data-indicator-here]_svg]:opacity-100 [&_svg]:transition-opacity [&_svg]:duration-150 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-1.5 pr-8 pl-1.5 font-medium text-fg-3 text-sm outline-hidden data-disabled:pointer-events-none data-indicator-here:text-fg-4 data-disabled:opacity-50 [&[data-indicator-here]_span]:text-fg-4 [&[data-indicator-here]_svg]:opacity-100 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:transition-opacity [&_svg]:duration-150 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}

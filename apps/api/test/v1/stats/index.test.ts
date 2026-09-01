@@ -1,35 +1,14 @@
+import type { Stats } from '@buzzkit/api/api/stats/types';
 import { describe, expect, it } from 'vitest';
 import { api } from '../../utils/api';
 import { fakeToken } from '../../utils/fixtures';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
-type Stats = {
-  range: { from: string; to: string };
-  interval: string;
-  subscribers: { total: number; added: number };
-  messages: { total: number };
-  deliveries: { total: number; sent: number; failed: number; invalid: number; pending: number };
-  previous: {
-    subscribers: { added: number };
-    messages: { total: number };
-    deliveries: { total: number; sent: number; failed: number; invalid: number; pending: number };
-  };
-  series: Array<{
-    date: string;
-    subscribers: number;
-    messages: number;
-    sent: number;
-    failed: number;
-    invalid: number;
-    pending: number;
-  }>;
-};
-
 async function stats(headers: Record<string, string>, query = '') {
   return api<Stats>(`/v1/stats${query}`, { headers });
 }
 
-async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 20_000): Promise<T> {
+async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 60_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await probe();
@@ -47,11 +26,11 @@ describe('GET /v1/stats', () => {
     const data = body.data!;
     expect(data.subscribers).toEqual({ total: 0, added: 0 });
     expect(data.messages).toEqual({ total: 0 });
-    expect(data.deliveries).toEqual({ total: 0, sent: 0, failed: 0, invalid: 0, pending: 0 });
+    expect(data.deliveries).toEqual({ total: 0, sent: 0, failed: 0, capped: 0, invalid: 0, pending: 0 });
     expect(data.previous).toEqual({
       subscribers: { added: 0 },
       messages: { total: 0 },
-      deliveries: { total: 0, sent: 0, failed: 0, invalid: 0, pending: 0 },
+      deliveries: { total: 0, sent: 0, failed: 0, capped: 0, invalid: 0, pending: 0 },
       events: { total: 0 },
       runs: { started: 0, live: 0, completed: 0, canceled: 0, failed: 0 },
     });

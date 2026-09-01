@@ -1,33 +1,22 @@
-import { currentKeyVersion, rewrapSecret, sealSecret, unsealSecret } from '@buzzkit/api/libs/crypto';
+import {
+  currentKeyVersion,
+  rewrapSealedRows,
+  sealingContext,
+  sealSecret,
+  unsealSecret,
+} from '@buzzkit/api/libs/crypto';
+import { countRows } from '@buzzkit/api/libs/database';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, asc, type Db, eq, isNull, lt, sql, tables } from '@buzzkit/database';
 import { SECRET_NAME_PATTERN } from '@buzzkit/schema/workflows';
-import { t } from 'elysia';
+import { MAX_SECRETS_PER_TENANT } from './constants';
+import type { Secret } from './types';
 
-export type Secret = typeof tables.secret.$inferSelect;
-
-export const MAX_SECRETS_PER_TENANT = 50;
-
-export const MAX_SECRET_BYTES = 4096;
-
-export const SecretNameSchema = t.String({ pattern: SECRET_NAME_PATTERN.source, maxLength: 48 });
-
-export const SecretValueSchema = t.Object({ value: t.String({ minLength: 1, maxLength: MAX_SECRET_BYTES }) });
-
-function sealingContext(tenantId: number, name: string): string {
-  return ['secret', 'v1', tenantId, name].join(':');
-}
-
-export function serializeSecret(secret: Secret) {
-  return {
-    id: secret.id,
-    name: secret.name,
-    version: secret.version,
-    createdAt: secret.createdAt,
-    updatedAt: secret.updatedAt,
-  };
-}
+export * from './constants';
+export * from './schemas';
+export * from './serialize';
+export type * from './types';
 
 export function assertSecretName(name: string): void {
   if (!SECRET_NAME_PATTERN.test(name)) {
@@ -42,15 +31,13 @@ export function assertSecretName(name: string): void {
 }
 
 export async function listSecrets(db: Db, tenantId: number): Promise<Secret[]> {
-  return await trace(
-    'secrets.list',
-    async () =>
-      await db
-        .select()
-        .from(tables.secret)
-        .where(and(eq(tables.secret.tenantId, tenantId), isNull(tables.secret.deletedAt)))
-        .orderBy(asc(tables.secret.name))
-  );
+  return await trace('secrets.list', async () => {
+    return await db
+      .select()
+      .from(tables.secret)
+      .where(and(eq(tables.secret.tenantId, tenantId), isNull(tables.secret.deletedAt)))
+      .orderBy(asc(tables.secret.name));
+  });
 }
 
 async function selectSecret(db: Db, tenantId: number, name: string): Promise<Secret | null> {
@@ -70,15 +57,16 @@ export async function findSecret(db: Db, tenantId: number, name: string): Promis
   return row;
 }
 
-export async function putSecret(
+export async function upsertSecret(
   db: Db,
   tenantId: number,
   name: string,
   value: string
 ): Promise<{ secret: Secret; created: boolean }> {
   assertSecretName(name);
-  return await trace('secrets.put', async () => {
-    const sealed = await sealSecret(value, sealingContext(tenantId, name));
+
+  return await trace('secrets.upsert', async () => {
+    const sealed = await sealSecret(value, sealingContext('secret', tenantId, name));
     const existing = await selectSecret(db, tenantId, name);
     if (existing) {
       const [updated] = await db
@@ -88,20 +76,24 @@ export async function putSecret(
         .returning();
       return { secret: updated as Secret, created: false };
     }
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(tables.secret)
-      .where(and(eq(tables.secret.tenantId, tenantId), isNull(tables.secret.deletedAt)));
-    if ((count ?? 0) >= MAX_SECRETS_PER_TENANT) {
+    const held = await countRows(
+      db,
+      tables.secret,
+      and(eq(tables.secret.tenantId, tenantId), isNull(tables.secret.deletedAt))
+    );
+
+    if (held >= MAX_SECRETS_PER_TENANT) {
       throw new BadRequestError(`A tenant holds at most ${MAX_SECRETS_PER_TENANT} secrets`, {
         code: 'secrets_limit',
         param: 'name',
       });
     }
+
     const [inserted] = await db
       .insert(tables.secret)
       .values({ tenantId, name, ...sealed })
       .returning();
+
     return { secret: inserted as Secret, created: true };
   });
 }
@@ -115,27 +107,30 @@ export async function softDeleteSecret(db: Db, secretId: number): Promise<Secret
   return deleted as Secret;
 }
 
-export async function readSecrets(db: Db, tenantId: number): Promise<Record<string, string>> {
+export async function resolveSecrets(db: Db, tenantId: number): Promise<Record<string, string>> {
   const rows = await listSecrets(db, tenantId);
   const entries = await Promise.all(
-    rows.map(async (row) => [row.name, await unsealSecret(row, sealingContext(tenantId, row.name))] as const)
+    rows.map(
+      async (row) =>
+        [row.name, await unsealSecret(row, sealingContext('secret', tenantId, row.name))] as const
+    )
   );
   return Object.fromEntries(entries);
 }
 
-export async function rewrapSecrets(db: Db, limit: number): Promise<number> {
+export async function rewrapTenantSecrets(db: Db, limit: number): Promise<number> {
   const current = currentKeyVersion();
   const rows = await db
     .select()
     .from(tables.secret)
     .where(and(lt(tables.secret.keyVersion, current), isNull(tables.secret.deletedAt)))
     .limit(limit);
-  for (const row of rows) {
-    const sealed = await rewrapSecret(row, sealingContext(row.tenantId, row.name));
-    await db
-      .update(tables.secret)
-      .set({ dekCiphertext: sealed.dekCiphertext, dekIv: sealed.dekIv, keyVersion: sealed.keyVersion })
-      .where(eq(tables.secret.id, row.id));
-  }
-  return rows.length;
+
+  return await rewrapSealedRows(
+    rows,
+    (row) => ({ sealed: row, context: sealingContext('secret', row.tenantId, row.name) }),
+    async (row, next) => {
+      await db.update(tables.secret).set(next).where(eq(tables.secret.id, row.id));
+    }
+  );
 }

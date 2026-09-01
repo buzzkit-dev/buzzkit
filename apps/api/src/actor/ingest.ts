@@ -12,7 +12,7 @@ export function acceptEvent(store: ActorStore, input: ActorEventInput): ActorIng
     idempotencyKey: input.idempotencyKey || null,
     messageId: input.messageId ?? messageIdOf(input.data),
   };
-  const existing = event.idempotencyKey ? store.findByIdempotencyKey(event.idempotencyKey) : null;
+  const existing = event.idempotencyKey ? store.selectByIdempotencyKey(event.idempotencyKey) : null;
   if (existing) {
     return { id: existing.id, sequence: existing.sequence, status: 'duplicate' };
   }
@@ -20,6 +20,7 @@ export function acceptEvent(store: ActorStore, input: ActorEventInput): ActorIng
   const sequence = store.insertEvent(event);
   store.recordProjection(event.name, sequence, event.timestamp);
   mirrorAttributes(store, event);
+
   return { id: event.id, sequence, status: 'accepted' };
 }
 
@@ -47,6 +48,7 @@ export function systemEvent(
   origin: SystemEventOrigin
 ): ActorEventInput {
   const now = origin.now ?? new Date();
+
   return {
     id: `evt_${uuidv7(now.getTime())}`,
     idempotencyKey: null,

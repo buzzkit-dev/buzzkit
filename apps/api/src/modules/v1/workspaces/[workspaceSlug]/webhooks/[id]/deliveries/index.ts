@@ -1,10 +1,10 @@
 import {
   findEndpoint,
-  listDeliveries,
-  serializeDelivery,
+  listWebhookDeliveries,
+  serializeWebhookDelivery,
   WebhookDeliveryStatusSchema,
 } from '@buzzkit/api/api/webhooks/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
@@ -16,9 +16,10 @@ export const webhookDeliveries = new Elysia()
     '/workspaces/:workspaceSlug/webhooks/:id/deliveries',
     async ({ db, params, query, workspace }) => {
       const endpoint = await findEndpoint(db, workspace.id, params.id);
-      const { items, hasMore, nextCursor, total } = await listDeliveries(db, endpoint.id, query);
-
-      return Response.success(items.map(serializeDelivery)).paginated({ hasMore, nextCursor, total }).send();
+      const { items, hasMore, nextCursor, total } = await listWebhookDeliveries(db, endpoint.id, query);
+      return Response.success(items.map(serializeWebhookDelivery))
+        .paginated({ hasMore, nextCursor, total })
+        .send();
     },
     {
       scope: 'webhooks:read',

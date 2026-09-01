@@ -25,6 +25,7 @@ export function kindOf(expression: Expression): ExpressionKind {
   if ('count' in expression) return 'count';
   if ('never' in expression) return 'never';
   if ('lastSeen' in expression) return 'lastSeen';
+
   return 'channel';
 }
 

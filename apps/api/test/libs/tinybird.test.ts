@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@buzzkit/api/libs/cache', () => ({ readCache: vi.fn(), writeCache: vi.fn() }));
 
-const bindings = env as Record<string, unknown>;
+const bindings = env as unknown as Record<string, unknown>;
 const fetchMock = vi.fn<typeof fetch>();
 const authCache = { get: vi.fn(), put: vi.fn() };
 

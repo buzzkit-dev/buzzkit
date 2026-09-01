@@ -52,7 +52,7 @@ export function serializeWebhookEvent(event: WebhookEvent) {
   };
 }
 
-export function serializeDelivery(delivery: WebhookDelivery & { eventType?: string }) {
+export function serializeWebhookDelivery(delivery: WebhookDelivery & { eventType?: string }) {
   return {
     id: encodeId('webhookDelivery', delivery.id),
     endpointId: encodeId('webhook', delivery.endpointId),
@@ -69,7 +69,7 @@ export function serializeDelivery(delivery: WebhookDelivery & { eventType?: stri
   };
 }
 
-export function serializeAttempt(attempt: WebhookAttempt) {
+export function serializeWebhookAttempt(attempt: WebhookAttempt) {
   return {
     id: encodeId('webhookAttempt', attempt.id),
     attempt: attempt.attempt,

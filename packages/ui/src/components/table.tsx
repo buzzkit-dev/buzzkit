@@ -20,7 +20,7 @@ function Table({ className, children, ...props }: React.ComponentProps<'table'>)
       <div data-slot='table-viewport' className='relative min-h-0 flex-1 overflow-auto'>
         <table
           data-slot='table'
-          className={cn('w-full border-separate border-spacing-0 caption-bottom text-sm', className)}
+          className={cn('w-full caption-bottom border-separate border-spacing-0 text-sm', className)}
           {...props}
         >
           {inside}

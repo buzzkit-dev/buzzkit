@@ -8,7 +8,7 @@ import {
 } from '@buzzkit/api/libs/crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-const keys = env as Record<string, string | undefined>;
+const keys = env as unknown as Record<string, string | undefined>;
 
 const randomKey = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64');
 

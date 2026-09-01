@@ -35,7 +35,7 @@ describe('local delivery acknowledgment', () => {
     await track(keyBearer, user, 'workout.missed');
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
-      { label: 'run completed', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'run completed', timeoutMs: 120_000, intervalMs: 500 }
     );
 
     const events = await runEvents(keyBearer, user);
@@ -77,7 +77,7 @@ describe('local delivery acknowledgment', () => {
 
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
-      { label: 'run completed', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'run completed', timeoutMs: 120_000, intervalMs: 500 }
     );
 
     const events = await runEvents(keyBearer, user);

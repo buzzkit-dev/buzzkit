@@ -139,7 +139,7 @@ const COUNT_WORDS: Record<string, string> = {
   lt: 'fewer than',
 };
 
-export const REF_WORDS: Record<string, string> = {
+const REF_WORDS: Record<string, string> = {
   eq: 'is',
   neq: 'is not',
   gt: 'is greater than',

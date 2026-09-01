@@ -7,17 +7,15 @@ import {
   createDeliveries,
   ENDPOINT_HORIZON_CLOCK_SKEW_MS,
   endpointReceives,
-  findDeliveryById,
-  findEnabledEndpointById,
-  findWebhookEventById,
   listEnabledEndpoints,
-  listReconcilableAuditIds,
-  listStaleDeliveryIds,
   markEndpointFailure,
   markEndpointSuccess,
   matchingEndpoints,
   recordAttempt,
   recordWebhookEvent,
+  selectEnabledEndpointById,
+  selectWebhookDeliveryById,
+  selectWebhookEventById,
   settleDelivery,
   signingSecrets,
   type WebhookDelivery,
@@ -31,15 +29,17 @@ import {
 } from '@buzzkit/api/api/webhooks/payload';
 import {
   DELIVERY_TIMEOUT_MS,
+  isRetryableStatus,
   isSuccessStatus,
-  RESPONSE_EXCERPT_BYTES,
+  resolveRetryAfterSeconds,
   retryDelaySeconds,
 } from '@buzzkit/api/api/webhooks/policy';
-import { createDb } from '@buzzkit/api/libs/database';
 import { describeError } from '@buzzkit/api/libs/error';
+import { timedFetch } from '@buzzkit/api/libs/http';
 import { log } from '@buzzkit/api/libs/logger';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { CRASH_RETRY_DELAY_SECONDS, consume } from '@buzzkit/api/queue/consume';
 import { type Db, eq, tables } from '@buzzkit/database';
 import { signWebhook } from 'buzzkit/webhooks';
 
@@ -48,13 +48,8 @@ export type WebhookQueueMessage =
   | { kind: 'stream'; tenantId: number; subscriberId: number; externalId: string; rows: ActorEventRow[] }
   | { kind: 'deliver'; deliveryId: number };
 
-const RETRY_DELAY_SECONDS = 30;
-
-const SWEEP_LIMIT = 500;
-
 export async function handleWebhookBatch(batch: MessageBatch<WebhookQueueMessage>): Promise<void> {
-  await trace('queue.webhooks.batch', { 'queue.batch_size': batch.messages.length }, async () => {
-    const db = createDb({ max: 2 });
+  await consume('webhooks.batch', batch, async (db) => {
     for (const item of batch.messages) {
       try {
         await processWebhookMessage(db, item.body);
@@ -64,7 +59,7 @@ export async function handleWebhookBatch(batch: MessageBatch<WebhookQueueMessage
           kind: item.body.kind,
           error: describeError(error),
         });
-        item.retry({ delaySeconds: RETRY_DELAY_SECONDS });
+        item.retry({ delaySeconds: CRASH_RETRY_DELAY_SECONDS });
       }
     }
   });
@@ -140,12 +135,12 @@ async function processStreamRows(
 }
 
 async function processDelivery(db: Db, deliveryId: number): Promise<void> {
-  const delivery = await findDeliveryById(db, deliveryId);
+  const delivery = await selectWebhookDeliveryById(db, deliveryId);
   if (!delivery || (delivery.status !== 'pending' && delivery.status !== 'failed')) return;
   if (delivery.nextAttemptAt !== null && delivery.nextAttemptAt.getTime() > Date.now()) return;
-  const endpoint = await findEnabledEndpointById(db, delivery.endpointId);
+  const endpoint = await selectEnabledEndpointById(db, delivery.endpointId);
   if (!endpoint) return;
-  const event = await findWebhookEventById(db, delivery.eventId);
+  const event = await selectWebhookEventById(db, delivery.eventId);
   if (!event) return;
   await deliver(db, delivery, endpoint, event);
 }
@@ -181,14 +176,9 @@ export async function deliver(
         signingSecrets(endpoint).map((secret) => signWebhook(secret, id, timestamp, body))
       );
 
-      const started = Date.now();
-      let status: number | null = null;
-      let error: string | null = null;
-      let responseBody: string | null = null;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
-      try {
-        const response = await fetch(endpoint.url, {
+      const result = await timedFetch(
+        endpoint.url,
+        {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -199,17 +189,24 @@ export async function deliver(
           },
           body,
           redirect: 'manual',
-          signal: controller.signal,
-        });
-        status = response.status;
-        responseBody = (await response.text()).slice(0, RESPONSE_EXCERPT_BYTES) || null;
+        },
+        DELIVERY_TIMEOUT_MS
+      );
+
+      let status: number | null = null;
+      let error: string | null = null;
+      let responseBody: string | null = null;
+      let retryAfterSeconds: number | undefined;
+      if (result.ok) {
+        status = result.response.status;
+        responseBody = result.bodyExcerpt || null;
+        retryAfterSeconds = resolveRetryAfterSeconds(result.response.headers.get('retry-after'));
         if (!isSuccessStatus(status)) error = `Endpoint responded ${status}`;
-      } catch (caught) {
-        error = describeDeliveryError(caught, controller.signal.aborted);
-      } finally {
-        clearTimeout(timer);
+      } else {
+        error = describeDeliveryError(result.reason, result.timedOut);
       }
-      const durationMs = Date.now() - started;
+
+      const durationMs = result.latencyMs;
       const ok = status !== null && isSuccessStatus(status);
 
       await recordAttempt(db, delivery.id, { attempt: attempts, status, error, durationMs, responseBody });
@@ -228,56 +225,27 @@ export async function deliver(
         return true;
       }
 
-      const delay = retryDelaySeconds(attempts);
-      if (delay === null) {
-        await settleDelivery(db, delivery.id, {
-          status: 'exhausted',
-          attempts,
-          nextAttemptAt: null,
-          lastStatus: status,
-          lastError: error,
-        });
-      } else {
-        await settleDelivery(db, delivery.id, {
-          status: 'failed',
-          attempts,
-          nextAttemptAt: new Date(Date.now() + delay * 1000),
-          lastStatus: status,
-          lastError: error,
-        });
+      const delay = isRetryableStatus(status) ? retryDelaySeconds(attempts, retryAfterSeconds) : null;
+      await settleDelivery(db, delivery.id, {
+        status: delay === null ? 'exhausted' : 'failed',
+        attempts,
+        nextAttemptAt: delay === null ? null : new Date(Date.now() + delay * 1000),
+        lastStatus: status,
+        lastError: error,
+      });
+      if (delay !== null) {
         await env.WEBHOOKS.send({ kind: 'deliver', deliveryId: delivery.id }, { delaySeconds: delay });
       }
+
       await markEndpointFailure(db, endpoint);
+
       return false;
     }
   );
 }
 
-function describeDeliveryError(caught: unknown, timedOut: boolean): string {
+function describeDeliveryError(reason: string, timedOut: boolean): string {
   if (timedOut) return `No response within ${DELIVERY_TIMEOUT_MS / 1000} seconds`;
-  const message = caught instanceof Error ? caught.message : String(caught);
-  if (message.startsWith('internal error')) return 'Could not connect to the endpoint';
-  return message;
-}
-
-export async function reconcileWebhooks(): Promise<void> {
-  await trace('scheduler.webhooks', async (t) => {
-    const db = createDb({ max: 2 });
-    const auditIds = await listReconcilableAuditIds(db, SWEEP_LIMIT);
-    for (const auditId of auditIds) {
-      await env.WEBHOOKS.send({ kind: 'audit', auditId });
-    }
-    const deliveryIds = await listStaleDeliveryIds(db, SWEEP_LIMIT);
-    for (const deliveryId of deliveryIds) {
-      await env.WEBHOOKS.send({ kind: 'deliver', deliveryId });
-    }
-    t.set('webhooks.reenqueued_events', auditIds.length);
-    t.set('webhooks.reenqueued_deliveries', deliveryIds.length);
-    if (auditIds.length > 0 || deliveryIds.length > 0) {
-      log.warn('[Webhooks] Reconciliation re-enqueued work', {
-        events: auditIds.length,
-        deliveries: deliveryIds.length,
-      });
-    }
-  });
+  if (reason.startsWith('internal error')) return 'Could not connect to the endpoint';
+  return reason;
 }

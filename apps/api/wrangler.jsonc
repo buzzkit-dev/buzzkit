@@ -92,6 +92,20 @@
         "max_concurrency": 20,
         "max_retries": 5,
         "dead_letter_queue": "buzzkit-webhooks-dlq"
+      },
+      {
+        "queue": "buzzkit-deliveries-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 3
+      },
+      {
+        "queue": "buzzkit-webhooks-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        "max_retries": 3
       }
     ]
   },

@@ -392,7 +392,7 @@ describe('recordSystemEvents', () => {
   });
 
   it('prefixes the name, stamps the system source and ingests with the trace context', async () => {
-    const data = { externalId: 'user_a', channel: 'push', platform: 'ios', endpoint: 'tok' };
+    const data = { externalId: 'user_a', channel: 'push', platform: 'ios', endpoint: 'tok', enabled: true };
     await recordSystemEvents(3, subscriber, [{ name: 'subscription.registered', data }]);
 
     expect(subscriberActor).toHaveBeenCalledWith(3, 7);

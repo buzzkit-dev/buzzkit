@@ -176,7 +176,7 @@ describe('sources hardening', () => {
         const names = body.data?.items.map((item) => item.name) ?? [];
         return names.includes(webhookEvent) && !names.includes(serverEvent) ? names : undefined;
       },
-      { label: 'stream provider filter', timeoutMs: 60_000 }
+      { label: 'stream provider filter', timeoutMs: 120_000 }
     );
     const wrongStream = await api<Listed>(`/v1/events?source=webhook&provider=stripe&limit=50`, {
       headers: keyBearer,
@@ -194,7 +194,7 @@ describe('sources hardening', () => {
         const entry = body.data?.items.find((item) => item.name === webhookEvent);
         return entry?.providers.includes('custom') ? entry : undefined;
       },
-      { label: 'catalog providers', timeoutMs: 60_000 }
+      { label: 'catalog providers', timeoutMs: 120_000 }
     );
   });
 });

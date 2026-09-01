@@ -1,0 +1,12 @@
+MESSAGE=$(head -1 "$1")
+
+if echo "$MESSAGE" | grep -qE '^(Merge|Revert|fixup!|squash!)'; then
+  exit 0
+fi
+
+if ! echo "$MESSAGE" | grep -qE '^(feat|fix|docs|refactor|test|chore|perf|ci|build|style|revert)(\([a-z0-9./-]+\))?!?: .{1,100}$'; then
+  echo "\033[1;31m✖ Commit message must follow conventional commits:\033[0m"
+  echo "  type(scope): subject   — e.g. feat(engine): add quiet-hours windows"
+  echo "  types: feat fix docs refactor test chore perf ci build style revert"
+  exit 1
+fi

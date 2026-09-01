@@ -115,8 +115,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  delete (env as Record<string, unknown>).ENVIRONMENT;
-  delete (env as Record<string, unknown>).WEBHOOKS;
+  delete (env as unknown as Record<string, unknown>).ENVIRONMENT;
+  delete (env as unknown as Record<string, unknown>).WEBHOOKS;
 });
 
 describe('recordWebhookEvent', () => {

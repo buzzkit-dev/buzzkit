@@ -1,15 +1,17 @@
 import { subscriberTimezone } from '@buzzkit/api/actor/history';
 import { findSubscriberByExternalId } from '@buzzkit/api/api/subscribers/index';
 import {
+  AssumptionSchema,
   findWorkflowBySlug,
   listWorkflowVersions,
   scheduleTriggerOf,
 } from '@buzzkit/api/api/workflows/index';
+import { WorkflowSlugParamsSchema } from '@buzzkit/api/api/workflows/schemas';
 import { dryRun } from '@buzzkit/api/engine/dry-run';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
-import { literalUnion, SlugSchema } from '@buzzkit/api/libs/schemas';
+import { literalUnion } from '@buzzkit/api/libs/schemas';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import {
   lintWorkflow,
@@ -20,15 +22,6 @@ import {
 } from '@buzzkit/schema/workflows';
 import { EVENT_NAME_PATTERN } from 'buzzkit/expressions';
 import Elysia, { t } from 'elysia';
-
-const AssumptionSchema = t.Object(
-  {
-    matched: t.Optional(t.Boolean()),
-    data: t.Optional(t.Unknown()),
-    status: t.Optional(t.Integer({ minimum: 100, maximum: 599 })),
-  },
-  { additionalProperties: false }
-);
 
 export const workflowTest = new Elysia()
   .use(auth)
@@ -50,9 +43,9 @@ export const workflowTest = new Elysia()
       }
       const spec = version.spec as WorkflowSpec;
 
-      const subscriber = body.externalId
-        ? await findSubscriberByExternalId(db, tenant.id, body.externalId)
-        : null;
+      let subscriber: Awaited<ReturnType<typeof findSubscriberByExternalId>> | null = null;
+      if (body.externalId) subscriber = await findSubscriberByExternalId(db, tenant.id, body.externalId);
+
       const attributes = subscriber
         ? (subscriber.attributes as Record<string, unknown>)
         : (body.attributes ?? {});
@@ -112,7 +105,7 @@ export const workflowTest = new Elysia()
     },
     {
       tenant: 'workflows:read',
-      params: t.Object({ workflowSlug: SlugSchema }),
+      params: WorkflowSlugParamsSchema,
       body: t.Object(
         {
           version: t.Optional(t.Integer({ minimum: 1 })),

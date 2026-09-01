@@ -37,6 +37,8 @@ export type ActorEventRow = {
   step: string | null;
 };
 
+export type ActorOccurrence = { name: string; dataJson: string; timestamp: string; id: string };
+
 export type ActorProjection = {
   name: string;
   count: number;
@@ -69,7 +71,7 @@ export type ActorWaitRow = {
   expires_at: string;
 };
 
-export type ActorStepStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'skipped';
+export type ActorStepStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'skipped' | 'failed';
 
 export type ActorStepRecord = {
   step: string;

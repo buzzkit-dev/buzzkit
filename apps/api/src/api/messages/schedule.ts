@@ -79,6 +79,7 @@ export function resolveSchedule(
       param: 'schedule.at',
     });
   }
+
   return schedule;
 }
 

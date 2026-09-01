@@ -38,5 +38,3 @@ export function generateChartSkeletonFromTarget(
     [dataKey]: Math.round(95 + Math.sin(index * 1.05) * 28 + index * 7),
   }));
 }
-
-export { DEFAULT_SKELETON_DATA_KEY, DEFAULT_SKELETON_POINT_COUNT };

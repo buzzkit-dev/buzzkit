@@ -1,7 +1,7 @@
-import { Children, cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { isValidElement, type ReactElement } from 'react';
 
 /** Marker on wrapper components whose single child should inherit clip classification. */
-export const CHART_CLIP_PASSTHROUGH = '__chartClipPassthrough' as const;
+const CHART_CLIP_PASSTHROUGH = '__chartClipPassthrough' as const;
 
 export function isChartClipPassthrough(type: unknown): boolean {
   return (
@@ -22,27 +22,6 @@ export function resolveChartChildElement(child: ReactElement): ReactElement {
 }
 
 /** Walk chart children, flattening React fragments (studio often groups layers in `<>...</>`). */
-export function forEachChartChild(
-  children: ReactNode,
-  callback: (child: ReactElement, index: number) => void
-) {
-  let index = 0;
-  const visit = (nodes: ReactNode) => {
-    Children.forEach(nodes, (child) => {
-      if (!isValidElement(child)) {
-        return;
-      }
-      if (child.type === Fragment) {
-        visit((child.props as { children?: ReactNode }).children);
-        return;
-      }
-      callback(child, index);
-      index += 1;
-    });
-  };
-  visit(children);
-}
-
 const CLIP_EXCLUDED_COMPONENT_NAMES = new Set([
   'Background',
   'Grid',
@@ -91,6 +70,3 @@ export function isClipExcludedComponent(child: ReactElement): boolean {
 }
 
 /** SVG layer lists from chart shells need stable keys when rendered as arrays. */
-export function renderKeyedChartLayers(children: ReactElement[]) {
-  return children.map((child, index) => cloneElement(child, { key: child.key ?? `chart-layer-${index}` }));
-}

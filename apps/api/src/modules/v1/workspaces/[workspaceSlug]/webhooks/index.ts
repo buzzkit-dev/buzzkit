@@ -5,7 +5,7 @@ import {
   serializeEndpoint,
   WebhookEventsSchema,
 } from '@buzzkit/api/api/webhooks/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { SlugSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
 import Elysia, { t } from 'elysia';
@@ -24,7 +24,9 @@ export const webhooks = new Elysia()
   .post(
     '/workspaces/:workspaceSlug/webhooks',
     async ({ audit, body, db, set, user, workspace }) => {
-      const tenant = body.tenant ? await findTenantBySlug(db, workspace.id, body.tenant) : null;
+      let tenant: Awaited<ReturnType<typeof findTenantBySlug>> | null = null;
+      if (body.tenant) tenant = await findTenantBySlug(db, workspace.id, body.tenant);
+
       const endpoint = await createEndpoint(
         db,
         workspace.id,

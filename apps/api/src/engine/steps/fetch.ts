@@ -1,6 +1,7 @@
 import { NonRetryableError } from 'cloudflare:workflows';
-import { readSecrets } from '@buzzkit/api/api/secrets/index';
-import { createDb } from '@buzzkit/api/libs/database';
+import { resolveSecrets } from '@buzzkit/api/api/secrets/index';
+import { stepDb } from '@buzzkit/api/libs/database';
+import type { Span as StepSpan } from '@buzzkit/observability';
 import {
   DEFAULT_FETCH_TIMEOUT_SECONDS,
   FETCH_TIMEOUT_PATTERN,
@@ -11,7 +12,6 @@ import { FETCH_RETRY_DELAY_MS, FETCH_RETRY_LIMIT, FETCH_USER_AGENT, LOCAL_FETCH_
 import type { RunContext } from '../context';
 import { describeFailure } from '../errors';
 import { renderTemplate, renderValue } from '../template';
-import { loadTenant } from '../tenant';
 
 type FetchResult = {
   at: string;
@@ -33,6 +33,7 @@ function assertFetchable(raw: string): URL {
   if (url.protocol !== 'https:' && !local) {
     throw new NonRetryableError(`fetch_blocked: only https addresses can be fetched, got ${url.origin}`);
   }
+
   return url;
 }
 
@@ -69,12 +70,11 @@ function methodOf(request: FetchStep['fetch']): string {
   return request.method ?? (request.body === undefined ? 'GET' : 'POST');
 }
 
-async function attempt(context: RunContext, current: FetchStep): Promise<FetchResult> {
+async function attempt(context: RunContext, current: FetchStep, span?: StepSpan): Promise<FetchResult> {
   const { name, fetch: request } = current;
-  const db = createDb({ max: 1 }, { traced: false });
-  const tenant = await loadTenant(db, context.params.tenantId);
+  const db = stepDb();
   const scope = context.scope();
-  const withSecrets = { ...scope, secrets: await readSecrets(db, tenant.id) };
+  const withSecrets = { ...scope, secrets: await resolveSecrets(db, context.params.tenantId) };
   const options = context.rendering();
   const url = assertFetchable(renderTemplate(request.url, withSecrets, options));
   const method = methodOf(request);
@@ -106,6 +106,7 @@ async function attempt(context: RunContext, current: FetchStep): Promise<FetchRe
     if (status !== null && !expected(request, status)) {
       throw new NonRetryableError(`${url.host} answered ${status}`);
     }
+
     return {
       at: new Date(context.now()).toISOString(),
       status,
@@ -123,6 +124,8 @@ async function attempt(context: RunContext, current: FetchStep): Promise<FetchRe
     redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs(request.timeout)),
   });
+  span?.set('fetch.host', url.host);
+  span?.set('fetch.status', response.status);
   if (!expected(request, response.status)) {
     if (response.status >= 500) throw new Error(`${url.host} answered ${response.status}`);
     throw new NonRetryableError(`${url.host} answered ${response.status}`);
@@ -133,6 +136,7 @@ async function attempt(context: RunContext, current: FetchStep): Promise<FetchRe
     url: url.toString(),
     responseStatus: response.status,
   });
+
   return {
     at: new Date(context.now()).toISOString(),
     status: response.status,
@@ -148,7 +152,7 @@ export async function runFetch(context: RunContext, current: FetchStep): Promise
   const onError = request.onError ?? 'fail';
   let result: FetchResult;
   try {
-    result = await context.do(`${name}:fetch`, () => attempt(context, current), {
+    result = await context.do(`${name}:fetch`, (t) => attempt(context, current, t), {
       retries: {
         limit: FETCH_RETRY_LIMIT,
         delay: context.scaled(FETCH_RETRY_DELAY_MS),
@@ -165,6 +169,7 @@ export async function runFetch(context: RunContext, current: FetchStep): Promise
         onError === 'skip' ? `Skipped: ${reason}` : `Continued without data: ${reason}`,
         { error: reason }
       );
+
       return {
         at: new Date(context.now()).toISOString(),
         status: null,

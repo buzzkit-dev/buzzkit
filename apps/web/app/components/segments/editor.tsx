@@ -86,10 +86,10 @@ export function SegmentEditor({
   const { submit, pending } = useActionFetcher((data) => {
     if (typeof data.slug === 'string') {
       toast.success('Segment created');
-      navigate(`/${workspaceSlug}/segments/${data.slug}`);
+      void navigate(`/${workspaceSlug}/segments/${data.slug}`);
     } else if (data.deleted) {
       toast.success('Segment deleted');
-      navigate(`/${workspaceSlug}/segments`);
+      void navigate(`/${workspaceSlug}/segments`);
     } else {
       toast.success('Changes saved');
     }
@@ -231,7 +231,7 @@ export function SegmentEditor({
       setShowProblems(true);
       return;
     }
-    submit(segment ? 'update' : 'create', {
+    void submit(segment ? 'update' : 'create', {
       name: name.trim(),
       slug: slug.trim(),
       description: description.trim(),
@@ -243,7 +243,7 @@ export function SegmentEditor({
     if (!previewKey || previewKey === lastKey.current) return;
     const timer = setTimeout(() => {
       lastKey.current = previewKey;
-      previewFetcher.submit(
+      void previewFetcher.submit(
         { intent: 'preview', expression: JSON.stringify(previewExpression) },
         { method: 'post' }
       );
@@ -429,7 +429,7 @@ export function SegmentEditor({
                   spellCheck={false}
                   aria-label='Expression'
                   aria-invalid={jsonProblem ? true : undefined}
-                  className='font-mono text-xs'
+                  className='text-xs'
                   placeholder='{ "all": [{ "ref": "attributes.plan", "eq": "pro" }, { "channel": "push" }] }'
                 />
                 {jsonSyntax ? (
@@ -456,7 +456,7 @@ export function SegmentEditor({
                           {issue.line === null ? '' : `Line ${issue.line}`}
                         </span>
                         <span className='text-red-text'>
-                          <span className='font-mono text-xs'>{issue.path}</span> · {issue.message}
+                          <span className='text-xs'>{issue.path}</span> · {issue.message}
                         </span>
                       </button>
                     ))}

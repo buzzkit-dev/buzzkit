@@ -307,6 +307,7 @@ function parsePlaceholder(source: string): TemplatePlaceholder {
     placeholder.filters.push(filter);
   }
   if (position < tokens.length) throw new TemplateError('Unexpected text after the placeholder.', source);
+
   return placeholder;
 }
 
@@ -320,6 +321,7 @@ export function parseTemplate(text: string): TemplatePart[] {
     last = index + match[0].length;
   }
   if (last < text.length) parts.push({ kind: 'text', text: text.slice(last) });
+
   return parts;
 }
 

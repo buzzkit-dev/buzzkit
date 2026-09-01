@@ -83,7 +83,7 @@ interface ChartTooltipInnerProps extends ChartTooltipProps {
   container: HTMLElement;
 }
 
-const ChartTooltipInner = memo(function ChartTooltipInner({
+const ChartTooltipInner = memo(function ChartTooltipInnerBase({
   showDatePill = true,
   showCrosshair = true,
   showDots = true,
@@ -387,5 +387,3 @@ function DatePillTrackerInner({
     </motion.div>
   );
 }
-
-export default ChartTooltip;

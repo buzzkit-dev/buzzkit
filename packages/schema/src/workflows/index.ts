@@ -3,7 +3,13 @@ export * from './constants';
 export { WORKFLOW_CHECKERS } from './lint/conditions';
 export { formatWorkflowPath, isWorkflowSpec, lintWorkflow, workflowProblem } from './lint/index';
 export { CronError, type CronFields, cronProblem, parseCron, scheduleFields } from './parse/cron';
-export { describeDuration, durationSeconds, isDuration } from './parse/duration';
+export {
+  describeDuration,
+  durationMs,
+  durationSeconds,
+  isDuration,
+  lenientDurationSeconds,
+} from './parse/duration';
 export {
   FILTER_SIGNATURES,
   type FilterSignature,

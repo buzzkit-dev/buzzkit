@@ -566,7 +566,7 @@ export function XAxis(props: XAxisProps) {
   return <XAxisInner {...props} container={container} />;
 }
 
-const XAxisInner = memo(function XAxisInner({
+const XAxisInner = memo(function XAxisInnerBase({
   numTicks = 5,
   tickerHalfWidth = 50,
   tickMode = 'data',
@@ -653,5 +653,3 @@ const XAxisInner = memo(function XAxisInner({
 });
 
 XAxis.displayName = 'XAxis';
-
-export default XAxis;

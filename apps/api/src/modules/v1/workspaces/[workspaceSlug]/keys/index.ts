@@ -1,12 +1,11 @@
-import { countApiKeys, createApiKey, listApiKeys, maskApiKey } from '@buzzkit/api/api/keys/index';
+import { createApiKey, listApiKeys, maskApiKey } from '@buzzkit/api/api/keys/index';
 import { findTenantBySlug } from '@buzzkit/api/api/tenants/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
 import { KeyKindSchema, NameSchema } from '@buzzkit/api/libs/schemas';
 import { assertValidKeyScopes } from '@buzzkit/api/libs/scopes';
-import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const keys = new Elysia()
@@ -15,18 +14,8 @@ export const keys = new Elysia()
   .get(
     '/workspaces/:workspaceSlug/keys',
     async ({ db, query, workspace }) => {
-      const limit = clampLimit(query.limit);
-      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('key', id));
-
-      const [rows, total] = await Promise.all([
-        listApiKeys(db, workspace.id, { limit, beforeId, kind: query.kind }),
-        countApiKeys(db, workspace.id, query.kind),
-      ]);
-      const page = toPage(rows, limit, (id) => encodeId('key', id));
-
-      return Response.success(page.items.map(maskApiKey), { entity: 'key' })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
-        .send();
+      const page = await listApiKeys(db, workspace.id, query);
+      return Response.page(page, { entity: 'key' }).send();
     },
     {
       scope: 'keys:read',
@@ -59,8 +48,10 @@ export const keys = new Elysia()
           param: 'tenant',
         });
       }
-      const tenant =
-        kind === 'workspace' || !body.tenant ? null : await findTenantBySlug(db, workspace.id, body.tenant);
+      let tenant: Awaited<ReturnType<typeof findTenantBySlug>> | null = null;
+      if (kind !== 'workspace' && body.tenant) {
+        tenant = await findTenantBySlug(db, workspace.id, body.tenant);
+      }
 
       const { key, secret } = await createApiKey(
         db,

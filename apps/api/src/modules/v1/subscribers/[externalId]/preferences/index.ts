@@ -1,7 +1,10 @@
-import { recordSystemEvents } from '@buzzkit/api/api/events/index';
-import { ExternalIdSchema, findSubscriberByExternalId } from '@buzzkit/api/api/subscribers/index';
-import { listPreferences, PreferenceChangesSchema, updatePreferences } from '@buzzkit/api/api/topics/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { ExternalIdParamsSchema } from '@buzzkit/api/api/subscribers/index';
+import {
+  listSubscriberPreferences,
+  PreferenceChangesSchema,
+  updateSubscriberPreferences,
+} from '@buzzkit/api/api/topics/index';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';
 
@@ -11,35 +14,25 @@ export const subscriberPreferences = new Elysia()
   .get(
     '/subscribers/:externalId/preferences',
     async ({ db, params, tenant }) => {
-      const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
-      const preferences = await listPreferences(db, tenant.id, subscriber.id);
-
+      const preferences = await listSubscriberPreferences(db, tenant.id, params.externalId);
       return Response.list(preferences).send();
     },
-    { tenant: 'subscribers:read', params: t.Object({ externalId: ExternalIdSchema }) }
+    { tenant: 'subscribers:read', params: ExternalIdParamsSchema }
   )
   .patch(
     '/subscribers/:externalId/preferences',
     async ({ body, db, params, tenant }) => {
-      const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
-      const { preferences, changed } = await updatePreferences(
+      const preferences = await updateSubscriberPreferences(
         db,
         tenant.id,
-        subscriber.id,
+        params.externalId,
         body.preferences
       );
-
-      if (changed) {
-        await recordSystemEvents(tenant.id, subscriber, [
-          { name: 'preferences.updated', data: { changes: body.preferences } },
-        ]);
-      }
-
       return Response.list(preferences).send();
     },
     {
       tenant: 'subscribers:write',
-      params: t.Object({ externalId: ExternalIdSchema }),
+      params: ExternalIdParamsSchema,
       body: t.Object({
         preferences: PreferenceChangesSchema,
       }),

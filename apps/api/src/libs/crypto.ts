@@ -13,6 +13,7 @@ function masterKeyMaterial(version: number): Uint8Array | null {
   if (bytes.byteLength !== MASTER_KEY_BYTES) {
     throw new InternalError(`${MASTER_KEY_PREFIX}${version} must be ${MASTER_KEY_BYTES} bytes`);
   }
+
   return bytes;
 }
 
@@ -27,9 +28,10 @@ export function currentKeyVersion(): number {
   return masterKeyVersions().at(-1) as number;
 }
 
-async function masterKey(version: number): Promise<CryptoKey> {
+function masterKey(version: number): Promise<CryptoKey> {
   const material = masterKeyMaterial(version);
   if (!material) throw new InternalError(`Credential master key v${version} is not configured`);
+
   return crypto.subtle.importKey('raw', material as BufferSource, { name: 'AES-GCM' }, false, [
     'encrypt',
     'decrypt',
@@ -90,6 +92,7 @@ export async function sealSecret(plaintext: string, context: string): Promise<Se
     dek,
     encode(plaintext)
   );
+
   return {
     secretCiphertext: toBase64(secretCiphertext),
     secretIv: toBase64(secretIv),
@@ -109,9 +112,32 @@ export async function unsealSecret(sealed: SealedSecret, context: string): Promi
 
 export async function rewrapSecret(sealed: SealedSecret, context: string): Promise<SealedSecret> {
   const dek = await unwrapDek(sealed, context, ['encrypt', 'decrypt']);
+
   return {
     secretCiphertext: sealed.secretCiphertext,
     secretIv: sealed.secretIv,
     ...(await wrapDek(dek, context, currentKeyVersion())),
   };
+}
+
+export function sealingContext(entity: string, ...parts: Array<string | number>): string {
+  return [entity, 'v1', ...parts].join(':');
+}
+
+export async function rewrapSealedRows<Row>(
+  rows: Row[],
+  resolve: (row: Row) => { sealed: SealedSecret | null; context: string },
+  update: (row: Row, next: Pick<SealedSecret, 'dekCiphertext' | 'dekIv' | 'keyVersion'>) => Promise<void>
+): Promise<number> {
+  let rewrapped = 0;
+
+  for (const row of rows) {
+    const { sealed, context } = resolve(row);
+    if (!sealed) continue;
+
+    const next = await rewrapSecret(sealed, context);
+    await update(row, { dekCiphertext: next.dekCiphertext, dekIv: next.dekIv, keyVersion: next.keyVersion });
+    rewrapped += 1;
+  }
+  return rewrapped;
 }

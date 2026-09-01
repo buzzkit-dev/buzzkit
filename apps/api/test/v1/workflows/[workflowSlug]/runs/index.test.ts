@@ -47,7 +47,7 @@ describe('GET /v1/workflows/:slug/runs', () => {
         const found = body.data?.items ?? [];
         return found.length === 3 && found.every((run) => run.status === 'completed') ? found : undefined;
       },
-      { label: 'three completed runs', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'three completed runs', timeoutMs: 120_000, intervalMs: 500 }
     );
 
     for (const run of items) {

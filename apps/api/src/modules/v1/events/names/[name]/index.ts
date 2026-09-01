@@ -5,7 +5,7 @@ import {
   listEventVolume,
   listRecentEvents,
 } from '@buzzkit/api/api/events/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { NotFoundError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';

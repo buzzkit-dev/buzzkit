@@ -1,14 +1,14 @@
 import {
   findSecret,
-  putSecret,
-  SecretNameSchema,
+  SecretNameParamsSchema,
   SecretValueSchema,
   serializeSecret,
   softDeleteSecret,
+  upsertSecret,
 } from '@buzzkit/api/api/secrets/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const secret = new Elysia()
   .use(auth)
@@ -19,12 +19,12 @@ export const secret = new Elysia()
       const target = await findSecret(db, tenant.id, params.name);
       return Response.success(serializeSecret(target), { entity: 'secret' }).send();
     },
-    { tenant: 'secrets:read', params: t.Object({ name: SecretNameSchema }) }
+    { tenant: 'secrets:read', params: SecretNameParamsSchema }
   )
   .put(
     '/secrets/:name',
     async ({ db, params, body, tenant, audit, set }) => {
-      const { secret: saved, created } = await putSecret(db, tenant.id, params.name, body.value);
+      const { secret: saved, created } = await upsertSecret(db, tenant.id, params.name, body.value);
       await audit({
         event: created ? 'secret.created' : 'secret.updated',
         tenantId: tenant.id,
@@ -34,7 +34,7 @@ export const secret = new Elysia()
       set.status = created ? 201 : 200;
       return Response.success(serializeSecret(saved), { entity: 'secret' }).send();
     },
-    { tenant: 'secrets:write', params: t.Object({ name: SecretNameSchema }), body: SecretValueSchema }
+    { tenant: 'secrets:write', params: SecretNameParamsSchema, body: SecretValueSchema }
   )
   .delete(
     '/secrets/:name',
@@ -49,5 +49,5 @@ export const secret = new Elysia()
       });
       return Response.success(markDeleted(serializeSecret(deleted)), { entity: 'secret' }).send();
     },
-    { tenant: 'secrets:write', params: t.Object({ name: SecretNameSchema }) }
+    { tenant: 'secrets:write', params: SecretNameParamsSchema }
   );

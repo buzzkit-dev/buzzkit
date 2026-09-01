@@ -298,7 +298,7 @@ function AttributeValue({ row }: { row: AttributeRow }) {
       {row.display}
     </a>
   ) : (
-    <Truncate className={row.mono ? 'font-mono text-xs' : undefined}>{row.display}</Truncate>
+    <Truncate className={row.mono ? 'text-xs' : undefined}>{row.display}</Truncate>
   );
 
   if (!row.tooltip) return content;
@@ -712,7 +712,7 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
                 </DetailRow>
               )}
               <DetailRow label='External id' copy={subscriber.externalId}>
-                <span className='font-mono text-xs'>{subscriber.externalId}</span>
+                <span className='text-xs'>{subscriber.externalId}</span>
                 <VerifiedBadge verified={subscriber.verified} />
               </DetailRow>
               {email && (

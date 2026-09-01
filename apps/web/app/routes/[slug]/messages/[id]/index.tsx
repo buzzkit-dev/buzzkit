@@ -109,14 +109,14 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const payload = message.payload as { title?: string; body?: string };
   const recipients = (message.targets as { to?: string[] }).to ?? [];
   const schedule = message.schedule as unknown as { timezone: string } | null;
-  const lookups =
-    schedule?.timezone === 'subscriber'
-      ? await Promise.all(
-          recipients
-            .slice(0, RECIPIENT_TIMEZONE_LOOKUPS)
-            .map((externalId) => getSubscriber(ctx, token, params.slug, tenant, externalId).catch(() => null))
-        )
-      : [];
+  let lookups: Array<Awaited<ReturnType<typeof getSubscriber>> | null> = [];
+  if (schedule?.timezone === 'subscriber') {
+    lookups = await Promise.all(
+      recipients
+        .slice(0, RECIPIENT_TIMEZONE_LOOKUPS)
+        .map((externalId) => getSubscriber(ctx, token, params.slug, tenant, externalId).catch(() => null))
+    );
+  }
   const recipientTimezones = [
     ...new Set(
       lookups
@@ -210,7 +210,7 @@ function AttemptRow({
 
 function AttemptLedger({ attempts }: { attempts: DeliveryAttempt[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = attempts.find((attempt) => attempt.id === selectedId) ?? attempts[attempts.length - 1]!;
+  const selected = attempts.find((attempt) => attempt.id === selectedId) ?? attempts.at(-1)!;
   const request = selected.request as unknown;
   const response = selected.response as unknown;
 
@@ -547,7 +547,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                   itemClassName='h-6.5 px-2.5 text-xs'
                   onValueChange={(value) => {
                     setFilter(value);
-                    go({ status: value === 'all' ? null : value, delivery: null });
+                    void go({ status: value === 'all' ? null : value, delivery: null });
                   }}
                 />
               </CardAction>

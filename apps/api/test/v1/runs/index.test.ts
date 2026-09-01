@@ -31,7 +31,7 @@ describe('GET /v1/runs', () => {
         const found = body.data?.items ?? [];
         return found.length === 2 ? found : undefined;
       },
-      { label: 'two runs listed', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'two runs listed', timeoutMs: 120_000, intervalMs: 500 }
     );
     expect(items.map((run) => run.workflow).sort()).toEqual([first, second].sort());
     expect(items.every((run) => run.status === 'waiting' && run.externalId === user)).toBe(true);

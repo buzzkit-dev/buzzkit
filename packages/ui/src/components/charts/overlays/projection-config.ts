@@ -14,19 +14,20 @@ interface ProjectionLineConfigProps {
   yAxisId?: string | number;
 }
 
-function getChildComponentName(child: ReactElement) {
+function childComponentNameOf(child: ReactElement) {
   const childType = child.type as { displayName?: string; name?: string };
   return typeof child.type === 'function' ? childType.displayName || childType.name || '' : '';
 }
 
 function isProjectionLineElement(child: ReactElement): boolean {
-  return getChildComponentName(child) === 'ProjectionLine';
+  return childComponentNameOf(child) === 'ProjectionLine';
 }
 
 function normalizeProjectionData(data: ProjectionPoint[] | undefined): ProjectionPoint[] {
-  if (!data?.length) {
+  if (!data || data.length === 0) {
     return [];
   }
+
   return data.map((point) => ({
     date: point.date instanceof Date ? point.date : new Date(point.date),
     value: point.value,

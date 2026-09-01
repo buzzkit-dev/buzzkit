@@ -167,6 +167,16 @@ describe('daily cap', () => {
       },
       { label: 'exempt delivery attempted' }
     );
+
+    const { body: statsBody } = await api<{
+      deliveries: { failed: number; capped: number };
+      series: Array<{ failed: number; capped: number }>;
+    }>('/v1/stats', { headers });
+    const stats = statsBody.data!;
+    expect(stats.deliveries.capped).toBeGreaterThanOrEqual(1);
+    expect(stats.deliveries.failed).toBe(0);
+    const seriesCapped = stats.series.reduce((sum, day) => sum + day.capped, 0);
+    expect(seriesCapped).toBe(stats.deliveries.capped);
   });
 });
 

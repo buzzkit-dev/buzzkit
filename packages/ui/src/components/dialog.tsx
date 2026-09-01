@@ -50,7 +50,7 @@ function DialogContent({
         data-slot='dialog-content'
         className={cn(
           'corner-superellipse/1.125 fixed top-[50%] left-[50%] z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-4 overflow-y-auto rounded-3xl bg-background p-5 text-fg-3 shadow-md outline-none sm:max-w-[420px]',
-          'transition-[opacity,scale] duration-200 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0',
+          'transition-[opacity,scale] duration-200 data-ending-style:scale-95 data-starting-style:scale-95 data-ending-style:opacity-0 data-starting-style:opacity-0',
           className
         )}
         {...props}
@@ -62,7 +62,7 @@ function DialogContent({
             render={
               <Button
                 variant='ghost'
-                className='absolute top-3 right-3 text-fg-2 enabled:hover:text-fg-4 enabled:active:text-fg-4'
+                className='absolute top-3 right-3 text-fg-2 enabled:active:text-fg-4 enabled:hover:text-fg-4'
                 size='icon-sm'
               />
             }

@@ -26,7 +26,7 @@ function fill(volume: EventVolume): Array<{ date: Date; count: number; subscribe
   const counts = new Map(volume.buckets.map((bucket) => [new Date(bucket.at).getTime(), bucket]));
   const start = Math.floor(new Date(volume.from).getTime() / step) * step;
   const end = new Date(volume.to).getTime();
-  const points = [];
+  const points: Array<{ date: Date; count: number; subscribers: number }> = [];
   for (let at = start; at <= end; at += step) {
     const bucket = counts.get(at);
     points.push({ date: new Date(at), count: bucket?.count ?? 0, subscribers: bucket?.subscribers ?? 0 });
@@ -84,7 +84,7 @@ export function VolumeChart({ volume }: { volume: EventVolume }) {
     <AreaChart
       data={data}
       xDataKey='date'
-      xDomain={[data[0]!.date, data[data.length - 1]!.date]}
+      xDomain={[data[0]!.date, data.at(-1)!.date]}
       margin={{ top: 12, right: 24, bottom: 28, left: 24 }}
       aspectRatio='auto'
       animationDuration={700}

@@ -1,5 +1,18 @@
 export type LocalTime = { year: number; month: number; day: number; hour: number; minute: number };
 
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function parseWallTime(time: string): { hour: number; minute: number } {
+  const [hour, minute] = time.split(':').map(Number);
+  return { hour: hour ?? 0, minute: minute ?? 0 };
+}
+
+export function resolveTimeScale(env: { WORKFLOW_TIME_SCALE?: string }): number {
+  const scale = Number(env.WORKFLOW_TIME_SCALE ?? '1');
+  if (!Number.isFinite(scale) || scale <= 0) return 1;
+  return scale;
+}
+
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatter(timezone: string): Intl.DateTimeFormat {
@@ -25,6 +38,7 @@ export function localTime(date: Date, timezone: string): LocalTime {
       .formatToParts(date)
       .map((part) => [part.type, part.value])
   );
+
   return {
     year: Number(parts.year),
     month: Number(parts.month),
@@ -56,6 +70,7 @@ export function nextLocalTime(from: Date, hour: number, minute: number, timezone
   const sameDay = localInstant({ ...day, hour, minute }, timezone);
   if (sameDay.getTime() >= from.getTime()) return sameDay;
   const next = new Date(Date.UTC(day.year, day.month - 1, day.day + 1));
+
   return localInstant(
     { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate(), hour, minute },
     timezone

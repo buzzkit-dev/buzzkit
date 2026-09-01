@@ -1,0 +1,12 @@
+language js
+
+or {
+  `trace($name, $fn)`,
+  `trace($name, $attributes, $fn)`,
+  `$_.trace($name, $fn)`,
+  `$_.trace($name, $attributes, $fn)`
+} where {
+  $name <: r"[\s\S]*\$\{[\s\S]*",
+  not or { $name <: r"`scheduler\.[\s\S]*", $name <: r"`queue\.[\s\S]*" },
+  register_diagnostic(span=$name, message="Span names are static `resource.verb` strings — put the dynamic part in an attribute, never in the name (see the conventions skill).")
+}

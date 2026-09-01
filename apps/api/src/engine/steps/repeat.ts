@@ -1,7 +1,7 @@
 import {
   type Duration,
   describeDuration,
-  durationSeconds,
+  durationMs,
   type RepeatStep,
   type Step,
 } from '@buzzkit/schema/workflows';
@@ -15,7 +15,7 @@ export async function runRepeat(
   runSteps: StepRunner
 ): Promise<void> {
   const { name, repeat } = current;
-  const everyMs = durationSeconds(repeat.every as Duration) * 1000;
+  const everyMs = durationMs(repeat.every as Duration);
   let passes = 0;
   let untilMet = false;
 

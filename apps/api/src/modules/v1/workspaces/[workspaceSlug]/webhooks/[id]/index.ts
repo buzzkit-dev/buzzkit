@@ -7,11 +7,11 @@ import {
   serializeEndpoint,
   softDeleteEndpoint,
   updateEndpoint,
+  WEBHOOK_ENDPOINT_AUDIT_IGNORE,
   WebhookEventsSchema,
 } from '@buzzkit/api/api/webhooks/index';
 import { REENABLE_RETRY_LIMIT } from '@buzzkit/api/api/webhooks/policy';
-import { auth } from '@buzzkit/api/libs/auth';
-import { BadRequestError } from '@buzzkit/api/libs/error';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { SlugSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
 import Elysia, { t } from 'elysia';
@@ -30,14 +30,17 @@ export const webhook = new Elysia()
   .patch(
     '/workspaces/:workspaceSlug/webhooks/:id',
     async ({ audit, body, db, params, workspace }) => {
-      if (Object.keys(body).length === 0) throw new BadRequestError('Nothing to update');
       const existing = await findEndpoint(db, workspace.id, params.id);
-      const tenantId =
-        body.tenant === undefined
-          ? undefined
-          : body.tenant === null
-            ? null
-            : (await findTenantBySlug(db, workspace.id, body.tenant)).id;
+      if (Object.keys(body).length === 0) {
+        return Response.success(serializeEndpoint(existing, { secret: true })).send();
+      }
+      let tenantId: number | null | undefined;
+      if (body.tenant) {
+        const tenant = await findTenantBySlug(db, workspace.id, body.tenant);
+        tenantId = tenant.id;
+      } else if (body.tenant === null) {
+        tenantId = null;
+      }
       const updated = await updateEndpoint(db, existing, {
         url: body.url,
         description: body.description,
@@ -52,11 +55,7 @@ export const webhook = new Elysia()
         }
       }
 
-      const { changes, previousAttributes } = diffForEvent(existing, updated, [
-        'updatedAt',
-        'secret',
-        'previousSecret',
-      ]);
+      const { changes, previousAttributes } = diffForEvent(existing, updated, WEBHOOK_ENDPOINT_AUDIT_IGNORE);
       if (changes.length > 0) {
         await audit({
           event: 'webhook.updated',

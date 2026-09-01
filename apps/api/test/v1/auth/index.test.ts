@@ -84,13 +84,11 @@ describe('isolation: API keys', () => {
     });
     const tenantKeyBearer = { Authorization: `Bearer ${tenantKey.secret}` };
 
-    // Alive: authenticated but rejected on this workspace-context route
     const before = await api('/v1/tenants', { headers: tenantKeyBearer });
     expect(before.status).toBe(403);
 
     await api(`/v1/tenants/${tenant.slug}`, { method: 'DELETE', headers: keyBearer });
 
-    // Dead: no longer authenticates at all
     const after = await api('/v1/tenants', { headers: tenantKeyBearer });
     expect(after.status).toBe(401);
   });
@@ -345,7 +343,6 @@ describe('role scope matrix', () => {
     );
     const ownerMember = ownerMembers.body.data?.items?.find((m) => m.role === 'owner');
 
-    // Admin escalating a member (or themselves) to owner
     const escalate = await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
       method: 'PATCH',
       headers: admin.bearer,
@@ -353,7 +350,6 @@ describe('role scope matrix', () => {
     });
     expect(escalate.status).toBe(403);
 
-    // Admin demoting or removing an owner
     const demote = await api(`/v1/workspaces/${workspace.slug}/members/${ownerMember?.id}`, {
       method: 'PATCH',
       headers: admin.bearer,
@@ -367,7 +363,6 @@ describe('role scope matrix', () => {
     });
     expect(remove.status).toBe(403);
 
-    // The owner CAN grant ownership
     const promote = await api(`/v1/workspaces/${workspace.slug}/members/${member.memberId}`, {
       method: 'PATCH',
       headers: ownerBearer,

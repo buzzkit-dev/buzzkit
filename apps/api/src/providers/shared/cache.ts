@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { deleteCache, readCache, writeCache } from '@buzzkit/api/libs/cache';
+import { trace } from '@buzzkit/api/libs/telemetry';
 
 export type TokenMemo = Map<string, Promise<string>>;
 
@@ -20,9 +21,12 @@ export async function cachedToken(
     const cached = await readCache<string>(env.PROVIDER_CACHE, key);
     if (cached) return cached;
 
-    const token = await produce();
-    await writeCache(env.PROVIDER_CACHE, key, token, ttlSeconds);
-    return token;
+    return await trace('providers.mintToken', { 'token.provider': key.split(':')[0] }, async () => {
+      const token = await produce();
+      await writeCache(env.PROVIDER_CACHE, key, token, ttlSeconds);
+
+      return token;
+    });
   })();
 
   memo?.set(key, lookup);

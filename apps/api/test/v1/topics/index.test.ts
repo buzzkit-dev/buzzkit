@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { api } from '../../utils/api';
+import { api, type PageData } from '../../utils/api';
 import { createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
 async function createTopic(headers: Record<string, string>, input: Partial<Record<string, unknown>> = {}) {
@@ -132,8 +132,10 @@ type PreferenceRow = {
 };
 
 async function getPrefs(headers: Record<string, string>, externalId: string) {
-  const { body } = await api<PreferenceRow[]>(`/v1/subscribers/${externalId}/preferences`, { headers });
-  return new Map(body.data?.items.map((p) => [p.slug, p]));
+  const { body } = await api<PageData<PreferenceRow>>(`/v1/subscribers/${externalId}/preferences`, {
+    headers,
+  });
+  return new Map((body.data?.items ?? []).map((row) => [row.slug, row]));
 }
 
 describe('preferences', () => {
@@ -152,12 +154,12 @@ describe('preferences', () => {
     expect(defaults.get(gym)?.channels.email).toMatchObject({ optedIn: true, isDefault: true });
     expect(defaults.get(marketing)?.channels.push).toMatchObject({ optedIn: false, isDefault: true });
 
-    const patched = await api<PreferenceRow[]>(`/v1/subscribers/${externalId}/preferences`, {
+    const patched = await api<PageData<PreferenceRow>>(`/v1/subscribers/${externalId}/preferences`, {
       method: 'PATCH',
       headers: keyBearer,
       body: JSON.stringify({ preferences: { [gym]: false, [marketing]: true } }),
     });
-    const patchedBy = new Map(patched.body.data?.items.map((p) => [p.slug, p]));
+    const patchedBy = new Map((patched.body.data?.items ?? []).map((row) => [row.slug, row]));
     expect(patchedBy.get(gym)?.channels.push).toMatchObject({ optedIn: false, isDefault: false });
     expect(patchedBy.get(gym)?.channels.email).toMatchObject({ optedIn: false, isDefault: false });
     expect(patchedBy.get(marketing)?.channels.push).toMatchObject({ optedIn: true, isDefault: false });

@@ -45,5 +45,3 @@ export function ChartLoadingLabel({ text = 'Loading', className, exiting = false
     </motion.div>
   );
 }
-
-export default ChartLoadingLabel;

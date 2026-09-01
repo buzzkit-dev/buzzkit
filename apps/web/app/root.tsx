@@ -20,7 +20,7 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang='en' suppressHydrationWarning className='antialiased font-sans'>
+    <html lang='en' suppressHydrationWarning className='font-sans antialiased'>
       <head>
         <meta charSet='utf-8' />
         <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1' />

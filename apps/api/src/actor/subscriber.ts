@@ -1,4 +1,5 @@
 import { sendRunCancelPush, specHasLocalDelivery } from '@buzzkit/api/api/messages/local';
+import { definitionsKey, definitionsVersionKey } from '@buzzkit/api/api/workflows/constants';
 import { type RunParams, toWaitPayload } from '@buzzkit/api/engine/types';
 import { log } from '@buzzkit/api/libs/logger';
 import {
@@ -10,6 +11,7 @@ import {
   trace,
   withTraceparent,
 } from '@buzzkit/api/libs/telemetry';
+import { resolveTimeScale } from '@buzzkit/api/libs/timezone';
 import type { EventsQueueMessage } from '@buzzkit/api/queue/events';
 import type { WorkflowExpression } from '@buzzkit/schema/workflows';
 import { Agent } from 'agents';
@@ -36,6 +38,7 @@ import type {
   ActorIdentity,
   ActorIngestInput,
   ActorIngestOutcome,
+  ActorOccurrence,
   ActorProjection,
   ActorRunFinish,
   ActorRunRow,
@@ -49,7 +52,6 @@ export class SubscriberActor extends Agent<Env> {
 
   async onStart(): Promise<void> {
     this.store.migrate();
-
     if (this.store.readIdentity() && this.store.listUnflushed(1).length > 0) {
       await this.scheduleFlush(1);
     }
@@ -63,14 +65,11 @@ export class SubscriberActor extends Agent<Env> {
       async (t) => {
         this.store.writeIdentity(input);
         const outcomes = acceptEvents(this.store, input.events);
-
         t.set('events.accepted', outcomes.filter((outcome) => outcome.status === 'accepted').length);
         t.set('events.duplicates', outcomes.filter((outcome) => outcome.status === 'duplicate').length);
-
         const accepted = outcomes.flatMap((outcome, index) =>
           outcome.status === 'accepted' ? [{ event: input.events[index]!, sequence: outcome.sequence }] : []
         );
-
         if (accepted.length > 0) {
           const definitions = await this.definitions(input.tenantId);
           const runs = await advanceRuns(this.store, input, definitions, accepted, {
@@ -81,7 +80,7 @@ export class SubscriberActor extends Agent<Env> {
               const instance = await this.env.ENGINE.get(wait.run_id);
               await instance.sendEvent({ type: `evt:${wait.step}`, payload: toWaitPayload(event) });
             },
-            cancelLocal: async (run) => {
+            cancelLocal: (run) => {
               const spec = definitions?.workflows.find(
                 (definition) => definition.id === run.workflow_id
               )?.spec;
@@ -93,7 +92,6 @@ export class SubscriberActor extends Agent<Env> {
           t.set('runs.canceled', runs.canceled.length);
           t.set('waits.delivered', runs.delivered.length);
         }
-
         this.ctx.waitUntil(this.flush());
         return outcomes;
       }
@@ -116,7 +114,6 @@ export class SubscriberActor extends Agent<Env> {
   async flush(): Promise<ActorFlushOutcome> {
     const identity = this.store.readIdentity();
     if (!identity) return { flushed: 0, batches: 0, retryScheduled: false, pruned: 0 };
-
     return await this.invoke('actor.flush', undefined, this.spanAttributes(identity), async (t) => {
       const outcome = await flushEvents(
         this.store,
@@ -126,7 +123,6 @@ export class SubscriberActor extends Agent<Env> {
         },
         { batchRows: ACTOR_FLUSH_ROWS, retainedRows: ACTOR_RETAINED_ROWS }
       );
-
       t.set('events.pruned', outcome.pruned);
       t.set('events.flushed', outcome.flushed);
       t.set('flush.batches', outcome.batches);
@@ -151,12 +147,12 @@ export class SubscriberActor extends Agent<Env> {
     return this.store.listLiveRuns();
   }
 
-  findRun(runId: string): ActorRunRow | null {
-    return this.store.findRun(runId);
+  selectRun(runId: string): ActorRunRow | null {
+    return this.store.selectRun(runId);
   }
 
-  async recordStep(runId: string, record: ActorStepRecord): Promise<void> {
-    const run = this.store.findRun(runId);
+  recordStep(runId: string, record: ActorStepRecord): void {
+    const run = this.store.selectRun(runId);
     if (!run || run.status === 'canceled') return;
     const now = new Date().toISOString();
     this.store.updateRun(
@@ -184,15 +180,19 @@ export class SubscriberActor extends Agent<Env> {
     this.ctx.waitUntil(this.flush());
   }
 
-  quietSince(after: string | null, unless: string[]): string | null {
-    const started = after === null ? new Date().toISOString() : this.store.lastEventAt(after);
+  quietAnchor(after: string, unless: string[]): ActorOccurrence | null {
+    const started = this.store.lastEventAt(after);
     if (started === null) return null;
     const reset = unless
       .map((event) => this.store.lastEventAt(event))
       .filter((at): at is string => at !== null)
       .sort()
       .at(-1);
-    return reset !== undefined && reset >= started ? null : started;
+    if (reset !== undefined && reset >= started) return null;
+
+    const row = this.store.lastEvent(after);
+    if (row) return { name: row.name, dataJson: row.data, timestamp: row.timestamp, id: row.id };
+    return { name: after, dataJson: '{}', timestamp: started, id: `${after}@${started}` };
   }
 
   evaluate(
@@ -202,7 +202,8 @@ export class SubscriberActor extends Agent<Env> {
     timezone: string,
     iterationStartedAt: string | null = null
   ): boolean {
-    const run = this.store.findRun(runId);
+    const run = this.store.selectRun(runId);
+
     return evaluateExpression(
       expression,
       (ref) => resolvePath(scope, ref),
@@ -221,16 +222,16 @@ export class SubscriberActor extends Agent<Env> {
   }
 
   deregisterWait(runId: string, step: string): void {
-    this.store.deleteWait(runId, step);
+    this.store.removeWait(runId, step);
   }
 
-  async finishRun(runId: string, finish: ActorRunFinish): Promise<void> {
-    const run = this.store.findRun(runId);
+  finishRun(runId: string, finish: ActorRunFinish): void {
+    const run = this.store.selectRun(runId);
     if (!run || run.status === 'canceled') return;
     const now = new Date().toISOString();
     const step = finish.step ?? run.step;
     this.store.updateRun(runId, finish.status, step, finish.error ?? null, now);
-    this.store.deleteWaitsOfRun(runId);
+    this.store.removeWaitsOfRun(runId);
     acceptEvent(
       this.store,
       systemEvent(
@@ -249,15 +250,16 @@ export class SubscriberActor extends Agent<Env> {
   private async definitions(tenantId: number): Promise<ActorDefinitions | null> {
     const now = Date.now();
     const cached = this.store.readDefinitions();
-    const checkEvery = ACTOR_DEFINITIONS_CHECK_MS * (Number(this.env.WORKFLOW_TIME_SCALE ?? '1') || 1);
+    const checkEvery = ACTOR_DEFINITIONS_CHECK_MS * resolveTimeScale(this.env);
     if (cached && now - this.store.readDefinitionsCheckedAt() < checkEvery) return cached;
-    const version = await this.env.ENGINE_DEFS.get(`defs-version:${tenantId}`);
+    const version = await this.env.ENGINE_DEFS.get(definitionsVersionKey(tenantId));
     this.store.writeDefinitionsCheckedAt(now);
     if (version === null) return cached;
     if (cached && Number(version) === cached.version) return cached;
-    const fresh = await this.env.ENGINE_DEFS.get<ActorDefinitions>(`defs:${tenantId}`, 'json');
+    const fresh = await this.env.ENGINE_DEFS.get<ActorDefinitions>(definitionsKey(tenantId), 'json');
     if (!fresh) return cached;
     this.store.writeDefinitions(fresh);
+
     return fresh;
   }
 
@@ -362,8 +364,8 @@ export class SubscriberActor extends Agent<Env> {
     attributes: Record<string, string | number>,
     fn: (t: Span) => Promise<T>
   ): Promise<T> {
-    return runInvocation(ACTOR_SERVICE, this.env, this.ctx, () =>
-      withTraceparent(traceparent, async () => {
+    return runInvocation(ACTOR_SERVICE, this.env, this.ctx, () => {
+      return withTraceparent(traceparent, async () => {
         let traceId: string | undefined;
         try {
           return await trace(name, attributes, (t) => {
@@ -373,7 +375,7 @@ export class SubscriberActor extends Agent<Env> {
         } finally {
           if (traceId) this.ctx.waitUntil(flushSpans(traceId));
         }
-      })
-    );
+      });
+    });
   }
 }

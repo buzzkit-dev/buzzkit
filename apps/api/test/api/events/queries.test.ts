@@ -10,8 +10,8 @@ function expectInvalidCursor(cursor: string) {
   let thrown: unknown;
   try {
     resolveEventCursor(cursor);
-  } catch (error) {
-    thrown = error;
+  } catch (caught) {
+    thrown = caught;
   }
   expect(thrown, cursor).toBeInstanceOf(BadRequestError);
   const error = thrown as InstanceType<typeof BadRequestError>;

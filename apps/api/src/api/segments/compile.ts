@@ -145,6 +145,7 @@ function compileRef(condition: { ref: string } & Comparators, path: string): str
       present(`positionCaseInsensitive(${column.typed('')}, ${literal(comparators.contains)}) > 0`)
     );
   }
+
   return `(${clauses.join(' AND ')})`;
 }
 
@@ -165,6 +166,7 @@ function resolveRef(ref: string, path: string): { exists: string; typed: (sample
     }
   }
   const pathArguments = keys.map((key) => literal(key)).join(', ');
+
   return {
     exists: `JSONHas(s.attributes_raw, ${pathArguments})`,
     typed: (sample) => {
@@ -185,6 +187,7 @@ function eventSubscribers(
     within === undefined
       ? ''
       : ` AND timestamp >= now() - INTERVAL ${literal(durationSeconds(within as never))} SECOND`;
+
   return [
     'SELECT subscriber_id FROM events',
     `WHERE tenant_id = ${literal(tenantId)} AND name = ${literal(name)}${window}`,
@@ -222,6 +225,7 @@ function compileCount(
   if (lt !== undefined) clauses.push(lt === 0 ? '0' : absence(`count() >= ${literal(lt)}`));
   if (lte !== undefined) clauses.push(absence(`count() > ${literal(lte)}`));
   if (clauses.length === 0) throw new ExpressionError('A count needs a comparator', path);
+
   return `(${clauses.join(' AND ')})`;
 }
 

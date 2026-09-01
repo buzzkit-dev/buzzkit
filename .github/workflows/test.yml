@@ -1,0 +1,60 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: NODE_OPTIONS=--no-warnings bunx vitest run test/actor test/engine test/api test/libs test/queue test/utils test/providers test/packages
+        working-directory: apps/api
+
+  integration:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+    env:
+      APNS_REACHABLE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: docker compose up -d postgres tinybird --wait --wait-timeout 180
+      - run: bun db:push
+        working-directory: packages/database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5460/buzzkit
+      - run: bun run build
+        working-directory: packages/tinybird
+      - name: Write test secrets
+        run: |
+          cat > apps/api/.dev.vars <<VARS
+          BETTER_AUTH_URL=http://localhost:8791/v1/auth
+          BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+          CREDENTIAL_MASTER_KEY_V1=$(openssl rand -base64 32)
+          SQIDS_ALPHABET=$(node -e "console.log([...'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'].sort(() => Math.random() - 0.5).join(''))")
+          DASHBOARD_URL=http://localhost:5180
+          GITHUB_CLIENT_ID=
+          GITHUB_CLIENT_SECRET=
+          AXIOM_API_TOKEN=
+          AXIOM_LOGS_DATASET=
+          AXIOM_TRACES_DATASET=
+          OTEL_EXPORTER_OTLP_ENDPOINT=
+          VARS
+      - run: bun run test
+        working-directory: apps/api

@@ -2,8 +2,9 @@ import {
   findTenantBySlug,
   rotateTenantIdentitySecret,
   serializeIdentitySecret,
+  TenantSlugParamsSchema,
 } from '@buzzkit/api/api/tenants/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -26,5 +27,5 @@ export const tenantIdentitySecretRotate = new Elysia()
 
       return Response.success(serializeIdentitySecret(rotated), { entity: 'tenant' }).send();
     },
-    { scope: 'tenants:secrets' }
+    { scope: 'tenants:secrets', params: TenantSlugParamsSchema }
   );

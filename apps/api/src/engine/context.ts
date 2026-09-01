@@ -3,16 +3,20 @@ import { NonRetryableError } from 'cloudflare:workflows';
 import { evaluateExpression, type HistoryResolver, resolvePath } from '@buzzkit/api/actor/evaluate';
 import { subscriberTimezone } from '@buzzkit/api/actor/history';
 import type { SubscriberActor } from '@buzzkit/api/actor/subscriber';
+import { findTenantById, type Tenant } from '@buzzkit/api/api/tenants/index';
+import { subscriberActorName } from '@buzzkit/api/libs/actor';
 import { ApiError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
-import { localMidnight } from '@buzzkit/api/libs/timezone';
-import { runInvocation, withTraceparent } from '@buzzkit/observability';
+import { localMidnight, resolveTimeScale } from '@buzzkit/api/libs/timezone';
+import type { Db } from '@buzzkit/database';
 import {
-  type Duration,
-  durationSeconds,
-  type Moment,
-  type WorkflowExpression,
-} from '@buzzkit/schema/workflows';
+  runInvocation,
+  runWorkflowStep,
+  type Span as StepSpan,
+  type WorkflowRunIdentity,
+  withTraceparent,
+} from '@buzzkit/observability';
+import { type Duration, durationMs, type Moment, type WorkflowExpression } from '@buzzkit/schema/workflows';
 import { getAgentByName } from 'agents';
 import { ENGINE_SERVICE, MIN_WAIT_FOR_MS } from './constants';
 import { type ResolvedMoment, resolveMoment } from './moments';
@@ -54,6 +58,8 @@ export class RunContext {
 
   private facets: { channels: Record<string, boolean>; topics: Record<string, boolean> } | null = null;
 
+  private tenantRow: Tenant | null = null;
+
   private readonly loopFrames: string[] = [];
 
   constructor(
@@ -62,7 +68,7 @@ export class RunContext {
     readonly params: RunParams,
     private readonly step: WorkflowStep | null
   ) {
-    this.scale = Number(env.WORKFLOW_TIME_SCALE ?? '1') || 1;
+    this.scale = resolveTimeScale(env);
     this.mode = params.mode ?? 'run';
     this.clock = Date.parse(params.trigger.timestamp) || Date.now();
   }
@@ -83,10 +89,15 @@ export class RunContext {
     return this.params.subscriberId > 0;
   }
 
+  async tenant(db: Db): Promise<Tenant> {
+    if (!this.tenantRow) this.tenantRow = await findTenantById(db, this.params.tenantId);
+    return this.tenantRow;
+  }
+
   actor() {
     return getAgentByName<Env, SubscriberActor>(
       this.env.SUBSCRIBER_ACTOR,
-      `${this.params.tenantId}:${this.params.subscriberId}`
+      subscriberActorName(this.params.tenantId, this.params.subscriberId)
     );
   }
 
@@ -110,7 +121,7 @@ export class RunContext {
     return spec.includes('subscriber.channels') || spec.includes('subscriber.topics');
   }
 
-  setSubscriberFacets(facets: { channels: Record<string, boolean>; topics: Record<string, boolean> }) {
+  applyFacets(facets: { channels: Record<string, boolean>; topics: Record<string, boolean> }) {
     this.facets = facets;
   }
 
@@ -127,7 +138,7 @@ export class RunContext {
   }
 
   deadline(timeout: Moment | Duration): Promise<number> {
-    if (typeof timeout === 'string') return Promise.resolve(this.now() + durationSeconds(timeout) * 1000);
+    if (typeof timeout === 'string') return Promise.resolve(this.now() + durationMs(timeout));
     return this.do(`${this.current}:deadline`, async () => this.moment(timeout).at);
   }
 
@@ -148,6 +159,7 @@ export class RunContext {
     }
     const scope = this.scope();
     const now = new Date(this.now());
+
     return evaluateExpression(expression, (ref) => resolvePath(scope, ref), {
       history: NO_HISTORY,
       now,
@@ -197,7 +209,18 @@ export class RunContext {
         timeout: this.scaled(Math.max(MIN_WAIT_FOR_MS, timeoutMs)),
       });
       return result.payload;
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/time(d\s*)?out/i.test(message)) {
+        log.warn('[Engine] Wait listener failed', {
+          runId: this.params.runId,
+          workflow: this.params.workflowSlug,
+          tenantId: this.params.tenantId,
+          subscriberId: this.params.subscriberId,
+          step,
+          error: message,
+        });
+      }
       return null;
     }
   }
@@ -216,6 +239,8 @@ export class RunContext {
     log.info('[Engine] Step', {
       runId: this.params.runId,
       workflow: this.params.workflowSlug,
+      tenantId: this.params.tenantId,
+      subscriberId: this.params.subscriberId,
       step: name,
       status,
       summary,
@@ -223,22 +248,51 @@ export class RunContext {
     await (await this.actor()).recordStep(this.params.runId, { step: name, status, summary, detail });
   }
 
+  runIdentity(): WorkflowRunIdentity {
+    const { workflowSlug, workflowId, runId, tenantId, subscriberId, traceparent } = this.params;
+    return {
+      service: ENGINE_SERVICE,
+      workflow: workflowSlug,
+      runId,
+      traceparent,
+      attributes: {
+        'workflow.id': workflowId,
+        'tenant.id': tenantId,
+        ...(subscriberId > 0 ? { 'subscriber.id': subscriberId } : {}),
+      },
+    };
+  }
+
   do<T extends Rpc.Serializable<T>>(
     name: string,
-    fn: () => Promise<T>,
+    fn: (t?: StepSpan) => Promise<T>,
     config?: WorkflowStepConfig
   ): Promise<T> {
     if (!this.live) return fn();
     const step = this.workflowStep();
-    const invoke = () =>
-      runInvocation(
+    const scopedName = this.scoped(name);
+    const invoke = () => {
+      return runInvocation(
         ENGINE_SERVICE,
         this.env,
         this.ctx as ExecutionContext,
-        () => withTraceparent(this.params.traceparent, () => fn().catch(rethrowPermanent)),
+        () => {
+          return withTraceparent(this.params.traceparent, () => {
+            return runWorkflowStep(
+              this.env,
+              this.runIdentity(),
+              scopedName,
+              (span) => fn(span).catch(rethrowPermanent),
+              {
+                waitUntil: (promise) => (this.ctx as ExecutionContext).waitUntil(promise),
+              }
+            );
+          });
+        },
         { traced: false }
       );
-    const scopedName = this.scoped(name);
+    };
+
     return config ? step.do(scopedName, config, invoke) : step.do(scopedName, invoke);
   }
 

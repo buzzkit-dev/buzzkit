@@ -54,8 +54,8 @@ import { useChartPhaseOrchestrator } from './use-chart-phase-orchestrator';
 import {
   buildYScalesFromDomains,
   DEFAULT_Y_AXIS_ID,
-  getPrimaryYScale,
   groupLinesByYAxisId,
+  resolvePrimaryYScale,
 } from './y-axis-scales';
 import { computeYDomainsByAxis } from './y-domain-utils';
 
@@ -163,7 +163,7 @@ export function TimeSeriesChartInner(props: TimeSeriesChartInnerProps) {
   return <TimeSeriesChartCore {...props} />;
 }
 
-const TimeSeriesChartCore = memo(function TimeSeriesChartCore({
+const TimeSeriesChartCore = memo(function TimeSeriesChartCoreBase({
   width,
   height,
   data,
@@ -350,7 +350,7 @@ const TimeSeriesChartCore = memo(function TimeSeriesChartCore({
     [yDomainsForScales, innerHeight, lines]
   );
 
-  const yScale = getPrimaryYScale(
+  const yScale = resolvePrimaryYScale(
     yScales,
     scaleLinear({ range: [innerHeight, 0], domain: [0, 100], nice: true })
   );
@@ -555,7 +555,7 @@ const TimeSeriesChartCore = memo(function TimeSeriesChartCore({
     } satisfies Transition);
 
   const revealClipPadding = useMemo(() => {
-    if (!composedBarDataKeys?.length) {
+    if (!composedBarDataKeys || composedBarDataKeys.length === 0) {
       return 0;
     }
     const barWidth = computeSeriesBarWidth({

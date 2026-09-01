@@ -1,5 +1,5 @@
 import { findRun } from '@buzzkit/api/api/runs/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';
 

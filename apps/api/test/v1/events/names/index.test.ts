@@ -27,7 +27,7 @@ async function catalogEntry(headers: Headers, name: string, total: number) {
       const entry = body.data?.items.find((item) => item.name === name);
       return entry && entry.counts.total >= total ? entry : undefined;
     },
-    { label: `catalog entry ${name}`, timeoutMs: 60_000 }
+    { label: `catalog entry ${name}`, timeoutMs: 120_000 }
   );
 }
 
@@ -103,9 +103,9 @@ describe('GET /v1/events/names', () => {
   }, 90_000);
 
   it('returns an empty list for a tenant without events', async () => {
-    const { keyBearer } = await setupWorkspace({ bare: true });
+    const { keyBearer: bareKeyBearer } = await setupWorkspace({ bare: true });
 
-    const { status, body } = await listNames(keyBearer);
+    const { status, body } = await listNames(bareKeyBearer);
 
     expect(status).toBe(200);
     expect(body.data).toEqual({ items: [], hasMore: false, nextCursor: null });

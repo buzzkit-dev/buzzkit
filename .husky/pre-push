@@ -1,0 +1,5 @@
+echo "\033[1;36m🔎 check-types — every workspace + scripts\033[0m"
+bun check-types
+
+echo "\033[1;36m🧪 unit tests — buzzkit, schema, dashboard\033[0m"
+bun run test

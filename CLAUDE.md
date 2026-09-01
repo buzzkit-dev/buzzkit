@@ -39,16 +39,16 @@ The API dev server runs on port **8790**, the web dev server on port **5180** (o
 - **Database**: PostgreSQL via Drizzle ORM (what *is*); Tinybird for the event stream (what *happened*); a Durable Object per subscriber for what is true right now (`docs/engine.md`)
 - **Dashboard**: deliberately **not Next.js** — Vite + React Router 8 SSR via `@cloudflare/vite-plugin`
 - **Package Manager**: Bun with workspaces
-- **Code Quality**: Biome (lint + format), Husky pre-commit hooks, lint-staged, Sherif
+- **Code Quality**: Biome (pinned exactly; hardened rule set + custom GritQL plugins in `.biome/plugins/`: no awaited calls in ternaries, no interpolated span names), `scripts/lint-conventions.ts` (the comments ban + the function-verb catalog), knip (dead exports/files/deps), Sherif, publint on `packages/buzzkit`. Husky hooks: pre-commit (lint-staged Biome on staged files + conventions + sherif), commit-msg (conventional commits), pre-push (check-types + unit tests). CI (Blacksmith runners): `.github/workflows/lint.yml` (Biome + conventions + sherif + knip, check-types) and `.github/workflows/test.yml` (unit suites; full API integration suite against Postgres + Tinybird via docker compose). The `conventions` skill (`.claude/skills/conventions`) is the pattern catalog — load it before writing code.
 
 ## Commands
 
 | Command           | Description                                  |
 | ----------------- | -------------------------------------------- |
 | `bun dev`         | Start all apps                               |
-| `bun lint`        | Biome lint                                   |
+| `bun lint`        | Biome lint (incl. Grit plugins) + the conventions checker |
 | `bun format:fix`  | Biome auto-fix formatting                    |
-| `bun check-types` | TypeScript type checking across all packages |
+| `bun check-types` | TypeScript type checking across all packages + `scripts/` |
 | `bun run test`    | Unit tests of `buzzkit`, `@buzzkit/schema` and the dashboard's pure modules (the API's suite is `bun run test` inside `apps/api`, it boots its own server) |
 
 ## Key Conventions (inherited from feedbase)

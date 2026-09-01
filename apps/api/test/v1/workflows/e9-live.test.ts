@@ -67,7 +67,7 @@ describe('E9 live paths', () => {
     await track(keyBearer, user, 'account.deleted');
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
-      { label: 'run completed after endOn', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'run completed after endOn', timeoutMs: 120_000, intervalMs: 500 }
     );
 
     const events = await runEvents(keyBearer, user);
@@ -106,7 +106,7 @@ describe('E9 live paths', () => {
     await track(keyBearer, user, 'trial.extended');
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
-      { label: 'run completed after match', timeoutMs: 60_000, intervalMs: 500 }
+      { label: 'run completed after match', timeoutMs: 120_000, intervalMs: 500 }
     );
     const events = await runEvents(keyBearer, user);
     const decision = events.find((item) => item.data.step === 'decision' && item.data.status === 'completed');

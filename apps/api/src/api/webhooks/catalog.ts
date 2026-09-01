@@ -58,9 +58,12 @@ export function webhookEventGroups(): WebhookEventGroup[] {
     const resource = name.slice(0, name.indexOf('.') === -1 ? name.length : name.indexOf('.'));
     groups.set(resource, [...(groups.get(resource) ?? []), name]);
   }
-  return [...groups].map(([resource, options]) => ({
-    label: resource.replace(/^\$/, ''),
-    ...(options.some((name) => name.includes('.')) ? { wildcard: `${resource}.*` } : {}),
-    options,
-  }));
+
+  return [...groups].map(([resource, options]) => {
+    return {
+      label: resource.replace(/^\$/, ''),
+      ...(options.some((name) => name.includes('.')) ? { wildcard: `${resource}.*` } : {}),
+      options,
+    };
+  });
 }

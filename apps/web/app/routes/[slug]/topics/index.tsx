@@ -153,7 +153,7 @@ function TopicDialog({
     };
     for (const [channel, choice] of offered) fields[`channel:${channel}`] = choice;
     if (topic) fields.topic = topic.slug;
-    submit(topic ? 'update' : 'create', fields);
+    void submit(topic ? 'update' : 'create', fields);
   };
 
   useEffect(() => {

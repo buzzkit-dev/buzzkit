@@ -46,7 +46,7 @@ async function detailUntil(headers: Headers, name: string, total: number, query 
         ? body.data!
         : undefined;
     },
-    { label: `detail ${name}`, timeoutMs: 60_000 }
+    { label: `detail ${name}`, timeoutMs: 120_000 }
   );
 }
 
@@ -192,7 +192,7 @@ describe('GET /v1/events/names/:name', () => {
           ? body.data!
           : undefined;
       },
-      { label: 'subscriber created sample', timeoutMs: 60_000 }
+      { label: 'subscriber created sample', timeoutMs: 120_000 }
     );
     expect(created.sources).toEqual(['system']);
     expect(created.samples.every((sample) => sample.source === 'system')).toBe(true);

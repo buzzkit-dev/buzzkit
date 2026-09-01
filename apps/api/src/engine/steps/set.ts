@@ -1,6 +1,6 @@
 import { recordSystemEvents, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import { findSubscriberByExternalId, upsertSubscriber } from '@buzzkit/api/api/subscribers/index';
-import { createDb } from '@buzzkit/api/libs/database';
+import { stepDb } from '@buzzkit/api/libs/database';
 import type { SetStep } from '@buzzkit/schema/workflows';
 import type { RunContext } from '../context';
 import { describeValue, renderTemplateValue } from '../template';
@@ -35,7 +35,7 @@ async function write(context: RunContext, current: SetStep): Promise<SetResult> 
     return { at: new Date(context.now()).toISOString(), valueJson };
   }
 
-  const db = createDb({ max: 1 }, { traced: false });
+  const db = stepDb();
   const { tenantId, externalId } = context.params;
   const existing = await findSubscriberByExternalId(db, tenantId, externalId);
   const attributes = customAttributes(existing.attributes);
@@ -51,6 +51,7 @@ async function write(context: RunContext, current: SetStep): Promise<SetResult> 
     attribute: set.attribute,
     value,
   });
+
   return { at: new Date(context.now()).toISOString(), valueJson };
 }
 

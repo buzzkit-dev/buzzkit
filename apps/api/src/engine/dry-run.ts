@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { ExitRun, RunContext } from './context';
 import { describeFailure } from './errors';
-import { loadSubscriberFacets } from './facets';
+import { applySubscriberFacets } from './facets';
 import { runSteps } from './steps';
 import type { RunParams, TraceEntry } from './types';
 
@@ -21,7 +21,7 @@ export async function dryRun(params: Omit<RunParams, 'mode'>): Promise<DryRunRes
   let exited = false;
   let error: string | null = null;
   try {
-    await loadSubscriberFacets(context);
+    await applySubscriberFacets(context);
     await runSteps(context, params.spec.steps);
   } catch (caught) {
     if (caught instanceof ExitRun) {
@@ -33,8 +33,9 @@ export async function dryRun(params: Omit<RunParams, 'mode'>): Promise<DryRunRes
   }
   const path: string[] = [];
   for (const entry of context.trace) {
-    if (path[path.length - 1] !== entry.step) path.push(entry.step);
+    if (path.at(-1) !== entry.step) path.push(entry.step);
   }
+
   return {
     outcome,
     exited,

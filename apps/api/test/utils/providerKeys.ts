@@ -6,14 +6,12 @@ function derToPem(der: ArrayBuffer, newlineEscaped: boolean): string {
   return `-----BEGIN PRIVATE KEY-----${nl}${body}${nl}-----END PRIVATE KEY-----${nl}`;
 }
 
-/** A structurally valid (but unregistered) APNs .p8 — real P-256 PKCS#8 PEM. */
 export async function generateP8(): Promise<string> {
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']);
   const der = await crypto.subtle.exportKey('pkcs8', pair.privateKey);
   return derToPem(der, false);
 }
 
-/** A structurally valid (but unregistered) Firebase service account JSON. */
 export async function generateServiceAccount(projectId: string) {
   const pair = await crypto.subtle.generateKey(
     {

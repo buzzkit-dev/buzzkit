@@ -22,8 +22,8 @@ function expectReserved(name: string, source: EventSource) {
   let thrown: unknown;
   try {
     assertEventNameAllowed(name, source);
-  } catch (error) {
-    thrown = error;
+  } catch (caught) {
+    thrown = caught;
   }
   expect(thrown, `${source} × ${name}`).toBeInstanceOf(BadRequestError);
   const error = thrown as InstanceType<typeof BadRequestError>;

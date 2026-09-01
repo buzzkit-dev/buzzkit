@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { api } from '../../utils/api';
+import { api, type Envelope } from '../../utils/api';
 import { connectChannel, disconnectChannel } from '../../utils/db';
 import { fakeToken, uploadSandboxApns } from '../../utils/fixtures';
 import { createClientKey, createTenant, setupWorkspace, uniq } from '../../utils/setup';
 
-type Failure = { status: number; body: { error?: { code: string; param?: string | null } } };
+type Failure = { status: number; body: Envelope };
 
 function expectNotConnected(response: Failure, param: string) {
   expect(response.status).toBe(400);

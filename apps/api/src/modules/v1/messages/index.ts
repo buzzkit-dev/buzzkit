@@ -1,16 +1,14 @@
 import {
   CreateMessageSchema,
-  countMessages,
   createMessage,
   enqueueFanout,
   listMessages,
   MessageFiltersSchema,
   serializeMessage,
 } from '@buzzkit/api/api/messages/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const messages = new Elysia()
@@ -19,29 +17,11 @@ export const messages = new Elysia()
   .get(
     '/messages',
     async ({ db, query, tenant }) => {
-      const limit = clampLimit(query.limit);
-      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('message', id));
-
-      const filters = {
-        q: query.q,
-        status: query.status,
-        channel: query.channel,
-        topic: query.topic,
-        from: query.from ? new Date(query.from) : undefined,
-        to: query.to ? new Date(query.to) : undefined,
-      };
-      const [rows, total] = await Promise.all([
-        listMessages(db, tenant.id, { limit, beforeId, ...filters }),
-        countMessages(db, tenant.id, filters),
-      ]);
-      const page = toPage(rows, limit, (id) => encodeId('message', id));
-
-      return Response.success(page.items.map(serializeMessage), {
+      const page = await listMessages(db, tenant.id, query);
+      return Response.page(page, {
         entity: 'message',
         ignoreTransform: ['payload', 'targets', 'schedule'],
-      })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
-        .send();
+      }).send();
     },
     {
       tenant: 'messages:read',
@@ -58,7 +38,6 @@ export const messages = new Elysia()
         ...body,
         idempotencyKey: headers['idempotency-key'] ?? body.idempotencyKey,
       });
-
       if (created) {
         await audit({
           event: 'message.created',
@@ -74,7 +53,6 @@ export const messages = new Elysia()
         });
         if (!message.schedule) await enqueueFanout(message.id);
       }
-
       return Response.success(serializeMessage(message), {
         entity: 'message',
         ignoreTransform: ['payload', 'targets', 'schedule'],

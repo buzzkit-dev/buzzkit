@@ -1,3 +1,5 @@
+import type { Page } from '@buzzkit/api/utils/pagination';
+import { currentRequestId } from '@buzzkit/observability';
 import type { Context } from 'elysia';
 import { Elysia, t } from 'elysia';
 import { encodeId, type IdEntity, s } from './sqids';
@@ -15,7 +17,8 @@ const MetadataSchema = t.Object({
 });
 
 function metadata(set?: Context['set']) {
-  const requestId = set?.headers['request-id'];
+  const requestId = set?.headers['request-id'] ?? currentRequestId();
+
   return {
     timestamp: new Date().toISOString(),
     ...(typeof requestId === 'string' ? { requestId } : {}),
@@ -168,6 +171,7 @@ class SuccessResponseBuilder<T> {
     pagination: CursorPagination
   ): SuccessResponseBuilder<{ items: T; hasMore: boolean; nextCursor: string | null; total?: number }> {
     this._cursor = pagination;
+
     return this as unknown as SuccessResponseBuilder<{
       items: T;
       hasMore: boolean;
@@ -236,8 +240,20 @@ class ErrorResponseBuilder {
 
 export const Response = {
   success: <T>(data: T, options?: SuccessOptions) => new SuccessResponseBuilder(data, options),
-  list: <T>(items: T[], options?: SuccessOptions) =>
-    new SuccessResponseBuilder(items, options).paginated({ hasMore: false, nextCursor: null }),
+  list: <T>(items: T[], options?: SuccessOptions & { total?: number }) => {
+    return new SuccessResponseBuilder(items, options).paginated({
+      hasMore: false,
+      nextCursor: null,
+      ...(options?.total === undefined ? {} : { total: options.total }),
+    });
+  },
+  page: <T>(page: Page<T> & { total?: number }, options?: SuccessOptions) => {
+    return new SuccessResponseBuilder(page.items, options).paginated({
+      hasMore: page.hasMore,
+      nextCursor: page.nextCursor,
+      ...(page.total === undefined ? {} : { total: page.total }),
+    });
+  },
   error: (params: ErrorParams) => new ErrorResponseBuilder(params),
 };
 

@@ -1,5 +1,5 @@
 import { findApiKey, maskApiKey, revokeApiKey } from '@buzzkit/api/api/keys/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -9,9 +9,8 @@ export const key = new Elysia()
   .get(
     '/workspaces/:workspaceSlug/keys/:id',
     async ({ db, params, workspace }) => {
-      const key = await findApiKey(db, workspace.id, params.id);
-
-      return Response.success(maskApiKey(key), { entity: 'key' }).send();
+      const target = await findApiKey(db, workspace.id, params.id);
+      return Response.success(maskApiKey(target), { entity: 'key' }).send();
     },
     { scope: 'keys:read' }
   )

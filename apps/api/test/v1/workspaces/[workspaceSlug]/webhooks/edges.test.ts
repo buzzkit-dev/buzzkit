@@ -93,7 +93,7 @@ function settled(
 ) {
   return eventually(async () => (await deliveriesOf(bearer, slug, endpointId)).find(predicate), {
     label,
-    timeoutMs: 60_000,
+    timeoutMs: 120_000,
   });
 }
 

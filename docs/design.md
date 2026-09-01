@@ -121,7 +121,8 @@ Default leading is deliberately tighter than the stock Tailwind ratios (1.43/1.5
 
 Rules:
 
-- **One typeface, never a monospace.** Ids, keys, code snippets, URLs and file names all set in Open Runde like everything else; there is no `--font-mono` token and `font-mono` is never used. Hierarchy and "this is a value" come from the `fg` ramp and `tabular-nums`, not from a second face.
+- **One typeface, never a monospace.** Ids, keys, code snippets, URLs, scopes and file names all set in Open Runde like everything else; there is no `--font-mono` token and `font-mono` is never used. Hierarchy and "this is a value" come from the `fg` ramp and `tabular-nums`, not from a second face.
+- **Nothing is styled uppercase.** No eyebrow labels, no uppercase table headers, no letter-spaced small caps, no `uppercase` on microcopy — the quiet label is `text-xs` `fg-2` in sentence case, and that is the whole treatment. Capitalization belongs to content (an Apple Team ID's value, the initials inside an avatar fallback), never to style.
 - **No off-scale sizes.** There is no `text-[11px]` anywhere; if you need a step, add it to `@theme`.
 - **Inputs are `text-sm` at every width.** iOS Safari auto-zooms the page when a focused field is under 16px, and the usual answer is to bump inputs to 16px on mobile. We do the opposite: the field keeps the size it should be, and `maximum-scale=1` in the viewport meta (`apps/web/app/root.tsx`, `apps/widget/index.html`) stops the zoom. Every new HTML entry point needs that meta tag.
 - **Textareas render at normal weight, inputs at `font-medium`.** A textarea holds prose that becomes a message, and text must not change weight the moment it is sent; a single-line input holds a short value and reads as data.
@@ -166,6 +167,8 @@ Rectangles with clean corners — never pill-shaped buttons.
 | `shadow-control-knob` | Switch knob |
 | `shadow-control-dot` | Radio dot |
 
+**Elevation never responds to hover.** A card, tile or row that reacts to the pointer does it with a background tint (`bg-a1`/`bg-a2`) or a foreground lift, never by growing a shadow — shadow states are fixed per component.
+
 Every shadow ends in a hairline ring — that ring **is** the border. In light mode it is a dark outer ring; in dark mode the recipes flip it inward (a dark ring is invisible on a dark page): surface shadows (`shadow-1`…`4`) switch to an inset `bg-3` ring, the same single border color as every separator and divider, while the elevated control keeps its inner hairline of light. Never add a `dark:` variant to compensate — the tokens flip themselves. Use a real `border` only for structure (the `CardFooter` divider, row dividers, the chat header), always `bg-3`, never to fake elevation; the read-only input's `bg-4` border is the one deliberate exception.
 
 ---
@@ -185,7 +188,7 @@ Every shadow ends in a hairline ring — that ring **is** the border. In light m
 
 ### Springs
 
-JS animation is `motion/react` (Motion, formerly Framer Motion) only, for anything CSS transitions cannot express. Two specialised pieces sit beside it and are the required answer for their cases: **numbers that change animate with NumberFlow** (`@buzzkit/ui/components/number-flow`, the library wrapped with the one 400ms `cubic-bezier(0.22, 1, 0.36, 1)` timing for slide, spin and fade; never the raw `@number-flow/react`; always inside `tabular-nums`), and **short text that changes in place swaps with `TextSwap`** (`@buzzkit/ui/components/text-swap`): a button label that flips from `Next` to `Connect Apple`, a status word. It moves like a slot machine reel with memory: labels are remembered in the order they first appeared, moving to a later one rolls forward (new drops in from the top, old leaves through the bottom) and moving back to an earlier one rolls backward (new rises from the bottom, old leaves through the top), so `Next` returns from where it went (0.4s bounce-0 spring with a 3px blur resolving on the same curve, opacity on a 0.25s ease-out), and the box springs to the new text's width on the same curve so the button grows or shrinks smoothly. Overflow is solved the way NumberFlow solves it, not by clipping: the box carries a `0.5em` × `0.3em` padding zone, pulled back with negative margins so layout is unchanged, under a gradient mask that is fully opaque over the text at rest and fades to nothing across the zone, so while the width is still catching up, whatever pokes past the text area dissolves into the edge instead of being hard-cut or spilling into the button's padding. Letter-morphing libraries are out (they segment by word and degrade to a cross-fade the moment two labels share no word). Never hand-roll a digit roll or a text cross-fade, and never use a letter-morphing library for labels (they segment by word and degrade to a cross-fade the moment two labels share no word). Springs are `{ type: 'spring', duration: 0.3–0.5, bounce: 0 }` — **bounce is always 0**. `AnimatePresence initial={false}` everywhere, so nothing animates on page load. Layout-size moves (the inbox panel slide) run the 0.5 spring; small state swaps run 0.3.
+JS animation is `motion/react` (Motion, formerly Framer Motion) only, for anything CSS transitions cannot express. Two specialised pieces sit beside it and are the required answer for their cases: **numbers that change animate with NumberFlow** (`@buzzkit/ui/components/number-flow`, the library wrapped with the one 400ms `cubic-bezier(0.22, 1, 0.36, 1)` timing for slide, spin and fade; never the raw `@number-flow/react`; always inside `tabular-nums`, and always `leading-none` with the row sized around it: NumberFlow's SSR markup ships an unlayered `line-height: 1` that beats any layered `leading-*` utility until hydration, so any other leading grows the number on the second paint and shifts the layout), and **short text that changes in place swaps with `TextSwap`** (`@buzzkit/ui/components/text-swap`): a button label that flips from `Next` to `Connect Apple`, a status word. It moves like a slot machine reel with memory: labels are remembered in the order they first appeared, moving to a later one rolls forward (new drops in from the top, old leaves through the bottom) and moving back to an earlier one rolls backward (new rises from the bottom, old leaves through the top), so `Next` returns from where it went (0.4s bounce-0 spring with a 3px blur resolving on the same curve, opacity on a 0.25s ease-out), and the box springs to the new text's width on the same curve so the button grows or shrinks smoothly. Overflow is solved the way NumberFlow solves it, not by clipping: the box carries a `0.5em` × `0.3em` padding zone, pulled back with negative margins so layout is unchanged, under a gradient mask that is fully opaque over the text at rest and fades to nothing across the zone, so while the width is still catching up, whatever pokes past the text area dissolves into the edge instead of being hard-cut or spilling into the button's padding. Letter-morphing libraries are out (they segment by word and degrade to a cross-fade the moment two labels share no word). Never hand-roll a digit roll or a text cross-fade, and never use a letter-morphing library for labels (they segment by word and degrade to a cross-fade the moment two labels share no word). Springs are `{ type: 'spring', duration: 0.3–0.5, bounce: 0 }` — **bounce is always 0**. `AnimatePresence initial={false}` everywhere, so nothing animates on page load. Layout-size moves (the inbox panel slide) run the 0.5 spring; small state swaps run 0.3.
 
 ### Icon size
 
@@ -283,7 +286,7 @@ import { Icon } from '@buzzkit/ui/components/icon';
 <Icon name='IconBell' className='size-4' />
 ```
 
-- `scripts/generate-icons.ts` scans the repo for `name='Icon…'` **string literals** and generates `paths.ts`. Never build a name dynamically — the icon will not be bundled. It runs before dev/build/check-types.
+- `scripts/generate-icons.ts` scans the repo for `name='Icon…'` and `icon: 'Icon…'` **string literals** and generates `paths.ts`. Never build a name dynamically, and never bury a name inside a conditional expression the scanner cannot see (`icon={ok ? A : B}` with inline strings works only if both literals appear somewhere as literals — hoist conditional icon names into constants at the top of the module). A missed name renders nothing, silently. The generator runs before dev/build/check-types.
 - Icons paint via `currentColor`; state comes from CSS color, never a second asset.
 - Default `size-4` (16px) inside controls; one stroke weight across the set.
 - Decorative icons get `aria-hidden` automatically. Pass `ariaLabel` to make one meaningful (it then gets `role="img"`).
@@ -313,7 +316,7 @@ A button's `loading` prop is the only busy state: it disables the button and swa
 
 ### Badge
 
-A value that belongs to a vocabulary (key kind, platform, channel, credential status, verified, revoked, sandbox, invalid) is never a hand-written `Badge` on a page: `apps/web/app/components/badges` owns the label and the color for each value (`KeyKindBadge`, `PlatformBadge`, `ChannelBadge`, `CredentialStatusBadge`, `VerifiedBadge`, `RevokedBadge`, `SandboxBadge`, `SubscriptionStatusBadge`), so iOS is blue and Android purple on every screen without anyone remembering. Add a value there first, then use it.
+A value that belongs to a vocabulary (key kind, platform, channel, message or delivery status, webhook or source outcome, role, environment) is never a hand-written `Badge` on a page: `apps/web/app/components/badges` owns the label and the color for each value, one component per value set (`KeyKindBadge`, `PlatformBadge`, `MessageStatusBadge`, `DeliveryStatusBadge`, `WebhookStatusBadge`, `SourceStatusBadge`, `RoleBadge`, and the rest — the file is the inventory), so iOS is blue and Android purple on every screen without anyone remembering. Add a value there first, then use it.
 
 `variant`: `default` · `purple` · `sky` · `blue` · `green` · `amber` · `orange` · `red` · `pink` · `solid`
 `size`: `sm` (20px, `text-xs`) · `default` (24px, `text-sm`)
@@ -338,7 +341,7 @@ One trigger size, matching the default button (32px, `rounded-xl`). The popup al
 
 ### ScopePicker
 
-`@buzzkit/ui/components/scope-picker`, the one picker for permission-like strings (API key scopes, webhook events, later agent scopes): a search field over collapsible groups. A group row carries a checkbox that stands for the group's wildcard (`subscribers:*`; groups without one select every option), the wildcard or label in mono, a count (`all`, `2`), and a chevron that rotates 90° in 150ms; its options fold open and closed with the sidebar's springs (unfold 0.3s, fold 0.2s, bounce 0, height auto + opacity). Picking every option of a group collapses the selection back into its wildcard; searching expands every matching group. Rows press with the shared inset tokens.
+`@buzzkit/ui/components/scope-picker`, the one picker for permission-like strings (API key scopes, webhook events, later agent scopes): a search field over collapsible groups. A group row carries a checkbox that stands for the group's wildcard (`subscribers:*`; groups without one select every option), the wildcard or label in `text-xs` (Open Runde like everything else, per §3), a count (`all`, `2`), and a chevron that rotates 90° in 150ms; its options fold open and closed with the sidebar's springs (unfold 0.3s, fold 0.2s, bounce 0, height auto + opacity). Picking every option of a group collapses the selection back into its wildcard; searching expands every matching group. Rows press with the shared inset tokens.
 
 ### Checkbox · Radio · Switch
 
@@ -446,6 +449,8 @@ Workspaces never show an initial: a workspace without an uploaded picture gets a
 
 A tooltip is read in the half second the pointer rests, so its content is shaped to be scanned, not read: the **value first in the foreground** (`text-background` on the dark chip), the **qualifier in `TooltipLabel`** (`fg-1`, the same muted step the chart tooltip uses), and **states in their status color** (`green-4` sent, `red-4` failed, `amber-4` pending, the color dropped when the count is zero so a zero never shouts). Compare "Scheduled for 2026-08-30 09:00 local time" with the label and zone muted and the moment bright, or "7 reachable · 6 sent · 1 failed · 0 pending" with each count wearing its status, to the same strings in one color. Exact-time tooltips show the date bright and the clock time muted. Lists (recipients, scopes, event names) stay one item per line in the foreground. The chip is an inline flex row (for the `Kbd` chips), so mixed bright/muted text goes inside one `span` (`whitespace-nowrap` for the short ones), never as loose fragments, or each fragment wraps on its own line. Never a sentence where a value and its label will do.
 
+**Content on the tooltip's inverted surface is recolored for it, never reused chrome.** A light-surface tint (`bg-*-1`) disappears against the dark chip. When a truncated set of chips or list items expands on hover, the tooltip shows the same vocabulary in its text form — bright values, muted qualifiers, one item per line — not the chips themselves.
+
 ### ScrollArea / ScrollFade
 
 Both fade the scrolling edges with a **mask on the scrolling element**, never a gradient overlay — an overlay has to guess the surface behind it and paints over the container's own border. `ScrollArea` adds a custom auto-hiding scrollbar; `ScrollFade` decorates a plain overflow container (or an existing one via `targetRef`). Fade size is `--fade-size`; edges animate via `@property`-registered lengths.
@@ -483,6 +488,18 @@ What stays per-app: the composer *shells* (the dashboard has internal-mode tabs 
 - Links describe their destination; never "click here" or a bare "Learn more".
 - Empty states say what the place is and offer one next action.
 - `text-balance` on titles, `text-pretty` on every description — no exceptions.
+
+### One job per string
+
+Each string does one job in full sentences, then stops. A page description says what the page is for ("Manage your workspace API keys.") and never adds a second sentence. A field hint says what the option is and where it is used. An empty state says how the first item gets there. None of them explain mechanics, reassure, sell or warn about things the reader did not ask about.
+
+- Banned words: "successfully", "please", "just", "simply", "easily", "safe", "secure", "powerful", "seamless", "etc.", "e.g.", and telegraphic fragments joined by periods where a sentence belongs.
+- Use the API's nouns and only those: workspace, tenant, subscriber, subscription, topic, channel, message, delivery, credential, key (never token), member, invite, webhook, source, segment, workflow, run, event. Providers are Apple and Android; the library is the SDK; the service is the API. The reader is "you"; the product is never "we".
+- A user-given name inside copy goes in curly quotes (typographic “ ”, never straight): Revoke “Default”?, Delete “user_42”?
+- Dialogs carry a title only; `AlertDialog` keeps its description — the consequence in one sentence, then "This cannot be undone." when it is irreversible, the second sentence on its own line (`<span className='block'>`).
+- The header CTA and the dialog's submit button say the same words ("Create key" both places), and the destructive confirm repeats its consequence ("Revoke key", never "Confirm").
+- A limit or count that resets on a clock names the clock: "The most messages a subscriber receives from this topic per day, counted in their own timezone." Never leave a reader guessing which midnight.
+- Before shipping a string, read it as the person seeing it for the first time and ask whether Stripe would ship it word for word.
 
 ---
 
@@ -525,17 +542,48 @@ app/
   lib/                          Server modules (`*.server.ts`: session cookie, API client, auth proxy)
                                 and pure helpers (form, time, format)
   hooks/                        Client hooks (use-focus-first-error, use-time-ago)
-  components/<feature>/         One directory per feature, presentational only:
-                                auth/ · shell/ · workspace/ · onboarding/ · settings/ · system/
+  components/<feature>/         One directory per feature, presentational only, and only for pieces
+                                two or more routes share: auth/ · badges/ · conditions/ · detail/ ·
+                                errors/ · events/ · layout/ · messages/ · onboarding/ · segments/ ·
+                                settings/ · sources/ · subscribers/ · webhooks/ · workflows/ · workspace/
   routes/<segment>/index.tsx    File-based routes, mirroring the API convention
   routes/[slug]/layout.tsx      Layout route for nested segments (brackets for dynamic parts)
 ```
+
+**A component used by one route lives in that route file.** Nothing moves to `components/` speculatively; it earns the move when a second route needs it. Names are written out in full — no abbreviations, no `shell`-style vagueness, no prefixes; a file is named for what it is (`live-runs.tsx`, `spec-editor.tsx`). Route actions live in `lib/actions/<feature>.server.ts`, never in the route file — the route exports `export const action = …Action` and nothing else action-shaped.
 
 **IDs in URLs are always bare.** Paths and query params carry the unprefixed sqid (via `bareId` in `lib/format.ts`); the API accepts both forms. The prefixed form (`msg_…`) is for display and copy actions only.
 
 **No comments in apps/web.** The dashboard's code carries no comments; naming, small modules, and this document do the explaining. The only exceptions are `TEMPORARY` markers on code scheduled for deletion and lint directives.
 
 **`routes/` is for routes; `components/<feature>/` is for the presentational modules they render.** Every feature owns a directory and splits along its seams, one module per surface: `onboarding/` keeps the shell, the progress stepper, the choice cards, the guide engine, and one file per provider guide apart. Feature components are plain components (no loaders, no route entries) so they stay previewable and restylable; route files own loaders/actions and error mapping. Anything reusable beyond this app belongs in `@buzzkit/ui` instead (`LivePing`, `CodeBlock`).
+
+### Page anatomy
+
+Every page opens the same way: the title over its one-line purpose (the standard title/description pair, 2px apart), and at most one page-level control at the header's opposite edge — the time range, or the page's single primary action. Below, sections stack in the page rhythm, each on a card. A detail page leads with the entity's identity — name, then its state and vocabulary badges — before any data. Nothing about a page's opening should need design decisions; the decisions are made here.
+
+**Everything that names an entity takes you to it.** A workflow named in a run, a subscriber on a delivery, a segment on a message — a reference is a link, always. Plain text naming something that has a page is a dead end the reader has to route around, and a bug.
+
+**Structure must earn its headings.** A navigation section with one item is not a section; fold it into a neighbor until it has company. The same instinct applies everywhere: numbering, group labels and dividers exist to encode real structure, never to decorate.
+
+### Settings are a family
+
+Every settings surface reads as one household, built on the same card grammar: the card states what the setting is in its title and one sentence, the change happens in the body, and the footer carries the consequence in a quiet sentence beside one small action that just says **"Save"** (a destructive card says its verb instead). The mindset:
+
+- **Saving is only possible when there is something to save.** The action stays disabled while the form matches what was loaded, while anything is invalid, and while a save is in flight. A button that is always pressable teaches the user it means nothing.
+- **Invalid input is prevented, not scolded.** Fields validate as they are touched — the invalid ring appears immediately and gates the save — and where the format allows it, wrong input is impossible to type at all: a count field simply does not accept a minus sign. Rejection on submit is the last resort, not the plan.
+- **Consequences are stated where they are decided**, in the footer sentence, in the setting's own terms — including which clock a daily limit counts against.
+- **One concept, one control.** A value the product lets you pick somewhere (a timezone, a scope, a range) is picked with the same control, the same option order and the same defaults everywhere it appears. Two pickers for one concept means one of them is wrong.
+
+### Vocabulary is owned once
+
+Domain values — statuses, kinds, platforms, conditions, step summaries — are words and colors the whole product must say identically, so each vocabulary has exactly one home that turns the domain object into its label, color and sentence, and every page composes from it. Nobody re-derives a label, re-picks a status color, or hand-builds a rendering a vocabulary already owns; when a page needs a value the vocabulary lacks, the vocabulary grows first. This is why a platform badge, a trigger sentence or a condition chip is identical on every screen without anyone remembering.
+
+Two shapes recur when vocabularies render:
+
+- **Facts are label/value rows, never prose.** Structured detail — on a detail page, an expanded table row, a card footer — lands as a definition list: quiet label, strong value, copyable where the value is an identifier. A paragraph that embeds four facts is four rows wearing a costume.
+- **A card says one thing; its details live below.** A card representing a unit of behavior (a workflow step, a node) carries exactly one plain-language statement in its body — what it does — and every structured fact (conditions, caps, timezones, counts) in its footer rows. A body that piles up facts, or a footer that restates the body, has the split wrong.
+- **Truncation reveals the text form.** When chips or lists truncate behind a count, hovering reveals the full set in the vocabulary's text form, recolored for the tooltip's inverted surface (§9) — never the light-surface chips themselves.
 
 `ErrorBoundary` lives in `root.tsx` because the name is React Router's contract: the framework renders that exact export when a route throws or nothing matches. It contains no markup of its own; it maps the thrown value onto a page component, picking `NotFoundPage` for a 404 (nothing broke, so it gets calmer copy and a real link home), `NoAccessPage` for a 403, and `ErrorPage` for everything else.
 

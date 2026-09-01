@@ -374,7 +374,7 @@ describe('$subscriber.deleted', () => {
           ? { removed: oldestFirst(removed), subscriberDeleted }
           : undefined;
       },
-      { timeoutMs: 60_000, label: 'the delete cascade on the tenant stream' }
+      { timeoutMs: 120_000, label: 'the delete cascade on the tenant stream' }
     );
 
     expectSystemEvent(stream.subscriberDeleted, externalId, '$subscriber.deleted', { externalId });

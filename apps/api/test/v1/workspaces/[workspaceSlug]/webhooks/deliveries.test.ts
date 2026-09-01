@@ -241,7 +241,7 @@ describe('delivery ledger', () => {
         const page = await listDeliveries(owner.bearer, workspace.slug, endpoint.id, '?status=success');
         return page.total === 60 ? page : undefined;
       },
-      { label: '60 successful deliveries', timeoutMs: 60_000 }
+      { label: '60 successful deliveries', timeoutMs: 120_000 }
     );
     expect(deliveriesTo(path, 'topic.created')).toHaveLength(60);
 

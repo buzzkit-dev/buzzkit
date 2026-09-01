@@ -39,40 +39,40 @@ export async function findWebhookEvent(
   eventSqid: string
 ): Promise<WebhookEvent> {
   const eventId = decodeEntityId('webhookEvent', eventSqid);
-  const [row] = eventId
-    ? await db
-        .select()
-        .from(tables.webhookEvent)
-        .where(and(eq(tables.webhookEvent.id, eventId), eq(tables.webhookEvent.workspaceId, workspaceId)))
-    : [];
+  if (!eventId) throw new NotFoundError('Webhook event not found');
+
+  const [row] = await db
+    .select()
+    .from(tables.webhookEvent)
+    .where(and(eq(tables.webhookEvent.id, eventId), eq(tables.webhookEvent.workspaceId, workspaceId)));
   if (!row) throw new NotFoundError('Webhook event not found');
+
   return row;
 }
 
-export async function findWebhookEventById(db: Db, eventId: number): Promise<WebhookEvent | null> {
+export async function selectWebhookEventById(db: Db, eventId: number): Promise<WebhookEvent | null> {
   const [row] = await db.select().from(tables.webhookEvent).where(eq(tables.webhookEvent.id, eventId));
   return row ?? null;
 }
 
-export async function findDelivery(
+export async function findWebhookDelivery(
   db: Db,
   endpointId: number,
   deliverySqid: string
 ): Promise<WebhookDelivery> {
   const deliveryId = decodeEntityId('webhookDelivery', deliverySqid);
-  const [row] = deliveryId
-    ? await db
-        .select()
-        .from(tables.webhookDelivery)
-        .where(
-          and(eq(tables.webhookDelivery.id, deliveryId), eq(tables.webhookDelivery.endpointId, endpointId))
-        )
-    : [];
+  if (!deliveryId) throw new NotFoundError('Delivery not found');
+
+  const [row] = await db
+    .select()
+    .from(tables.webhookDelivery)
+    .where(and(eq(tables.webhookDelivery.id, deliveryId), eq(tables.webhookDelivery.endpointId, endpointId)));
   if (!row) throw new NotFoundError('Delivery not found');
+
   return row;
 }
 
-export async function findDeliveryById(db: Db, deliveryId: number): Promise<WebhookDelivery | null> {
+export async function selectWebhookDeliveryById(db: Db, deliveryId: number): Promise<WebhookDelivery | null> {
   const [row] = await db
     .select()
     .from(tables.webhookDelivery)
@@ -80,7 +80,7 @@ export async function findDeliveryById(db: Db, deliveryId: number): Promise<Webh
   return row ?? null;
 }
 
-export async function listDeliveries(
+export async function listWebhookDeliveries(
   db: Db,
   endpointId: number,
   options: { cursor?: string; limit?: number; status?: WebhookDeliveryStatus } = {}
@@ -93,17 +93,15 @@ export async function listDeliveries(
   );
 
   const [rows, [counted]] = await Promise.all([
-    trace(
-      'webhooks.listDeliveries',
-      async () =>
-        await db
-          .select({ ...getTableColumns(tables.webhookDelivery), eventType: tables.webhookEvent.type })
-          .from(tables.webhookDelivery)
-          .innerJoin(tables.webhookEvent, eq(tables.webhookEvent.id, tables.webhookDelivery.eventId))
-          .where(and(filters, cursorId !== undefined ? lt(tables.webhookDelivery.id, cursorId) : undefined))
-          .orderBy(desc(tables.webhookDelivery.id))
-          .limit(limit + 1)
-    ),
+    trace('webhooks.listWebhookDeliveries', async () => {
+      return await db
+        .select({ ...getTableColumns(tables.webhookDelivery), eventType: tables.webhookEvent.type })
+        .from(tables.webhookDelivery)
+        .innerJoin(tables.webhookEvent, eq(tables.webhookEvent.id, tables.webhookDelivery.eventId))
+        .where(and(filters, cursorId !== undefined ? lt(tables.webhookDelivery.id, cursorId) : undefined))
+        .orderBy(desc(tables.webhookDelivery.id))
+        .limit(limit + 1);
+    }),
     db.select({ total: count() }).from(tables.webhookDelivery).where(filters),
   ]);
 
@@ -113,7 +111,7 @@ export async function listDeliveries(
   };
 }
 
-export async function listAttempts(db: Db, deliveryId: number): Promise<WebhookAttempt[]> {
+export async function listWebhookAttempts(db: Db, deliveryId: number): Promise<WebhookAttempt[]> {
   return await db
     .select()
     .from(tables.webhookAttempt)
@@ -205,6 +203,7 @@ export async function listUndeliveredAuditRows(
     )
     .orderBy(tables.event.id)
     .limit(limit);
+
   return rows.flatMap((row) =>
     row.workspaceId === null ? [] : [{ ...row, workspaceId: row.workspaceId, tenantId: row.tenantId ?? null }]
   );
@@ -222,20 +221,22 @@ export async function listReconcilableAuditIds(db: Db, limit: number): Promise<n
       endpointsByScope.set(key, endpoints);
     }
     if (
-      endpoints.some(
-        (endpoint) =>
+      endpoints.some((endpoint) => {
+        return (
           endpoint.updatedAt.getTime() <= row.createdAt.getTime() &&
           subscriptionMatches(endpoint.events, row.event)
-      )
+        );
+      })
     )
       ids.push(row.id);
   }
+
   return ids;
 }
 
 export async function recordWebhookEvent(db: Db, input: WebhookEventInput): Promise<WebhookEvent> {
-  return await trace('webhooks.recordEvent', async () =>
-    db.transaction(async (tx) => {
+  return await trace('webhooks.recordEvent', async () => {
+    return await db.transaction(async (tx) => {
       const [inserted] = await tx
         .insert(tables.webhookEvent)
         .values(input)
@@ -256,8 +257,8 @@ export async function recordWebhookEvent(db: Db, input: WebhookEventInput): Prom
           and(eq(tables.webhookEvent.source, input.source), eq(tables.webhookEvent.sourceId, input.sourceId))
         );
       return existing!;
-    })
-  );
+    });
+  });
 }
 
 export async function createDeliveries(
@@ -269,13 +270,16 @@ export async function createDeliveries(
   await db
     .insert(tables.webhookDelivery)
     .values(
-      endpoints.map((endpoint) => ({
-        workspaceId: event.workspaceId,
-        endpointId: endpoint.id,
-        eventId: event.id,
-      }))
+      endpoints.map((endpoint) => {
+        return {
+          workspaceId: event.workspaceId,
+          endpointId: endpoint.id,
+          eventId: event.id,
+        };
+      })
     )
     .onConflictDoNothing();
+
   return await db
     .select()
     .from(tables.webhookDelivery)

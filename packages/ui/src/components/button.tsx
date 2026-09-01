@@ -19,10 +19,10 @@ const buttonVariants = cva(
     'outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
     'aria-invalid:focus-visible:ring-0',
     'disabled:cursor-not-allowed disabled:[&_svg]:opacity-30',
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
+    "[&_svg:not([class*='size-'])]:size-4.5 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     // Chevrons are tiny glyphs in a roomy viewbox: pull them in (2px gap, 5px
     // edge padding) and draw them at 16px so they sit optically like the text.
-    "data-chevron:gap-0.5 data-chevron:[&_svg:not([class*='size-'])]:size-4 data-chevron:data-[icon=inline-end]:pr-[5px] data-chevron:data-[icon=inline-start]:pl-[5px]",
+    "data-chevron:data-[icon=inline-end]:pr-[5px] data-chevron:data-[icon=inline-start]:pl-[5px] data-chevron:gap-0.5 data-chevron:[&_svg:not([class*='size-'])]:size-4",
   ].join(' '),
   {
     variants: {
@@ -36,12 +36,12 @@ const buttonVariants = cva(
         elevated: [
           'text-fg-4 before:bg-background dark:before:bg-bg-3',
           'before:shadow-control-elevated not-disabled:hover:before:shadow-control-elevated-hover',
-          'not-disabled:active:before:bg-bg-1 not-disabled:data-[pressed]:before:bg-bg-1 dark:not-disabled:active:before:bg-bg-4 dark:not-disabled:data-[pressed]:before:bg-bg-4',
+          'not-disabled:active:before:bg-bg-1 not-disabled:data-[pressed]:before:bg-bg-1 dark:not-disabled:data-[pressed]:before:bg-bg-4 dark:not-disabled:active:before:bg-bg-4',
           'disabled:text-fg-1',
         ].join(' '),
-        soft: 'text-fg-3 before:bg-bg-a1 not-disabled:hover:text-fg-3 not-disabled:hover:before:bg-bg-a2 not-disabled:active:before:bg-bg-a2 dark:before:bg-bg-a3 dark:not-disabled:hover:before:bg-bg-a4 dark:not-disabled:active:before:bg-bg-a4 disabled:text-fg-a1/50 disabled:before:bg-bg-2',
+        soft: 'text-fg-3 before:bg-bg-a1 not-disabled:hover:text-fg-3 not-disabled:hover:before:bg-bg-a2 not-disabled:active:before:bg-bg-a2 disabled:text-fg-a1/50 disabled:before:bg-bg-2 dark:before:bg-bg-a3 dark:not-disabled:active:before:bg-bg-a4 dark:not-disabled:hover:before:bg-bg-a4',
         ghost:
-          'text-fg-2 not-disabled:hover:text-fg-4 not-disabled:active:text-fg-4 not-disabled:hover:before:bg-bg-a2/70 not-disabled:active:before:bg-bg-a2/70 disabled:opacity-50',
+          'text-fg-2 not-disabled:hover:text-fg-4 not-disabled:hover:before:bg-bg-a2/70 not-disabled:active:text-fg-4 not-disabled:active:before:bg-bg-a2/70 disabled:opacity-50',
         destructive: [
           'text-white before:bg-red-4',
           'before:shadow-control-destructive',

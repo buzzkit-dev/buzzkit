@@ -47,7 +47,7 @@ function CreateForm({ slug, onClose }: { slug: string; onClose: () => void }) {
     onClose();
     if (typeof data.id === 'string') {
       toast.success(`Source “${name.trim()}” created`);
-      navigate(`/${slug}/sources/${data.id}?setup`);
+      void navigate(`/${slug}/sources/${data.id}?setup`);
     }
   });
   const [name, setName] = useState('');

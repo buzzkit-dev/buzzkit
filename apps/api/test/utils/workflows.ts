@@ -3,7 +3,7 @@ import { fakeToken } from './fixtures';
 
 type Headers = Record<string, string>;
 
-export type TimelineItem = { name: string; data: Record<string, unknown> };
+type TimelineItem = { name: string; data: Record<string, unknown> };
 
 export async function subscribe(headers: Headers, externalId: string) {
   const { status, body } = await api('/v1/subscriptions', {
@@ -36,7 +36,7 @@ export async function track(
   if (status !== 202) throw new Error(`track failed: ${status} ${JSON.stringify(body)}`);
 }
 
-export async function timeline(headers: Headers, externalId: string) {
+async function timeline(headers: Headers, externalId: string) {
   const { body } = await api<{ items: TimelineItem[] }>(`/v1/subscribers/${externalId}/timeline?limit=100`, {
     headers,
   });

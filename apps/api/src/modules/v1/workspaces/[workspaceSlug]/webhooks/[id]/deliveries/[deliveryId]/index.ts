@@ -1,13 +1,13 @@
 import {
-  findDelivery,
   findEndpoint,
-  findWebhookEventById,
-  listAttempts,
-  serializeAttempt,
-  serializeDelivery,
+  findWebhookDelivery,
+  listWebhookAttempts,
+  selectWebhookEventById,
+  serializeWebhookAttempt,
+  serializeWebhookDelivery,
   serializeWebhookEvent,
 } from '@buzzkit/api/api/webhooks/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -18,17 +18,17 @@ export const webhookDelivery = new Elysia()
     '/workspaces/:workspaceSlug/webhooks/:id/deliveries/:deliveryId',
     async ({ db, params, workspace }) => {
       const endpoint = await findEndpoint(db, workspace.id, params.id);
-      const delivery = await findDelivery(db, endpoint.id, params.deliveryId);
+      const delivery = await findWebhookDelivery(db, endpoint.id, params.deliveryId);
 
       const [attempts, event] = await Promise.all([
-        listAttempts(db, delivery.id),
-        findWebhookEventById(db, delivery.eventId),
+        listWebhookAttempts(db, delivery.id),
+        selectWebhookEventById(db, delivery.eventId),
       ]);
 
       return Response.success(
         {
-          ...serializeDelivery(delivery),
-          attempts: attempts.map(serializeAttempt),
+          ...serializeWebhookDelivery(delivery),
+          attempts: attempts.map(serializeWebhookAttempt),
           event: event ? serializeWebhookEvent(event) : null,
         },
         { ignoreTransform: ['payload'] }

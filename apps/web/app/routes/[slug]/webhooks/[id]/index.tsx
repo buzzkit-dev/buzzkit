@@ -222,8 +222,7 @@ function AttemptLedger({
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const attempts = detail.attempts;
-  const selected =
-    attempts.find((attempt) => attempt.id === selectedId) ?? attempts[attempts.length - 1] ?? null;
+  const selected = attempts.find((attempt) => attempt.id === selectedId) ?? attempts.at(-1) ?? null;
   const responseBody = selected?.responseBody ?? null;
   const responseNote = selected ? (selected.error ?? 'Empty response') : 'Not attempted yet';
 
@@ -396,7 +395,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
   const [searchParams] = useSearchParams();
   const { submit, pending } = useActionFetcher((data) => {
     setRotateOpen(false);
-    if (data.deleted) navigate(base);
+    if (data.deleted) void navigate(base);
   });
   const { submit: replay, pending: replaying } = useActionFetcher();
   const { endpoint, deliveries, tenants, catalog, filter, expanded } = loaderData;
@@ -437,7 +436,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
     if (due.length === 0) return;
     const timer = setTimeout(
       () => {
-        if (revalidator.state === 'idle') revalidator.revalidate();
+        if (revalidator.state === 'idle') void revalidator.revalidate();
       },
       Math.min(Math.min(...due) - now, LIVE_POLL_MAX_MS)
     );
@@ -616,14 +615,14 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
             </CardHeader>
             <dl className='flex flex-col'>
               <DetailRow label='Secret' copy={endpoint.secret}>
-                <Truncate className='font-mono text-xs'>
+                <Truncate className='text-xs'>
                   {revealed ? endpoint.secret : 'whsec_••••••••••••••••'}
                 </Truncate>
               </DetailRow>
               {endpoint.previousSecret && endpoint.previousSecretExpiresAt && (
                 <>
                   <DetailRow label='Previous' copy={endpoint.previousSecret}>
-                    <Truncate className='font-mono text-xs'>
+                    <Truncate className='text-xs'>
                       {revealed ? endpoint.previousSecret : 'whsec_••••••••••••••••'}
                     </Truncate>
                   </DetailRow>

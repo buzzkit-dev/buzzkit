@@ -41,5 +41,3 @@ export function PatternArea({ dataKey, fill, curve = curveMonotoneX }: PatternAr
 }
 
 PatternArea.displayName = 'PatternArea';
-
-export default PatternArea;

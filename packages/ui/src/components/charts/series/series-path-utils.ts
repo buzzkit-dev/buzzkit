@@ -29,7 +29,7 @@ export function computeSeriesPathPoints(
 
 function sampleSeriesY(points: SeriesPathPoint[], x: number): number {
   const first = points[0] as SeriesPathPoint;
-  const last = points[points.length - 1] as SeriesPathPoint;
+  const last = points.at(-1) as SeriesPathPoint;
   if (x <= first.x) {
     return first.y;
   }

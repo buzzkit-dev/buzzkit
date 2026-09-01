@@ -318,13 +318,13 @@ function ScopeSummary({ apiKey }: { apiKey: ApiKey }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span className='cursor-default underline decoration-dotted decoration-fg-1 underline-offset-3'>
+          <span className='cursor-default underline decoration-fg-1 decoration-dotted underline-offset-3'>
             {apiKey.scopes.length} scope{apiKey.scopes.length === 1 ? '' : 's'}
           </span>
         }
       />
       <TooltipContent>
-        <span className='flex flex-col gap-0.5 font-mono text-xs'>
+        <span className='flex flex-col gap-0.5 text-xs'>
           {apiKey.scopes.map((scope) => (
             <span key={scope}>{scope}</span>
           ))}
@@ -355,7 +355,7 @@ function KeyRow({
           <RevokedBadge revoked={apiKey.revokedAt !== null} />
         </span>
       </TableCell>
-      <TableCell className='font-mono text-xs'>
+      <TableCell className='text-xs'>
         {apiKey.prefix}…{apiKey.last4}
       </TableCell>
       <TableCell>

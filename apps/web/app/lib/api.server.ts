@@ -953,7 +953,7 @@ export function listDeliveryAttempts(
   ).then((page) => page.items);
 }
 
-export type MessageSchedule = { at: string; timezone?: string; defaultTimezone?: string };
+type MessageSchedule = { at: string; timezone?: string; defaultTimezone?: string };
 
 export type MessageInput = {
   to?: string[];
@@ -1292,7 +1292,6 @@ export type SubscriberDelivery = Awaited<ReturnType<typeof listSubscriberDeliver
 export type TimelineEvent = Awaited<ReturnType<typeof listSubscriberTimeline>>['items'][number];
 export type AuditEvent = Awaited<ReturnType<typeof listAuditEvents>>['items'][number];
 export type StreamEvent = Awaited<ReturnType<typeof listEvents>>['items'][number];
-export type EventName = Awaited<ReturnType<typeof listEventNames>>[number];
 export type Segment = Awaited<ReturnType<typeof listSegments>>[number];
 export type SegmentPreview = Awaited<ReturnType<typeof previewSegment>>;
 export type SegmentMember = SegmentPreview['sample'][number];
@@ -1301,7 +1300,6 @@ export type EventVolume = Awaited<ReturnType<typeof getEventVolume>>;
 export type EventsToken = Awaited<ReturnType<typeof getEventsToken>>;
 export type Stats = Awaited<ReturnType<typeof getStats>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
-export type TenantDetail = Awaited<ReturnType<typeof getTenant>>;
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];
 export type Webhook = Awaited<ReturnType<typeof listWebhooks>>[number];
@@ -1317,10 +1315,9 @@ export type WorkflowDetail = Awaited<ReturnType<typeof getWorkflow>>;
 export type WorkflowVersion = NonNullable<WorkflowDetail['versions']>[number];
 export type WorkflowSchedule = Awaited<ReturnType<typeof getWorkflowSchedule>>;
 export type WorkflowTest = Awaited<ReturnType<typeof testWorkflow>>;
-export type SecretItem = Awaited<ReturnType<typeof listSecrets>>[number];
 export type WorkflowRun = Awaited<ReturnType<typeof listWorkflowRuns>>['items'][number];
 export type Run = Awaited<ReturnType<typeof listRuns>>['items'][number];
-export type RunDetail = Awaited<ReturnType<typeof getRun>>;
+type RunDetail = Awaited<ReturnType<typeof getRun>>;
 export type RunEvent = RunDetail['events'][number];
 export type SubscriberRun = Awaited<ReturnType<typeof listSubscriberRuns>>[number];
 

@@ -24,7 +24,7 @@ export function ChoiceRows({ children }: { children: React.ReactNode }) {
 
   return (
     <HoverContext.Provider value={{ hovered, setHovered }}>
-      <div ref={rootRef} className='-mx-2 relative isolate' onPointerLeave={() => setHovered(null)}>
+      <div ref={rootRef} className='relative isolate -mx-2' onPointerLeave={() => setHovered(null)}>
         <div
           ref={indicatorRef}
           aria-hidden

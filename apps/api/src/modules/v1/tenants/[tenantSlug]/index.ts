@@ -9,10 +9,11 @@ import {
   TenantMetadataSchema,
   TenantNameSchema,
   TenantSettingsSchema,
+  TenantSlugParamsSchema,
   TenantSlugSchema,
   updateTenant,
 } from '@buzzkit/api/api/tenants/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';
 
@@ -22,9 +23,8 @@ export const tenant = new Elysia()
   .get(
     '/tenants/:tenantSlug',
     async ({ db, params, workspace }) => {
-      const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
-
-      return Response.success(serializeTenant(tenant), { entity: 'tenant' }).send();
+      const target = await findTenantBySlug(db, workspace.id, params.tenantSlug);
+      return Response.success(serializeTenant(target), { entity: 'tenant' }).send();
     },
     { scope: 'tenants:read' }
   )
@@ -35,7 +35,7 @@ export const tenant = new Elysia()
         assertValidTenantSettings(body.settings);
       }
 
-      const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
+      const target = await findTenantBySlug(db, workspace.id, params.tenantSlug);
 
       if (
         body.name === undefined &&
@@ -43,21 +43,21 @@ export const tenant = new Elysia()
         body.metadata === undefined &&
         body.settings === undefined
       ) {
-        return Response.success(serializeTenant(tenant), { entity: 'tenant' }).send();
+        return Response.success(serializeTenant(target), { entity: 'tenant' }).send();
       }
 
-      if (body.slug !== undefined && body.slug !== tenant.slug) {
+      if (body.slug !== undefined && body.slug !== target.slug) {
         await assertTenantSlugAvailable(db, workspace.id, body.slug);
       }
 
-      const updated = await updateTenant(db, tenant, body);
+      const updated = await updateTenant(db, target, body);
 
       await audit({
         event: 'tenant.updated',
-        tenantId: tenant.id,
-        target: { type: 'tenant', id: tenant.id },
+        tenantId: target.id,
+        target: { type: 'tenant', id: target.id },
         data: diffForEvent(
-          { ...tenant, settings: resolveTenantSettings(tenant.settings) },
+          { ...target, settings: resolveTenantSettings(target.settings) },
           { ...updated, settings: resolveTenantSettings(updated.settings) }
         ),
       });
@@ -66,6 +66,7 @@ export const tenant = new Elysia()
     },
     {
       scope: 'tenants:write',
+      params: TenantSlugParamsSchema,
       body: t.Object({
         name: t.Optional(TenantNameSchema),
         slug: t.Optional(TenantSlugSchema),
@@ -77,15 +78,15 @@ export const tenant = new Elysia()
   .delete(
     '/tenants/:tenantSlug',
     async ({ db, params, workspace, audit }) => {
-      const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
+      const target = await findTenantBySlug(db, workspace.id, params.tenantSlug);
 
-      const deleted = await softDeleteTenant(db, tenant);
+      const deleted = await softDeleteTenant(db, target);
 
       await audit({
         event: 'tenant.deleted',
-        tenantId: tenant.id,
-        target: { type: 'tenant', id: tenant.id },
-        data: { name: tenant.name, slug: tenant.slug },
+        tenantId: target.id,
+        target: { type: 'tenant', id: target.id },
+        data: { name: target.name, slug: target.slug },
       });
 
       return Response.success(markDeleted(serializeTenant(deleted)), { entity: 'tenant' }).send();

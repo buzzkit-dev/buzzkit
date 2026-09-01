@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "private": true,
+  "files": [
+    "src"
+  ],
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -19,9 +22,11 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "publint"
   },
   "devDependencies": {
+    "publint": "^0.3.24",
     "typescript": "^7.0.2",
     "vitest": "~4.1.10"
   }

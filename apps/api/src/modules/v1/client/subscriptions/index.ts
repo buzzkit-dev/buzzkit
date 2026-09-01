@@ -1,4 +1,3 @@
-import { recordSystemEvents } from '@buzzkit/api/api/events/index';
 import {
   ClientIdentitySchema,
   DeviceContextSchema,
@@ -7,7 +6,6 @@ import {
   PushPermissionSchema,
   recordRegistration,
   registerSubscription,
-  resolveSubscriptionEventData,
   resolveSubscriptionInput,
   resolveSystemAttributes,
   SubscriptionInputSchema,
@@ -15,7 +13,7 @@ import {
   softDeleteSubscription,
   updateSubscriptionEnabled,
 } from '@buzzkit/api/api/subscribers/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { verifyClientIdentity, verifyIdentity } from '@buzzkit/api/libs/identity';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
@@ -75,17 +73,9 @@ export const clientSubscriptions = new Elysia()
     async ({ body, db, headers, params, tenant }) => {
       const externalId = await verifyClientIdentity(tenant, headers);
       const subscription = await findSubscriptionOwnedBy(db, tenant.id, externalId, params.id);
+      const owner = { id: subscription.subscriberId, externalId };
 
-      const updated = await updateSubscriptionEnabled(db, subscription.id, body.enabled);
-
-      if (subscription.enabled !== body.enabled) {
-        await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
-          {
-            name: body.enabled ? 'subscription.unmuted' : 'subscription.muted',
-            data: resolveSubscriptionEventData(updated, externalId),
-          },
-        ]);
-      }
+      const updated = await updateSubscriptionEnabled(db, tenant.id, subscription, owner, body.enabled);
 
       return Response.success(
         { ...serializeSubscription(updated), subscriberId: encodeId('subscriber', updated.subscriberId) },
@@ -99,12 +89,9 @@ export const clientSubscriptions = new Elysia()
     async ({ db, headers, params, tenant }) => {
       const externalId = await verifyClientIdentity(tenant, headers);
       const subscription = await findSubscriptionOwnedBy(db, tenant.id, externalId, params.id);
+      const owner = { id: subscription.subscriberId, externalId };
 
-      const deleted = await softDeleteSubscription(db, subscription.id);
-
-      await recordSystemEvents(tenant.id, { id: subscription.subscriberId, externalId }, [
-        { name: 'subscription.removed', data: resolveSubscriptionEventData(subscription, externalId) },
-      ]);
+      const deleted = await softDeleteSubscription(db, tenant.id, subscription, owner);
 
       return Response.success(
         markDeleted({

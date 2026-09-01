@@ -4,6 +4,7 @@ import { subscriberActor } from '@buzzkit/api/libs/actor';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { formatClickHouseTime, parseClickHouseTime, tinybird } from '@buzzkit/api/libs/tinybird';
+import { clampLimit, toPageBy } from '@buzzkit/api/utils/pagination';
 import type { Db } from '@buzzkit/database';
 import { ACTOR_RECENT_EVENTS, RUN_EVENTS_LIMIT } from './constants';
 import { serializeActorRun, serializeRun } from './serialize';
@@ -27,6 +28,7 @@ const RUN_ID_PATTERN = /^(\d+)-(wf_[A-Za-z0-9]+)-(\d+)-(\d+)$/;
 export function parseRunId(runId: string): RunIdParts | null {
   const match = RUN_ID_PATTERN.exec(runId);
   if (!match) return null;
+
   return {
     tenantId: Number(match[1]),
     workflowId: match[2]!,
@@ -51,33 +53,32 @@ export function resolveRunCursor(cursor: string | undefined): RunCursor | undefi
   if (Number.isNaN(new Date(startedAt).getTime()) || !parseRunId(id)) {
     throw new BadRequestError('Invalid cursor', { code: 'invalid_cursor', param: 'cursor' });
   }
+
   return { startedAt: new Date(startedAt).toISOString(), id };
 }
 
 export async function listRuns(
   tenantId: number,
   workflowId: string | undefined,
-  options: { status?: RunStatus; before?: RunCursor; limit: number }
+  options: { status?: RunStatus; cursor?: string; limit?: number } = {}
 ): Promise<RunPage> {
-  const result = await trace('runs.list', async () =>
-    (await tinybird()).runs.query({
+  const limit = clampLimit(options.limit);
+  const before = resolveRunCursor(options.cursor);
+
+  const result = await trace('runs.list', async () => {
+    return await (await tinybird()).runs.query({
       tenant_id: tenantId,
       workflow_id: workflowId,
       status: options.status,
-      before: options.before ? formatClickHouseTime(options.before.startedAt) : undefined,
-      before_id: options.before?.id,
-      limit: options.limit + 1,
-    })
-  );
-  const rows = result.data as RunRow[];
-  const page = rows.slice(0, options.limit);
-  const hasMore = rows.length > options.limit;
-  const last = page[page.length - 1];
-  return {
-    items: page.map(serializeRun),
-    hasMore,
-    nextCursor: hasMore && last ? encodeRunCursor(last) : null,
-  };
+      before: before ? formatClickHouseTime(before.startedAt) : undefined,
+      before_id: before?.id,
+      limit: limit + 1,
+    });
+  });
+
+  const page = toPageBy(result.data as RunRow[], limit, encodeRunCursor);
+
+  return { ...page, items: page.items.map(serializeRun) };
 }
 
 export async function countLiveRuns(tenantId: number, workflowId?: string): Promise<Map<string, RunCounts>> {
@@ -110,9 +111,9 @@ export async function findRun(db: Db, tenantId: number, runId: string): Promise<
   if (!parts || parts.tenantId !== tenantId) throw new NotFoundError('Run not found');
 
   const actor = await subscriberActor(tenantId, parts.subscriberId);
-  const [live, recent, stored, history] = await trace('runs.find', async () =>
-    Promise.all([
-      actor.findRun(runId),
+  const [live, recent, stored, history] = await trace('runs.find', async () => {
+    return Promise.all([
+      actor.selectRun(runId),
       actor.listRecent(ACTOR_RECENT_EVENTS),
       (await tinybird()).runs.query({ tenant_id: tenantId, run_id: runId, limit: 1 }),
       (await tinybird()).runSteps.query({
@@ -121,8 +122,8 @@ export async function findRun(db: Db, tenantId: number, runId: string): Promise<
         run_id: runId,
         limit: RUN_EVENTS_LIMIT,
       }),
-    ])
-  );
+    ]);
+  });
   const row = (stored.data as RunRow[])[0];
   if (!live && !row) throw new NotFoundError('Run not found');
 

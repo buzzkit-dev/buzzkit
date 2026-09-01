@@ -569,8 +569,8 @@ describe('webhook endpoint edges', () => {
       });
 
     const empty = await patch({});
-    expect(empty.status).toBe(400);
-    expect(empty.body.error?.code).toBe('bad_request');
+    expect(empty.status).toBe(200);
+    expect(empty.body.data?.id).toBe(endpoint.id);
 
     for (const url of ['ftp://example.com/hook', 'https://user:pass@example.com/hook']) {
       const refused = await patch({ url });

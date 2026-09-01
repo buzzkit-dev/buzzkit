@@ -1,3 +1,5 @@
+import { DAY_MS } from '@buzzkit/api/libs/timezone';
+
 import type { EventVolumeRange } from './types';
 
 export const EVENT_SOURCES = ['server', 'ios', 'android', 'web', 'system'] as const;
@@ -10,7 +12,7 @@ export const MAX_EVENTS_PER_REQUEST = 100;
 
 export const MAX_EVENT_DATA_BYTES = 8 * 1024;
 
-export const MAX_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const MAX_EVENT_AGE_MS = 7 * DAY_MS;
 
 export const MAX_EVENT_SKEW_MS = 60 * 60 * 1000;
 

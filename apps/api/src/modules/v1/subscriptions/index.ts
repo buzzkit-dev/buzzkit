@@ -6,7 +6,7 @@ import {
   SubscriptionInputSchema,
   serializeSubscription,
 } from '@buzzkit/api/api/subscribers/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import Elysia, { t } from 'elysia';

@@ -82,319 +82,161 @@ import { webhookEvent } from './workspaces/[workspaceSlug]/webhooks/events/[id]'
 
 export const v1 = new Elysia({ prefix: '/v1' })
   .use(response)
-  /*
-   * /v1/health
-   */
+  /* /v1/health */
   .use(health)
-  /*
-   * /v1/profile
-   */
+  /* /v1/profile */
   .use(profile)
-  /*
-   * /v1/workspaces
-   */
+  /* /v1/workspaces */
   .use(workspaces)
-  /*
-   * /v1/workspaces/:slug
-   */
+  /* /v1/workspaces/:slug */
   .use(workspace)
-  /*
-   * /v1/workspaces/:slug/members
-   */
+  /* /v1/workspaces/:slug/members */
   .use(members)
-  /*
-   * /v1/workspaces/:slug/members/:id
-   */
+  /* /v1/workspaces/:slug/members/:id */
   .use(member)
-  /*
-   * /v1/workspaces/:slug/invites
-   */
+  /* /v1/workspaces/:slug/invites */
   .use(invites)
-  /*
-   * /v1/workspaces/:slug/invites/:id
-   */
+  /* /v1/workspaces/:slug/invites/:id */
   .use(invite)
-  /*
-   * /v1/workspaces/:slug/invites/:id/resend
-   */
+  /* /v1/workspaces/:slug/invites/:id/resend */
   .use(inviteResend)
-  /*
-   * /v1/invites/:token
-   */
+  /* /v1/invites/:token */
   .use(invitePreview)
-  /*
-   * /v1/invites/:token/accept
-   */
+  /* /v1/invites/:token/accept */
   .use(inviteAccept)
-  /*
-   * /v1/workspaces/:slug/keys
-   */
+  /* /v1/workspaces/:slug/keys */
   .use(keys)
-  /*
-   * /v1/workspaces/:slug/keys/:id
-   */
+  /* /v1/workspaces/:slug/keys/:id */
   .use(key)
-  /*
-   * /v1/workspaces/:slug/audit
-   */
+  /* /v1/workspaces/:slug/audit */
   .use(auditLog)
-  /*
-   * /v1/workspaces/:slug/webhooks
-   */
+  /* /v1/workspaces/:slug/webhooks */
   .use(webhooks)
-  /*
-   * /v1/workspaces/:slug/webhooks/catalog
-   */
+  /* /v1/workspaces/:slug/webhooks/catalog */
   .use(webhookCatalog)
-  /*
-   * /v1/workspaces/:slug/webhooks/events/:id
-   */
+  /* /v1/workspaces/:slug/webhooks/events/:id */
   .use(webhookEvent)
-  /*
-   * /v1/workspaces/:slug/webhooks/:id
-   */
+  /* /v1/workspaces/:slug/webhooks/:id */
   .use(webhook)
-  /*
-   * /v1/workspaces/:slug/webhooks/:id/rotate
-   */
+  /* /v1/workspaces/:slug/webhooks/:id/rotate */
   .use(webhookRotate)
-  /*
-   * /v1/workspaces/:slug/webhooks/:id/deliveries
-   */
+  /* /v1/workspaces/:slug/webhooks/:id/deliveries */
   .use(webhookDeliveries)
-  /*
-   * /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId
-   */
+  /* /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId */
   .use(webhookDelivery)
-  /*
-   * /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId/replay
-   */
+  /* /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId/replay */
   .use(webhookReplay)
-  /*
-   * /v1/tenants
-   */
+  /* /v1/tenants */
   .use(tenants)
-  /*
-   * /v1/tenants/:tenantSlug
-   */
+  /* /v1/tenants/:tenantSlug */
   .use(tenant)
-  /*
-   * /v1/tenants/:tenantSlug/identity-secret
-   */
+  /* /v1/tenants/:tenantSlug/identity-secret */
   .use(tenantIdentitySecret)
-  /*
-   * /v1/tenants/:tenantSlug/identity-secret/rotate
-   */
+  /* /v1/tenants/:tenantSlug/identity-secret/rotate */
   .use(tenantIdentitySecretRotate)
-  /*
-   * /v1/credentials
-   */
+  /* /v1/credentials */
   .use(credentials)
-  /*
-   * /v1/credentials/:id
-   */
+  /* /v1/credentials/:id */
   .use(credential)
-  /*
-   * /v1/credentials/:id/validate
-   */
+  /* /v1/credentials/:id/validate */
   .use(credentialValidate)
-  /**
-   * /v1/secrets
-   */
+  /* /v1/secrets */
   .use(secrets)
-  /**
-   * /v1/secrets/:name
-   */
+  /* /v1/secrets/:name */
   .use(secret)
-  /**
-   * /v1/sources
-   */
+  /* /v1/sources */
   .use(sources)
-  /**
-   * /v1/sources/:id
-   */
+  /* /v1/sources/:id */
   .use(source)
-  /**
-   * /v1/sources/:id/ingest
-   */
+  /* /v1/sources/:id/ingest */
   .use(sourceIngest)
-  /**
-   * /v1/sources/:id/preview
-   */
+  /* /v1/sources/:id/preview */
   .use(sourcePreview)
-  /**
-   * /v1/sources/:id/deliveries
-   */
+  /* /v1/sources/:id/deliveries */
   .use(sourceDeliveries)
-  /*
-   * /v1/subscribers
-   */
+  /* /v1/subscribers */
   .use(subscribers)
-  /*
-   * /v1/subscribers/:externalId
-   */
+  /* /v1/subscribers/:externalId */
   .use(subscriber)
-  /*
-   * /v1/subscribers/:externalId/subscriptions
-   */
+  /* /v1/subscribers/:externalId/subscriptions */
   .use(subscriberSubscriptions)
-  /*
-   * /v1/subscribers/:externalId/preferences
-   */
+  /* /v1/subscribers/:externalId/preferences */
   .use(subscriberPreferences)
-  /*
-   * /v1/subscribers/:externalId/deliveries
-   */
+  /* /v1/subscribers/:externalId/deliveries */
   .use(subscriberDeliveries)
-  /*
-   * /v1/subscribers/:externalId/timeline
-   */
+  /* /v1/subscribers/:externalId/timeline */
   .use(subscriberTimeline)
-  /*
-   * /v1/subscribers/:externalId/runs
-   */
+  /* /v1/subscribers/:externalId/runs */
   .use(subscriberRuns)
-  /*
-   * /v1/subscriptions
-   */
+  /* /v1/subscriptions */
   .use(subscriptions)
-  /*
-   * /v1/subscriptions/:id
-   */
+  /* /v1/subscriptions/:id */
   .use(subscription)
-  /*
-   * /v1/topics
-   */
+  /* /v1/topics */
   .use(topics)
-  /*
-   * /v1/topic-categories
-   */
+  /* /v1/topic-categories */
   .use(topicCategories)
-  /*
-   * /v1/topics/:topicSlug
-   */
+  /* /v1/topics/:topicSlug */
   .use(topic)
-  /*
-   * /v1/segments
-   */
+  /* /v1/segments */
   .use(segments)
-  /*
-   * /v1/segments/preview
-   */
+  /* /v1/segments/preview */
   .use(segmentsPreview)
-  /*
-   * /v1/segments/:segmentSlug
-   */
+  /* /v1/segments/:segmentSlug */
   .use(segment)
-  /*
-   * /v1/segments/:segmentSlug/members
-   */
+  /* /v1/segments/:segmentSlug/members */
   .use(segmentMembers)
-  /*
-   * /v1/workflows
-   */
+  /* /v1/workflows */
   .use(workflows)
-  /*
-   * /v1/workflows/:workflowSlug
-   */
+  /* /v1/workflows/:workflowSlug */
   .use(workflow)
-  /*
-   * /v1/workflows/:workflowSlug/publish
-   */
+  /* /v1/workflows/:workflowSlug/publish */
   .use(workflowPublish)
-  /*
-   * /v1/workflows/:workflowSlug/pause
-   */
+  /* /v1/workflows/:workflowSlug/pause */
   .use(workflowPause)
-  /*
-   * /v1/workflows/:workflowSlug/runs
-   */
+  /* /v1/workflows/:workflowSlug/runs */
   .use(workflowRuns)
-  /*
-   * /v1/workflows/:workflowSlug/schedule
-   */
+  /* /v1/workflows/:workflowSlug/schedule */
   .use(workflowSchedule)
-  /*
-   * /v1/workflows/:workflowSlug/test
-   */
+  /* /v1/workflows/:workflowSlug/test */
   .use(workflowTest)
-  /*
-   * /v1/runs/:runId
-   */
+  /* /v1/runs/:runId */
   .use(runs)
-  /*
-   * /v1/runs/:runId
-   */
+  /* /v1/runs/:runId */
   .use(run)
-  /*
-   * /v1/messages
-   */
+  /* /v1/messages */
   .use(messages)
-  /*
-   * /v1/messages/:id
-   */
+  /* /v1/messages/:id */
   .use(message)
-  /*
-   * /v1/messages/:id/cancel
-   */
+  /* /v1/messages/:id/cancel */
   .use(messageCancel)
-  /*
-   * /v1/messages/:id/deliveries
-   */
+  /* /v1/messages/:id/deliveries */
   .use(messageDeliveries)
-  /*
-   * /v1/events
-   */
+  /* /v1/events */
   .use(events)
-  /*
-   * /v1/events/names
-   */
+  /* /v1/events/names */
   .use(eventNames)
-  /*
-   * /v1/events/names/:name
-   */
+  /* /v1/events/names/:name */
   .use(eventName)
-  /*
-   * /v1/events/token
-   */
+  /* /v1/events/token */
   .use(eventsToken)
-  /*
-   * /v1/events/volume
-   */
+  /* /v1/events/volume */
   .use(eventVolume)
-  /*
-   * /v1/stats
-   */
+  /* /v1/stats */
   .use(stats)
-  /*
-   * /v1/deliveries/:id
-   */
+  /* /v1/deliveries/:id */
   .use(delivery)
-  /*
-   * /v1/deliveries/:id/attempts
-   */
+  /* /v1/deliveries/:id/attempts */
   .use(deliveryAttempts)
-  /*
-   * /v1/client/identify
-   */
+  /* /v1/client/identify */
   .use(clientIdentify)
-  /*
-   * /v1/client/subscriptions
-   */
+  /* /v1/client/subscriptions */
   .use(clientSubscriptions)
-  /*
-   * /v1/client/preferences
-   */
+  /* /v1/client/preferences */
   .use(clientPreferences)
-  /*
-   * /v1/client/events
-   */
+  /* /v1/client/events */
   .use(clientEvents)
-  /*
-   * /v1/client/live-activities
-   */
+  /* /v1/client/live-activities */
   .use(clientLiveActivities)
-  /*
-   * /v1/live-activities/send
-   */
+  /* /v1/live-activities/send */
   .use(liveActivities);

@@ -95,7 +95,7 @@ function DropdownMenuContent({
           data-slot='dropdown-menu-content'
           className={cn(
             // Anchor width is a floor, not a cage: long items grow the popup.
-            'corner-superellipse/1.125 z-50 max-h-(--available-height) min-w-[max(8rem,var(--anchor-width))] origin-(--transform-origin) overflow-x-hidden overflow-y-auto whitespace-nowrap rounded-xl bg-popover text-popover-foreground shadow-md duration-200 outline-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95',
+            'corner-superellipse/1.125 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 z-50 max-h-(--available-height) min-w-[max(8rem,var(--anchor-width))] origin-(--transform-origin) overflow-y-auto overflow-x-hidden whitespace-nowrap rounded-xl bg-popover text-popover-foreground shadow-md outline-none duration-200 data-closed:animate-out data-open:animate-in data-closed:overflow-hidden',
             className
           )}
           {...props}
@@ -159,7 +159,7 @@ function DropdownMenuItem({
       data-icon={position}
       className={cn(
         ITEM_BASE,
-        'pr-2 data-[variant=destructive]:text-red-4/90 data-[variant=destructive]:*:[svg]:text-red-4 data-[variant=destructive]:data-indicator-here:text-red-4',
+        'pr-2 data-[variant=destructive]:data-indicator-here:text-red-4 data-[variant=destructive]:text-red-4/90 data-[variant=destructive]:*:[svg]:text-red-4',
         className
       )}
       {...props}

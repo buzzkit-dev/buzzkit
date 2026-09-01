@@ -10,5 +10,3 @@ if (!alphabet) throw new Error('SQIDS_ALPHABET missing from apps/api/.dev.vars')
 const sqids = new Sqids({ minLength: 18, alphabet });
 
 export const encodeMessageId = (id: number) => `msg_${sqids.encode([id])}`;
-
-export const encodeDeliveryId = (id: number) => `dlv_${sqids.encode([id])}`;

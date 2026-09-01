@@ -1,0 +1,7 @@
+export const MAX_ATTRIBUTES_BYTES = 64 * 1024;
+
+export const SUBSCRIPTION_TOUCH_THROTTLE_MS = 5 * 60 * 1000;
+
+export const IDENTITY_REVERIFY_THROTTLE_MS = 5 * 60 * 1000;
+
+export const SYSTEM_ATTRIBUTE_PREFIX = '$';

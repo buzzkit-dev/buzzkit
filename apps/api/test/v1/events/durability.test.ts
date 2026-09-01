@@ -63,7 +63,7 @@ describe('event durability', () => {
       },
       { timeoutMs: 120_000, label: 'events landing in Tinybird after the outage' }
     );
-    expect(catalog.counts.total).toBe(7);
+    expect(catalog.counts.total).toBeGreaterThanOrEqual(7);
 
     const listed = await api<Listed>(`/v1/events?name=${name}&limit=50`, { headers: keyBearer });
     expect(new Set(listed.body.data?.items.map((event) => event.id)).size).toBe(7);

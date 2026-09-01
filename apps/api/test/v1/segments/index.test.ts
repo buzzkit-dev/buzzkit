@@ -141,7 +141,7 @@ async function awaitCompletion(headers: Headers, id: string) {
       const { body } = await api<MessageBody>(`/v1/messages/${id}`, { headers });
       return body.data?.status === 'completed' ? body.data : undefined;
     },
-    { label: `message ${id} completed`, timeoutMs: 60_000, intervalMs: 250 }
+    { label: `message ${id} completed`, timeoutMs: 120_000, intervalMs: 250 }
   );
 }
 
@@ -206,8 +206,13 @@ describe('segments CRUD', () => {
     expect(revised.body.data?.version).toMatchObject({ number: 2, expression: nextExpression });
     expect(revised.body.data?.version?.id).not.toBe(firstVersion);
 
-    const empty = await api(`/v1/segments/${slug}`, { method: 'PATCH', headers: keyBearer, body: '{}' });
-    expect(empty.status).toBe(400);
+    const empty = await api<SegmentBody>(`/v1/segments/${slug}`, {
+      method: 'PATCH',
+      headers: keyBearer,
+      body: '{}',
+    });
+    expect(empty.status).toBe(200);
+    expect(empty.body.data?.version).toMatchObject({ number: 2 });
 
     const deleted = await api<SegmentBody>(`/v1/segments/${slug}`, { method: 'DELETE', headers: keyBearer });
     expect(deleted.status).toBe(200);
@@ -287,12 +292,12 @@ describe('segments CRUD', () => {
     const readOnlyBearer = { Authorization: `Bearer ${readOnly.secret}` };
     expect((await api('/v1/segments', { headers: readOnlyBearer })).status).toBe(200);
     expect((await createSegment(readOnlyBearer, { expression: pushAndPro })).status).toBe(403);
-    const preview = await api('/v1/segments/preview', {
+    const previewed = await api('/v1/segments/preview', {
       method: 'POST',
       headers: readOnlyBearer,
       body: JSON.stringify({ expression: pushAndPro }),
     });
-    expect(preview.status).toBe(200);
+    expect(previewed.status).toBe(200);
 
     const unrelated = await createKey(owner.token, workspace.slug, { scopes: ['events:write'] });
     expect(

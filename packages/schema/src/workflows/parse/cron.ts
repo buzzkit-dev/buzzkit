@@ -43,6 +43,7 @@ function parseNumber(raw: string, field: Field): number {
   if (value < field.min || value > field.max) {
     throw new CronError(`The ${field.name} runs from ${field.min} to ${field.max}, got ${value}.`);
   }
+
   return value;
 }
 
@@ -94,6 +95,7 @@ export function parseCron(expression: string): CronFields {
   const weekdayValues = [...new Set((weekdays?.values ?? []).map((day) => day % 7))].sort(
     (left, right) => left - right
   );
+
   return {
     minutes: minutes.values,
     hours: hours?.values ?? [],

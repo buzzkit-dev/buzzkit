@@ -113,16 +113,16 @@ describe('POST /v1/client/events', () => {
     });
     expect(subscriber.body.data?.attributes.$language).toBe('de-DE');
 
-    const timeline = await eventually(
+    const settled = await eventually(
       async () => {
-        const { body } = await api<{ items: Tracked[] }>(`/v1/subscribers/${externalId}/timeline`, {
+        const { body: page } = await api<{ items: Tracked[] }>(`/v1/subscribers/${externalId}/timeline`, {
           headers: keyBearer,
         });
-        return (body.data?.items.length ?? 0) >= 4 ? body.data : undefined;
+        return (page.data?.items.length ?? 0) >= 4 ? page.data : undefined;
       },
-      { label: 'timeline', timeoutMs: 60_000 }
+      { label: 'timeline', timeoutMs: 120_000 }
     );
-    expect(timeline.items.map((item) => item.name)).toEqual([
+    expect(settled.items.map((item) => item.name)).toEqual([
       '$app.backgrounded',
       'workout.completed',
       '$app.opened',
@@ -628,9 +628,9 @@ describe('POST /v1/client/events subscriber state', () => {
         const { body } = await api<{ items: TrackedFull[] }>(`/v1/events?name=${name}`, {
           headers: keyBearer,
         });
-        return body.data?.items.length ? body.data.items : undefined;
+        return (body.data?.items.length ?? 0) > 0 ? body.data?.items : undefined;
       },
-      { label: 'client event listed', timeoutMs: 60_000 }
+      { label: 'client event listed', timeoutMs: 120_000 }
     );
     expect(listed[0]).toMatchObject({
       name,

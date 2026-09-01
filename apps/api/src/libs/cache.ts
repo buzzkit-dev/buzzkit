@@ -13,6 +13,7 @@ function reviveDates<T>(value: T): T {
         ? new Date(entry)
         : reviveDates(entry);
   }
+
   return out as T;
 }
 
@@ -39,7 +40,7 @@ export async function writeCache(
 }
 
 export async function deleteCache(namespace: KVNamespace, keys: string[]): Promise<void> {
-  const results = await Promise.allSettled(keys.map((key) => namespace.delete(key)));
+  const results = await Promise.allSettled(keys.map(async (key) => namespace.delete(key)));
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected') {
       log.warn('[Cache] Delete failed', { key: keys[index], error: describeError(result.reason) });

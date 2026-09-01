@@ -172,7 +172,7 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
             {label}
           </h1>
           <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            {label !== detail.name && <span className='font-mono'>{detail.name} · </span>}
+            {label !== detail.name && <span>{detail.name} · </span>}
             First seen <Time at={detail.firstAt} />, last <TimeAgo at={detail.lastAt} />.
           </p>
         </div>
@@ -279,7 +279,7 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
                 {fields.map((field) => (
                   <li key={field.key} className='flex items-center justify-between gap-3 px-4 py-2.5'>
                     <div className='flex min-w-0 flex-col'>
-                      <Truncate className='font-medium font-mono text-fg-4 text-sm'>{field.key}</Truncate>
+                      <Truncate className='font-medium text-fg-4 text-sm'>{field.key}</Truncate>
                       <Truncate className='text-fg-2 text-xs'>{field.example}</Truncate>
                     </div>
                     <span className='shrink-0 text-fg-2 text-xs'>{field.types.join(' | ')}</span>

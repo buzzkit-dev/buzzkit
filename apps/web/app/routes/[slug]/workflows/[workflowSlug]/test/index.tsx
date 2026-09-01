@@ -304,7 +304,7 @@ export default function WorkflowTestRoute({ loaderData, params }: Route.Componen
         };
       }
     }
-    submit('test', {
+    void submit('test', {
       workflow: workflow.slug,
       ...(version ? { version: String(version.number) } : {}),
       externalId: externalId.trim(),

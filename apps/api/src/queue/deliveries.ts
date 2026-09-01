@@ -10,16 +10,12 @@ import {
   fanoutPage,
   processDeliveryBatch,
 } from '@buzzkit/api/api/messages/index';
-import { createDb } from '@buzzkit/api/libs/database';
 import { describeError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { createTokenMemo } from '@buzzkit/api/providers/shared/cache';
+import { CRASH_RETRY_DELAY_SECONDS, consume } from '@buzzkit/api/queue/consume';
 import type { Db } from '@buzzkit/database';
-
-const CRASH_RETRY_DELAY_SECONDS = 30;
-
-const QUEUE_DB_CONNECTIONS = 2;
 
 type QueueItem = Message<DeliveryQueueMessage>;
 
@@ -36,9 +32,8 @@ const isFanout = (item: QueueItem): item is FanoutItem => item.body.type === 'fa
 const isDeliver = (item: QueueItem): item is DeliverItem => item.body.type === 'deliver';
 
 export async function handleDeliveryBatch(batch: MessageBatch<DeliveryQueueMessage>): Promise<void> {
-  await trace('queue.deliveries.batch', { 'queue.batch_size': batch.messages.length }, async (t) => {
+  await consume('deliveries.batch', batch, async (db, t) => {
     const startedAt = Date.now();
-    const db = createDb({ max: QUEUE_DB_CONNECTIONS });
     const summary: Summary = {
       fanouts: 0,
       sent: 0,
@@ -128,11 +123,13 @@ async function processDeliverJobs(
     );
     const retries = processed
       .filter((entry) => entry.retryDelaySeconds !== null)
-      .map((entry) => ({
-        deliveryId: entry.job.deliveryId,
-        attempt: entry.job.attempt + 1,
-        delaySeconds: entry.retryDelaySeconds ?? undefined,
-      }));
+      .map((entry) => {
+        return {
+          deliveryId: entry.job.deliveryId,
+          attempt: entry.job.attempt + 1,
+          delaySeconds: entry.retryDelaySeconds ?? undefined,
+        };
+      });
     await enqueueDeliveries(retries);
 
     for (const entry of processed) {

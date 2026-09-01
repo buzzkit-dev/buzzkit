@@ -1,33 +1,22 @@
 import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
-import { compileSegment, findSegmentBySlug } from '@buzzkit/api/api/segments/index';
+import { compileSegment, findSegmentBySlug, type SegmentWithVersion } from '@buzzkit/api/api/segments/index';
 import { resolveTenantSettings, type Tenant } from '@buzzkit/api/api/tenants/index';
-import { CHANNELS, type Channel, findTopicBySlug } from '@buzzkit/api/api/topics/index';
+import { CHANNELS, type Channel, findTopicBySlug, type Topic } from '@buzzkit/api/api/topics/index';
 import { sha256Hex } from '@buzzkit/api/libs/crypto';
+import { countRows } from '@buzzkit/api/libs/database';
 import { BadRequestError, ConflictError, NotFoundError } from '@buzzkit/api/libs/error';
-import { decodeEntityId } from '@buzzkit/api/libs/sqids';
+import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import type { MessagePayload } from '@buzzkit/api/providers/index';
 import { assertJsonSize, stableStringify } from '@buzzkit/api/utils/json';
-import {
-  and,
-  count,
-  type Db,
-  desc,
-  eq,
-  gte,
-  ilike,
-  isNull,
-  lt,
-  lte,
-  or,
-  sql,
-  tables,
-} from '@buzzkit/database';
+import { clampLimit, type Page, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { and, type Db, desc, eq, gte, ilike, isNull, lt, lte, or, sql, tables } from '@buzzkit/database';
 import type { Expression } from 'buzzkit/expressions';
 import { DEFAULT_TTL_SECONDS, DUE_MESSAGES_LIMIT, MAX_PAYLOAD_BYTES } from './constants';
 import { enqueueFanout } from './enqueue';
 import { completeFanout } from './fanout';
 import { dueZones, firstInstant, lastInstant, resolveSchedule, scheduleFollowsSubscriber } from './schedule';
+import { serializeMessage } from './serialize';
 import type { Message, MessageFilters, MessageRun, MessageSchedule, MessageTargets } from './types';
 
 export * from './constants';
@@ -41,6 +30,7 @@ export type * from './types';
 
 function resolveMessageFilters(tenantId: number, filters: MessageFilters) {
   const needle = filters.q?.trim();
+
   return and(
     eq(tables.message.tenantId, tenantId),
     isNull(tables.message.deletedAt),
@@ -61,34 +51,48 @@ function resolveMessageFilters(tenantId: number, filters: MessageFilters) {
 }
 
 export async function countMessages(db: Db, tenantId: number, filters: MessageFilters = {}): Promise<number> {
-  const [row] = await trace(
-    'messages.count',
-    async () =>
-      await db.select({ total: count() }).from(tables.message).where(resolveMessageFilters(tenantId, filters))
-  );
-  return Number(row?.total ?? 0);
+  return await trace('messages.count', async () => {
+    return await countRows(db, tables.message, resolveMessageFilters(tenantId, filters));
+  });
 }
 
 export async function listMessages(
   db: Db,
   tenantId: number,
-  options: { limit: number; beforeId?: number } & MessageFilters
-): Promise<Message[]> {
-  return await trace(
-    'messages.list',
-    async () =>
-      await db
+  options: { cursor?: string; limit?: number; from?: string; to?: string } & Omit<
+    MessageFilters,
+    'from' | 'to'
+  > = {}
+): Promise<Page<ReturnType<typeof serializeMessage>> & { total: number }> {
+  const limit = clampLimit(options.limit);
+  const beforeId = resolveCursor(options.cursor, (id) => decodeEntityId('message', id));
+  const filters: MessageFilters = {
+    q: options.q,
+    status: options.status,
+    channel: options.channel,
+    topic: options.topic,
+    from: options.from ? new Date(options.from) : undefined,
+    to: options.to ? new Date(options.to) : undefined,
+  };
+
+  const [rows, total] = await Promise.all([
+    trace('messages.list', async () => {
+      return await db
         .select()
         .from(tables.message)
         .where(
           and(
-            resolveMessageFilters(tenantId, options),
-            options.beforeId ? lt(tables.message.id, options.beforeId) : undefined
+            resolveMessageFilters(tenantId, filters),
+            beforeId !== undefined ? lt(tables.message.id, beforeId) : undefined
           )
         )
         .orderBy(desc(tables.message.id))
-        .limit(options.limit + 1)
-  );
+        .limit(limit + 1);
+    }),
+    countMessages(db, tenantId, filters),
+  ]);
+
+  return { ...toPage(rows.map(serializeMessage), limit, (id) => encodeId('message', id)), total };
 }
 
 export async function findMessage(db: Db, tenantId: number, messageSqid: string): Promise<Message> {
@@ -98,20 +102,18 @@ export async function findMessage(db: Db, tenantId: number, messageSqid: string)
     throw new NotFoundError('Message not found');
   }
 
-  const [message] = await trace(
-    'messages.find',
-    async () =>
-      await db
-        .select()
-        .from(tables.message)
-        .where(
-          and(
-            eq(tables.message.id, messageId),
-            eq(tables.message.tenantId, tenantId),
-            isNull(tables.message.deletedAt)
-          )
+  const [message] = await trace('messages.find', async () => {
+    return await db
+      .select()
+      .from(tables.message)
+      .where(
+        and(
+          eq(tables.message.id, messageId),
+          eq(tables.message.tenantId, tenantId),
+          isNull(tables.message.deletedAt)
         )
-  );
+      );
+  });
 
   if (!message) {
     throw new NotFoundError('Message not found');
@@ -196,7 +198,8 @@ export async function createMessage(
     });
   }
 
-  const topic = input.topic ? await findTopicBySlug(db, tenant.id, input.topic) : null;
+  let topic: Topic | null = null;
+  if (input.topic) topic = await findTopicBySlug(db, tenant.id, input.topic);
   if (topic && !topic.channels.includes(channel)) {
     throw new BadRequestError(`Topic '${topic.slug}' is not offered on the '${channel}' channel`, {
       code: 'channel_not_offered',
@@ -204,7 +207,9 @@ export async function createMessage(
     });
   }
 
-  const segment = input.segment ? await findSegmentBySlug(db, tenant.id, input.segment) : null;
+  let segment: SegmentWithVersion | null = null;
+  if (input.segment) segment = await findSegmentBySlug(db, tenant.id, input.segment);
+
   const targets: MessageTargets = {
     ...(to ? { to } : {}),
     ...(input.topic ? { topic: input.topic } : {}),
@@ -217,71 +222,67 @@ export async function createMessage(
     code: 'payload_too_large',
     param: 'data',
   });
-  const fingerprint = input.idempotencyKey
-    ? await sha256Hex(
-        stableStringify({
-          targets,
-          channel,
-          ttlSeconds: input.ttlSeconds ?? DEFAULT_TTL_SECONDS,
-          payload,
-          schedule,
-          run: input.run ?? null,
-        })
-      )
-    : null;
+  let fingerprint: string | null = null;
+  if (input.idempotencyKey) {
+    fingerprint = await sha256Hex(
+      stableStringify({
+        targets,
+        channel,
+        ttlSeconds: input.ttlSeconds ?? DEFAULT_TTL_SECONDS,
+        payload,
+        schedule,
+        run: input.run ?? null,
+      })
+    );
+  }
+
   const ttlSeconds = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
-  const [message] = await trace(
-    'messages.create',
-    async () =>
-      await db
-        .insert(tables.message)
-        .values({
-          tenantId: tenant.id,
-          channel,
-          topic: topic?.slug ?? null,
-          topicId: topic?.id ?? null,
-          targets,
-          payload,
-          runId: input.run?.id ?? null,
-          runStep: input.run?.step ?? null,
-          idempotencyKey: input.idempotencyKey ?? null,
-          idempotencyFingerprint: fingerprint,
-          ...(schedule
-            ? {
-                status: 'scheduled' as const,
-                schedule,
-                scheduledFor: firstInstant(schedule),
-                scheduledZones: scheduleFollowsSubscriber(schedule) ? [] : null,
-              }
-            : {}),
-          expiresAt: new Date(
-            (schedule ? lastInstant(schedule).getTime() : now.getTime()) + ttlSeconds * 1000
-          ),
-        })
-        .onConflictDoNothing({
-          target: [tables.message.tenantId, tables.message.idempotencyKey],
-          where: sql`${tables.message.idempotencyKey} is not null and ${tables.message.deletedAt} is null`,
-        })
-        .returning()
-  );
+  const [message] = await trace('messages.create', async () => {
+    return await db
+      .insert(tables.message)
+      .values({
+        tenantId: tenant.id,
+        channel,
+        topic: topic?.slug ?? null,
+        topicId: topic?.id ?? null,
+        targets,
+        payload,
+        runId: input.run?.id ?? null,
+        runStep: input.run?.step ?? null,
+        idempotencyKey: input.idempotencyKey ?? null,
+        idempotencyFingerprint: fingerprint,
+        ...(schedule
+          ? {
+              status: 'scheduled' as const,
+              schedule,
+              scheduledFor: firstInstant(schedule),
+              scheduledZones: scheduleFollowsSubscriber(schedule) ? [] : null,
+            }
+          : {}),
+        expiresAt: new Date((schedule ? lastInstant(schedule).getTime() : now.getTime()) + ttlSeconds * 1000),
+      })
+      .onConflictDoNothing({
+        target: [tables.message.tenantId, tables.message.idempotencyKey],
+        where: sql`${tables.message.idempotencyKey} is not null and ${tables.message.deletedAt} is null`,
+      })
+      .returning();
+  });
 
   if (message) return { message, created: true };
 
-  const [existing] = await trace(
-    'messages.findByIdempotencyKey',
-    async () =>
-      await db
-        .select()
-        .from(tables.message)
-        .where(
-          and(
-            eq(tables.message.tenantId, tenant.id),
-            eq(tables.message.idempotencyKey, input.idempotencyKey!),
-            isNull(tables.message.deletedAt)
-          )
+  const [existing] = await trace('messages.selectByIdempotencyKey', async () => {
+    return await db
+      .select()
+      .from(tables.message)
+      .where(
+        and(
+          eq(tables.message.tenantId, tenant.id),
+          eq(tables.message.idempotencyKey, input.idempotencyKey!),
+          isNull(tables.message.deletedAt)
         )
-  );
+      );
+  });
 
   if (!existing) {
     throw new ConflictError('This idempotency key is being processed by another request', {
@@ -379,5 +380,6 @@ export async function releaseDueMessages(
       await completeFanout(db, message.id);
     }
   }
+
   return { released, batches };
 }

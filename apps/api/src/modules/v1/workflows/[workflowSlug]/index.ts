@@ -7,13 +7,12 @@ import {
   UpdateWorkflowSchema,
   updateWorkflow,
 } from '@buzzkit/api/api/workflows/index';
-import { auth } from '@buzzkit/api/libs/auth';
-import { BadRequestError } from '@buzzkit/api/libs/error';
+import { WorkflowSlugParamsSchema } from '@buzzkit/api/api/workflows/schemas';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
-import { SlugSchema } from '@buzzkit/api/libs/schemas';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import type { WorkflowSpec } from '@buzzkit/schema/workflows';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const workflow = new Elysia()
   .use(auth)
@@ -24,6 +23,7 @@ export const workflow = new Elysia()
       const found = await findWorkflowBySlug(db, tenant.id, params.workflowSlug);
       const id = encodeId('workflow', found.id);
       const counts = await countLiveRuns(tenant.id, id);
+
       return Response.success(
         serializeWorkflow(found, found.current, found.latest, {
           versions: found.versions,
@@ -32,13 +32,17 @@ export const workflow = new Elysia()
         { ignoreTransform: ['spec', 'trigger', 'runs'] }
       ).send();
     },
-    { tenant: 'workflows:read', params: t.Object({ workflowSlug: SlugSchema }) }
+    { tenant: 'workflows:read', params: WorkflowSlugParamsSchema }
   )
   .patch(
     '/workflows/:workflowSlug',
     async ({ audit, body, db, params, tenant }) => {
-      if (Object.keys(body).length === 0) throw new BadRequestError('Nothing to update');
       const existing = await findWorkflowBySlug(db, tenant.id, params.workflowSlug);
+      if (Object.keys(body).length === 0) {
+        return Response.success(serializeWorkflow(existing, existing.current, existing.latest), {
+          ignoreTransform: ['spec', 'trigger'],
+        }).send();
+      }
       const updated = await updateWorkflow(db, existing, {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
@@ -62,7 +66,7 @@ export const workflow = new Elysia()
         ignoreTransform: ['spec', 'trigger'],
       }).send();
     },
-    { tenant: 'workflows:write', params: t.Object({ workflowSlug: SlugSchema }), body: UpdateWorkflowSchema }
+    { tenant: 'workflows:write', params: WorkflowSlugParamsSchema, body: UpdateWorkflowSchema }
   )
   .delete(
     '/workflows/:workflowSlug',
@@ -81,5 +85,5 @@ export const workflow = new Elysia()
         ignoreTransform: ['spec', 'trigger'],
       }).send();
     },
-    { tenant: 'workflows:write', params: t.Object({ workflowSlug: SlugSchema }) }
+    { tenant: 'workflows:write', params: WorkflowSlugParamsSchema }
   );

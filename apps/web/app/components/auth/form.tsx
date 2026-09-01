@@ -86,17 +86,17 @@ export function AuthForm({
     if (Object.keys(fields).length > 0) return setErrors({ fields });
 
     setSubmitting(true);
-    const { error: failure } =
-      mode === 'login'
-        ? await authClient(apiUrl).signIn.email({ email, password })
-        : await authClient(apiUrl).signUp.email({ name, email, password });
+    const client = authClient(apiUrl);
+    const { error: failure } = await (mode === 'login'
+      ? client.signIn.email({ email, password })
+      : client.signUp.email({ name, email, password }));
     if (failure) {
       setSubmitting(false);
       const next = failureErrors(mode, failure);
       if (next.toast) toast.error(next.toast.title, { description: next.toast.description });
       return setErrors(next.fields ? { fields: next.fields } : undefined);
     }
-    navigate(redirectTo, { replace: true });
+    void navigate(redirectTo, { replace: true });
   };
 
   const github = () => {
@@ -185,7 +185,7 @@ export function AuthForm({
                 {!passwordError && mode === 'signup' && (
                   <motion.div
                     key='hint'
-                    className='-mt-2 relative z-0 grid'
+                    className='relative z-0 -mt-2 grid'
                     initial={hintHidden}
                     animate={hintShown}
                     exit={hintHidden}

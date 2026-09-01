@@ -80,8 +80,8 @@ export const ConditionSchema = Type.Union([
 
 export function expressionSchema(condition: TSchema, id: string): TSchema {
   return Type.Recursive(
-    (self) =>
-      Type.Union([
+    (self) => {
+      return Type.Union([
         Type.Object(
           { all: Type.Array(self, { minItems: 1, maxItems: MAX_EXPRESSION_DEPTH * 8 }) },
           { additionalProperties: false }
@@ -92,7 +92,8 @@ export function expressionSchema(condition: TSchema, id: string): TSchema {
         ),
         Type.Object({ not: self }, { additionalProperties: false }),
         condition,
-      ]),
+      ]);
+    },
     { $id: id }
   );
 }

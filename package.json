@@ -6,15 +6,18 @@
     "dev": "turbo run dev",
     "db:up": "docker compose up -d postgres tinybird",
     "db:down": "docker compose down",
-    "lint": "biome lint .",
+    "lint": "biome lint . && bun scripts/lint-conventions.ts",
+    "lint:conventions": "bun scripts/lint-conventions.ts",
     "format": "biome check .",
     "format:fix": "biome check . --write",
     "prepare": "husky",
-    "check-types": "turbo run check-types",
+    "check-types": "turbo run check-types && tsc -p scripts",
     "test": "turbo run test --filter=buzzkit --filter=@buzzkit/schema --filter=@buzzkit/web"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.6",
+    "@babel/parser": "^8.0.4",
+    "@biomejs/biome": "2.5.9",
+    "@types/node": "^26.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.2.0",
     "sherif": "^1.13.0",
@@ -30,8 +33,8 @@
     "packages/*"
   ],
   "lint-staged": {
-    "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
-      "bun format:fix"
+    "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc,css}": [
+      "biome check --write --files-ignore-unknown=true --no-errors-on-unmatched"
     ]
   }
 }

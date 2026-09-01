@@ -23,6 +23,21 @@ function insertMany(store: ReturnType<typeof createActorStore>['store'], count: 
 }
 
 describe('ActorStore', () => {
+  describe('lastEvent', () => {
+    it('returns the most recent occurrence of a name with its data, or null', () => {
+      const { store } = createActorStore();
+      store.insertEvent(event({ id: 'evt_1', name: 'cart.updated', data: { total: 1 } }));
+      store.insertEvent(event({ id: 'evt_2', name: 'cart.opened' }));
+      store.insertEvent(event({ id: 'evt_3', name: 'cart.updated', data: { total: 3 } }));
+
+      expect(store.lastEvent('cart.updated')).toMatchObject({
+        id: 'evt_3',
+        data: JSON.stringify({ total: 3 }),
+      });
+      expect(store.lastEvent('cart.paid')).toBeNull();
+    });
+  });
+
   describe('migrate', () => {
     it('is idempotent', () => {
       const { store } = createActorStore();
@@ -146,24 +161,24 @@ describe('ActorStore', () => {
     });
   });
 
-  describe('findByIdempotencyKey', () => {
+  describe('selectByIdempotencyKey', () => {
     it('returns null when no row carries the key', () => {
       const { store } = createActorStore();
       store.insertEvent(event({ id: 'evt_1', idempotencyKey: 'other' }));
-      expect(store.findByIdempotencyKey('missing')).toBeNull();
+      expect(store.selectByIdempotencyKey('missing')).toBeNull();
     });
 
     it('returns the sequence and id of the row carrying the key', () => {
       const { store } = createActorStore();
       store.insertEvent(event({ id: 'evt_1' }));
       store.insertEvent(event({ id: 'evt_2', idempotencyKey: 'key' }));
-      expect(store.findByIdempotencyKey('key')).toEqual({ sequence: 2, id: 'evt_2' });
+      expect(store.selectByIdempotencyKey('key')).toEqual({ sequence: 2, id: 'evt_2' });
     });
 
     it('never matches rows with a null key', () => {
       const { store } = createActorStore();
       store.insertEvent(event({ id: 'evt_1' }));
-      expect(store.findByIdempotencyKey('')).toBeNull();
+      expect(store.selectByIdempotencyKey('')).toBeNull();
     });
   });
 
@@ -311,7 +326,7 @@ describe('ActorStore', () => {
       let page = store.listRecent(5);
       while (page.length > 0) {
         seen.push(...page.map((row) => row.sequence));
-        page = store.listRecent(5, page[page.length - 1]!.sequence);
+        page = store.listRecent(5, page.at(-1)!.sequence);
       }
       expect(seen).toEqual(Array.from({ length: 23 }, (_, index) => 23 - index));
     });

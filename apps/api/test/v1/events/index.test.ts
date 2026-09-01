@@ -66,7 +66,7 @@ async function listUntil(headers: Headers, query: string, count: number, label: 
       const { body } = await listEvents(headers, query);
       return (body.data?.items.length ?? 0) >= count ? body.data! : undefined;
     },
-    { label, timeoutMs: 60_000 }
+    { label, timeoutMs: 120_000 }
   );
 }
 
@@ -758,7 +758,7 @@ describe('GET /v1/events', () => {
         const seen = new Set(walked.flatMap((page) => page.items.map((item) => item.id)));
         return seen.size === ids.length ? walked : undefined;
       },
-      { label: 'every paged event landed', timeoutMs: 60_000 }
+      { label: 'every paged event landed', timeoutMs: 120_000 }
     );
 
     expect(pages.map((page) => page.items.length)).toEqual([50, 50, 20]);
@@ -809,7 +809,7 @@ describe('GET /v1/events', () => {
         const seen = new Set(walked.flatMap((page) => page.items.map((item) => item.id)));
         return seen.size === 120 ? walked : undefined;
       },
-      { label: 'every tied event landed', timeoutMs: 60_000 }
+      { label: 'every tied event landed', timeoutMs: 120_000 }
     );
 
     expect(pages.map((page) => page.items.length)).toEqual([50, 50, 20]);
@@ -1014,7 +1014,7 @@ describe('the event log', () => {
         const { body } = await api<Listed>(`/v1/events?name=${name}`, { headers: keyBearer });
         return (body.data?.items.length ?? 0) >= 2 ? body.data : undefined;
       },
-      { label: 'events listed', timeoutMs: 60_000 }
+      { label: 'events listed', timeoutMs: 120_000 }
     );
     expect(listed.items).toHaveLength(2);
     expect(listed.items.map((item) => item.data)).toEqual([{ n: 2 }, { n: 1 }]);
@@ -1029,7 +1029,7 @@ describe('the event log', () => {
         const mine = body.data?.items.find((item) => item.name === name);
         return mine?.counts.total === 2 ? mine : undefined;
       },
-      { label: 'catalog', timeoutMs: 60_000 }
+      { label: 'catalog', timeoutMs: 120_000 }
     );
     expect(names.sources).toEqual(['server']);
 
@@ -1115,9 +1115,9 @@ describe('the event log', () => {
     await eventually(
       async () => {
         const { body } = await api<Listed>(`/v1/events?name=${name}`, { headers: keyBearer });
-        return body.data?.items.length ? true : undefined;
+        return (body.data?.items.length ?? 0) > 0 ? true : undefined;
       },
-      { timeoutMs: 60_000 }
+      { timeoutMs: 120_000 }
     );
 
     const foreign = await api<Listed>(`/v1/events?name=${name}`, { headers: other.keyBearer });

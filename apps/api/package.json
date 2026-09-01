@@ -18,16 +18,18 @@
     "start": "wrangler dev --test-scheduled",
     "test": "bun scripts/test.ts",
     "cf-typegen": "wrangler types",
-    "check-types": "bun run cf-typegen && tsc --noEmit",
+    "check-types": "bun run cf-typegen && tsc --noEmit && tsc -p test --noEmit",
     "types:emit": "rm -rf .types && tsc --noEmit false --emitDeclarationOnly --declaration --rootDir src --outDir .types",
     "jaeger": "docker run -d --name buzzkit-jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest",
+    "coverage": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run test/actor test/engine test/api test/libs test/queue test/utils test/providers test/packages --coverage.enabled --coverage.include=src/engine/** --coverage.include=src/providers/**",
     "test:only": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "typescript": "^7.0.2",
     "vitest": "~4.1.10",
-    "wrangler": "^4.115.0"
+    "wrangler": "^4.118.0"
   },
   "dependencies": {
     "@buzzkit/auth": "workspace:*",

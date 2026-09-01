@@ -60,7 +60,7 @@ export function useFilters<K extends string>(keys: readonly K[]) {
     set: (key: K, value: string | null) => navigate(build({ [key]: value })),
     clear: () => {
       setSearch('');
-      navigate(build(Object.fromEntries([...keys, 'q'].map((key) => [key, null]))));
+      void navigate(build(Object.fromEntries([...keys, 'q'].map((key) => [key, null]))));
     },
   };
 }

@@ -116,7 +116,7 @@ function ScopePicker({
                     onCheckedChange={() => toggleGroup(group)}
                     className='relative'
                   />
-                  <Label htmlFor={groupId} className='relative font-mono text-fg-4 text-xs'>
+                  <Label htmlFor={groupId} className='relative font-medium text-fg-4 text-xs'>
                     {group.wildcard ?? group.label}
                   </Label>
                   <span className='text-fg-2 text-xs'>{allOn ? 'all' : count > 0 ? count : ''}</span>
@@ -143,7 +143,7 @@ function ScopePicker({
                           <Label
                             key={option}
                             htmlFor={`${uid}-${option}`}
-                            className='flex h-6 cursor-pointer items-center gap-2 font-mono font-normal text-fg-3 text-xs'
+                            className='flex h-6 cursor-pointer items-center gap-2 font-normal text-fg-3 text-xs'
                           >
                             <Checkbox
                               id={`${uid}-${option}`}

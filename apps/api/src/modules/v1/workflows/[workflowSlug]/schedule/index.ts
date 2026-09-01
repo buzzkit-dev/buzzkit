@@ -4,12 +4,12 @@ import {
   nextFires,
   scheduleTriggerOf,
 } from '@buzzkit/api/api/workflows/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { WorkflowSlugParamsSchema } from '@buzzkit/api/api/workflows/schemas';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
-import { SlugSchema } from '@buzzkit/api/libs/schemas';
 import { DEFAULT_TIMEZONE, type WorkflowSpec } from '@buzzkit/schema/workflows';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const workflowSchedule = new Elysia()
   .use(auth)
@@ -28,6 +28,7 @@ export const workflowSchedule = new Elysia()
       }
       const now = new Date();
       const fires = await listFires(db, found.id);
+
       return Response.success({
         schedule: trigger.schedule,
         timezone: trigger.timezone,
@@ -37,14 +38,16 @@ export const workflowSchedule = new Elysia()
           found.status === 'active'
             ? nextFires(trigger, now).map((fire) => ({ zone: fire.zone, at: fire.at.toISOString() }))
             : [],
-        fires: fires.map((fire) => ({
-          firedAt: fire.fireAt.toISOString(),
-          zones: (typeof fire.zones === 'string' ? JSON.parse(fire.zones) : fire.zones) as string[],
-          version: fire.version,
-          started: fire.started,
-          finishedAt: fire.finishedAt ? new Date(fire.finishedAt).toISOString() : null,
-        })),
+        fires: fires.map((fire) => {
+          return {
+            firedAt: fire.fireAt.toISOString(),
+            zones: (typeof fire.zones === 'string' ? JSON.parse(fire.zones) : fire.zones) as string[],
+            version: fire.version,
+            started: fire.started,
+            finishedAt: fire.finishedAt ? new Date(fire.finishedAt).toISOString() : null,
+          };
+        }),
       }).send();
     },
-    { tenant: 'workflows:read', params: t.Object({ workflowSlug: SlugSchema }) }
+    { tenant: 'workflows:read', params: WorkflowSlugParamsSchema }
   );

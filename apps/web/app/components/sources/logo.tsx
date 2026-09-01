@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 const PUBLIC_CLIENT_ID = '1dxbfHSJFAPEGdCLU4o5B';
 
-export function logoUrl(domain: string): string {
+function logoUrl(domain: string): string {
   return `https://cdn.brandfetch.io/${domain}/w/64/h/64/icon.png?c=${PUBLIC_CLIENT_ID}`;
 }
 

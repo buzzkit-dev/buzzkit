@@ -29,8 +29,8 @@ async function expectRejected(run: () => Promise<unknown>, code: WebhookVerifica
   let thrown: unknown;
   try {
     await run();
-  } catch (error) {
-    thrown = error;
+  } catch (caught) {
+    thrown = caught;
   }
   expect(thrown).toBeInstanceOf(WebhookVerificationError);
   const error = thrown as WebhookVerificationError;

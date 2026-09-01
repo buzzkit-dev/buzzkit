@@ -15,10 +15,12 @@ export async function enqueueDeliveries(jobs: Array<DeliveryJob & { delaySeconds
   for (let i = 0; i < jobs.length; i += QUEUE_BATCH_SIZE) {
     const batch = jobs.slice(i, i + QUEUE_BATCH_SIZE);
     await env.DELIVERIES.sendBatch(
-      batch.map(({ delaySeconds, ...job }) => ({
-        body: { type: 'deliver', ...job } satisfies DeliveryQueueMessage,
-        ...(delaySeconds ? { delaySeconds } : {}),
-      }))
+      batch.map(({ delaySeconds, ...job }) => {
+        return {
+          body: { type: 'deliver', ...job } satisfies DeliveryQueueMessage,
+          ...(delaySeconds ? { delaySeconds } : {}),
+        };
+      })
     );
   }
 }

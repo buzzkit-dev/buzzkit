@@ -43,7 +43,7 @@ function ScrollBar({ className, orientation = 'vertical', ...props }: ScrollArea
       data-orientation={orientation}
       orientation={orientation}
       className={cn(
-        'z-20 flex touch-none opacity-0 transition-opacity duration-150 select-none data-hovering:opacity-100 data-scrolling:opacity-100',
+        'z-20 flex touch-none select-none opacity-0 transition-opacity duration-150 data-hovering:opacity-100 data-scrolling:opacity-100',
         'data-horizontal:h-2.5 data-horizontal:flex-col data-horizontal:px-0.75 data-horizontal:pt-px data-horizontal:pb-0.75',
         'data-vertical:h-full data-vertical:w-2.5 data-vertical:py-0.75 data-vertical:pr-0.75 data-vertical:pl-px',
         className

@@ -33,7 +33,7 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
   const { submit, pending } = useActionFetcher((data) => {
     if (typeof data.slug !== 'string') return;
     toast.success('Workflow created');
-    navigate(`${base}/${data.slug}`);
+    void navigate(`${base}/${data.slug}`);
   });
 
   const slugValue = slugTouched ? slug : slugify(name);
@@ -44,7 +44,7 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
 
   const create = () => {
     if (!result.spec) return;
-    submit('create', {
+    void submit('create', {
       name: name.trim(),
       slug: slugValue,
       description: description.trim(),

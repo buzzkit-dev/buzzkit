@@ -26,7 +26,7 @@ type FileField = {
 
 export type GuideField = TextField | FileField;
 
-export type GuideStepDefinition = {
+type GuideStepDefinition = {
   id: string;
   title: string;
   description: string;

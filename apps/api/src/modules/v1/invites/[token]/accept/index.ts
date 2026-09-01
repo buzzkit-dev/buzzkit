@@ -1,6 +1,6 @@
 import { acceptInvite, findInviteByToken, findInviteWorkspace } from '@buzzkit/api/api/invites/index';
 import { serializeMember } from '@buzzkit/api/api/members/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 

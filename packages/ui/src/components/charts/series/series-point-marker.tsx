@@ -92,7 +92,7 @@ export interface StaticSeriesPointMarkerProps extends SeriesPointMarkerStyle {
   scale?: number;
 }
 
-export const StaticSeriesPointMarker = memo(function StaticSeriesPointMarker({
+export const StaticSeriesPointMarker = memo(function StaticSeriesPointMarkerBase({
   cx,
   cy,
   scale = 1,
@@ -187,7 +187,7 @@ export function SeriesPointMarker({
   );
 }
 
-export function getSeriesMarkerVisualExtent(
+export function seriesMarkerVisualExtent(
   style: Pick<
     SeriesPointMarkerStyle,
     'radius' | 'strokeWidth' | 'ringGap' | 'outlineWidth' | 'showActiveHighlight'

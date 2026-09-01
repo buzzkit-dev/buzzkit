@@ -1,22 +1,19 @@
-import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
 import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
   AttributesSchema,
   assertNoSystemAttributes,
   assertTimezone,
   EmailAddressSchema,
-  ExternalIdSchema,
+  ExternalIdParamsSchema,
   findSubscriberByExternalId,
   listSubscriptions,
-  recordRegistration,
-  registerSubscription,
   resolveSubscriptionEventData,
   serializeSubscriber,
   serializeSubscription,
   softDeleteSubscriber,
-  upsertSubscriber,
+  upsertSubscriberProfile,
 } from '@buzzkit/api/api/subscribers/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import Elysia, { t } from 'elysia';
@@ -27,58 +24,57 @@ export const subscriber = new Elysia()
   .get(
     '/subscribers/:externalId',
     async ({ db, params, tenant }) => {
-      const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
-      const subscriptions = await listSubscriptions(db, subscriber.id);
-
+      const target = await findSubscriberByExternalId(db, tenant.id, params.externalId);
+      const subscriptions = await listSubscriptions(db, target.id);
       return Response.success(
         {
-          ...serializeSubscriber(subscriber),
-          subscriptions: subscriptions.map(serializeSubscription).map((subscription) => ({
-            ...subscription,
-            id: encodeId('subscription', subscription.id),
-            subscriberId: encodeId('subscriber', subscription.subscriberId),
-          })),
+          ...serializeSubscriber(target),
+          subscriptions: subscriptions.map(serializeSubscription).map((subscription) => {
+            return {
+              ...subscription,
+              id: encodeId('subscription', subscription.id),
+              subscriberId: encodeId('subscriber', subscription.subscriberId),
+            };
+          }),
         },
         { entity: 'subscriber', ignoreTransform: ['attributes'] }
       ).send();
     },
-    { tenant: 'subscribers:read', params: t.Object({ externalId: ExternalIdSchema }) }
+    { tenant: 'subscribers:read', params: ExternalIdParamsSchema }
   )
   .put(
     '/subscribers/:externalId',
     async ({ body, db, params, set, tenant }) => {
       assertNoSystemAttributes(body?.attributes);
       assertTimezone(body?.timezone);
-      if (body?.email) await assertChannelConnected(db, tenant.id, 'email', 'email');
 
-      const { subscriber, created, changed } = await upsertSubscriber(db, tenant.id, params.externalId, {
-        attributes: body?.attributes,
-        ...(body?.timezone ? { systemAttributes: { $timezone: body.timezone } } : {}),
-      });
+      const { subscriber: target, created } = await upsertSubscriberProfile(
+        db,
+        tenant.id,
+        params.externalId,
+        {
+          upsert: {
+            attributes: body?.attributes,
+            ...(body?.timezone ? { systemAttributes: { $timezone: body.timezone } } : {}),
+          },
+          email: body?.email,
+          events: (outcome) => {
+            if (!outcome.created && !outcome.changed) return [];
 
-      const registered = body?.email
-        ? await registerSubscription(db, tenant.id, {
-            subscriber,
-            externalId: subscriber.externalId,
-            channel: 'email',
-            platform: null,
-            endpoint: body.email,
-          })
-        : null;
+            return [
+              {
+                name: outcome.created ? 'subscriber.created' : 'subscriber.updated',
+                data: {
+                  externalId: outcome.subscriber.externalId,
+                  attributes: subscriberAttributes(outcome.subscriber),
+                },
+              },
+            ];
+          },
+        }
+      );
 
-      const events: SystemEvent[] = [];
-
-      if (created || changed) {
-        events.push({
-          name: created ? 'subscriber.created' : 'subscriber.updated',
-          data: { externalId: subscriber.externalId, attributes: subscriberAttributes(subscriber) },
-        });
-      }
-
-      if (registered) await recordRegistration(tenant.id, registered, events);
-      else await recordSystemEvents(tenant.id, subscriber, events);
-
-      return Response.success(serializeSubscriber(subscriber), {
+      return Response.success(serializeSubscriber(target), {
         entity: 'subscriber',
         ignoreTransform: ['attributes'],
       })
@@ -87,7 +83,7 @@ export const subscriber = new Elysia()
     },
     {
       tenant: 'subscribers:write',
-      params: t.Object({ externalId: ExternalIdSchema }),
+      params: ExternalIdParamsSchema,
       body: t.Optional(
         t.Object({
           attributes: t.Optional(AttributesSchema),
@@ -100,18 +96,18 @@ export const subscriber = new Elysia()
   .delete(
     '/subscribers/:externalId',
     async ({ db, params, tenant }) => {
-      const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
+      const target = await findSubscriberByExternalId(db, tenant.id, params.externalId);
 
-      const deleted = await softDeleteSubscriber(db, subscriber);
+      const deleted = await softDeleteSubscriber(db, target);
 
-      await recordSystemEvents(tenant.id, subscriber, [
-        ...deleted.subscriptions.map(
-          (subscription): SystemEvent => ({
+      await recordSystemEvents(tenant.id, target, [
+        ...deleted.subscriptions.map((subscription): SystemEvent => {
+          return {
             name: 'subscription.removed',
-            data: resolveSubscriptionEventData(subscription, subscriber.externalId),
-          })
-        ),
-        { name: 'subscriber.deleted', data: { externalId: subscriber.externalId } },
+            data: resolveSubscriptionEventData(subscription, target.externalId),
+          };
+        }),
+        { name: 'subscriber.deleted', data: { externalId: target.externalId } },
       ]);
 
       return Response.success(markDeleted(serializeSubscriber(deleted.subscriber)), {
@@ -119,5 +115,5 @@ export const subscriber = new Elysia()
         ignoreTransform: ['attributes'],
       }).send();
     },
-    { tenant: 'subscribers:write', params: t.Object({ externalId: ExternalIdSchema }) }
+    { tenant: 'subscribers:write', params: ExternalIdParamsSchema }
   );

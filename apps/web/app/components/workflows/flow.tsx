@@ -114,7 +114,7 @@ function endsRun(steps: Step[]): boolean {
 }
 
 function planColumn(steps: Step[]): Plan {
-  const index = steps.findIndex((step) => 'branch' in step);
+  const index = steps.findIndex((entry) => 'branch' in entry);
   if (index === -1) return { before: steps, fork: null };
   const step = steps[index] as BranchStep;
   const cases = Array.isArray(step.branch) ? step.branch : [];
@@ -494,7 +494,7 @@ function JunctionMark({
         </span>
       )}
       {(vertical || through) && (
-        <span className='-translate-x-1/2 absolute top-0 bottom-0 left-1/2 w-0.5 bg-bg-4'>
+        <span className='absolute top-0 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-bg-4'>
           <span
             className={cn(GROW, 'origin-top', path.stub ? 'scale-y-100' : 'scale-y-0')}
             style={delay(stubPhase)}
@@ -503,7 +503,7 @@ function JunctionMark({
       )}
       <span
         className={cn(
-          '-translate-x-1/2 absolute left-1/2 h-0.5 w-0.5 bg-green-4 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+          'absolute left-1/2 h-0.5 w-0.5 -translate-x-1/2 bg-green-4 transition-opacity duration-150 ease-out motion-reduce:transition-none',
           rail,
           joint ? 'opacity-100' : 'opacity-0'
         )}

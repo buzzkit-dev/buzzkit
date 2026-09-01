@@ -34,6 +34,7 @@ export function resolveTimestamp(value: string | undefined, now: Date): string {
       param: 'timestamp',
     });
   }
+
   return timestamp.toISOString();
 }
 
@@ -52,10 +53,12 @@ export async function trackEvents(
     { 'events.count': input.events.length, 'events.source': input.source },
     async () => {
       const now = new Date();
-      const prepared = input.events.map((event) => ({
-        externalId: event.externalId,
-        actor: resolveTrackedEvent(event, input.source, now),
-      }));
+      const prepared = input.events.map((event) => {
+        return {
+          externalId: event.externalId,
+          actor: resolveTrackedEvent(event, input.source, now),
+        };
+      });
 
       const byExternalId = new Map<string, ActorEventInput[]>();
       for (const entry of prepared) {
@@ -91,6 +94,7 @@ export async function trackEvents(
 
       return prepared.map(({ externalId, actor }) => {
         const outcome = outcomes.get(actor)!;
+
         return {
           id: outcome.id,
           sequence: outcome.sequence,
@@ -132,6 +136,7 @@ function resolveTrackedEvent(event: EventInput, source: EventSource, now: Date):
     code: 'event_data_too_large',
     param: 'data',
   });
+
   return {
     id: `evt_${uuidv7(now.getTime())}`,
     idempotencyKey: event.id ?? null,
@@ -162,6 +167,7 @@ async function ingestEvents(
 ): Promise<ActorIngestOutcome[]> {
   return await trace('events.ingest', { 'events.count': events.length }, async () => {
     const actor = await subscriberActor(tenantId, subscriber.id);
+
     return await actor.ingest({
       tenantId,
       subscriberId: subscriber.id,

@@ -15,13 +15,13 @@ interface ReferenceAreaConfigProps {
   axisLabelColor?: string;
 }
 
-function getChildComponentName(child: ReactElement) {
+function childComponentNameOf(child: ReactElement) {
   const childType = child.type as { displayName?: string; name?: string };
   return typeof child.type === 'function' ? childType.displayName || childType.name || '' : '';
 }
 
 function isReferenceAreaElement(child: ReactElement): boolean {
-  return getChildComponentName(child) === 'ReferenceArea';
+  return childComponentNameOf(child) === 'ReferenceArea';
 }
 
 /** Collect {@link ReferenceArea} props from chart children for axis label styling. */

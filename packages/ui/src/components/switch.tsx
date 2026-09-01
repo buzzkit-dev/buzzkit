@@ -14,8 +14,8 @@ function Switch({ className, ...props }: SwitchPrimitive.Root.Props) {
       className={cn(
         'peer group/switch relative inline-flex h-5 w-8 shrink-0 items-center rounded-full border border-transparent bg-bg-3 transition-[background-color,box-shadow] duration-200 ease-out',
         'outline-none focus-visible:ring-2 focus-visible:ring-primary-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        'after:-inset-x-3 after:-inset-y-2 after:absolute',
-        'data-checked:bg-primary-4 not-data-disabled:cursor-pointer',
+        'after:absolute after:-inset-x-3 after:-inset-y-2',
+        'not-data-disabled:cursor-pointer data-checked:bg-primary-4',
         'data-disabled:cursor-not-allowed data-disabled:[&>span]:opacity-50',
         className
       )}

@@ -33,11 +33,11 @@ export function resolveCursor(
   return id;
 }
 
-export function toPage<T extends { id: number }>(
-  rows: T[],
-  limit: number,
-  encode: (id: number) => string
-): Page<T> {
+export function resolveNumericCursor(cursor: string | undefined): number | undefined {
+  return resolveCursor(cursor, (value) => (/^\d+$/.test(value) ? Number(value) : undefined));
+}
+
+export function toPageBy<T>(rows: T[], limit: number, cursorOf: (item: T) => string): Page<T> {
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
   const lastItem = items.at(-1);
@@ -45,6 +45,14 @@ export function toPage<T extends { id: number }>(
   return {
     items,
     hasMore,
-    nextCursor: hasMore && lastItem ? encode(lastItem.id) : null,
+    nextCursor: hasMore && lastItem !== undefined ? cursorOf(lastItem) : null,
   };
+}
+
+export function toPage<T extends { id: number }>(
+  rows: T[],
+  limit: number,
+  encode: (id: number) => string
+): Page<T> {
+  return toPageBy(rows, limit, (item) => encode(item.id));
 }

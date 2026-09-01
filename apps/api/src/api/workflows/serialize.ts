@@ -19,6 +19,7 @@ export function serializeWorkflow(
   extras: { versions?: WorkflowVersion[]; runs?: RunCounts } = {}
 ) {
   const spec = latest.spec as WorkflowSpec;
+
   return {
     id: encodeId('workflow', workflow.id),
     slug: workflow.slug,
@@ -31,10 +32,12 @@ export function serializeWorkflow(
     draft: current && current.id === latest.id ? null : serializeVersion(latest),
     ...(extras.versions
       ? {
-          versions: extras.versions.map((version) => ({
-            ...serializeVersion(version),
-            spec: version.spec as WorkflowSpec,
-          })),
+          versions: extras.versions.map((version) => {
+            return {
+              ...serializeVersion(version),
+              spec: version.spec as WorkflowSpec,
+            };
+          }),
         }
       : {}),
     ...(extras.runs ? { runs: extras.runs } : {}),

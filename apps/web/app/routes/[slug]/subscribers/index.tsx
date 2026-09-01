@@ -100,7 +100,7 @@ function LookupField({ query, base }: { query: string; base: string }) {
   useEffect(() => {
     if (settled) return;
     const timer = setTimeout(() => {
-      navigate(trimmed ? `${base}?q=${encodeURIComponent(trimmed)}` : base, { replace: true });
+      void navigate(trimmed ? `${base}?q=${encodeURIComponent(trimmed)}` : base, { replace: true });
     }, 300);
     return () => clearTimeout(timer);
   }, [trimmed, settled, base, navigate]);

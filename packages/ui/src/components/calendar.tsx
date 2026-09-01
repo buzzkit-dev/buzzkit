@@ -57,13 +57,13 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        Root: ({ className, rootRef, ...props }) => (
-          <div data-slot='calendar' ref={rootRef} className={cn(className)} {...props} />
+        Root: ({ className: rootClassName, rootRef, ...rootProps }) => (
+          <div data-slot='calendar' ref={rootRef} className={cn(rootClassName)} {...rootProps} />
         ),
-        Chevron: ({ orientation, className }) => (
+        Chevron: ({ orientation, className: chevronClassName }) => (
           <Icon
             name={orientation === 'left' ? 'IconChevronLeftMedium' : 'IconChevronRightMedium'}
-            className={cn('size-4', className)}
+            className={cn('size-4', chevronClassName)}
           />
         ),
         DayButton: CalendarDayButton,
@@ -97,7 +97,7 @@ function CalendarDayButton({ className, day, modifiers, ...props }: React.Compon
         'relative isolate z-10 flex size-(--cell-size) cursor-pointer items-center justify-center rounded-lg text-fg-3 text-sm outline-none transition-[background-color,color,scale] duration-150 ease-out',
         'hover:bg-bg-a2 hover:text-fg-4 focus-visible:ring-2 focus-visible:ring-primary-2 active:scale-95',
         'data-range-middle:rounded-none data-range-middle:text-fg-4 data-range-middle:hover:bg-bg-a2',
-        'data-range-end:bg-primary-4 data-range-end:text-primary-foreground data-range-end:hover:bg-primary-4 data-range-start:bg-primary-4 data-range-start:text-primary-foreground data-range-start:hover:bg-primary-4 data-selected-single:bg-primary-4 data-selected-single:text-primary-foreground data-selected-single:hover:bg-primary-4',
+        'data-range-end:bg-primary-4 data-range-start:bg-primary-4 data-selected-single:bg-primary-4 data-range-end:text-primary-foreground data-range-start:text-primary-foreground data-selected-single:text-primary-foreground data-range-end:hover:bg-primary-4 data-range-start:hover:bg-primary-4 data-selected-single:hover:bg-primary-4',
         'group-data-[disabled=true]/day:pointer-events-none',
         modifiers.outside && !highlighted && 'text-fg-1 hover:text-fg-3',
         modifiers.today && !highlighted && 'bg-bg-a1 font-medium text-fg-4',

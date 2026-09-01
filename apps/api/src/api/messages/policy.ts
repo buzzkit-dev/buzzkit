@@ -1,9 +1,9 @@
 import type { QuietHours, SendPolicy } from '@buzzkit/api/api/tenants/index';
-import { localMidnight, localTime } from '@buzzkit/api/libs/timezone';
+import { localMidnight, localTime, parseWallTime } from '@buzzkit/api/libs/timezone';
 import type { MessagePayload } from '@buzzkit/api/providers/index';
 
 function minutesOf(wall: string): number {
-  const [hour, minute] = wall.split(':').map(Number) as [number, number];
+  const { hour, minute } = parseWallTime(wall);
   return hour * 60 + minute;
 }
 
@@ -21,6 +21,7 @@ export function withinQuietHours(
   const from = minutesOf(quiet.from);
   const to = minutesOf(quiet.to);
   if (from < to) return minutes >= from && minutes < to;
+
   return minutes >= from || minutes < to;
 }
 
@@ -34,10 +35,10 @@ export function quietDeferSeconds(
   const minutes = local.hour * 60 + local.minute;
   const to = minutesOf(quiet.to);
   const untilMinutes = to > minutes ? to - minutes : 24 * 60 - minutes + to;
+
   return untilMinutes * 60 - now.getSeconds();
 }
 
-/** The instant shifted out of the quiet window, for wall-clock local scheduling. */
 export function shiftOutOfQuietHours(
   instant: Date,
   quiet: Pick<QuietHours, 'from' | 'to'>,

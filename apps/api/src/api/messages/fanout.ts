@@ -1,7 +1,11 @@
 import { failDeliveriesImmediately, finalizeMessageIfComplete } from '@buzzkit/api/api/deliveries/index';
 import { STALLED_FANOUT_MINUTES } from '@buzzkit/api/api/deliveries/policy';
 import { timezoneScoped } from '@buzzkit/api/api/scheduling/index';
-import { findSegmentVersionById, listSegmentMembers } from '@buzzkit/api/api/segments/index';
+import {
+  listSegmentMembers,
+  type SegmentVersion,
+  selectSegmentVersionById,
+} from '@buzzkit/api/api/segments/index';
 import { type Channel, type Topic, topicDefault } from '@buzzkit/api/api/topics/index';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { type ProviderName, PUSH_PROVIDER_BY_PLATFORM } from '@buzzkit/api/providers/index';
@@ -18,6 +22,7 @@ export type FanoutBatch = { zones?: string[]; final?: boolean };
 function zoneCondition(message: Message, zones: string[]) {
   const attribute = sql`${tables.subscriber.attributes}->>'$timezone'`;
   const fallback = fallbackTimezone(message.schedule as MessageSchedule);
+
   return zones.includes(fallback)
     ? sql`(${attribute} in ${zones} or ${attribute} is null)`
     : sql`${attribute} in ${zones}`;
@@ -78,9 +83,10 @@ async function resolveTargetPage(
     .where(and(...conditions))
     .orderBy(asc(tables.subscription.id))
     .limit(FANOUT_PAGE_SIZE);
+
   return {
     rows,
-    cursor: rows[rows.length - 1]?.subscriptionId ?? afterId,
+    cursor: rows.at(-1)?.subscriptionId ?? afterId,
     done: rows.length < FANOUT_PAGE_SIZE,
   };
 }
@@ -93,9 +99,11 @@ async function resolveSegmentPage(
   zones?: string[]
 ): Promise<TargetPage> {
   const targets = message.targets as MessageTargets;
-  const version = targets.segmentVersionId
-    ? await findSegmentVersionById(db, targets.segmentVersionId)
-    : null;
+  let version: SegmentVersion | null = null;
+  if (targets.segmentVersionId) {
+    version = await selectSegmentVersionById(db, targets.segmentVersionId);
+  }
+
   const audience = targets.where ?? (version?.expression as Expression | undefined);
   if (!audience) return { rows: [], cursor: afterSubscriberId, done: true };
   const expression = zones
@@ -142,7 +150,8 @@ async function resolveSegmentPage(
   const rows = await query
     .where(and(...conditions))
     .orderBy(asc(tables.subscriber.id), asc(tables.subscription.id));
-  return { rows, cursor: members.items[members.items.length - 1]!.subscriber_id, done: !members.hasMore };
+
+  return { rows, cursor: members.items.at(-1)!.subscriber_id, done: !members.hasMore };
 }
 
 async function providerHasCredential(db: Db, tenantId: number, provider: ProviderName): Promise<boolean> {
@@ -193,7 +202,7 @@ export async function fanoutPage(
   afterId: number,
   batch: FanoutBatch = {}
 ): Promise<void> {
-  return await trace('messages.fanoutPage', async (t) => {
+  return await trace('messages.fanoutPage', (t) => {
     t.set('message.id', messageId);
     t.set('fanout.afterId', afterId);
     if (batch.zones) t.set('fanout.zones', batch.zones.length);
@@ -216,21 +225,20 @@ async function fanoutPageInner(
   }
 
   const targets = message.targets as MessageTargets;
-  const topicRecord =
-    targets.topic && message.topicId
-      ? ((
-          await db
-            .select()
-            .from(tables.topic)
-            .where(
-              and(
-                eq(tables.topic.id, message.topicId),
-                eq(tables.topic.tenantId, message.tenantId),
-                isNull(tables.topic.deletedAt)
-              )
-            )
-        )[0] ?? null)
-      : null;
+  let topicRecord: typeof tables.topic.$inferSelect | null = null;
+  if (targets.topic && message.topicId) {
+    const [row] = await db
+      .select()
+      .from(tables.topic)
+      .where(
+        and(
+          eq(tables.topic.id, message.topicId),
+          eq(tables.topic.tenantId, message.tenantId),
+          isNull(tables.topic.deletedAt)
+        )
+      );
+    topicRecord = row ?? null;
+  }
 
   const topic = topicRecord ? { ...topicRecord, category: null } : null;
 
@@ -239,10 +247,12 @@ async function fanoutPageInner(
     return;
   }
 
-  const page =
-    targets.segment || targets.where
-      ? await resolveSegmentPage(db, message, topic, afterId, batch.zones)
-      : await resolveTargetPage(db, message, topic, afterId, batch.zones);
+  let page: TargetPage;
+  if (targets.segment || targets.where) {
+    page = await resolveSegmentPage(db, message, topic, afterId, batch.zones);
+  } else {
+    page = await resolveTargetPage(db, message, topic, afterId, batch.zones);
+  }
 
   if (page.rows.length === 0 && page.done) {
     await finishBatch(db, message.id, batch);
@@ -250,7 +260,7 @@ async function fanoutPageInner(
   }
 
   const availability = new Map<ProviderName, boolean>();
-  const rows = [];
+  const rows: Array<typeof tables.delivery.$inferInsert> = [];
   for (const target of page.rows) {
     const provider: ProviderName = target.platform ? PUSH_PROVIDER_BY_PLATFORM[target.platform] : 'apns';
     if (!availability.has(provider)) {
@@ -267,14 +277,14 @@ async function fanoutPageInner(
     });
   }
 
-  const inserted =
-    rows.length === 0
-      ? []
-      : await db
-          .insert(tables.delivery)
-          .values(rows)
-          .onConflictDoNothing({ target: [tables.delivery.messageId, tables.delivery.subscriptionId] })
-          .returning({ id: tables.delivery.id, provider: tables.delivery.provider });
+  let inserted: Array<{ id: number; provider: string }> = [];
+  if (rows.length > 0) {
+    inserted = await db
+      .insert(tables.delivery)
+      .values(rows)
+      .onConflictDoNothing({ target: [tables.delivery.messageId, tables.delivery.subscriptionId] })
+      .returning({ id: tables.delivery.id, provider: tables.delivery.provider });
+  }
 
   const withoutCredential = inserted.filter((row) => !availability.get(row.provider as ProviderName));
   const failed = await failDeliveriesImmediately(
@@ -313,6 +323,7 @@ export async function listStalledFanouts(
   limit: number
 ): Promise<Array<{ id: number; cursor: number }>> {
   const cutoff = new Date(Date.now() - STALLED_FANOUT_MINUTES * 60 * 1000);
+
   return await db
     .select({ id: tables.message.id, cursor: tables.message.fanoutCursor })
     .from(tables.message)

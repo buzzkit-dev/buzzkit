@@ -13,37 +13,28 @@ import {
   type TraceConfig,
   type Trigger,
 } from '@microlabs/otel-cf-workers';
+import { context, trace as otelTrace, ROOT_CONTEXT, TraceFlags } from '@opentelemetry/api';
 import {
-  context,
-  type Span as OtelSpan,
-  trace as otelTrace,
-  ROOT_CONTEXT,
-  TraceFlags,
-} from '@opentelemetry/api';
+  type Attributes,
+  type AttributeValue,
+  createSpanRunner,
+  type ObservabilityEnv,
+  otlpTarget,
+  type Span,
+} from './shared';
 
-export type ObservabilityEnv = {
-  ENVIRONMENT?: string;
-  AXIOM_API_TOKEN?: string;
-  AXIOM_LOGS_DATASET?: string;
-  AXIOM_TRACES_DATASET?: string;
-  OTEL_EXPORTER_OTLP_ENDPOINT?: string;
-  TRACE_SAMPLE_RATIO?: string;
-};
+export {
+  recordWorkflowRun,
+  runWorkflowStep,
+  type WorkflowRunIdentity,
+  type WorkflowRunOutcome,
+} from './workflow';
+export type { Attributes, AttributeValue, ObservabilityEnv, Span };
 
 export type ServiceNames = {
   fetch: string;
   queue: string;
   scheduled: string;
-};
-
-export type AttributeValue = string | number | boolean | Date | null | undefined | object;
-
-export type Attributes = Record<string, AttributeValue>;
-
-export type Span = {
-  set(key: string, value: AttributeValue): void;
-  trace<T>(name: string, fn: (t: Span) => Promise<T>): Promise<T>;
-  trace<T>(name: string, attributes: Attributes, fn: (t: Span) => Promise<T>): Promise<T>;
 };
 
 type Level = 'debug' | 'info' | 'warn' | 'error';
@@ -62,6 +53,7 @@ type Invocation = {
   service: string;
   traced: boolean;
   entries: LogEntry[];
+  requestId?: string;
 };
 
 const invocations = new AsyncLocalStorage<Invocation>();
@@ -73,21 +65,6 @@ const LEVEL_COLORS: Record<Level, string> = {
   error: '\x1b[31m',
 };
 
-function normalizeAttribute(value: AttributeValue): string | number | boolean | undefined {
-  if (value === null || value === undefined) return undefined;
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
-  if (value instanceof Date) return value.toISOString();
-  return JSON.stringify(value);
-}
-
-function applyAttributes(span: OtelSpan, attributes: Attributes | undefined): void {
-  if (!attributes) return;
-  for (const [key, raw] of Object.entries(attributes)) {
-    const value = normalizeAttribute(raw);
-    if (value !== undefined) span.setAttribute(key, value);
-  }
-}
-
 function traceContext(): { trace_id?: string; span_id?: string } {
   const span = otelTrace.getActiveSpan();
   if (!span) return {};
@@ -95,7 +72,7 @@ function traceContext(): { trace_id?: string; span_id?: string } {
   return { trace_id: traceId, span_id: spanId };
 }
 
-export function getActiveSpan(): OtelSpan | undefined {
+export function currentSpan() {
   return otelTrace.getActiveSpan();
 }
 
@@ -103,43 +80,20 @@ export function currentService(): string | undefined {
   return invocations.getStore()?.service;
 }
 
+export function recordRequestId(requestId: string): void {
+  const invocation = invocations.getStore();
+  if (invocation) invocation.requestId = requestId;
+}
+
+export function currentRequestId(): string | undefined {
+  return invocations.getStore()?.requestId;
+}
+
 export function createTraceRunner(tracerName: string) {
-  const tracer = otelTrace.getTracer(tracerName);
-
-  const createSpan = (span: OtelSpan): Span => ({
-    set: (key, value) => applyAttributes(span, { [key]: value }),
-    trace: (name: string, attributesOrFn: unknown, maybeFn?: unknown) => run(name, attributesOrFn, maybeFn),
-  });
-
-  function run<T>(name: string, fn: (t: Span) => Promise<T>): Promise<T>;
-  function run<T>(name: string, attributes: Attributes, fn: (t: Span) => Promise<T>): Promise<T>;
-  function run<T>(name: string, attributesOrFn: unknown, maybeFn?: unknown): Promise<T>;
-  function run<T>(name: string, attributesOrFn: unknown, maybeFn?: unknown): Promise<T> {
-    const fn = (typeof attributesOrFn === 'function' ? attributesOrFn : maybeFn) as (t: Span) => Promise<T>;
-    const attributes = typeof attributesOrFn === 'function' ? undefined : (attributesOrFn as Attributes);
-
-    if (invocations.getStore()?.traced === false) return fn(silentSpan);
-
-    return tracer.startActiveSpan(name, async (span: OtelSpan) => {
-      try {
-        applyAttributes(span, attributes);
-        return await fn(createSpan(span));
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setAttribute('error', true);
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  const silentSpan: Span = {
-    set: () => {},
-    trace: (name: string, attributesOrFn: unknown, maybeFn?: unknown) => run(name, attributesOrFn, maybeFn),
-  };
-
-  return run;
+  return createSpanRunner(
+    () => otelTrace.getTracer(tracerName),
+    () => invocations.getStore()?.traced === false
+  ).run;
 }
 
 export function createLogger(options: { fallbackService: string }) {
@@ -151,6 +105,7 @@ export function createLogger(options: { fallbackService: string }) {
       message,
       'service.name': invocation?.service ?? options.fallbackService,
       ...traceContext(),
+      ...(invocation?.requestId ? { requestId: invocation.requestId } : {}),
       ...fields,
     };
 
@@ -241,22 +196,8 @@ type TraceSink =
   | Pick<Extract<TraceConfig, { spanProcessors: unknown }>, 'spanProcessors'>;
 
 function traceSink(env: ObservabilityEnv): TraceSink {
-  if (env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    return { exporter: { url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT.replace(/\/$/, '')}/v1/traces` } };
-  }
-
-  if (env.AXIOM_API_TOKEN && env.AXIOM_TRACES_DATASET) {
-    return {
-      exporter: {
-        url: 'https://api.axiom.co/v1/traces',
-        headers: {
-          Authorization: `Bearer ${env.AXIOM_API_TOKEN}`,
-          'X-Axiom-Dataset': env.AXIOM_TRACES_DATASET,
-        },
-      },
-    };
-  }
-
+  const target = otlpTarget(env);
+  if (target) return { exporter: target };
   return { spanProcessors: [noopSpanProcessor] };
 }
 

@@ -17,8 +17,8 @@ import { describeCondition as describeLeaf } from '@/app/components/conditions/d
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
+function pad(part: number): string {
+  return String(part).padStart(2, '0');
 }
 
 function clock(hour: number, minute: number): string {
@@ -32,9 +32,9 @@ function ordinal(day: number): string {
   return `${day}${suffix}`;
 }
 
-function joinNames(names: string[]): string {
-  if (names.length <= 1) return names.join('');
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+function joinNames(entries: string[]): string {
+  if (entries.length <= 1) return entries.join('');
+  return `${entries.slice(0, -1).join(', ')} and ${entries.at(-1)}`;
 }
 
 export function describeSchedule(schedule: Schedule): string {
@@ -130,7 +130,7 @@ function describeHost(url: string): string {
   }
 }
 
-export function describeCondition(node: unknown): string {
+function describeCondition(node: unknown): string {
   if (!node || typeof node !== 'object') return 'conditions';
   const record = node as Record<string, unknown>;
   if (Array.isArray(record.all)) return record.all.map(describeCondition).join(' and ');
@@ -152,7 +152,7 @@ export function describeTrigger(spec: WorkflowSpec): string {
     const segment = trigger.segment ? ` for ${trigger.segment}` : '';
     return `${describeSchedule(trigger.schedule)}${segment}${where}`;
   }
-  const sources = trigger.sources?.length ? ` from ${trigger.sources.join(', ')}` : '';
+  const sources = trigger.sources && trigger.sources.length > 0 ? ` from ${trigger.sources.join(', ')}` : '';
   return `on ${trigger.event}${sources}${where}`;
 }
 
@@ -198,9 +198,10 @@ export function describeStep(step: Step): string {
       ? `, then ${describeDuration(step.waitFor.settleFor)} of quiet (restarted by ${resets.join(', ')})`
       : '';
     const waited = step.waitFor.event ?? (step.waitFor.events ?? []).map((entry) => entry.event).join(' or ');
-    const ends = step.waitFor.endOn?.length
-      ? `, ended by ${step.waitFor.endOn.map((entry) => entry.event).join(', ')}`
-      : '';
+    const ends =
+      step.waitFor.endOn && step.waitFor.endOn.length > 0
+        ? `, ended by ${step.waitFor.endOn.map((entry) => entry.event).join(', ')}`
+        : '';
     return `Wait for ${waited}${settle}${ends} ${describeTimeout(step.waitFor.timeout)}`;
   }
   if ('repeat' in step) {
@@ -212,9 +213,9 @@ export function describeStep(step: Step): string {
   }
   if ('branch' in step) {
     const cases = Array.isArray(step.branch) ? step.branch : [];
-    const names = cases.map((entry) => entry.name);
-    if (!cases.some((entry) => entry.when === undefined)) names.push(FALLBACK_CASE);
-    return `Cases: ${names.join(' · ')}`;
+    const caseNames = cases.map((entry) => entry.name);
+    if (!cases.some((entry) => entry.when === undefined)) caseNames.push(FALLBACK_CASE);
+    return `Cases: ${caseNames.join(' · ')}`;
   }
   if ('fetch' in step) {
     const method = step.fetch.method ?? (step.fetch.body === undefined ? 'GET' : 'POST');

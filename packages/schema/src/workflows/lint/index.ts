@@ -152,6 +152,7 @@ function stepConditions(node: unknown, path: ExpressionPath): StepConditions {
   }
   if (node.not !== undefined) return stepConditions(node.not, [...path, 'not']);
   const key = STEP_CONDITIONS.find((candidate) => typeof node[candidate] === 'string');
+
   return key ? [{ key, name: node[key] as string, path: [...path, key] }] : [];
 }
 
@@ -294,7 +295,7 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
   const checkTimezone = (path: ExpressionPath, raw: unknown, subscriberAllowed: boolean) => {
     if (raw === SUBSCRIBER_TIMEZONE && subscriberAllowed) return;
     if (!isTimezone(raw)) {
-      const key = path[path.length - 1];
+      const key = path.at(-1);
       const options = subscriberAllowed ? ` or "${SUBSCRIBER_TIMEZONE}" for each subscriber's own` : '';
       report(
         path,
@@ -644,16 +645,16 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
       } else if (Object.keys(raw.headers).length > MAX_FETCH_HEADERS) {
         report([...path, 'headers'], `"headers" takes at most ${MAX_FETCH_HEADERS} headers.`);
       } else {
-        for (const [header, value] of Object.entries(raw.headers)) {
+        for (const [header, headerValue] of Object.entries(raw.headers)) {
           if (!/^[A-Za-z0-9-]+$/.test(header)) {
             report([...path, 'headers', header], `"${header}" is not a header name.`);
-          } else if (typeof value !== 'string') {
+          } else if (typeof headerValue !== 'string') {
             report(
               [...path, 'headers', header],
-              `The "${header}" header takes a string, got ${describe(value)}.`
+              `The "${header}" header takes a string, got ${describe(headerValue)}.`
             );
           } else {
-            checkTemplate([...path, 'headers', header], value, SECRET_ROOTS);
+            checkTemplate([...path, 'headers', header], headerValue, SECRET_ROOTS);
           }
         }
       }
@@ -776,7 +777,7 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
         report(stepPath, `A step is an object, got ${describe(step)}.`);
         return;
       }
-      const kinds = STEP_KINDS.filter((kind) => kind in step);
+      const kinds = STEP_KINDS.filter((candidate) => candidate in step);
       if (kinds.length === 0) {
         report(stepPath, `A step needs one of ${list(STEP_KINDS)}.`);
         return;
@@ -1087,6 +1088,7 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
       if (raw.where !== undefined) {
         checkExpression(['trigger', 'where'], raw.where, SCHEDULE_REFS, HISTORY_CONDITIONS, new Set());
       }
+
       return;
     }
     checkUnknownKeys(['trigger'], raw, ['event', 'sources', 'where'], 'a trigger');

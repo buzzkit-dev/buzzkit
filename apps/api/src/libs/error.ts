@@ -12,8 +12,8 @@ import { Response } from './response';
 
 export type ErrorOptions = { code?: string; param?: string; details?: unknown };
 
-export function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+export function describeError(caught: unknown): string {
+  return caught instanceof Error ? caught.message : String(caught);
 }
 
 export class ApiError extends Error {
@@ -31,12 +31,13 @@ export class ApiError extends Error {
   }
 }
 
-const createErrorClass = (kind: ErrorCode) =>
-  class extends ApiError {
+const createErrorClass = (kind: ErrorCode) => {
+  return class extends ApiError {
     constructor(message = ERROR_MESSAGE[kind], options?: ErrorOptions) {
       super(kind, message, options);
     }
   };
+};
 
 export const UnauthorizedError = createErrorClass('unauthorized');
 export const ForbiddenError = createErrorClass('forbidden');
@@ -56,20 +57,24 @@ function validationIssues(raw: string): { message: string; issues: ValidationIss
       summary?: string;
       errors?: Array<{ path?: string; summary?: string; message?: string }>;
     };
-    const issues = (parsed.errors ?? []).map((issue) => ({
-      param: (issue.path ?? '').replace(/^\//, '').replace(/\//g, '.'),
-      message: issue.summary ?? issue.message ?? 'Invalid value',
-    }));
+    const issues = (parsed.errors ?? []).map((issue) => {
+      return {
+        param: (issue.path ?? '').replace(/^\//, '').replace(/\//g, '.'),
+        message: issue.summary ?? issue.message ?? 'Invalid value',
+      };
+    });
     return { message: parsed.summary ?? ERROR_MESSAGE.validation, issues };
   } catch {
     return { message: ERROR_MESSAGE.validation, issues: [] };
   }
 }
 
-function thrownSqlState(error: unknown, depth = 0): string | undefined {
-  if (depth > 3 || typeof error !== 'object' || error === null) return undefined;
-  if ('code' in error && typeof error.code === 'string' && isPostgresErrorCode(error.code)) return error.code;
-  if ('cause' in error) return thrownSqlState(error.cause, depth + 1);
+function thrownSqlState(caught: unknown, depth = 0): string | undefined {
+  if (depth > 3 || typeof caught !== 'object' || caught === null) return undefined;
+  if ('code' in caught && typeof caught.code === 'string' && isPostgresErrorCode(caught.code)) {
+    return caught.code;
+  }
+  if ('cause' in caught) return thrownSqlState(caught.cause, depth + 1);
   return undefined;
 }
 
@@ -84,17 +89,21 @@ export const error = new Elysia()
     INTERNAL: InternalError,
     MISSING_PERMISSION: MissingPermissionError,
   })
-  .onError(({ error, code, set }) => {
-    if (error instanceof ApiError) {
+  .onError(({ error: thrown, code, route, set }) => {
+    const requestContext = {
+      route: route || undefined,
+      requestId: typeof set.headers['request-id'] === 'string' ? set.headers['request-id'] : undefined,
+    };
+    if (thrown instanceof ApiError) {
       return Response.error({
-        error: { code: error.code, message: error.message, param: error.param, details: error.details },
+        error: { code: thrown.code, message: thrown.message, param: thrown.param, details: thrown.details },
       })
-        .status(error.status)
+        .status(thrown.status)
         .send(set);
     }
 
     if (code === 'VALIDATION') {
-      const { message, issues } = validationIssues(error.message);
+      const { message, issues } = validationIssues(thrown.message);
       return Response.error({
         error: { code: 'validation', message, param: issues[0]?.param, details: issues },
       })
@@ -114,13 +123,14 @@ export const error = new Elysia()
         .send(set);
     }
 
-    const sqlState = thrownSqlState(error);
+    const sqlState = thrownSqlState(thrown);
     if (sqlState) {
       const info = postgresErrorInfo(sqlState);
       if (info.code === 'internal' || info.code === 'unavailable') {
         log.error('[Error] Database', {
+          ...requestContext,
           sqlState,
-          error: error instanceof Error ? error.message : String(error),
+          error: describeError(thrown),
         });
       }
       return Response.error({ error: { code: info.code, message: info.message } })
@@ -128,8 +138,9 @@ export const error = new Elysia()
         .send(set);
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    log.error('[Error] Unhandled', { code: String(code), error: message });
+    const message = describeError(thrown);
+    log.error('[Error] Unhandled', { ...requestContext, code: String(code), error: message });
+
     return Response.error({
       error: {
         code: 'internal',

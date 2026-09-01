@@ -458,7 +458,7 @@ function TableDemo() {
                 className='cursor-pointer hover:bg-bg-a1 [&_*]:cursor-pointer'
               >
                 <TableCell className='font-medium text-fg-4'>{name}</TableCell>
-                <TableCell className='font-mono text-xs'>{key}</TableCell>
+                <TableCell className='text-xs'>{key}</TableCell>
                 <TableCell>
                   <Badge size='sm' variant={tone as 'blue' | 'purple' | 'green'}>
                     {type}
@@ -478,9 +478,7 @@ function TableDemo() {
               <TableDetail open={expanded === name} colSpan={5}>
                 <div className='flex flex-col gap-1.5 px-4 py-3'>
                   <span className='text-fg-2 text-sm'>Scopes</span>
-                  <span className='font-mono text-xs'>
-                    subscribers:read · subscribers:write · messages:write
-                  </span>
+                  <span className='text-xs'>subscribers:read · subscribers:write · messages:write</span>
                 </div>
               </TableDetail>
             </Fragment>
@@ -497,7 +495,7 @@ function ScopePickerDemo() {
   return (
     <div className='flex w-full max-w-sm flex-col gap-3'>
       <ScopePicker groups={DEMO_SCOPES} selected={selected} onChange={setSelected} />
-      <span className='font-mono text-fg-2 text-xs'>{selected.join(' ') || 'nothing selected'}</span>
+      <span className='text-fg-2 text-xs'>{selected.join(' ') || 'nothing selected'}</span>
     </div>
   );
 }

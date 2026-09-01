@@ -11,11 +11,12 @@ export default async function handleRequest(
   _loadContext: RouterContextProvider
 ) {
   let shellRendered = false;
+  let status = responseStatusCode;
   const userAgent = request.headers.get('user-agent');
 
   const body = await renderToReadableStream(<ServerRouter context={routerContext} url={request.url} />, {
     onError(error: unknown) {
-      responseStatusCode = 500;
+      status = 500;
       if (shellRendered) {
         // biome-ignore lint/suspicious/noConsole: stock SSR shell error reporting
         console.error(error);
@@ -31,6 +32,6 @@ export default async function handleRequest(
   responseHeaders.set('Content-Type', 'text/html');
   return new Response(body, {
     headers: responseHeaders,
-    status: responseStatusCode,
+    status,
   });
 }

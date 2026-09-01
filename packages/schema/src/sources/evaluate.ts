@@ -23,8 +23,10 @@ function compare(value: unknown, record: Record<string, unknown>): boolean {
     const bound = record[operator];
     if (typeof value === 'number' && typeof bound === 'number') return ordered(value, bound, operator);
     if (typeof value === 'string' && typeof bound === 'string') return ordered(value, bound, operator);
+
     return false;
   }
+
   return false;
 }
 
@@ -36,5 +38,6 @@ export function evaluatePayload(expression: Expression, payload: unknown): boole
     return (record.any as Expression[]).some((node) => evaluatePayload(node, payload));
   if (record.not !== undefined) return !evaluatePayload(record.not as Expression, payload);
   if (typeof record.ref === 'string') return compare(readPath(payload, record.ref), record);
+
   return false;
 }

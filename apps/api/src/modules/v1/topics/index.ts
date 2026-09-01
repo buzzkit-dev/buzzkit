@@ -3,7 +3,6 @@ import {
   assertTopicSlugAvailable,
   assertValidChannelDefaults,
   ChannelDefaultsSchema,
-  countTopics,
   createTopic,
   listTopics,
   serializeTopic,
@@ -11,10 +10,9 @@ import {
   TopicNameSchema,
   TopicSlugSchema,
 } from '@buzzkit/api/api/topics/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
-import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const topics = new Elysia()
@@ -23,20 +21,10 @@ export const topics = new Elysia()
   .get(
     '/topics',
     async ({ db, query, tenant }) => {
-      const limit = clampLimit(query.limit);
-      const beforeId = resolveCursor(query.cursor, (id) => decodeEntityId('topic', id));
-
-      const [rows, total] = await Promise.all([
-        listTopics(db, tenant.id, { limit, beforeId }),
-        countTopics(db, tenant.id),
-      ]);
-      const page = toPage(rows, limit, (id) => encodeId('topic', id));
-
-      return Response.success(page.items.map(serializeTopic), { entity: 'topic' })
-        .paginated({ hasMore: page.hasMore, nextCursor: page.nextCursor, total })
-        .send();
+      const page = await listTopics(db, tenant.id, query);
+      return Response.page(page, { entity: 'topic' }).send();
     },
-    { tenant: 'topics:read', query: t.Object({ ...PaginationQuerySchema.properties }) }
+    { tenant: 'topics:read', query: PaginationQuerySchema }
   )
   .post(
     '/topics',

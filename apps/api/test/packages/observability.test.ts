@@ -20,13 +20,19 @@ function capture() {
   return lines;
 }
 
+function workerRequest(url: string) {
+  return new Request(url) as Request<unknown, IncomingRequestCfProperties>;
+}
+
 function context() {
   const pending: Promise<unknown>[] = [];
   return {
     ctx: {
-      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      waitUntil: (p: Promise<unknown>) => {
+        pending.push(p);
+      },
       passThroughOnException() {},
-    } as ExecutionContext,
+    } as unknown as ExecutionContext,
     settle: () => Promise.all(pending),
   };
 }
@@ -60,7 +66,7 @@ describe('@buzzkit/observability', () => {
     });
 
     const a = context();
-    const response = await handler.fetch!(new Request('http://test/'), env, a.ctx);
+    const response = await handler.fetch!(workerRequest('http://test/'), env, a.ctx);
     expect(response.status).toBe(200);
     await a.settle();
 
@@ -104,8 +110,8 @@ describe('@buzzkit/observability', () => {
 
     const slow = context();
     const fast = context();
-    const slowRun = handler.fetch!(new Request('http://test/slow'), env, slow.ctx);
-    await handler.fetch!(new Request('http://test/fast'), env, fast.ctx);
+    const slowRun = handler.fetch!(workerRequest('http://test/slow'), env, slow.ctx);
+    await handler.fetch!(workerRequest('http://test/fast'), env, fast.ctx);
     await fast.settle();
     expect(lines.map((l) => l.message)).toEqual(['first /fast', 'second /fast']);
 
@@ -149,7 +155,7 @@ describe('@buzzkit/observability', () => {
       },
     });
     const run = context();
-    const response = await handler.fetch!(new Request('http://test/'), env, run.ctx);
+    const response = await handler.fetch!(workerRequest('http://test/'), env, run.ctx);
     expect(response.status).toBe(200);
     await run.settle();
   });

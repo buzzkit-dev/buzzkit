@@ -84,13 +84,7 @@ export async function sendIntent(
   }
 }
 
-export async function cancelIntent(
-  ctx: RequestContext,
-  token: string,
-  slug: string,
-  tenant: string,
-  id: string
-) {
+async function cancelIntent(ctx: RequestContext, token: string, slug: string, tenant: string, id: string) {
   try {
     await cancelMessage(ctx, token, slug, tenant, id);
     return { ok: true, message: 'Message canceled' };

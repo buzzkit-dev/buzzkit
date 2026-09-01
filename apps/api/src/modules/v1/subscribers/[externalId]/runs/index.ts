@@ -1,8 +1,8 @@
 import { listSubscriberRuns } from '@buzzkit/api/api/runs/index';
-import { ExternalIdSchema, findSubscriberByExternalId } from '@buzzkit/api/api/subscribers/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { ExternalIdParamsSchema, findSubscriberByExternalId } from '@buzzkit/api/api/subscribers/index';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const subscriberRuns = new Elysia()
   .use(auth)
@@ -13,5 +13,5 @@ export const subscriberRuns = new Elysia()
       const subscriber = await findSubscriberByExternalId(db, tenant.id, params.externalId);
       return Response.list(await listSubscriberRuns(tenant.id, subscriber)).send();
     },
-    { tenant: 'workflows:read', params: t.Object({ externalId: ExternalIdSchema }) }
+    { tenant: 'workflows:read', params: ExternalIdParamsSchema }
   );

@@ -30,11 +30,11 @@ export function SegmentPreviewPanel({
           />
           <span className='flex items-baseline gap-1.5'>
             {count === null ? (
-              <span className='font-medium text-fg-2 text-base leading-none'>–</span>
+              <span className='font-medium text-base text-fg-2 leading-none'>–</span>
             ) : (
               <NumberFlow
                 value={count}
-                className='font-medium text-base text-fg-4 leading-none tabular-nums'
+                className='font-medium text-base text-fg-4 tabular-nums leading-none'
               />
             )}
             <span className='text-fg-2 text-sm'>{count === 1 ? 'subscriber' : 'subscribers'}</span>

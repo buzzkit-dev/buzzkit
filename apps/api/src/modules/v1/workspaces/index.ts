@@ -6,7 +6,7 @@ import {
   serializeWorkspace,
   WorkspaceNameSchema,
 } from '@buzzkit/api/api/workspaces/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { UrlSchema } from '@buzzkit/api/libs/schemas';
 import Elysia, { t } from 'elysia';
@@ -17,9 +17,8 @@ export const workspaces = new Elysia()
   .get(
     '/workspaces',
     async ({ db, user }) => {
-      const workspaces = await listWorkspacesForUser(db, user.id);
-
-      return Response.list(workspaces, { entity: 'workspace' }).send();
+      const rows = await listWorkspacesForUser(db, user.id);
+      return Response.list(rows, { entity: 'workspace' }).send();
     },
     { account: 'read' }
   )

@@ -10,7 +10,7 @@ import {
   resolveSystemAttributes,
   upsertSubscriber,
 } from '@buzzkit/api/api/subscribers/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { verifyClientIdentity, verifyIdentity } from '@buzzkit/api/libs/identity';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import Elysia, { t } from 'elysia';

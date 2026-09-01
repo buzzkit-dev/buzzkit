@@ -75,7 +75,7 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
         'focus-visible:ring-2 focus-visible:ring-primary-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50',
         'group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start',
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         // Segmented: full-height tab; the sliding indicator supplies the pill.
         'group-data-[variant=default]/tabs-list:h-full group-data-[variant=default]/tabs-list:rounded-[9px] group-data-[variant=default]/tabs-list:px-3',
         // Ghost: bare text switchers — no indicator, so the content itself

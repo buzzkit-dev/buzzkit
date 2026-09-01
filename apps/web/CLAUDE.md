@@ -10,7 +10,7 @@ app/
                                 Tooltip, Toaster), ErrorBoundary
   cloudflare.ts                 `cloudflareContext`: env/ctx via RouterContextProvider
   routes.ts                     Route table (file-based, mirrors the API convention; brackets for params)
-  lib/                          api.server.ts (typed Eden client) · session.server.ts (cookie, sign-out) · auth.client.ts (BetterAuth client)
+  lib/                          api.server.ts (typed Eden client; no parseDate — payloads keep dates as ISO strings so responses survive React Router's loader serialization without type/runtime drift) · session.server.ts (cookie, sign-out) · auth.client.ts (BetterAuth client)
                                 actions/   every route action (`*.server.ts`), one file per feature, `context.server.ts` for the preamble
                                 utils/     pure helpers (format, time, request: `requestUrl` is the only way to read a loader's URL, because
                                            React Router's single-fetch requests arrive as `/path.data?_routes=…` and a link or redirect built

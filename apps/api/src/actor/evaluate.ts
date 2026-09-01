@@ -1,11 +1,5 @@
-import type { Since, WorkflowExpression } from '@buzzkit/schema/workflows';
-import {
-  type Comparators,
-  DURATION_UNIT_SECONDS,
-  type Duration,
-  type RefCondition,
-  type Scalar,
-} from 'buzzkit/expressions';
+import { lenientDurationSeconds, type Since, type WorkflowExpression } from '@buzzkit/schema/workflows';
+import type { Comparators, Duration, RefCondition, Scalar } from 'buzzkit/expressions';
 
 export type RefResolver = (ref: string) => unknown;
 
@@ -59,16 +53,14 @@ function matchesComparators(value: unknown, comparators: Comparators): boolean {
     return false;
   if (comparators.lte !== undefined && !compareOrdered(value, comparators.lte, (order) => order <= 0))
     return false;
+
   return true;
 }
 
 function windowStart(node: { within?: Duration; since?: Since }, options: EvaluateOptions): HistoryWindow {
   if (node.since !== undefined) return { from: options.since[node.since] };
   if (node.within !== undefined) {
-    const match = /^(\d+)(m|h|d)$/.exec(node.within);
-    const seconds = match
-      ? Number(match[1]) * DURATION_UNIT_SECONDS[match[2] as keyof typeof DURATION_UNIT_SECONDS]
-      : 0;
+    const seconds = lenientDurationSeconds(node.within);
     return { from: new Date(options.now.getTime() - seconds * 1000).toISOString() };
   }
   return { from: null };
@@ -111,6 +103,7 @@ export function evaluateExpression(
       return options.history.count(node.never, windowStart({ within: node.within }, options)) === 0;
     }
     if ('opened' in node) return options.history.opened(node.opened);
+
     return options.history.delivered(node.delivered);
   };
   return evaluate(expression);

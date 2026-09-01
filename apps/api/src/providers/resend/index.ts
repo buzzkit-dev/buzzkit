@@ -29,6 +29,7 @@ async function validate({ secret }: ProviderValidationInput): Promise<ProviderVa
   }
 
   const body = (result.captured.body ?? {}) as { message?: string };
+
   return {
     ok: false,
     code: classify(result.response.status),
@@ -36,6 +37,7 @@ async function validate({ secret }: ProviderValidationInput): Promise<ProviderVa
   };
 }
 
+// biome-ignore lint/suspicious/useAwait: the provider registry's send contract returns a Promise
 async function send(_input: ProviderSendInput): Promise<ProviderSendResult> {
   return {
     ok: false,

@@ -30,6 +30,7 @@ export function historyOptions(
   iterationStartedAt: string | null = null
 ): EvaluateOptions {
   const trigger = run?.started_at ?? now.toISOString();
+
   return {
     history: historyResolver(store, run?.run_id ?? null),
     now,

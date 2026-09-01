@@ -84,9 +84,7 @@ export type ApiVersion = Extract<keyof RootApiClient, `v${number}`>;
 export type VersionedApiClient<TVersion extends ApiVersion> = RootApiClient[TVersion];
 
 export type ClientOptions = {
-  /** Base URL for the API (e.g. https://api.buzzkit.app). */
   baseUrl: string;
-  /** Called before every request; returns headers to merge (e.g. Bearer token). */
   getAuthHeader?: () =>
     | Promise<Record<string, string> | null | undefined>
     | Record<string, string>
@@ -101,8 +99,6 @@ export type VersionedClientOptions<TVersion extends ApiVersion> = ClientOptions 
 const wrappedTargets = new WeakMap<object, object>();
 
 export function createRootClient({ baseUrl, getAuthHeader }: ClientOptions): RootApiClient {
-  // No parseDate: payloads keep dates as ISO strings, so responses survive
-  // loader serialization (React Router) without type/runtime drift.
   const client = treaty<ApiContract>(baseUrl, {
     headers: async () => (await getAuthHeader?.()) ?? {},
   });

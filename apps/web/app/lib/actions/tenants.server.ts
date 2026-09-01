@@ -11,7 +11,7 @@ function readFields(form: FormData): { name: string; slug: string } | { error: s
     .toLowerCase();
   if (!name) return { error: 'Give the tenant a name.' };
   if (name.length > 100) return { error: 'Use at most 100 characters for the name.' };
-  if (slug.length < 1 || slug.length > 48 || !SLUG_PATTERN.test(slug)) {
+  if (slug.length === 0 || slug.length > 48 || !SLUG_PATTERN.test(slug)) {
     return { error: 'Use lowercase letters, numbers and single hyphens for the slug.' };
   }
   return { name, slug };

@@ -9,6 +9,20 @@ export function durationSeconds(duration: Duration): number {
   if (!match) throw new RangeError(`Not a duration: ${duration}`);
   const amount = Number(match[1]);
   const unit = match[2] as keyof typeof DURATION_UNIT_SECONDS;
+
+  return amount * DURATION_UNIT_SECONDS[unit];
+}
+
+export function durationMs(duration: Duration): number {
+  return durationSeconds(duration) * 1000;
+}
+
+export function lenientDurationSeconds(duration: string): number {
+  const match = DURATION_PATTERN.exec(duration);
+  if (!match) return 0;
+  const amount = Number(match[1]);
+  const unit = match[2] as keyof typeof DURATION_UNIT_SECONDS;
+
   return amount * DURATION_UNIT_SECONDS[unit];
 }
 
@@ -17,5 +31,6 @@ export function describeDuration(duration: Duration): string {
   if (!match) return duration;
   const amount = Number(match[1]);
   const noun = { m: 'minute', h: 'hour', d: 'day' }[match[2] as 'm' | 'h' | 'd'];
+
   return `${amount} ${noun}${amount === 1 ? '' : 's'}`;
 }

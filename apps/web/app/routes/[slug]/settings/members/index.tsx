@@ -169,7 +169,7 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                 autoComplete='off'
                 spellCheck={false}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' && valid && !pending) submit('invite', { email, role });
+                  if (event.key === 'Enter' && valid && !pending) void submit('invite', { email, role });
                 }}
               />
             </Field>

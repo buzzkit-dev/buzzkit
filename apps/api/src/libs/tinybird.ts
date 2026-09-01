@@ -32,6 +32,7 @@ export async function resolveTinybirdToken(): Promise<string> {
     { token: tokens.workspace_admin_token },
     LOCAL_TOKEN_CACHE_SECONDS
   );
+
   return tokens.workspace_admin_token;
 }
 
@@ -51,6 +52,7 @@ export async function queryTinybird<T>(sql: string): Promise<T[]> {
     throw new UnavailableError(`Tinybird refused the query: ${response.status} ${await response.text()}`);
   }
   const result = (await response.json()) as { data: T[] };
+
   return result.data;
 }
 
@@ -130,6 +132,7 @@ async function postEvents(
   }
 
   const result = (await response.json()) as { successful_rows: number; quarantined_rows: number };
+
   return { successful: result.successful_rows, quarantined: result.quarantined_rows };
 }
 
@@ -187,5 +190,6 @@ export async function signTinybirdJwt(claims: {
     ['sign']
   );
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(`${header}.${payload}`));
+
   return `${header}.${payload}.${toBase64Url(new Uint8Array(signature))}`;
 }

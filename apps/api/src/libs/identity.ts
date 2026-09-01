@@ -12,7 +12,6 @@ export async function computeIdentityHash(externalId: string, identitySecret: st
   );
 
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(externalId));
-
   return toHex(signature);
 }
 

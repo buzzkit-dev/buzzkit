@@ -1,14 +1,17 @@
 import { env } from 'cloudflare:workers';
 import { createAuditLogger } from '@buzzkit/api/api/audit/index';
+import { countRows } from '@buzzkit/api/libs/database';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
 import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { and, count, type Db, eq, isNull, or, sql, tables } from '@buzzkit/database';
+import { and, type Db, eq, isNull, or, sql, tables } from '@buzzkit/database';
 import { generateWebhookSecret } from 'buzzkit/webhooks';
 import { assertValidSubscriptions, subscriptionMatches } from './catalog';
 import { DISABLE_AFTER_FAILING_MS, MAX_ENDPOINTS_PER_WORKSPACE, SECRET_OVERLAP_MS } from './policy';
 import type { EndpointInput, WebhookEndpoint } from './types';
+
+export const WEBHOOK_ENDPOINT_AUDIT_IGNORE = ['updatedAt', 'secret', 'previousSecret'] as const;
 
 const PRIVATE_HOSTNAME_PATTERN =
   /^(localhost|.*\.(local|internal|localhost)|0\.0\.0\.0|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+|\[?::1\]?|\[?::ffff:.*|\[?fc[0-9a-f]{2}:.*|\[?fd[0-9a-f]{2}:.*|\[?fe80:.*)$/i;
@@ -48,27 +51,26 @@ export async function findEndpoint(
   endpointSqid: string
 ): Promise<WebhookEndpoint> {
   const endpointId = decodeEntityId('webhook', endpointSqid);
-  const [row] = endpointId
-    ? await trace(
-        'webhooks.find',
-        async () =>
-          await db
-            .select()
-            .from(tables.webhookEndpoint)
-            .where(
-              and(
-                eq(tables.webhookEndpoint.id, endpointId),
-                eq(tables.webhookEndpoint.workspaceId, workspaceId),
-                isNull(tables.webhookEndpoint.deletedAt)
-              )
-            )
-      )
-    : [];
+  if (!endpointId) throw new NotFoundError('Webhook endpoint not found');
+
+  const [row] = await trace('webhooks.find', async () => {
+    return await db
+      .select()
+      .from(tables.webhookEndpoint)
+      .where(
+        and(
+          eq(tables.webhookEndpoint.id, endpointId),
+          eq(tables.webhookEndpoint.workspaceId, workspaceId),
+          isNull(tables.webhookEndpoint.deletedAt)
+        )
+      );
+  });
   if (!row) throw new NotFoundError('Webhook endpoint not found');
+
   return row;
 }
 
-export async function findEnabledEndpointById(db: Db, endpointId: number): Promise<WebhookEndpoint | null> {
+export async function selectEnabledEndpointById(db: Db, endpointId: number): Promise<WebhookEndpoint | null> {
   const [row] = await db
     .select()
     .from(tables.webhookEndpoint)
@@ -83,17 +85,15 @@ export async function findEnabledEndpointById(db: Db, endpointId: number): Promi
 }
 
 export async function listEndpoints(db: Db, workspaceId: number): Promise<WebhookEndpoint[]> {
-  return await trace(
-    'webhooks.list',
-    async () =>
-      await db
-        .select()
-        .from(tables.webhookEndpoint)
-        .where(
-          and(eq(tables.webhookEndpoint.workspaceId, workspaceId), isNull(tables.webhookEndpoint.deletedAt))
-        )
-        .orderBy(tables.webhookEndpoint.id)
-  );
+  return await trace('webhooks.list', async () => {
+    return await db
+      .select()
+      .from(tables.webhookEndpoint)
+      .where(
+        and(eq(tables.webhookEndpoint.workspaceId, workspaceId), isNull(tables.webhookEndpoint.deletedAt))
+      )
+      .orderBy(tables.webhookEndpoint.id);
+  });
 }
 
 export async function listEnabledEndpoints(
@@ -150,13 +150,13 @@ export async function createEndpoint(
   assertValidEndpointUrl(input.url);
   assertValidSubscriptions(input.events ?? []);
 
-  const [existing] = await db
-    .select({ total: count() })
-    .from(tables.webhookEndpoint)
-    .where(
-      and(eq(tables.webhookEndpoint.workspaceId, workspaceId), isNull(tables.webhookEndpoint.deletedAt))
-    );
-  if (Number(existing?.total ?? 0) >= MAX_ENDPOINTS_PER_WORKSPACE) {
+  const existing = await countRows(
+    db,
+    tables.webhookEndpoint,
+    and(eq(tables.webhookEndpoint.workspaceId, workspaceId), isNull(tables.webhookEndpoint.deletedAt))
+  );
+
+  if (existing >= MAX_ENDPOINTS_PER_WORKSPACE) {
     throw new BadRequestError(
       `A workspace can have at most ${MAX_ENDPOINTS_PER_WORKSPACE} webhook endpoints`,
       {
@@ -165,22 +165,21 @@ export async function createEndpoint(
     );
   }
 
-  const [created] = await trace(
-    'webhooks.create',
-    async () =>
-      await db
-        .insert(tables.webhookEndpoint)
-        .values({
-          workspaceId,
-          tenantId: input.tenantId ?? null,
-          url: input.url,
-          description: input.description ?? null,
-          events: input.events ?? [],
-          secret: generateWebhookSecret(),
-          createdByUserId,
-        })
-        .returning()
-  );
+  const [created] = await trace('webhooks.create', async () => {
+    return await db
+      .insert(tables.webhookEndpoint)
+      .values({
+        workspaceId,
+        tenantId: input.tenantId ?? null,
+        url: input.url,
+        description: input.description ?? null,
+        events: input.events ?? [],
+        secret: generateWebhookSecret(),
+        createdByUserId,
+      })
+      .returning();
+  });
+
   return created!;
 }
 
@@ -192,52 +191,47 @@ export async function updateEndpoint(
   if (input.url !== undefined) assertValidEndpointUrl(input.url);
   if (input.events !== undefined) assertValidSubscriptions(input.events);
 
-  const [updated] = await trace(
-    'webhooks.update',
-    async () =>
-      await db
-        .update(tables.webhookEndpoint)
-        .set({
-          ...(input.url !== undefined && { url: input.url }),
-          ...(input.description !== undefined && { description: input.description }),
-          ...(input.events !== undefined && { events: input.events }),
-          ...(input.tenantId !== undefined && { tenantId: input.tenantId }),
-          ...(input.enabled === true && { disabledAt: null, disabledReason: null, failingSince: null }),
-          ...(input.enabled === false && { disabledAt: new Date(), disabledReason: 'disabled' }),
-        })
-        .where(eq(tables.webhookEndpoint.id, existing.id))
-        .returning()
-  );
+  const [updated] = await trace('webhooks.update', async () => {
+    return await db
+      .update(tables.webhookEndpoint)
+      .set({
+        ...(input.url !== undefined && { url: input.url }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.events !== undefined && { events: input.events }),
+        ...(input.tenantId !== undefined && { tenantId: input.tenantId }),
+        ...(input.enabled === true && { disabledAt: null, disabledReason: null, failingSince: null }),
+        ...(input.enabled === false && { disabledAt: new Date(), disabledReason: 'disabled' }),
+      })
+      .where(eq(tables.webhookEndpoint.id, existing.id))
+      .returning();
+  });
+
   return updated!;
 }
 
 export async function rotateEndpointSecret(db: Db, endpoint: WebhookEndpoint): Promise<WebhookEndpoint> {
-  const [updated] = await trace(
-    'webhooks.rotateSecret',
-    async () =>
-      await db
-        .update(tables.webhookEndpoint)
-        .set({
-          secret: generateWebhookSecret(),
-          previousSecret: endpoint.secret,
-          previousSecretExpiresAt: new Date(Date.now() + SECRET_OVERLAP_MS),
-        })
-        .where(eq(tables.webhookEndpoint.id, endpoint.id))
-        .returning()
-  );
+  const [updated] = await trace('webhooks.rotateSecret', async () => {
+    return await db
+      .update(tables.webhookEndpoint)
+      .set({
+        secret: generateWebhookSecret(),
+        previousSecret: endpoint.secret,
+        previousSecretExpiresAt: new Date(Date.now() + SECRET_OVERLAP_MS),
+      })
+      .where(eq(tables.webhookEndpoint.id, endpoint.id))
+      .returning();
+  });
   return updated!;
 }
 
 export async function softDeleteEndpoint(db: Db, endpointId: number): Promise<WebhookEndpoint> {
-  const [deleted] = await trace(
-    'webhooks.softDelete',
-    async () =>
-      await db
-        .update(tables.webhookEndpoint)
-        .set({ deletedAt: new Date() })
-        .where(eq(tables.webhookEndpoint.id, endpointId))
-        .returning()
-  );
+  const [deleted] = await trace('webhooks.softDelete', async () => {
+    return await db
+      .update(tables.webhookEndpoint)
+      .set({ deletedAt: new Date() })
+      .where(eq(tables.webhookEndpoint.id, endpointId))
+      .returning();
+  });
   return deleted!;
 }
 
@@ -284,7 +278,9 @@ export async function markEndpointFailure(db: Db, endpoint: WebhookEndpoint): Pr
   log.warn('[Webhooks] Endpoint disabled after three days of failures', {
     endpointId: endpoint.id,
     workspaceId: endpoint.workspaceId,
+    tenantId: endpoint.tenantId,
     url: endpoint.url,
   });
+
   return { disabled: true };
 }

@@ -105,8 +105,6 @@ export const EventMatcherSchema = Type.Object(
   { additionalProperties: false }
 );
 
-export const CancelRuleSchema = EventMatcherSchema;
-
 const SendActionSchema = Type.Object(
   {
     id: Type.String({ minLength: 1, maxLength: 64 }),
@@ -200,8 +198,8 @@ export const SetWriteSchema = Type.Union([
 ]);
 
 export const StepSchema = Type.Recursive(
-  (self) =>
-    Type.Union([
+  (self) => {
+    return Type.Union([
       Type.Object({ name: StepNameSchema, wait: DurationSchema }, { additionalProperties: false }),
       Type.Object({ name: StepNameSchema, waitUntil: MomentSchema }, { additionalProperties: false }),
       Type.Object(
@@ -280,7 +278,8 @@ export const StepSchema = Type.Recursive(
       Type.Object({ name: StepNameSchema, set: SetWriteSchema }, { additionalProperties: false }),
       Type.Object({ name: StepNameSchema, send: SendPayloadSchema }, { additionalProperties: false }),
       Type.Object({ exit: Type.Literal(true) }, { additionalProperties: false }),
-    ]),
+    ]);
+  },
   { $id: 'WorkflowStep' }
 );
 
@@ -288,7 +287,7 @@ export const WorkflowSpecSchema = Type.Object(
   {
     trigger: TriggerSchema,
     concurrency: Type.Optional(Type.Union(CONCURRENCY_MODES.map((mode) => Type.Literal(mode)))),
-    cancelOn: Type.Optional(Type.Array(CancelRuleSchema, { maxItems: 10 })),
+    cancelOn: Type.Optional(Type.Array(EventMatcherSchema, { maxItems: 10 })),
     defaultTimezone: Type.Optional(TimezoneSchema),
     steps: Type.Array(StepSchema, { minItems: 1, maxItems: MAX_STEPS }),
   },

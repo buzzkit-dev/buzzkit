@@ -78,6 +78,7 @@ function stripPrefix(id: string): string {
   if ((Object.values(ID_PREFIXES) as string[]).includes(prefix)) {
     return id.slice(underscore + 1);
   }
+
   return id;
 }
 

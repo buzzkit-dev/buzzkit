@@ -73,8 +73,8 @@ function PastelAvatar({
       className={cn(
         'relative inline-flex shrink-0 overflow-hidden ring-1 ring-fg-a1/30',
         variant === 'orb'
-          ? "rounded-full before:absolute before:inset-0 before:bg-radial-[at_32%_28%] before:from-white/60 before:to-transparent before:to-55% before:content-['']"
-          : "before:absolute before:inset-0 before:bg-radial-[at_28%_22%] before:from-white/70 before:to-transparent before:to-65% before:content-['']",
+          ? "rounded-full before:absolute before:inset-0 before:bg-radial-[at_32%_28%] before:from-white/60 before:to-55% before:to-transparent before:content-['']"
+          : "before:absolute before:inset-0 before:bg-radial-[at_28%_22%] before:from-white/70 before:to-65% before:to-transparent before:content-['']",
         className
       )}
       style={{

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { authHandler } from '@buzzkit/api/libs/auth';
+import { authHandler } from '@buzzkit/api/libs/auth/index';
 import { error } from '@buzzkit/api/libs/error';
 import { logger } from '@buzzkit/api/libs/logger';
 import { telemetry } from '@buzzkit/api/libs/telemetry';

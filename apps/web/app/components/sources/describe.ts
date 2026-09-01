@@ -5,7 +5,7 @@ import {
   type Verification,
 } from '@buzzkit/schema/sources';
 
-export const DROP_REASONS: Record<DropReason, string> = {
+const DROP_REASONS: Record<DropReason, string> = {
   no_type: 'No event type in the payload',
   unlisted_type: 'Type not in the mapping',
   no_subscriber: 'No matching subscriber',
@@ -38,19 +38,9 @@ export function verificationClause(verification: Verification): string {
   return `the ${verification.header} header`;
 }
 
-export function describeVerification(verification: Verification): string {
-  return `Verified with ${verificationClause(verification)}`;
-}
-
 export function describeReason(reason: string | null): string {
   if (!reason) return 'Dropped';
   return DROP_REASONS[reason as DropReason] ?? reason.replace(/_/g, ' ');
-}
-
-export function describeSubscriber(subscriber: SourceMapping['subscriber']): string {
-  return typeof subscriber === 'string'
-    ? `${subscriber} as the external id`
-    : `${subscriber.path} matched to the ${subscriber.attribute} attribute`;
 }
 
 export function mappedEventCount(mapping: SourceMapping): number | 'all' {

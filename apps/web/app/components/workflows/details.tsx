@@ -84,7 +84,7 @@ function Hover({
   );
 }
 
-export function TemplateText({
+function TemplateText({
   text,
   rendered,
   className,

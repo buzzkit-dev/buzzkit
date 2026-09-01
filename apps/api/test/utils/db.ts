@@ -1,6 +1,6 @@
 import { and, drizzle, eq, postgres, sql, tables } from '@buzzkit/database';
 
-export { and, desc, eq, sql, tables } from '@buzzkit/database';
+export { desc, eq, sql, tables } from '@buzzkit/database';
 
 const client = postgres('postgresql://postgres:postgres@localhost:5460/buzzkit', {
   max: 2,
@@ -8,7 +8,7 @@ const client = postgres('postgresql://postgres:postgres@localhost:5460/buzzkit',
   fetch_types: false,
 });
 
-export const db = drizzle(client);
+export const db = drizzle(client, { schema: tables });
 
 export async function tenantIdFor(workspaceSlug: string, tenantSlug = 'default'): Promise<number> {
   const [row] = await db
@@ -31,12 +31,6 @@ export async function tenantIdBySlug(tenantSlug: string): Promise<number> {
   return row.id;
 }
 
-/**
- * Connects a channel without talking to a provider: writes a credential row
- * whose secret is never decrypted in tests. An `invalid` row still counts as
- * connected but deliveries skip it, so they settle at once as `no_credential`,
- * which is what fan-out tests need. Real push goes through the APNs upload.
- */
 export async function connectChannel(
   tenantId: number,
   channel: 'email' | 'push',

@@ -1,17 +1,14 @@
-import { findSourceForIngest, ingestDelivery, MAX_PAYLOAD_BYTES } from '@buzzkit/api/api/sources/index';
+import { ingestDelivery, MAX_PAYLOAD_BYTES, selectSourceForIngest } from '@buzzkit/api/api/sources/index';
 import { database } from '@buzzkit/api/libs/database';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
-import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import Elysia from 'elysia';
 
 export const sourceIngest = new Elysia()
   .use(database)
   .guard({ detail: { tags: ['Sources'] } })
   .post('/sources/:id/ingest', async ({ db, params, request, set }) => {
-    const sourceId = decodeEntityId('source', params.id);
-    const source = sourceId === undefined ? null : await findSourceForIngest(db, sourceId);
-
+    const source = await selectSourceForIngest(db, params.id);
     if (!source) throw new NotFoundError('Source not found');
 
     const body = await request.text();

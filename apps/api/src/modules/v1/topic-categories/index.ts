@@ -1,14 +1,13 @@
 import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import {
-  findTopicCategoryById,
+  findTopicCategory,
   listTopicCategories,
   renameTopicCategory,
   serializeTopicCategory,
   softDeleteTopicCategory,
 } from '@buzzkit/api/api/topics/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
-import { decodeEntityId } from '@buzzkit/api/libs/sqids';
 import Elysia, { t } from 'elysia';
 
 export const topicCategories = new Elysia()
@@ -25,7 +24,7 @@ export const topicCategories = new Elysia()
   .patch(
     '/topic-categories/:id',
     async ({ audit, body, db, params, tenant }) => {
-      const category = await findTopicCategoryById(db, tenant.id, decodeEntityId('topicCategory', params.id));
+      const category = await findTopicCategory(db, tenant.id, params.id);
       const renamed = await renameTopicCategory(db, tenant.id, category, body.name);
 
       await audit({
@@ -42,7 +41,7 @@ export const topicCategories = new Elysia()
   .delete(
     '/topic-categories/:id',
     async ({ audit, db, params, tenant }) => {
-      const category = await findTopicCategoryById(db, tenant.id, decodeEntityId('topicCategory', params.id));
+      const category = await findTopicCategory(db, tenant.id, params.id);
       const deleted = await softDeleteTopicCategory(db, category);
 
       await audit({

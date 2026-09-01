@@ -39,14 +39,14 @@ export function DetailRow({
               copyValue();
             }}
             className={cn(
-              'group/copy -mx-2 -my-1 relative isolate flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
+              'group/copy relative isolate -mx-2 -my-1 flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
               "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
               'before:transition-[background-color,inset] before:duration-150 before:ease-out active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
               'hover:before:bg-bg-a1 active:before:bg-bg-a1'
             )}
           >
             <span className='flex min-w-0 items-center gap-1.5 truncate'>{children}</span>
-            <span className='-translate-y-[0.5px] relative size-4 shrink-0'>
+            <span className='relative size-4 shrink-0 -translate-y-[0.5px]'>
               <Icon
                 name='IconClipboard2'
                 className={cn(

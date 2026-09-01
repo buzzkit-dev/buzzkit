@@ -1,8 +1,7 @@
 import { env } from 'cloudflare:workers';
 import type { ActorEventRow } from '@buzzkit/api/actor/types';
-import { createDb } from '@buzzkit/api/libs/database';
+import { batchDb } from '@buzzkit/api/libs/database';
 import { log } from '@buzzkit/api/libs/logger';
-import { span } from '@buzzkit/api/libs/telemetry';
 import { appendEvents } from '@buzzkit/api/libs/tinybird';
 import {
   type EventsQueueMessage,
@@ -14,7 +13,7 @@ import {
 import type { Db } from '@buzzkit/database';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@buzzkit/api/libs/database', () => ({ createDb: vi.fn() }));
+vi.mock('@buzzkit/api/libs/database', () => ({ createDb: vi.fn(), batchDb: vi.fn() }));
 vi.mock('@buzzkit/api/libs/logger', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -22,18 +21,17 @@ vi.mock('@buzzkit/api/libs/tinybird', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   appendEvents: vi.fn(),
 }));
-vi.mock('@buzzkit/api/libs/telemetry', async (importOriginal) => {
-  const span = { set: vi.fn(), trace: vi.fn() };
-  return {
-    ...(await importOriginal<object>()),
-    trace: vi.fn((_name: string, attributesOrFn: unknown, maybeFn?: unknown) =>
-      (typeof attributesOrFn === 'function' ? attributesOrFn : (maybeFn as (t: unknown) => unknown))(span)
-    ),
-    span,
-  };
-});
+const span = vi.hoisted(() => ({ set: vi.fn(), trace: vi.fn() }));
 
-const bindings = env as Record<string, unknown>;
+vi.mock('@buzzkit/api/libs/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  trace: vi.fn((_name: string, attributesOrFn: unknown, maybeFn?: unknown) => {
+    const fn = (typeof attributesOrFn === 'function' ? attributesOrFn : maybeFn) as (t: unknown) => unknown;
+    return fn(span);
+  }),
+}));
+
+const bindings = env as unknown as Record<string, unknown>;
 const send = vi.fn();
 
 function stubDb(rows: Array<{ id: number; workspaceId: number }>) {
@@ -90,7 +88,7 @@ beforeEach(() => {
 afterEach(() => {
   delete bindings.EVENTS;
   send.mockReset();
-  vi.mocked(createDb).mockReset();
+  vi.mocked(batchDb).mockReset();
   vi.mocked(appendEvents).mockReset();
   vi.mocked(log.error).mockReset();
   vi.mocked(span.set).mockReset();
@@ -161,7 +159,7 @@ describe('handleEventsBatch', () => {
       { id: 3, workspaceId: 11 },
       { id: 4, workspaceId: 12 },
     ]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents).mockResolvedValue({ successful: 4, quarantined: 0 });
     const { batch, messages, ackAll, retryAll } = stubBatch([
       queueMessage(3, 7, [actorRow(1), actorRow(2)]),
@@ -171,7 +169,7 @@ describe('handleEventsBatch', () => {
 
     await handleEventsBatch(batch);
 
-    expect(createDb).toHaveBeenCalledWith({ max: 2 });
+    expect(batchDb).toHaveBeenCalledWith();
     expect(appendEvents).toHaveBeenCalledTimes(1);
     const rows = vi.mocked(appendEvents).mock.calls[0]![0];
     expect(
@@ -185,7 +183,9 @@ describe('handleEventsBatch', () => {
     expect(ackAll).toHaveBeenCalledTimes(1);
     expect(retryAll).not.toHaveBeenCalled();
     expect(
-      messages.every((message) => !message.ack.mock.calls.length && !message.retry.mock.calls.length)
+      messages.every(
+        (message) => message.ack.mock.calls.length === 0 && message.retry.mock.calls.length === 0
+      )
     ).toBe(true);
     expect(log.error).not.toHaveBeenCalled();
     expect(span.set).toHaveBeenCalledWith('queue.rows', 4);
@@ -195,7 +195,7 @@ describe('handleEventsBatch', () => {
 
   it('re-posts each message on its own to find the quarantined subscriber, then acks', async () => {
     const { db } = stubDb([{ id: 3, workspaceId: 11 }]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents)
       .mockResolvedValueOnce({ successful: 2, quarantined: 1 })
       .mockResolvedValueOnce({ successful: 2, quarantined: 0 })
@@ -237,7 +237,7 @@ describe('handleEventsBatch', () => {
 
   it('logs a lone quarantined message without re-posting it', async () => {
     const { db } = stubDb([{ id: 3, workspaceId: 11 }]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents).mockResolvedValueOnce({ successful: 1, quarantined: 2 });
     const { batch, ackAll, retryAll } = stubBatch([
       queueMessage(3, 7, [actorRow(4), actorRow(5), actorRow(6)]),
@@ -261,7 +261,7 @@ describe('handleEventsBatch', () => {
 
   it('retries the batch when the isolating re-post itself fails', async () => {
     const { db } = stubDb([{ id: 3, workspaceId: 11 }]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents)
       .mockResolvedValueOnce({ successful: 1, quarantined: 1 })
       .mockRejectedValueOnce(new Error('Tinybird did not commit the batch: 503'));
@@ -278,7 +278,7 @@ describe('handleEventsBatch', () => {
 
   it('resolves an unknown tenant to workspace 0', async () => {
     const { db } = stubDb([{ id: 3, workspaceId: 11 }]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents).mockResolvedValue({ successful: 2, quarantined: 0 });
     const { batch } = stubBatch([queueMessage(3, 7, [actorRow(1)]), queueMessage(99, 8, [actorRow(1)])]);
 
@@ -290,7 +290,7 @@ describe('handleEventsBatch', () => {
 
   it('retries the whole batch after thirty seconds and never acks when the append fails', async () => {
     const { db } = stubDb([{ id: 3, workspaceId: 11 }]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents).mockRejectedValue(new Error('Tinybird did not commit the batch: 503'));
     const { batch, messages, ackAll, retryAll } = stubBatch([
       queueMessage(3, 7, [actorRow(1)]),
@@ -302,7 +302,7 @@ describe('handleEventsBatch', () => {
     expect(retryAll).toHaveBeenCalledTimes(1);
     expect(retryAll).toHaveBeenCalledWith({ delaySeconds: 30 });
     expect(ackAll).not.toHaveBeenCalled();
-    expect(messages.every((message) => !message.ack.mock.calls.length)).toBe(true);
+    expect(messages.every((message) => message.ack.mock.calls.length === 0)).toBe(true);
     expect(log.error).toHaveBeenCalledTimes(1);
     expect(vi.mocked(log.error).mock.calls[0]![1]).toMatchObject({
       rows: 2,
@@ -312,7 +312,7 @@ describe('handleEventsBatch', () => {
 
   it('acks an empty batch without appending anything', async () => {
     const { db, select } = stubDb([]);
-    vi.mocked(createDb).mockReturnValue(db);
+    vi.mocked(batchDb).mockReturnValue(db);
     vi.mocked(appendEvents).mockResolvedValue({ successful: 0, quarantined: 0 });
     const { batch, ackAll } = stubBatch([]);
 

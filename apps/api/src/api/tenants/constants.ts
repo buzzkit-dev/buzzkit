@@ -1,0 +1,1 @@
+export const MAX_TENANT_METADATA_BYTES = 16 * 1024;

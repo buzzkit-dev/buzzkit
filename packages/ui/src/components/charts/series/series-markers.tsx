@@ -5,10 +5,10 @@ import { clipRevealTransition } from '../engine/animation';
 import { defaultScatterColors, useChartHover, useChartStable, useYScale } from '../engine/chart-context';
 import { useChartLegendHover } from '../engine/chart-legend-hover';
 import {
-  getSeriesMarkerVisualExtent,
   SeriesPointMarker,
   type SeriesPointMarkerStyle,
   StaticSeriesPointMarker,
+  seriesMarkerVisualExtent,
 } from './series-point-marker';
 
 export interface SeriesMarkersProps extends SeriesPointMarkerStyle {
@@ -82,7 +82,7 @@ export function SeriesMarkers({
 
   const visualExtent = useMemo(
     () =>
-      getSeriesMarkerVisualExtent({
+      seriesMarkerVisualExtent({
         radius,
         strokeWidth,
         ringGap,
@@ -252,5 +252,3 @@ function SeriesMarkersActiveHighlight({
     <StaticSeriesPointMarker cx={activePoint.cx} cy={activePoint.cy} scale={activeScale} {...markerStyle} />
   );
 }
-
-export default SeriesMarkers;

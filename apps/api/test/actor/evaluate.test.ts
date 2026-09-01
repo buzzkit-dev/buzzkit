@@ -12,7 +12,11 @@ const resolve = (ref: string) => resolvePath(context, ref);
 const empty: EvaluateOptions = {
   history: { count: () => 0, opened: () => false, delivered: () => false },
   now: new Date('2026-08-29T12:00:00.000Z'),
-  since: { trigger: '2026-08-29T10:00:00.000Z', localMidnight: '2026-08-28T22:00:00.000Z' },
+  since: {
+    trigger: '2026-08-29T10:00:00.000Z',
+    localMidnight: '2026-08-28T22:00:00.000Z',
+    iteration: '2026-08-29T10:00:00.000Z',
+  },
 };
 
 describe('evaluateExpression', () => {

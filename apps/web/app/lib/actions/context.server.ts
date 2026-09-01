@@ -6,6 +6,9 @@ export async function beginAction({ request, context, params }: ActionFunctionAr
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const form = await request.formData();
-  const tenant = params.slug ? await resolveTenant(request, params.slug) : 'default';
+
+  let tenant = 'default';
+  if (params.slug) tenant = await resolveTenant(request, params.slug);
+
   return { env, token, ctx: { request, env }, form, intent: String(form.get('intent') ?? ''), tenant };
 }

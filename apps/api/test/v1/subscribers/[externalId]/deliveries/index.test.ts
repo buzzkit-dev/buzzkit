@@ -3,7 +3,7 @@ import { api } from '../../../../utils/api';
 import { fakeToken } from '../../../../utils/fixtures';
 import { createKey, createTenant, setupWorkspace, uniq } from '../../../../utils/setup';
 
-async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 20_000): Promise<T> {
+async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 60_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await probe();

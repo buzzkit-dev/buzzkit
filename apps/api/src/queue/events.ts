@@ -1,10 +1,11 @@
 import { env } from 'cloudflare:workers';
 import type { ActorEventRow } from '@buzzkit/api/actor/types';
-import { createDb } from '@buzzkit/api/libs/database';
 import { describeError } from '@buzzkit/api/libs/error';
 import { log } from '@buzzkit/api/libs/logger';
 import { trace } from '@buzzkit/api/libs/telemetry';
+import { DAY_MS } from '@buzzkit/api/libs/timezone';
 import { appendEvents, type EventRow, formatClickHouseTime } from '@buzzkit/api/libs/tinybird';
+import { CRASH_RETRY_DELAY_SECONDS, consume } from '@buzzkit/api/queue/consume';
 import { type Db, inArray, tables } from '@buzzkit/database';
 
 export type EventsQueueMessage = {
@@ -15,9 +16,8 @@ export type EventsQueueMessage = {
   firstFailedAt?: string;
 };
 
-const RETRY_DELAY_SECONDS = 30;
 const REDRIVE_DELAY_SECONDS = 600;
-const REDRIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const REDRIVE_WINDOW_MS = 7 * DAY_MS;
 
 export async function listWorkspaceIds(db: Db, tenantIds: number[]): Promise<Map<number, number>> {
   if (tenantIds.length === 0) return new Map();
@@ -53,8 +53,7 @@ export function resolveEventRow(
 }
 
 export async function handleEventsBatch(batch: MessageBatch<EventsQueueMessage>): Promise<void> {
-  await trace('queue.events.batch', { 'queue.batch_size': batch.messages.length }, async (t) => {
-    const db = createDb({ max: 2 });
+  await consume('events.batch', batch, async (db, t) => {
     const workspaces = await listWorkspaceIds(db, [
       ...new Set(batch.messages.map((item) => item.body.tenantId)),
     ]);
@@ -74,7 +73,7 @@ export async function handleEventsBatch(batch: MessageBatch<EventsQueueMessage>)
         rows: rows.length,
         error: describeError(error),
       });
-      batch.retryAll({ delaySeconds: RETRY_DELAY_SECONDS });
+      batch.retryAll({ delaySeconds: CRASH_RETRY_DELAY_SECONDS });
     }
   });
 }
@@ -87,11 +86,16 @@ async function isolateQuarantine(
     const rows = item.body.rows.map((row) =>
       resolveEventRow(item.body, row, workspaces.get(item.body.tenantId) ?? 0)
     );
-    const result = messages.length === 1 ? { quarantined: rows.length } : await appendEvents(rows);
-    if (result.quarantined > 0) {
+    let quarantined = rows.length;
+    if (messages.length > 1) {
+      const result = await appendEvents(rows);
+      quarantined = result.quarantined;
+    }
+
+    if (quarantined > 0) {
       log.error('[Events] Tinybird quarantined rows of one subscriber', {
         ...describeMessage(item.body),
-        quarantined: result.quarantined,
+        quarantined,
       });
     }
   }
@@ -103,7 +107,7 @@ function describeMessage(message: EventsQueueMessage) {
     subscriberId: message.subscriberId,
     rows: message.rows.length,
     fromSequence: message.rows[0]?.sequence ?? null,
-    toSequence: message.rows[message.rows.length - 1]?.sequence ?? null,
+    toSequence: message.rows.at(-1)?.sequence ?? null,
   };
 }
 
@@ -133,7 +137,7 @@ export async function handleEventsDeadLetterBatch(batch: MessageBatch<EventsQueu
           ...describeMessage(item.body),
           error: describeError(error),
         });
-        item.retry({ delaySeconds: RETRY_DELAY_SECONDS });
+        item.retry({ delaySeconds: CRASH_RETRY_DELAY_SECONDS });
       }
     }
     t.set('queue.rows', rows);

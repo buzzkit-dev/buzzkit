@@ -1,4 +1,4 @@
-import { localInstant, localTime } from '@buzzkit/api/libs/timezone';
+import { DAY_MS, localInstant, localTime } from '@buzzkit/api/libs/timezone';
 import { type CronFields, type Schedule, scheduleFields } from '@buzzkit/schema/workflows';
 
 const MAX_LOOKAHEAD_DAYS = 366 * 5;
@@ -14,6 +14,7 @@ function dayMatches(fields: CronFields, year: number, month: number, day: number
   if (fields.anyDay && fields.anyWeekday) return true;
   if (fields.anyDay) return byWeekday;
   if (fields.anyWeekday) return byDay;
+
   return byDay || byWeekday;
 }
 
@@ -34,8 +35,9 @@ export function nextScheduleInstant(schedule: Schedule, after: Date, timezone: s
         }
       }
     }
-    cursor += 86_400_000;
+    cursor += DAY_MS;
   }
+
   return null;
 }
 

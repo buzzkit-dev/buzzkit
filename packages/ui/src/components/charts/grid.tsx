@@ -281,5 +281,3 @@ export function Grid({
 }
 
 Grid.displayName = 'Grid';
-
-export default Grid;

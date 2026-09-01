@@ -25,7 +25,12 @@
         "noChildrenProp": "error",
         "useHookAtTopLevel": "error",
         "useJsxKeyInIterable": "error",
-        "useExhaustiveDependencies": "off"
+        "useExhaustiveDependencies": "off",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedPrivateClassMembers": "error",
+        "noPrivateImports": "error"
       },
       "security": {
         "noBlankTarget": "error",
@@ -35,16 +40,59 @@
         "noConsole": "error",
         "noCommentText": "error",
         "noDuplicateJsxProps": "error",
-        "noThenProperty": "off"
+        "noThenProperty": "off",
+        "useAwait": "error",
+        "useErrorMessage": "error",
+        "noEvolvingTypes": "error",
+        "noShadow": "error"
       },
       "style": {
-        "noNonNullAssertion": "off"
+        "noNonNullAssertion": "off",
+        "noUselessElse": "error",
+        "useCollapsedElseIf": "error",
+        "useSingleVarDeclarator": "error",
+        "useTemplate": "error",
+        "noYodaExpression": "error",
+        "useNodejsImportProtocol": "error",
+        "useAtIndex": "error",
+        "useExplicitLengthCheck": "error",
+        "useThrowOnlyError": "error",
+        "noParameterAssign": "error",
+        "useImportType": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "lucide-react": "Icons come exclusively from @buzzkit/ui <Icon /> (Central Icons)."
+            }
+          }
+        }
       },
       "complexity": {
-        "noForEach": "warn"
+        "noForEach": "warn",
+        "noUselessTernary": "error",
+        "noStaticOnlyClass": "error",
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 25
+          }
+        }
+      },
+      "performance": {
+        "noAccumulatingSpread": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "useExhaustiveSwitchCases": "error"
       }
     }
   },
+  "plugins": [
+    "./.biome/plugins/no-await-in-ternary.grit",
+    "./.biome/plugins/no-span-name-interpolation.grit"
+  ],
   "assist": {
     "actions": {
       "source": {
@@ -63,14 +111,73 @@
       "linter": {
         "rules": {
           "suspicious": {
-            "noExplicitAny": "off"
+            "noExplicitAny": "off",
+            "useAwait": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/api/src/**", "!apps/api/src/libs/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@buzzkit/api/libs/database": {
+                    "importNames": ["createDb"],
+                    "message": "Use the db from route context, stepDb() in engine/DO steps, or batchDb() in queue/cron work — never raw createDb."
+                  },
+                  "node:fs": "Workers have no file system.",
+                  "node:process": "Environment comes from cloudflare:workers, never process.env."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/buzzkit/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@buzzkit/*"],
+                    "message": "The buzzkit SDK is standalone — it never imports server internals."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/**", "apps/web/app/**"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "useSortedClasses": {
+              "level": "error",
+              "fix": "safe",
+              "options": {
+                "functions": ["cn", "cva", "clsx"]
+              }
+            }
           }
         }
       }
     }
   ],
   "files": {
-    "includes": ["**", "!**/worker-configuration.d.ts"]
+    "includes": ["**", "!**/worker-configuration.d.ts", "!.claude"]
   },
   "javascript": {
     "formatter": {

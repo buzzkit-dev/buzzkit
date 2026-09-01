@@ -80,13 +80,13 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       tenants,
     };
 
-    const headers = new Headers();
+    const responseHeaders = new Headers();
     if ((await readLastWorkspace(request)) !== params.slug) {
-      headers.append('Set-Cookie', await lastWorkspaceCookie(env, params.slug));
+      responseHeaders.append('Set-Cookie', await lastWorkspaceCookie(env, params.slug));
     }
     const chosen = await tenantCookie(env, request, params.slug, tenant.slug);
-    if (chosen) headers.append('Set-Cookie', chosen);
-    return data(payload, { headers });
+    if (chosen) responseHeaders.append('Set-Cookie', chosen);
+    return data(payload, { headers: responseHeaders });
   } catch (error) {
     if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
       throw data(null, { status: error.status });

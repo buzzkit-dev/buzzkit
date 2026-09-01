@@ -4,7 +4,6 @@ import { uploadSandboxApns } from './fixtures';
 
 let counter = 0;
 
-/** Unique-enough suffix for emails/slugs so test runs never collide. */
 export function uniq(): string {
   counter += 1;
   return `${Date.now().toString(36)}${counter}`;
@@ -28,7 +27,7 @@ export async function signUpUser(name = 'Test User') {
 
 export async function createWorkspace(token: string, name = 'Test Workspace') {
   const slug = `ws-${uniq()}`;
-  const { status, body } = await api<{ id: string; slug: string }>('/v1/workspaces', {
+  const { status, body } = await api<{ id: string; slug: string; name: string }>('/v1/workspaces', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ name, slug }),
@@ -73,7 +72,7 @@ export async function createTenant(
   options: { bare?: boolean } = {}
 ) {
   const slug = `cust-${uniq()}`;
-  const { status, body } = await api<{ id: string; slug: string }>('/v1/tenants', {
+  const { status, body } = await api<{ id: string; slug: string; name: string }>('/v1/tenants', {
     method: 'POST',
     headers,
     body: JSON.stringify({ name, slug }),
@@ -89,8 +88,7 @@ export async function createTenant(
   return body.data;
 }
 
-/** Push through the real APNs upload, email through a direct credential row. */
-export async function connectChannels(headers: Record<string, string>, tenantId: number) {
+async function connectChannels(headers: Record<string, string>, tenantId: number) {
   await uploadSandboxApns(headers);
   await connectChannel(tenantId, 'email');
 }
@@ -146,13 +144,6 @@ export async function createClientKey(token: string, slug: string, tenantSlug: s
   return body.data;
 }
 
-/**
- * A user with a workspace and a full-access workspace API key. The default
- * tenant has push (sandbox APNs) and email connected, like a workspace that
- * finished onboarding; pass `bare: true` for a tenant with no credentials, or
- * `push: 'unusable'` for a push credential the provider rejected, so deliveries
- * fail at once as `no_credential` instead of retrying against a real APNs.
- */
 export async function setupWorkspace(options: { bare?: boolean; push?: 'sandbox' | 'unusable' } = {}) {
   const owner = await signUpUser('Owner');
   const workspace = await createWorkspace(owner.token);

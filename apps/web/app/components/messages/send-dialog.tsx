@@ -89,7 +89,7 @@ export function SendDialog({
   const navigate = useNavigate();
   const { submit, pending } = useActionFetcher((data) => {
     onOpenChange(false);
-    if (typeof data.id === 'string') navigate(`${messagesBase}/${data.id}`);
+    if (typeof data.id === 'string') void navigate(`${messagesBase}/${data.id}`);
   });
   const [channel, setChannel] = useState<Channel>(channels[0] ?? 'push');
   const [target, setTarget] = useState<SendTarget>(initial?.target ?? 'subscriber');

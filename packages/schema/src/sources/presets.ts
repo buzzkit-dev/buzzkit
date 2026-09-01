@@ -154,5 +154,6 @@ export function detectProvider(headers: Record<string, string>, payload: unknown
   if (readPath(payload, 'object') === 'event' && readPath(payload, 'data.originalAppUserId') !== undefined) {
     return 'superwall';
   }
+
   return null;
 }

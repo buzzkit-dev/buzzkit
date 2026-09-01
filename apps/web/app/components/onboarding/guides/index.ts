@@ -10,4 +10,4 @@ export const GUIDES: Record<ProviderId, GuideDefinition> = {
   resend: resendGuide,
 };
 
-export type { GuideDefinition, GuideField, GuideStepDefinition } from './types';
+export type { GuideDefinition, GuideField } from './types';

@@ -1,16 +1,15 @@
 import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import {
   findSegmentBySlug,
+  SegmentSlugParamsSchema,
   serializeSegment,
   softDeleteSegment,
   UpdateSegmentSchema,
   updateSegment,
 } from '@buzzkit/api/api/segments/index';
-import { auth } from '@buzzkit/api/libs/auth';
-import { BadRequestError } from '@buzzkit/api/libs/error';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
-import { SlugSchema } from '@buzzkit/api/libs/schemas';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const segment = new Elysia()
   .use(auth)
@@ -23,13 +22,17 @@ export const segment = new Elysia()
         ignoreTransform: ['expression'],
       }).send();
     },
-    { tenant: 'segments:read', params: t.Object({ segmentSlug: SlugSchema }) }
+    { tenant: 'segments:read', params: SegmentSlugParamsSchema }
   )
   .patch(
     '/segments/:segmentSlug',
     async ({ audit, body, db, params, tenant }) => {
-      if (Object.keys(body).length === 0) throw new BadRequestError('Nothing to update');
       const existing = await findSegmentBySlug(db, tenant.id, params.segmentSlug);
+      if (Object.keys(body).length === 0) {
+        return Response.success(serializeSegment(existing, existing.version), {
+          ignoreTransform: ['expression'],
+        }).send();
+      }
       const updated = await updateSegment(db, existing, body);
 
       const { changes, previousAttributes } = diffForEvent(
@@ -49,7 +52,7 @@ export const segment = new Elysia()
         ignoreTransform: ['expression'],
       }).send();
     },
-    { tenant: 'segments:write', params: t.Object({ segmentSlug: SlugSchema }), body: UpdateSegmentSchema }
+    { tenant: 'segments:write', params: SegmentSlugParamsSchema, body: UpdateSegmentSchema }
   )
   .delete(
     '/segments/:segmentSlug',
@@ -68,5 +71,5 @@ export const segment = new Elysia()
         ignoreTransform: ['expression'],
       }).send();
     },
-    { tenant: 'segments:write', params: t.Object({ segmentSlug: SlugSchema }) }
+    { tenant: 'segments:write', params: SegmentSlugParamsSchema }
   );

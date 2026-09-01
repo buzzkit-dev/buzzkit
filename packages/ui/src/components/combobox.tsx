@@ -36,7 +36,7 @@ function ComboboxInput({
         <ComboboxPrimitive.Trigger
           data-slot='combobox-trigger'
           aria-label='Show options'
-          className='absolute inset-y-0 right-0 flex w-9 cursor-pointer items-center justify-center text-fg-2 outline-none transition-colors duration-150 hover:text-fg-4 data-popup-open:text-fg-4 disabled:cursor-not-allowed'
+          className='absolute inset-y-0 right-0 flex w-9 cursor-pointer items-center justify-center text-fg-2 outline-none transition-colors duration-150 hover:text-fg-4 disabled:cursor-not-allowed data-popup-open:text-fg-4'
         >
           <Icon name='IconChevronDownMedium' className='pointer-events-none size-4' />
         </ComboboxPrimitive.Trigger>
@@ -72,7 +72,7 @@ function ComboboxContent({
           data-slot='combobox-content'
           className={cn(
             'group/combobox-content corner-superellipse/1.125 relative isolate z-50 w-max min-w-(--anchor-width) max-w-(--available-width) overflow-hidden whitespace-nowrap rounded-xl bg-popover text-popover-foreground shadow-md',
-            'origin-(--transform-origin) duration-150 ease-out data-open:fade-in-0 data-open:zoom-in-95 data-open:animate-in',
+            'data-open:fade-in-0 data-open:zoom-in-95 origin-(--transform-origin) duration-150 ease-out data-open:animate-in',
             empty === undefined && 'data-empty:hidden',
             className
           )}
@@ -135,7 +135,7 @@ function ComboboxItem({
       data-slot='combobox-item'
       data-icon={position}
       className={cn(
-        "relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-8 pl-1.5 font-medium text-fg-3 text-sm outline-hidden select-none data-indicator-here:text-fg-4 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-1.5 pr-8 pl-1.5 font-medium text-fg-3 text-sm outline-hidden data-disabled:pointer-events-none data-indicator-here:text-fg-4 data-disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
       )}
       {...props}

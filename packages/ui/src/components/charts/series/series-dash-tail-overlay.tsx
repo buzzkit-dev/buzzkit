@@ -41,7 +41,7 @@ function SeriesDashTailOverlayImpl({
   }, [hasDashTail, dashFromIndex, data, xScale, xAccessor]);
 
   // Linear (index-based) approximation of the path length at `dashFromIndex`.
-  // The accurate version (`findPathLengthAtX` binary search via
+  // The accurate version (a binary search via
   // `getPointAtLength`) is exact but cost ~40 ms per series on a 365-point
   // bezier — for charts with ~10 series that synchronously blocks the main
   // thread for ~400 ms on the post-measurement re-render, swallowing the first

@@ -7,7 +7,7 @@ import {
   updateWorkspace,
   WorkspaceNameSchema,
 } from '@buzzkit/api/api/workspaces/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import { UrlSchema } from '@buzzkit/api/libs/schemas';
 import Elysia, { t } from 'elysia';
@@ -17,9 +17,9 @@ export const workspace = new Elysia()
   .guard({ detail: { tags: ['Workspaces'] } })
   .get(
     '/workspaces/:workspaceSlug',
-    ({ workspace, membership }) => {
+    ({ workspace: target, membership }) => {
       return Response.success(
-        { ...serializeWorkspace(workspace), role: membership?.role ?? null },
+        { ...serializeWorkspace(target), role: membership?.role ?? null },
         { entity: 'workspace' }
       ).send();
     },
@@ -27,21 +27,21 @@ export const workspace = new Elysia()
   )
   .patch(
     '/workspaces/:workspaceSlug',
-    async ({ body, db, workspace, audit }) => {
+    async ({ body, db, workspace: target, audit }) => {
       if (body.name === undefined && body.slug === undefined && body.avatarUrl === undefined) {
-        return Response.success(serializeWorkspace(workspace), { entity: 'workspace' }).send();
+        return Response.success(serializeWorkspace(target), { entity: 'workspace' }).send();
       }
 
-      if (body.slug !== undefined && body.slug !== workspace.slug) {
+      if (body.slug !== undefined && body.slug !== target.slug) {
         await assertSlugAvailable(db, body.slug);
       }
 
-      const updated = await updateWorkspace(db, workspace.id, body);
+      const updated = await updateWorkspace(db, target.id, body);
 
       await audit({
         event: 'workspace.updated',
-        target: { type: 'workspace', id: workspace.id },
-        data: diffForEvent(workspace, updated),
+        target: { type: 'workspace', id: target.id },
+        data: diffForEvent(target, updated),
       });
 
       return Response.success(serializeWorkspace(updated), { entity: 'workspace' }).send();
@@ -57,15 +57,13 @@ export const workspace = new Elysia()
   )
   .delete(
     '/workspaces/:workspaceSlug',
-    async ({ db, workspace, audit }) => {
-      const deleted = await softDeleteWorkspace(db, workspace.id);
-
+    async ({ db, workspace: target, audit }) => {
+      const deleted = await softDeleteWorkspace(db, target.id);
       await audit({
         event: 'workspace.deleted',
-        target: { type: 'workspace', id: workspace.id },
-        data: { name: workspace.name, slug: workspace.slug },
+        target: { type: 'workspace', id: target.id },
+        data: { name: target.name, slug: target.slug },
       });
-
       return Response.success(markDeleted(serializeWorkspace(deleted)), { entity: 'workspace' }).send();
     },
     { scope: 'workspace:delete' }

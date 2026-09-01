@@ -1,5 +1,9 @@
-import { findTenantBySlug, serializeIdentitySecret } from '@buzzkit/api/api/tenants/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import {
+  findTenantBySlug,
+  serializeIdentitySecret,
+  TenantSlugParamsSchema,
+} from '@buzzkit/api/api/tenants/index';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -10,8 +14,7 @@ export const tenantIdentitySecret = new Elysia()
     '/tenants/:tenantSlug/identity-secret',
     async ({ db, params, workspace }) => {
       const tenant = await findTenantBySlug(db, workspace.id, params.tenantSlug);
-
       return Response.success(serializeIdentitySecret(tenant), { entity: 'tenant' }).send();
     },
-    { scope: 'tenants:secrets' }
+    { scope: 'tenants:secrets', params: TenantSlugParamsSchema }
   );

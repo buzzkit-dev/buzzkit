@@ -3,7 +3,7 @@ import { data } from 'react-router';
 import { findNavigationPage } from '@/app/components/layout/navigation';
 import type { Route } from './+types/index';
 
-export async function loader({ params }: Route.LoaderArgs) {
+export function loader({ params }: Route.LoaderArgs) {
   const page = findNavigationPage(`/${params['*'] ?? ''}`);
   if (!page || page.soon) throw data(null, { status: 404 });
   return { page };

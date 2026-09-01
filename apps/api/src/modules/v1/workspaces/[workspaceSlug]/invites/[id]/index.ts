@@ -1,5 +1,5 @@
 import { findInvite, revokeInvite, serializeInvite } from '@buzzkit/api/api/invites/index';
-import { auth } from '@buzzkit/api/libs/auth';
+import { auth } from '@buzzkit/api/libs/auth/index';
 import { markDeleted, Response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
 
@@ -9,9 +9,8 @@ export const invite = new Elysia()
   .get(
     '/workspaces/:workspaceSlug/invites/:id',
     async ({ db, params, workspace }) => {
-      const invite = await findInvite(db, workspace.id, params.id);
-
-      return Response.success(serializeInvite(invite), { entity: 'invite' }).send();
+      const target = await findInvite(db, workspace.id, params.id);
+      return Response.success(serializeInvite(target), { entity: 'invite' }).send();
     },
     { scope: 'invites:read' }
   )

@@ -40,7 +40,7 @@ export class ActorStore {
     this.writeMeta('external_id', identity.externalId);
   }
 
-  findByIdempotencyKey(key: string): { sequence: number; id: string } | null {
+  selectByIdempotencyKey(key: string): { sequence: number; id: string } | null {
     const [row] = this.sql<{ sequence: number; id: string }>`
       SELECT sequence, id FROM events WHERE idempotency_key = ${key}
     `;
@@ -85,6 +85,13 @@ export class ActorStore {
     return row?.last_at ?? null;
   }
 
+  lastEvent(name: string): ActorEventRow | null {
+    const [row] = this.sql<ActorEventRow>`
+      SELECT * FROM events WHERE name = ${name} ORDER BY sequence DESC LIMIT 1
+    `;
+    return row ?? null;
+  }
+
   listProjections(): ActorProjection[] {
     return this.sql<ActorProjection>`SELECT * FROM projections ORDER BY name ASC`;
   }
@@ -127,6 +134,7 @@ export class ActorStore {
       SELECT count(*) AS count FROM events WHERE sequence <= ${flushed} AND sequence < ${keepFrom}
     `;
     this.sql`DELETE FROM events WHERE sequence <= ${flushed} AND sequence < ${keepFrom}`;
+
     return count?.count ?? 0;
   }
 
@@ -199,7 +207,7 @@ export class ActorStore {
     `;
   }
 
-  findRun(runId: string): ActorRunRow | null {
+  selectRun(runId: string): ActorRunRow | null {
     const [row] = this.sql<ActorRunRow>`SELECT * FROM runs WHERE run_id = ${runId}`;
     return row ?? null;
   }
@@ -228,11 +236,11 @@ export class ActorStore {
     `;
   }
 
-  deleteWait(runId: string, step: string): void {
+  removeWait(runId: string, step: string): void {
     this.sql`DELETE FROM waits WHERE run_id = ${runId} AND step = ${step}`;
   }
 
-  deleteWaitsOfRun(runId: string): void {
+  removeWaitsOfRun(runId: string): void {
     this.sql`DELETE FROM waits WHERE run_id = ${runId}`;
   }
 

@@ -23,8 +23,8 @@ function expectInvalidSubscriptions(entries: string[], offending = entries[0]!) 
   let thrown: unknown;
   try {
     assertValidSubscriptions(entries);
-  } catch (error) {
-    thrown = error;
+  } catch (caught) {
+    thrown = caught;
   }
   expect(thrown, entries.join(',')).toBeInstanceOf(BadRequestError);
   const error = thrown as InstanceType<typeof BadRequestError>;

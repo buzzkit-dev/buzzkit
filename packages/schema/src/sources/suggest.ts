@@ -75,5 +75,6 @@ export function suggestMapping(
       `${SOURCE_PRESETS[provider].label} preset`
     );
   }
+
   return { provider, type, id, timestamp, subscriber, data: data.slice(0, 20) };
 }

@@ -18,7 +18,7 @@ export function PasswordInput({
         type='button'
         variant='ghost'
         size='icon-xs'
-        className='-translate-y-1/2 absolute top-1/2 right-1'
+        className='absolute top-1/2 right-1 -translate-y-1/2'
         aria-label={visible ? 'Hide password' : 'Show password'}
         aria-pressed={visible}
         onClick={() => setVisible((current) => !current)}

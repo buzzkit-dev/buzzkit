@@ -54,7 +54,7 @@ function SheetContent({
         // Lets SheetHeader reserve room for the floating close button.
         data-close-button={showCloseButton ? '' : undefined}
         className={cn(
-          'group/sheet-content corner-superellipse/1.125 fixed z-50 flex flex-col gap-4 bg-background bg-clip-padding text-fg-3 text-sm shadow-lg transition-[translate] duration-200 ease-out data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:max-h-[85dvh] data-[side=bottom]:rounded-t-3xl data-[side=bottom]:data-ending-style:translate-y-full data-[side=bottom]:data-starting-style:translate-y-full data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:rounded-r-3xl data-[side=left]:data-ending-style:-translate-x-full data-[side=left]:data-starting-style:-translate-x-full data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:rounded-l-3xl data-[side=right]:data-ending-style:translate-x-full data-[side=right]:data-starting-style:translate-x-full data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:max-h-[85dvh] data-[side=top]:rounded-b-3xl data-[side=top]:data-ending-style:-translate-y-full data-[side=top]:data-starting-style:-translate-y-full data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm',
+          'group/sheet-content corner-superellipse/1.125 fixed z-50 flex flex-col gap-4 bg-background bg-clip-padding text-fg-3 text-sm shadow-lg transition-[translate] duration-200 ease-out data-[side=left]:data-ending-style:-translate-x-full data-[side=left]:data-starting-style:-translate-x-full data-[side=right]:data-ending-style:translate-x-full data-[side=right]:data-starting-style:translate-x-full data-[side=bottom]:data-ending-style:translate-y-full data-[side=bottom]:data-starting-style:translate-y-full data-[side=top]:data-ending-style:-translate-y-full data-[side=top]:data-starting-style:-translate-y-full data-[side=bottom]:inset-x-0 data-[side=top]:inset-x-0 data-[side=left]:inset-y-0 data-[side=right]:inset-y-0 data-[side=top]:top-0 data-[side=right]:right-0 data-[side=bottom]:bottom-0 data-[side=left]:left-0 data-[side=bottom]:h-auto data-[side=left]:h-full data-[side=right]:h-full data-[side=top]:h-auto data-[side=bottom]:max-h-[85dvh] data-[side=top]:max-h-[85dvh] data-[side=left]:w-3/4 data-[side=right]:w-3/4 data-[side=bottom]:rounded-t-3xl data-[side=left]:rounded-r-3xl data-[side=top]:rounded-b-3xl data-[side=right]:rounded-l-3xl data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm',
           className
         )}
         {...props}
@@ -66,7 +66,7 @@ function SheetContent({
             render={
               <Button
                 variant='ghost'
-                className='absolute top-3 right-3 text-fg-2 enabled:hover:text-fg-4 enabled:active:text-fg-4'
+                className='absolute top-3 right-3 text-fg-2 enabled:active:text-fg-4 enabled:hover:text-fg-4'
                 size='icon-sm'
               />
             }
@@ -111,7 +111,7 @@ function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot='sheet-title'
-      className={cn('font-medium text-fg-4 text-base', className)}
+      className={cn('font-medium text-base text-fg-4', className)}
       {...props}
     />
   );
