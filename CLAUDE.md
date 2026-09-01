@@ -24,13 +24,13 @@ packages/database/       → @buzzkit/database       Drizzle ORM, PostgreSQL sch
 packages/auth/           → @buzzkit/auth           BetterAuth configuration (email/password, bearer tokens)
 packages/eden/           → @buzzkit/eden           Typed Eden Treaty API client (envelope-unwrapping, inferred from the contract)
 packages/observability/  → @buzzkit/observability  Buffered logging (Axiom), OpenTelemetry tracing
-packages/tinybird/       → @buzzkit/tinybird       The event log: Tinybird data sources, materialized views and endpoints as TypeScript (`bun run build` → Tinybird Local, `bun run deploy` → cloud)
+packages/tinybird/       → @buzzkit/tinybird       The event log: Tinybird data sources, materialized views and endpoints as TypeScript (`bun run push` → Tinybird Local, `bun run deploy` → cloud)
 packages/ui/             → @buzzkit/ui             Design system: shadcn (Base UI style) + Tailwind v4 tokens, Central Icons
 ```
 
 **`buzzkit` is one package, and it is the server SDK.** Only what a customer's backend uses lives in `packages/buzzkit`: the send client, subscriber and event APIs, webhook verification and the segment expression grammar (types + lint, so an inline segment on a send is typed and checked before it is sent), organized by subpath exports (`buzzkit/webhooks`, `buzzkit/expressions`, …) — never split into separate npm packages for organization's sake, and never holding anything that only runs on the server (request schemas, evaluators, renderers). Workflows are not defined from code: their language is the private `@buzzkit/schema/workflows` package, their runtime is the API. The platform (`apps/api`) depends on `buzzkit` directly; that's the dogfooding constraint made concrete. (The root workspace is named `buzzkit-monorepo` so the package can own the bare `buzzkit` name.)
 
-The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side). `bun db:up` starts Postgres (5460) and Tinybird Local (7181); after a fresh Tinybird container, `bun run build` in `packages/tinybird` pushes the event tables and endpoints into it.
+The API dev server runs on port **8790**, the web dev server on port **5180** (offset from feedbase's 8788/5173 so both repos can run side by side). `bun db:up` starts Postgres (5460) and Tinybird Local (7181); after a fresh Tinybird container, `bun run push` in `packages/tinybird` pushes the event tables and endpoints into it (it is `push`, not `build`, so turbo's `build`/`test` graphs never depend on a running Tinybird).
 
 ## Tech Stack
 

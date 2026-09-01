@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "bun scripts/local.ts build",
+    "push": "bun scripts/local.ts build",
     "dev": "bun scripts/local.ts dev",
     "token": "bun scripts/local.ts token",
     "deploy": "tinybird deploy",

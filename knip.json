@@ -11,7 +11,8 @@
       "ignoreDependencies": ["cloudflare"]
     },
     "apps/web": {
-      "ignoreDependencies": ["tailwindcss"]
+      "ignoreDependencies": ["tailwindcss"],
+      "ignoreUnresolved": ["^\\./\\+types/"]
     }
   }
 }
