@@ -28,9 +28,38 @@ export const SEND_CHANNELS = ['push'] as const;
 
 export const DELIVERY_MODES = ['push', 'local'] as const;
 
-export const STEP_KINDS = ['wait', 'waitUntil', 'waitFor', 'branch', 'fetch', 'set', 'send', 'exit'] as const;
+export const STEP_KINDS = [
+  'wait',
+  'waitUntil',
+  'waitFor',
+  'repeat',
+  'forEach',
+  'branch',
+  'fetch',
+  'set',
+  'send',
+  'exit',
+] as const;
 
-export const SINCE_ANCHORS = ['trigger', 'localMidnight'] as const;
+export const SINCE_ANCHORS = ['trigger', 'localMidnight', 'iteration'] as const;
+
+export const MIN_REPEAT_PASSES = 2;
+
+export const MAX_REPEAT_PASSES = 30;
+
+export const MAX_FOREACH_ITEMS = 50;
+
+export const MAX_WAIT_EVENTS = 5;
+
+export const MAX_SEND_ACTIONS = 4;
+
+export const INTERRUPTION_LEVELS = ['passive', 'active', 'timeSensitive', 'critical'] as const;
+
+export const SEND_PRIORITIES = ['high', 'normal'] as const;
+
+export const SEND_POLICY_MODES = ['ignore'] as const;
+
+export const FOREACH_ITEM_ROOTS = ['vars', 'steps', 'trigger', 'subscriber'] as const;
 
 export const WORKFLOW_CONDITIONS = ['ref', 'count', 'never', 'occurred', 'opened', 'delivered'] as const;
 

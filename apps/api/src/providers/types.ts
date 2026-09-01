@@ -6,6 +6,7 @@ export type ProviderEnvironment = (typeof environment.enumValues)[number];
 export type ProviderName = (typeof provider.enumValues)[number];
 
 export type DeliveryErrorCode =
+  | 'capped'
   | 'invalid_endpoint'
   | 'invalid_credential'
   | 'payload_invalid'
@@ -61,6 +62,9 @@ export type MessagePayload = {
   deliver?: 'push' | 'local';
   local?: { id: string; at: string; cancelOn?: string[] };
   silent?: boolean;
+  deepLink?: string;
+  action?: { name: string; data?: Record<string, unknown> };
+  policy?: 'ignore';
   threadId?: string;
   category?: string;
   interruptionLevel?: 'passive' | 'active' | 'timeSensitive' | 'critical';

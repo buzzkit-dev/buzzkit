@@ -154,6 +154,7 @@ describe('decision matrix', () => {
   it('covers every error code in the taxonomy exactly once', () => {
     const codes = Object.keys(ERROR_POLICY).sort();
     expect(codes).toEqual([
+      'capped',
       'expired',
       'invalid_credential',
       'invalid_endpoint',

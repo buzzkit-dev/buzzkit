@@ -56,6 +56,7 @@ describe('historyOptions', () => {
     expect(options.since).toEqual({
       trigger: '2026-08-29T08:30:00.000Z',
       localMidnight: '2026-08-28T22:00:00.000Z',
+      iteration: '2026-08-29T08:30:00.000Z',
     });
     const resolve = () => undefined;
     expect(
@@ -77,6 +78,7 @@ describe('historyOptions', () => {
     expect(historyOptions(store, null, 'UTC', new Date('2026-08-29T10:00:00.000Z')).since).toEqual({
       trigger: '2026-08-29T10:00:00.000Z',
       localMidnight: '2026-08-29T00:00:00.000Z',
+      iteration: '2026-08-29T10:00:00.000Z',
     });
   });
 });

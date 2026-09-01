@@ -28,6 +28,7 @@ export const ERROR_POLICY: Record<DeliveryErrorCode, ErrorPolicy> = {
   no_credential: { retryable: false, invalidatesSubscription: false, overload: false },
   unsubscribed: { retryable: false, invalidatesSubscription: false, overload: false },
   unsupported: { retryable: false, invalidatesSubscription: false, overload: false },
+  capped: { retryable: false, invalidatesSubscription: false, overload: false },
   unknown: { retryable: false, invalidatesSubscription: false, overload: false },
 };
 

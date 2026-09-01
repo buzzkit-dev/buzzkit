@@ -65,10 +65,10 @@ export type ProcessableRow = {
     Delivery,
     'id' | 'tenantId' | 'messageId' | 'subscriberId' | 'subscriptionId' | 'status' | 'attempts' | 'provider'
   >;
-  message: Pick<Message, 'id' | 'payload' | 'targets' | 'expiresAt'>;
+  message: Pick<Message, 'id' | 'payload' | 'targets' | 'topicId' | 'expiresAt'>;
   subscription: Pick<
     Subscription,
     'id' | 'endpoint' | 'enabled' | 'status' | 'deletedAt' | 'channel' | 'environment' | 'platform'
   >;
-  subscriber: Pick<Subscriber, 'externalId' | 'deletedAt'>;
+  subscriber: Pick<Subscriber, 'id' | 'externalId' | 'attributes' | 'deletedAt'>;
 };

@@ -125,6 +125,9 @@ function TopicDialog({
   const [slugTouched, setSlugTouched] = useState(Boolean(topic));
   const [description, setDescription] = useState(topic?.description ?? '');
   const [category, setCategory] = useState(topic?.category ?? '');
+  const [dailyCap, setDailyCap] = useState(
+    topic?.dailyCap === null || topic?.dailyCap === undefined ? '' : String(topic.dailyCap)
+  );
   const [newCategory, setNewCategory] = useState('');
   const [optedIn, setOptedIn] = useState(topic?.defaultOptedIn ?? true);
   const [choices, setChoices] = useState<Record<string, ChannelChoice>>(() => choicesFor(channels, topic));
@@ -132,7 +135,11 @@ function TopicDialog({
 
   const slugValue = slugTouched ? slug : slugify(name);
   const offered = Object.entries(choices).filter(([, choice]) => choice !== 'off');
-  const canSave = name.trim().length > 0 && slugValue.length > 0 && offered.length > 0 && !pending;
+  const capValid =
+    dailyCap.trim() === '' ||
+    (/^\d+$/.test(dailyCap.trim()) && Number(dailyCap) >= 1 && Number(dailyCap) <= 50);
+  const canSave =
+    name.trim().length > 0 && slugValue.length > 0 && offered.length > 0 && capValid && !pending;
 
   const save = () => {
     const fields: Record<string, string> = {
@@ -140,6 +147,7 @@ function TopicDialog({
       slug: slugValue,
       description: description.trim(),
       category: category === NEW_CATEGORY ? newCategory.trim() : category,
+      dailyCap: dailyCap.trim(),
       defaultOptedIn: String(optedIn),
       channels: offered.map(([channel]) => channel).join(','),
     };
@@ -156,6 +164,7 @@ function TopicDialog({
     setDescription(topic?.description ?? '');
     setCategory(topic?.category ?? '');
     setNewCategory('');
+    setDailyCap(topic?.dailyCap === null || topic?.dailyCap === undefined ? '' : String(topic.dailyCap));
     setOptedIn(topic?.defaultOptedIn ?? true);
     setChoices(choicesFor(channelsFor(connected, topic), topic));
   }, [open, topic, connected]);
@@ -243,6 +252,22 @@ function TopicDialog({
             <FieldDescription>
               Groups the topic under a heading in notification settings. Topics without a category are listed
               on their own.
+            </FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor='topic-cap'>Daily cap</FieldLabel>
+            <Input
+              id='topic-cap'
+              value={dailyCap}
+              onChange={(event) => setDailyCap(event.target.value)}
+              placeholder='No cap'
+              inputMode='numeric'
+              className='w-24'
+              aria-invalid={capValid ? undefined : true}
+            />
+            <FieldDescription>
+              The most messages a subscriber receives from this topic per day, counted in their own timezone.
+              Leave empty for no cap.
             </FieldDescription>
           </Field>
           <Field orientation='horizontal'>

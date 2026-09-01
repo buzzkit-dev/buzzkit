@@ -192,6 +192,10 @@ export function updateTenant(
     settings?: {
       identity?: { requireVerification?: boolean };
       channels?: Partial<Record<'push' | 'email', { enabled?: boolean }>>;
+      sendPolicy?: {
+        quietHours?: { from: string; to: string; timezone?: string } | null;
+        dailyCap?: number | null;
+      };
     };
   }
 ) {
@@ -643,6 +647,7 @@ export type TopicInput = {
   name: string;
   description?: string;
   category?: string | null;
+  dailyCap?: number | null;
   channels?: ('push' | 'email')[];
   defaultOptedIn?: boolean;
   channelDefaults?: Record<string, boolean>;
@@ -703,6 +708,7 @@ export function createTopic(
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).topics.post({
       ...input,
       category: input.category ?? undefined,
+      dailyCap: input.dailyCap ?? undefined,
     })
   );
 }
@@ -957,6 +963,8 @@ export type MessageInput = {
   title?: string;
   body?: string;
   data?: Record<string, unknown>;
+  imageUrl?: string;
+  deepLink?: string;
   schedule?: MessageSchedule;
 };
 

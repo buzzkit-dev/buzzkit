@@ -8,7 +8,15 @@ import {
 } from '@buzzkit/api/api/deliveries/index';
 import { SEND_CONCURRENCY } from '@buzzkit/api/api/deliveries/policy';
 import { recordSystemEvents } from '@buzzkit/api/api/events/index';
+import {
+  capDayStart,
+  policyExempt,
+  policyTimezone,
+  quietDeferSeconds,
+  resolveSubscriberTimezone,
+} from '@buzzkit/api/api/messages/policy';
 import { resolveSubscriptionEventData } from '@buzzkit/api/api/subscribers/index';
+import { resolveTenantSettings, type SendPolicy } from '@buzzkit/api/api/tenants/index';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import {
@@ -18,7 +26,7 @@ import {
   type ProviderName,
 } from '@buzzkit/api/providers/index';
 import type { TokenMemo } from '@buzzkit/api/providers/shared/cache';
-import { and, type Db, eq, inArray, isNull, ne, tables } from '@buzzkit/database';
+import { and, count, type Db, eq, gte, inArray, isNull, ne, tables } from '@buzzkit/database';
 import type { CredentialMemo, ProcessableRow, ProcessedDelivery, ResolvedCredential } from './types';
 
 export function createCredentialMemo(): CredentialMemo {
@@ -89,6 +97,7 @@ async function listDeliveriesForProcessing(db: Db, ids: number[]): Promise<Proce
         id: tables.message.id,
         payload: tables.message.payload,
         targets: tables.message.targets,
+        topicId: tables.message.topicId,
         expiresAt: tables.message.expiresAt,
       },
       subscription: {
@@ -101,7 +110,12 @@ async function listDeliveriesForProcessing(db: Db, ids: number[]): Promise<Proce
         channel: tables.subscription.channel,
         environment: tables.subscription.environment,
       },
-      subscriber: { externalId: tables.subscriber.externalId, deletedAt: tables.subscriber.deletedAt },
+      subscriber: {
+        id: tables.subscriber.id,
+        externalId: tables.subscriber.externalId,
+        attributes: tables.subscriber.attributes,
+        deletedAt: tables.subscriber.deletedAt,
+      },
     })
     .from(tables.delivery)
     .innerJoin(tables.message, eq(tables.message.id, tables.delivery.messageId))
@@ -164,6 +178,103 @@ export async function processDeliveryBatch(
       candidates.push({ job, row });
     }
 
+    const policies = new Map<number, SendPolicy>();
+    for (const { row } of candidates) {
+      if (policies.has(row.delivery.tenantId)) continue;
+      const [tenantRow] = await db
+        .select({ settings: tables.tenant.settings })
+        .from(tables.tenant)
+        .where(eq(tables.tenant.id, row.delivery.tenantId));
+      policies.set(row.delivery.tenantId, resolveTenantSettings(tenantRow?.settings).sendPolicy);
+    }
+
+    const capped: typeof candidates = [];
+    const allowed: typeof candidates = [];
+    const topicCaps = new Map<number, number | null>();
+
+    for (const candidate of candidates) {
+      const { job, row } = candidate;
+      const policy = policies.get(row.delivery.tenantId);
+      const payload = row.message.payload as MessagePayload;
+      const hasTenantPolicy =
+        policy !== undefined && (policy.quietHours !== null || policy.dailyCap !== null);
+      if (policyExempt(payload) || (!hasTenantPolicy && row.message.topicId === null)) {
+        allowed.push(candidate);
+        continue;
+      }
+      const subscriberZone = resolveSubscriberTimezone(row.subscriber.attributes);
+      if (policy?.quietHours) {
+        const zone = policyTimezone(policy.quietHours, subscriberZone);
+        const defer = zone ? quietDeferSeconds(new Date(now), policy.quietHours, zone) : null;
+        if (defer !== null) {
+          await db
+            .update(tables.delivery)
+            .set({ nextAttemptAt: new Date(now + defer * 1000) })
+            .where(eq(tables.delivery.id, row.delivery.id));
+          processed.push({ job, messageId: row.message.id, outcome: 'skipped', retryDelaySeconds: defer });
+          continue;
+        }
+      }
+      const zone =
+        (policy?.quietHours ? policyTimezone(policy.quietHours, subscriberZone) : subscriberZone) ?? 'UTC';
+      const dayStart = capDayStart(new Date(now), zone);
+      if (policy && policy.dailyCap !== null) {
+        const [countRow] = await db
+          .select({ total: count() })
+          .from(tables.delivery)
+          .where(
+            and(
+              eq(tables.delivery.subscriberId, row.subscriber.id),
+              eq(tables.delivery.status, 'sent'),
+              gte(tables.delivery.sentAt, dayStart)
+            )
+          );
+        if (Number(countRow?.total ?? 0) >= policy.dailyCap) {
+          capped.push(candidate);
+          processed.push({ job, messageId: row.message.id, outcome: 'failed', retryDelaySeconds: null });
+          continue;
+        }
+      }
+      if (row.message.topicId !== null) {
+        let topicCap = topicCaps.get(row.message.topicId);
+        if (topicCap === undefined) {
+          const [topicRow] = await db
+            .select({ dailyCap: tables.topic.dailyCap })
+            .from(tables.topic)
+            .where(eq(tables.topic.id, row.message.topicId));
+          topicCap = topicRow?.dailyCap ?? null;
+          topicCaps.set(row.message.topicId, topicCap);
+        }
+        if (topicCap !== null) {
+          const [countRow] = await db
+            .select({ total: count() })
+            .from(tables.delivery)
+            .innerJoin(tables.message, eq(tables.message.id, tables.delivery.messageId))
+            .where(
+              and(
+                eq(tables.delivery.subscriberId, row.subscriber.id),
+                eq(tables.delivery.status, 'sent'),
+                gte(tables.delivery.sentAt, dayStart),
+                eq(tables.message.topicId, row.message.topicId)
+              )
+            );
+          if (Number(countRow?.total ?? 0) >= topicCap) {
+            capped.push(candidate);
+            processed.push({ job, messageId: row.message.id, outcome: 'failed', retryDelaySeconds: null });
+            continue;
+          }
+        }
+      }
+      allowed.push(candidate);
+    }
+
+    await failDeliveriesImmediately(
+      db,
+      capped.map(({ row }) => row.delivery.id),
+      'capped',
+      'The daily send cap for this subscriber was reached'
+    );
+
     await failDeliveriesImmediately(
       db,
       unsubscribed.map((row) => row.delivery.id),
@@ -180,11 +291,11 @@ export async function processDeliveryBatch(
     const startedAt = new Date();
     const claimed = await claimDeliveryAttempts(
       db,
-      candidates.map(({ job }) => job),
+      allowed.map(({ job }) => job),
       startedAt
     );
-    const sending = candidates.filter(({ job }) => claimed.has(job.deliveryId));
-    for (const { job, row } of candidates) {
+    const sending = allowed.filter(({ job }) => claimed.has(job.deliveryId));
+    for (const { job, row } of allowed) {
       if (!claimed.has(job.deliveryId)) {
         processed.push({ job, messageId: row.message.id, outcome: 'skipped', retryDelaySeconds: null });
       }

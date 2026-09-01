@@ -219,6 +219,7 @@ const MOCK_TENANTS = [
     settings: {
       channels: { email: { enabled: true }, push: { enabled: true } },
       identity: { requireVerification: false },
+      sendPolicy: { quietHours: null, dailyCap: null },
     },
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',
@@ -232,6 +233,7 @@ const MOCK_TENANTS = [
     settings: {
       channels: { email: { enabled: true }, push: { enabled: true } },
       identity: { requireVerification: false },
+      sendPolicy: { quietHours: null, dailyCap: null },
     },
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',

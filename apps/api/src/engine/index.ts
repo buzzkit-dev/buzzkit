@@ -2,6 +2,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloud
 import { log } from '@buzzkit/api/libs/logger';
 import { ExitRun, RunContext } from './context';
 import { describeFailure } from './errors';
+import { loadSubscriberFacets } from './facets';
 import { runSteps } from './steps';
 import type { RunParams } from './types';
 
@@ -9,6 +10,7 @@ export class EngineWorkflow extends WorkflowEntrypoint<Env, RunParams> {
   async run(event: WorkflowEvent<RunParams>, step: WorkflowStep): Promise<void> {
     const context = new RunContext(this.env, this.ctx, event.payload, step);
     try {
+      await loadSubscriberFacets(context);
       await runSteps(context, context.params.spec.steps);
       await this.finish(context, { status: 'completed' });
     } catch (error) {

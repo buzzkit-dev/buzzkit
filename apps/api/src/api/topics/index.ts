@@ -40,6 +40,7 @@ export function serializeTopic(topic: Topic) {
     name: topic.name,
     description: topic.description,
     category: topic.category ?? null,
+    dailyCap: topic.dailyCap,
     channels: topic.channels,
     defaultOptedIn: topic.defaultOptedIn,
     channelDefaults: topic.channelDefaults,
@@ -226,6 +227,7 @@ export async function createTopic(
     name: string;
     description?: string;
     category?: string;
+    dailyCap?: number | null;
     channels?: Channel[];
     defaultOptedIn?: boolean;
     channelDefaults?: Partial<Record<Channel, boolean>>;
@@ -243,6 +245,7 @@ export async function createTopic(
           name: input.name,
           description: input.description,
           categoryId: category?.id ?? null,
+          dailyCap: input.dailyCap ?? null,
           channels: input.channels ?? [...CHANNELS],
           defaultOptedIn: input.defaultOptedIn ?? true,
           channelDefaults: input.channelDefaults ?? {},
@@ -323,6 +326,7 @@ export async function updateTopic(
     name?: string;
     description?: string | null;
     category?: string | null;
+    dailyCap?: number | null;
     channels?: Channel[];
     defaultOptedIn?: boolean;
     channelDefaults?: Partial<Record<Channel, boolean>>;
@@ -340,6 +344,7 @@ export async function updateTopic(
           name: patch.name,
           description: patch.description,
           ...(category === undefined ? {} : { categoryId: category?.id ?? null }),
+          ...(patch.dailyCap === undefined ? {} : { dailyCap: patch.dailyCap }),
           channels: patch.channels,
           defaultOptedIn: patch.defaultOptedIn,
           channelDefaults: patch.channelDefaults,

@@ -145,6 +145,8 @@ function resolveFcmEnvelope(payload: ProviderSendInput['payload']): Record<strin
       : undefined;
   const envelope = {
     ...(payload.bk ?? {}),
+    ...(payload.deepLink !== undefined ? { deepLink: payload.deepLink } : {}),
+    ...(payload.action !== undefined ? { action: payload.action } : {}),
     ...(local ? { local } : {}),
     ...(payload.actions?.length
       ? { actions: payload.actions, ...(payload.category ? { category: payload.category } : {}) }

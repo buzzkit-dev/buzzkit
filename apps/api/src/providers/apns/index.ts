@@ -181,6 +181,8 @@ export function resolveEnvelope(payload: ProviderSendInput['payload']): Record<s
       : undefined;
   const envelope = {
     ...(payload.bk ?? {}),
+    ...(payload.deepLink !== undefined ? { deepLink: payload.deepLink } : {}),
+    ...(payload.action !== undefined ? { action: payload.action } : {}),
     ...(local ? { local } : {}),
     ...(payload.actions?.length ? { actions: payload.actions, category: resolveCategoryId(payload) } : {}),
   };

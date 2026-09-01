@@ -26,14 +26,17 @@ export function historyOptions(
   store: ActorStore,
   run: Pick<ActorRunRow, 'run_id' | 'started_at'> | null,
   timezone: string,
-  now = new Date()
+  now = new Date(),
+  iterationStartedAt: string | null = null
 ): EvaluateOptions {
+  const trigger = run?.started_at ?? now.toISOString();
   return {
     history: historyResolver(store, run?.run_id ?? null),
     now,
     since: {
-      trigger: run?.started_at ?? now.toISOString(),
+      trigger,
       localMidnight: localMidnight(now, timezone).toISOString(),
+      iteration: iterationStartedAt ?? trigger,
     },
   };
 }

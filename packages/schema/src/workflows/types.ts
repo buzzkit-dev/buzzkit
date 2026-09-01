@@ -4,7 +4,10 @@ import type {
   DELIVERY_MODES,
   FETCH_ERROR_MODES,
   FETCH_METHODS,
+  INTERRUPTION_LEVELS,
   SEND_CHANNELS,
+  SEND_POLICY_MODES,
+  SEND_PRIORITIES,
   SINCE_ANCHORS,
   STEP_KINDS,
   TEMPLATE_FILTERS,
@@ -62,7 +65,18 @@ export type ScheduleTrigger = {
 
 export type Trigger = EventTrigger | ScheduleTrigger;
 
-export type CancelRule = { event: string; where?: WorkflowExpression };
+export type EventMatcher = { event: string; where?: WorkflowExpression };
+
+export type CancelRule = EventMatcher;
+
+export type SendAction = {
+  id: string;
+  title: string;
+  destructive?: boolean;
+  foreground?: boolean;
+  input?: boolean;
+  placeholder?: string;
+};
 
 export type SendPayload = {
   channel?: (typeof SEND_CHANNELS)[number];
@@ -73,6 +87,18 @@ export type SendPayload = {
   data?: Record<string, unknown>;
   deliver?: (typeof DELIVERY_MODES)[number];
   skipIfSentWithin?: Duration;
+  imageUrl?: string;
+  sound?: string;
+  badge?: number;
+  threadId?: string;
+  collapseId?: string;
+  interruptionLevel?: (typeof INTERRUPTION_LEVELS)[number];
+  relevanceScore?: number;
+  priority?: (typeof SEND_PRIORITIES)[number];
+  deepLink?: string;
+  action?: { name: string; data?: Record<string, unknown> };
+  actions?: SendAction[];
+  policy?: (typeof SEND_POLICY_MODES)[number];
 };
 
 export type FetchMethod = (typeof FETCH_METHODS)[number];
@@ -97,11 +123,33 @@ export type WaitUntilStep = { name: string; waitUntil: Moment };
 export type WaitForStep = {
   name: string;
   waitFor: {
-    event: string;
+    event?: string;
+    events?: EventMatcher[];
     where?: WorkflowExpression;
     settleFor?: Duration;
-    resetOn?: string[];
+    resetOn?: Array<string | EventMatcher>;
+    endOn?: EventMatcher[];
     timeout: Duration | Moment;
+  };
+};
+
+export type RepeatStep = {
+  name: string;
+  repeat: {
+    steps: Step[];
+    every: Duration;
+    max: number;
+    until?: WorkflowExpression;
+  };
+};
+
+export type ForEachStep = {
+  name: string;
+  forEach: {
+    items: string;
+    as: string;
+    max: number;
+    steps: Step[];
   };
 };
 
@@ -121,6 +169,8 @@ export type Step =
   | WaitStep
   | WaitUntilStep
   | WaitForStep
+  | RepeatStep
+  | ForEachStep
   | BranchStep
   | FetchStep
   | SetStep

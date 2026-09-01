@@ -81,6 +81,8 @@ const STEP_ICONS: Record<StepKind, { icon: IconName }> = {
   wait: { icon: 'IconHourglassFilled' },
   waitUntil: { icon: 'IconCalendarClockFilled' },
   waitFor: { icon: 'IconEarFilled' },
+  repeat: { icon: 'IconArrowRotateClockwiseFilled' },
+  forEach: { icon: 'IconLayersTwoFilled' },
   branch: { icon: 'IconSplitFilled' },
   fetch: { icon: 'IconGlobeFilled' },
   set: { icon: 'IconPencilFilled' },
@@ -176,6 +178,8 @@ export function stepKind(step: Step): StepKind {
   if ('wait' in step) return 'wait';
   if ('waitUntil' in step) return 'waitUntil';
   if ('waitFor' in step) return 'waitFor';
+  if ('repeat' in step) return 'repeat';
+  if ('forEach' in step) return 'forEach';
   if ('branch' in step) return 'branch';
   if ('fetch' in step) return 'fetch';
   if ('set' in step) return 'set';
@@ -187,10 +191,24 @@ export function describeStep(step: Step): string {
   if ('wait' in step) return `Wait ${describeDuration(step.wait)}`;
   if ('waitUntil' in step) return `Wait until ${describeMoment(step.waitUntil)}`;
   if ('waitFor' in step) {
+    const resets = (step.waitFor.resetOn ?? []).map((entry) =>
+      typeof entry === 'string' ? entry : entry.event
+    );
     const settle = step.waitFor.settleFor
-      ? `, then ${describeDuration(step.waitFor.settleFor)} of quiet (restarted by ${(step.waitFor.resetOn ?? []).join(', ')})`
+      ? `, then ${describeDuration(step.waitFor.settleFor)} of quiet (restarted by ${resets.join(', ')})`
       : '';
-    return `Wait for ${step.waitFor.event}${settle} ${describeTimeout(step.waitFor.timeout)}`;
+    const waited = step.waitFor.event ?? (step.waitFor.events ?? []).map((entry) => entry.event).join(' or ');
+    const ends = step.waitFor.endOn?.length
+      ? `, ended by ${step.waitFor.endOn.map((entry) => entry.event).join(', ')}`
+      : '';
+    return `Wait for ${waited}${settle}${ends} ${describeTimeout(step.waitFor.timeout)}`;
+  }
+  if ('repeat' in step) {
+    const until = step.repeat.until ? ' until it lands' : '';
+    return `Every ${describeDuration(step.repeat.every)}, up to ${step.repeat.max} times${until}`;
+  }
+  if ('forEach' in step) {
+    return `For each of ${step.forEach.items}, up to ${step.forEach.max}`;
   }
   if ('branch' in step) {
     const cases = Array.isArray(step.branch) ? step.branch : [];
@@ -232,6 +250,12 @@ export function flattenSteps(steps: Step[], depth = 0, lane: StepRow['lane'] = n
       (Array.isArray(step.branch) ? step.branch : []).forEach((entry, caseIndex) => {
         rows.push(...flattenSteps(entry.steps, depth + 1, entry.name, `${key}.${caseIndex}.`));
       });
+    }
+    if ('repeat' in step) {
+      rows.push(...flattenSteps(step.repeat.steps, depth + 1, null, `${key}.r.`));
+    }
+    if ('forEach' in step) {
+      rows.push(...flattenSteps(step.forEach.steps, depth + 1, null, `${key}.e.`));
     }
   });
   return rows;

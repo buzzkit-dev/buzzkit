@@ -381,6 +381,14 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
   const counts = message.counts;
   const target = describeTarget(message.targets);
   const inline = (message.targets as { where?: Expression }).where ?? null;
+  const plainTargets = message.targets as { to?: string[]; topic?: string; segment?: string };
+  const targetHref = plainTargets.segment
+    ? `/${params.slug}/segments/${plainTargets.segment}`
+    : plainTargets.topic
+      ? `/${params.slug}/topics`
+      : plainTargets.to?.length === 1
+        ? `/${params.slug}/subscribers/${encodeURIComponent(plainTargets.to[0] ?? '')}`
+        : null;
   const schedule = message.schedule as unknown as { at: string; timezone: string } | null;
   const cancelable =
     message.status === 'scheduled' ||
@@ -461,7 +469,15 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
                   <Recipients list={target.list}>
                     <span className='flex min-w-0 items-center gap-2'>
                       <Icon name={target.icon} className='mt-px size-4 shrink-0 text-fg-2' />
-                      <Truncate>{target.text}</Truncate>
+                      {targetHref ? (
+                        <Truncate>
+                          <Link to={targetHref} className='underline-offset-2 hover:underline'>
+                            {target.text}
+                          </Link>
+                        </Truncate>
+                      ) : (
+                        <Truncate>{target.text}</Truncate>
+                      )}
                     </span>
                   </Recipients>
                 </DetailRow>

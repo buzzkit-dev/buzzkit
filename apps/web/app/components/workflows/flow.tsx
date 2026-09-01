@@ -82,6 +82,8 @@ const KIND_LABELS: Record<StepKind, string> = {
   wait: 'Wait',
   waitUntil: 'Wait until',
   waitFor: 'Wait for',
+  repeat: 'Repeat',
+  forEach: 'For each',
   branch: 'Branch',
   fetch: 'Fetch',
   set: 'Set',

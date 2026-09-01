@@ -3,6 +3,8 @@ import type { RunContext } from '../context';
 import { runBranch } from './branch';
 import { runExit } from './exit';
 import { runFetch } from './fetch';
+import { runForEach } from './for-each';
+import { runRepeat } from './repeat';
 import { runLocalWindow, runSend } from './send';
 import { runSet } from './set';
 import { runWait } from './wait';
@@ -25,6 +27,8 @@ export async function runSteps(context: RunContext, steps: Step[]): Promise<void
     else if ('wait' in current) await runWait(context, current);
     else if ('waitUntil' in current) await runWaitUntil(context, current);
     else if ('waitFor' in current) await runWaitFor(context, current);
+    else if ('repeat' in current) await runRepeat(context, current, runSteps);
+    else if ('forEach' in current) await runForEach(context, current, runSteps);
     else if ('branch' in current) await runBranch(context, current, runSteps);
     else if ('fetch' in current) await runFetch(context, current);
     else if ('set' in current) await runSet(context, current);

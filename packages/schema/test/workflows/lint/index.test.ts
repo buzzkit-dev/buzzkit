@@ -254,7 +254,7 @@ describe('lintWorkflow', () => {
         steps: [{ name: 'x', waitFor: { event: 'b', settleFor: '5m', resetOn: ['b'], timeout: '1d' } }],
       })
     ).toEqual([
-      'steps[0].waitFor.resetOn[0]: "b" is the event this step waits for; it cannot also restart it.',
+      'steps[0].waitFor.resetOn[0]: "b" is an event this step waits for; it cannot also restart it.',
     ]);
     expect(
       messages({
@@ -262,13 +262,13 @@ describe('lintWorkflow', () => {
         steps: [{ name: 'x', waitFor: { event: 'b', settleFor: '5m', resetOn: [], timeout: '1d' } }],
       })
     ).toEqual([
-      'steps[0].waitFor.resetOn: "resetOn" takes a list of event names that restart the settle clock, got a list.',
+      'steps[0].waitFor.resetOn: "resetOn" takes a list of events that restart the settle clock, got a list.',
     ]);
     expect(
       messages({ ...base, steps: [{ name: 'x', waitFor: { event: 'b', timeout: { delay: '1d' } } }] })
     ).toEqual([]);
     expect(messages({ ...base, steps: [{ name: 'x', waitFor: { event: 'b', until: '1d' } }] })).toEqual([
-      'steps[0].waitFor.until: "until" is not a key of a waitFor step. Allowed keys: "event", "where", "settleFor", "resetOn", "timeout".',
+      'steps[0].waitFor.until: "until" is not a key of a waitFor step. Allowed keys: "event", "events", "where", "settleFor", "resetOn", "endOn", "timeout".',
       'steps[0].waitFor.timeout: A wait for an event needs a "timeout": a duration or a moment to give up at.',
     ]);
   });
@@ -456,7 +456,9 @@ describe('lintWorkflow', () => {
         trigger: { event: 'a', where: { count: 'b', since: 'yesterday', gte: 1 } },
         steps: [{ name: 'x', wait: '1h' }],
       })
-    ).toEqual(['trigger.where.since: "since" must be one of "trigger", "localMidnight", got "yesterday".']);
+    ).toEqual([
+      'trigger.where.since: "since" must be one of "trigger", "localMidnight", "iteration", got "yesterday".',
+    ]);
   });
 
   it('checks fetch steps: methods, urls, headers with secrets, bodies, timeouts, expected statuses', () => {

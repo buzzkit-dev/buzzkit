@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { ExitRun, RunContext } from './context';
 import { describeFailure } from './errors';
+import { loadSubscriberFacets } from './facets';
 import { runSteps } from './steps';
 import type { RunParams, TraceEntry } from './types';
 
@@ -20,6 +21,7 @@ export async function dryRun(params: Omit<RunParams, 'mode'>): Promise<DryRunRes
   let exited = false;
   let error: string | null = null;
   try {
+    await loadSubscriberFacets(context);
     await runSteps(context, params.spec.steps);
   } catch (caught) {
     if (caught instanceof ExitRun) {

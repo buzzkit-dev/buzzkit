@@ -50,6 +50,12 @@ export class RunContext {
 
   current: string | null = null;
 
+  iterationStartedAt: string | null = null;
+
+  private facets: { channels: Record<string, boolean>; topics: Record<string, boolean> } | null = null;
+
+  private readonly loopFrames: string[] = [];
+
   constructor(
     private readonly env: Env,
     private readonly ctx: ExecutionContext | null,
@@ -88,10 +94,24 @@ export class RunContext {
     const { trigger, externalId, attributes } = this.params;
     return {
       trigger: { name: trigger.name, data: trigger.data, source: trigger.source },
-      subscriber: { externalId, attributes },
+      subscriber: {
+        externalId,
+        attributes,
+        channels: this.facets?.channels ?? {},
+        topics: this.facets?.topics ?? {},
+      },
       steps: this.state.steps,
       vars: this.state.vars,
     };
+  }
+
+  get needsSubscriberFacets(): boolean {
+    const spec = JSON.stringify(this.params.spec);
+    return spec.includes('subscriber.channels') || spec.includes('subscriber.topics');
+  }
+
+  setSubscriberFacets(facets: { channels: Record<string, boolean>; topics: Record<string, boolean> }) {
+    this.facets = facets;
   }
 
   timezone(): string {
@@ -118,7 +138,13 @@ export class RunContext {
   async evaluate(expression: WorkflowExpression): Promise<boolean> {
     if (this.hasSubscriber) {
       const actor = await this.actor();
-      return await actor.evaluate(this.params.runId, expression, this.scope(), this.timezone());
+      return await actor.evaluate(
+        this.params.runId,
+        expression,
+        this.scope(),
+        this.timezone(),
+        this.iterationStartedAt
+      );
     }
     const scope = this.scope();
     const now = new Date(this.now());
@@ -128,8 +154,22 @@ export class RunContext {
       since: {
         trigger: this.params.trigger.timestamp,
         localMidnight: localMidnight(now, this.timezone()).toISOString(),
+        iteration: this.iterationStartedAt ?? this.params.trigger.timestamp,
       },
     });
+  }
+
+  async withLoopFrame<T>(frame: string, run: () => Promise<T>): Promise<T> {
+    this.loopFrames.push(frame);
+    try {
+      return await run();
+    } finally {
+      this.loopFrames.pop();
+    }
+  }
+
+  private scoped(name: string): string {
+    return this.loopFrames.length === 0 ? name : `${name}@${this.loopFrames.join('/')}`;
   }
 
   async sleep(name: string, ms: number): Promise<void> {
@@ -137,7 +177,7 @@ export class RunContext {
       this.clock += Math.max(0, ms);
       return;
     }
-    await this.workflowStep().sleep(name, this.scaled(ms));
+    await this.workflowStep().sleep(this.scoped(name), this.scaled(ms));
   }
 
   async listen(step: string, label: string, timeoutMs: number): Promise<WaitPayload | null> {
@@ -152,7 +192,7 @@ export class RunContext {
       };
     }
     try {
-      const result = await this.workflowStep().waitForEvent<WaitPayload>(label, {
+      const result = await this.workflowStep().waitForEvent<WaitPayload>(this.scoped(label), {
         type: `evt:${step}`,
         timeout: this.scaled(Math.max(MIN_WAIT_FOR_MS, timeoutMs)),
       });
@@ -198,7 +238,8 @@ export class RunContext {
         () => withTraceparent(this.params.traceparent, () => fn().catch(rethrowPermanent)),
         { traced: false }
       );
-    return config ? step.do(name, config, invoke) : step.do(name, invoke);
+    const scopedName = this.scoped(name);
+    return config ? step.do(scopedName, config, invoke) : step.do(scopedName, invoke);
   }
 
   record(

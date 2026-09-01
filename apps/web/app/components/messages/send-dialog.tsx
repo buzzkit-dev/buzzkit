@@ -98,6 +98,8 @@ export function SendDialog({
   const [segment, setSegment] = useState(initial?.segment ?? '');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [deepLink, setDeepLink] = useState('');
   const [when, setWhen] = useState<SendWhen>('now');
   const [at, setAt] = useState(defaultAt);
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -266,6 +268,30 @@ export function SendDialog({
             />
           </Field>
           <Field>
+            <FieldLabel htmlFor='message-image'>Image</FieldLabel>
+            <Input
+              id='message-image'
+              value={imageUrl}
+              onChange={(event) => setImageUrl(event.target.value)}
+              placeholder='https://cdn.example.com/cover.png'
+              autoComplete='off'
+              spellCheck={false}
+            />
+            <FieldDescription>Shown as rich media on the notification.</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor='message-deeplink'>Deep link</FieldLabel>
+            <Input
+              id='message-deeplink'
+              value={deepLink}
+              onChange={(event) => setDeepLink(event.target.value)}
+              placeholder='app://offers/42'
+              autoComplete='off'
+              spellCheck={false}
+            />
+            <FieldDescription>Opened by the app when the notification is tapped.</FieldDescription>
+          </Field>
+          <Field>
             <FieldLabel htmlFor='message-when'>Timing</FieldLabel>
             <Select items={WHEN_OPTIONS} value={when} onValueChange={(value) => setWhen(value as SendWhen)}>
               <SelectTrigger id='message-when' className='w-full'>
@@ -336,6 +362,8 @@ export function SendDialog({
                 segment,
                 title,
                 body,
+                imageUrl,
+                deepLink,
                 when,
                 at,
                 timezone,

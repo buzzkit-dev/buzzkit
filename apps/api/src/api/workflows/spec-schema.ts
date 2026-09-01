@@ -100,8 +100,22 @@ export const ScheduleTriggerSchema = Type.Object(
 
 export const TriggerSchema = Type.Union([EventTriggerSchema, ScheduleTriggerSchema]);
 
-export const CancelRuleSchema = Type.Object(
+export const EventMatcherSchema = Type.Object(
   { event: EventNameSchema, where: Type.Optional(WorkflowExpressionSchema) },
+  { additionalProperties: false }
+);
+
+export const CancelRuleSchema = EventMatcherSchema;
+
+const SendActionSchema = Type.Object(
+  {
+    id: Type.String({ minLength: 1, maxLength: 64 }),
+    title: Type.String({ minLength: 1, maxLength: 64 }),
+    destructive: Type.Optional(Type.Boolean()),
+    foreground: Type.Optional(Type.Boolean()),
+    input: Type.Optional(Type.Boolean()),
+    placeholder: Type.Optional(Type.String({ maxLength: 64 })),
+  },
   { additionalProperties: false }
 );
 
@@ -115,6 +129,33 @@ export const SendPayloadSchema = Type.Object(
     data: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     deliver: Type.Optional(Type.Union(DELIVERY_MODES.map((mode) => Type.Literal(mode)))),
     skipIfSentWithin: Type.Optional(DurationSchema),
+    imageUrl: Type.Optional(Type.String({ maxLength: 2000 })),
+    sound: Type.Optional(Type.String({ maxLength: 100 })),
+    badge: Type.Optional(Type.Integer({ minimum: 0 })),
+    threadId: Type.Optional(Type.String({ maxLength: 500 })),
+    collapseId: Type.Optional(Type.String({ maxLength: 500 })),
+    interruptionLevel: Type.Optional(
+      Type.Union([
+        Type.Literal('passive'),
+        Type.Literal('active'),
+        Type.Literal('timeSensitive'),
+        Type.Literal('critical'),
+      ])
+    ),
+    relevanceScore: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+    priority: Type.Optional(Type.Union([Type.Literal('high'), Type.Literal('normal')])),
+    deepLink: Type.Optional(Type.String({ maxLength: 2000 })),
+    action: Type.Optional(
+      Type.Object(
+        {
+          name: Type.String({ minLength: 1, maxLength: 64 }),
+          data: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+        },
+        { additionalProperties: false }
+      )
+    ),
+    actions: Type.Optional(Type.Array(SendActionSchema, { minItems: 1, maxItems: 4 })),
+    policy: Type.Optional(Type.Literal('ignore')),
   },
   { additionalProperties: false }
 );
@@ -168,13 +209,50 @@ export const StepSchema = Type.Recursive(
           name: StepNameSchema,
           waitFor: Type.Object(
             {
-              event: EventNameSchema,
+              event: Type.Optional(EventNameSchema),
+              events: Type.Optional(Type.Array(EventMatcherSchema, { minItems: 1, maxItems: 5 })),
               where: Type.Optional(WorkflowExpressionSchema),
               settleFor: Type.Optional(DurationSchema),
               resetOn: Type.Optional(
-                Type.Array(EventNameSchema, { minItems: 1, maxItems: MAX_RESET_EVENTS })
+                Type.Array(Type.Union([EventNameSchema, EventMatcherSchema]), {
+                  minItems: 1,
+                  maxItems: MAX_RESET_EVENTS,
+                })
+              ),
+              endOn: Type.Optional(
+                Type.Array(EventMatcherSchema, { minItems: 1, maxItems: MAX_RESET_EVENTS })
               ),
               timeout: TimeoutSchema,
+            },
+            { additionalProperties: false }
+          ),
+        },
+        { additionalProperties: false }
+      ),
+      Type.Object(
+        {
+          name: StepNameSchema,
+          repeat: Type.Object(
+            {
+              steps: Type.Array(self, { minItems: 1, maxItems: MAX_STEPS }),
+              every: DurationSchema,
+              max: Type.Integer({ minimum: 2, maximum: 30 }),
+              until: Type.Optional(WorkflowExpressionSchema),
+            },
+            { additionalProperties: false }
+          ),
+        },
+        { additionalProperties: false }
+      ),
+      Type.Object(
+        {
+          name: StepNameSchema,
+          forEach: Type.Object(
+            {
+              items: Type.String({ minLength: 1, maxLength: 200 }),
+              as: Type.String({ pattern: VAR_NAME_PATTERN.source }),
+              max: Type.Integer({ minimum: 1, maximum: 50 }),
+              steps: Type.Array(self, { minItems: 1, maxItems: MAX_STEPS }),
             },
             { additionalProperties: false }
           ),

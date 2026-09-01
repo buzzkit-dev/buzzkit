@@ -1,4 +1,6 @@
 import { createMessage, enqueueFanout } from '@buzzkit/api/api/messages/index';
+import { policyTimezone, shiftOutOfQuietHours } from '@buzzkit/api/api/messages/policy';
+import { resolveTenantSettings } from '@buzzkit/api/api/tenants/index';
 import { findTopicBySlug } from '@buzzkit/api/api/topics/index';
 import { createDb } from '@buzzkit/api/libs/database';
 import { encodeId } from '@buzzkit/api/libs/sqids';
@@ -47,7 +49,18 @@ export async function runLocalWindow(
   sendStep: SendStep
 ): Promise<void> {
   const { name, waitUntil } = waitStep;
-  const target = await context.do(`${name}:resolve`, async () => context.moment(waitUntil));
+  const target = await context.do(`${name}:resolve`, async () => {
+    const moment = context.moment(waitUntil);
+    const momentZone = moment.timezone ?? context.timezone();
+    if (sendStep.send.policy === 'ignore') return { at: moment.at, timezone: momentZone };
+    const db = createDb({ max: 1 }, { traced: false });
+    const tenant = await loadTenant(db, context.params.tenantId);
+    const quiet = resolveTenantSettings(tenant.settings).sendPolicy.quietHours;
+    if (!quiet) return { at: moment.at, timezone: momentZone };
+    const policyZone = policyTimezone(quiet, momentZone) ?? momentZone;
+    const shifted = shiftOutOfQuietHours(new Date(moment.at), quiet, policyZone);
+    return { at: shifted.getTime(), timezone: momentZone };
+  });
   const zone = target.timezone ?? context.timezone();
 
   context.current = sendStep.name;
@@ -105,6 +118,29 @@ export async function runSend(
       ...(send.data !== undefined
         ? { data: renderValue(send.data, scope, rendering) as Record<string, unknown> }
         : {}),
+      ...(send.imageUrl !== undefined ? { imageUrl: renderTemplate(send.imageUrl, scope, rendering) } : {}),
+      ...(send.sound !== undefined ? { sound: send.sound } : {}),
+      ...(send.badge !== undefined ? { badge: send.badge } : {}),
+      ...(send.threadId !== undefined ? { threadId: renderTemplate(send.threadId, scope, rendering) } : {}),
+      ...(send.collapseId !== undefined
+        ? { collapseId: renderTemplate(send.collapseId, scope, rendering) }
+        : {}),
+      ...(send.interruptionLevel !== undefined ? { interruptionLevel: send.interruptionLevel } : {}),
+      ...(send.relevanceScore !== undefined ? { relevanceScore: send.relevanceScore } : {}),
+      ...(send.priority !== undefined ? { priority: send.priority } : {}),
+      ...(send.deepLink !== undefined ? { deepLink: renderTemplate(send.deepLink, scope, rendering) } : {}),
+      ...(send.action !== undefined
+        ? {
+            action: {
+              name: send.action.name,
+              ...(send.action.data !== undefined
+                ? { data: renderValue(send.action.data, scope, rendering) as Record<string, unknown> }
+                : {}),
+            },
+          }
+        : {}),
+      ...(send.actions !== undefined ? { actions: send.actions } : {}),
+      ...(send.policy !== undefined ? { policy: send.policy } : {}),
       ...(local
         ? {
             deliver: 'local' as const,

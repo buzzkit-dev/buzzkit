@@ -19,6 +19,11 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
   const name = String(form.get('name') ?? '').trim();
   const description = String(form.get('description') ?? '').trim();
   const category = String(form.get('category') ?? '').trim();
+  const capRaw = String(form.get('dailyCap') ?? '').trim();
+  const dailyCap = capRaw === '' ? null : Number(capRaw);
+  if (dailyCap !== null && (!Number.isInteger(dailyCap) || dailyCap < 1 || dailyCap > 50)) {
+    return { ok: false, error: 'The daily cap is a whole number from 1 to 50.' };
+  }
   if (!name) return { ok: false, error: 'Give the topic a name.' };
   if (!slug || slug.length > 64 || !SLUG_PATTERN.test(slug)) {
     return { ok: false, error: 'Slugs are lowercase letters, numbers and single hyphens.' };
@@ -40,6 +45,7 @@ function readTopic(form: FormData): { ok: true; input: TopicInput } | { ok: fals
       name,
       description: description || undefined,
       category: category || null,
+      dailyCap,
       channels,
       defaultOptedIn: form.get('defaultOptedIn') === 'true',
       channelDefaults,

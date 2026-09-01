@@ -32,8 +32,16 @@ type Assumption = { matched: boolean; data: string; status: string };
 
 function assumableSteps(steps: Step[], into: Assumable[] = []): Assumable[] {
   for (const step of steps) {
-    if ('waitFor' in step) into.push({ name: step.name, kind: 'waitFor', event: step.waitFor.event });
+    if ('waitFor' in step) {
+      into.push({
+        name: step.name,
+        kind: 'waitFor',
+        event: step.waitFor.event ?? step.waitFor.events?.map((entry) => entry.event).join(' or ') ?? '',
+      });
+    }
     if ('fetch' in step) into.push({ name: step.name, kind: 'fetch', host: hostOf(step.fetch.url) });
+    if ('repeat' in step) assumableSteps(step.repeat.steps, into);
+    if ('forEach' in step) assumableSteps(step.forEach.steps, into);
     if ('branch' in step) {
       for (const entry of Array.isArray(step.branch) ? step.branch : []) assumableSteps(entry.steps, into);
     }

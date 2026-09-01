@@ -265,6 +265,7 @@ describe('/v1/tenants (workspace API key)', () => {
     expect(fresh.body.data?.settings).toEqual({
       identity: { requireVerification: false },
       channels: { push: { enabled: true }, email: { enabled: true } },
+      sendPolicy: { quietHours: null, dailyCap: null },
     });
 
     const disableEmail = await api<TenantDetail>('/v1/tenants/default', {

@@ -195,13 +195,14 @@ export class SubscriberActor extends Agent<Env> {
     runId: string,
     expression: WorkflowExpression,
     scope: Record<string, unknown>,
-    timezone: string
+    timezone: string,
+    iterationStartedAt: string | null = null
   ): boolean {
     const run = this.store.findRun(runId);
     return evaluateExpression(
       expression,
       (ref) => resolvePath(scope, ref),
-      historyOptions(this.store, run, timezone)
+      historyOptions(this.store, run, timezone, new Date(), iterationStartedAt)
     );
   }
 

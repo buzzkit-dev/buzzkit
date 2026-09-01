@@ -15,19 +15,28 @@ import {
   FETCH_ERROR_MODES,
   FETCH_METHODS,
   FETCH_TIMEOUT_PATTERN,
+  FOREACH_ITEM_ROOTS,
+  INTERRUPTION_LEVELS,
   MAX_BRANCH_CASES,
   MAX_BRANCH_DEPTH,
   MAX_EXPECTED_STATUSES,
   MAX_FETCH_HEADERS,
   MAX_FETCH_TIMEOUT_SECONDS,
+  MAX_FOREACH_ITEMS,
+  MAX_REPEAT_PASSES,
   MAX_RESET_EVENTS,
+  MAX_SEND_ACTIONS,
   MAX_STEPS,
+  MAX_WAIT_EVENTS,
   MAX_WAIT_SECONDS,
+  MIN_REPEAT_PASSES,
   NOW_PATH,
   RESERVED_EVENT_PREFIX,
   SECRET_NAME_PATTERN,
   SEGMENT_SLUG_PATTERN,
   SEND_CHANNELS,
+  SEND_POLICY_MODES,
+  SEND_PRIORITIES,
   STEP_KINDS,
   STEP_NAME_MAX_LENGTH,
   STEP_NAME_PATTERN,
@@ -82,11 +91,31 @@ const SEND_KEYS = [
   'data',
   'deliver',
   'skipIfSentWithin',
+  'imageUrl',
+  'sound',
+  'badge',
+  'threadId',
+  'collapseId',
+  'interruptionLevel',
+  'relevanceScore',
+  'priority',
+  'deepLink',
+  'action',
+  'actions',
+  'policy',
 ] as const;
 
 const FETCH_KEYS = ['method', 'url', 'headers', 'body', 'timeout', 'expect', 'as', 'onError'] as const;
 
-const WAIT_FOR_KEYS = ['event', 'where', 'settleFor', 'resetOn', 'timeout'] as const;
+const WAIT_FOR_KEYS = ['event', 'events', 'where', 'settleFor', 'resetOn', 'endOn', 'timeout'] as const;
+
+const ACTION_KEYS = ['id', 'title', 'destructive', 'foreground', 'input', 'placeholder'] as const;
+
+const REPEAT_KEYS = ['steps', 'every', 'max', 'until'] as const;
+
+const FOREACH_KEYS = ['items', 'as', 'max', 'steps'] as const;
+
+const ITEMS_PATH_PATTERN = /^[a-z][A-Za-z0-9_]*(\.[A-Za-z0-9_$-]+)+$|^[a-z][A-Za-z0-9_]*$/;
 
 const MOMENT_KEYS = ['delay', 'time', 'timezone'] as const;
 
@@ -132,6 +161,11 @@ function declaredVars(steps: unknown, names = new Set<string>()): Set<string> {
     if (!isRecord(step)) continue;
     if (isRecord(step.set) && typeof step.set.var === 'string') names.add(step.set.var);
     if (isRecord(step.fetch) && typeof step.fetch.as === 'string') names.add(step.fetch.as);
+    if (isRecord(step.forEach)) {
+      if (typeof step.forEach.as === 'string') names.add(step.forEach.as);
+      declaredVars(step.forEach.steps, names);
+    }
+    if (isRecord(step.repeat)) declaredVars(step.repeat.steps, names);
     if (Array.isArray(step.branch)) {
       for (const entry of step.branch) if (isRecord(entry)) declaredVars(entry.steps, names);
     }
@@ -299,13 +333,84 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
     else checkMoment(path, raw);
   };
 
+  const collectWaitedEvents = (raw: Node): unknown[] => {
+    if (raw.event !== undefined) return [raw.event];
+    if (Array.isArray(raw.events)) {
+      return raw.events.map((entry) => (isRecord(entry) ? entry.event : undefined));
+    }
+    return [];
+  };
+
+  const checkMatcher = (path: ExpressionPath, raw: unknown, label: string): boolean => {
+    if (!isRecord(raw)) {
+      report(path, `${label} is { "event", "where" }, got ${describe(raw)}.`);
+      return false;
+    }
+    checkUnknownKeys(path, raw, ['event', 'where'], label);
+    return checkEventName([...path, 'event'], raw.event);
+  };
+
   const checkWaitFor = (path: ExpressionPath, raw: unknown) => {
     if (!isRecord(raw)) {
       report(path, `"waitFor" takes { "event", "timeout" }, got ${describe(raw)}.`);
       return;
     }
     checkUnknownKeys(path, raw, WAIT_FOR_KEYS, 'a waitFor step');
-    checkEventName([...path, 'event'], raw.event);
+    if (raw.event !== undefined && raw.events !== undefined) {
+      report(path, 'A wait takes "event" or "events", not both.');
+    } else if (raw.events !== undefined) {
+      if (!Array.isArray(raw.events)) {
+        report(
+          [...path, 'events'],
+          `"events" takes a list of { "event", "where" }; the first to match ends the wait. Got ${describe(raw.events)}.`
+        );
+      } else if (raw.events.length === 0) {
+        report([...path, 'events'], '"events" cannot be empty: name at least one event to wait for.');
+      } else if (raw.events.length > MAX_WAIT_EVENTS) {
+        report(
+          [...path, 'events'],
+          `"events" takes at most ${MAX_WAIT_EVENTS} entries, got ${raw.events.length}.`
+        );
+      } else {
+        raw.events.forEach((entry, index) => {
+          checkMatcher([...path, 'events', index], entry, 'a waited event');
+        });
+      }
+      if (raw.where !== undefined) {
+        report([...path, 'where'], 'With "events", each entry carries its own "where".');
+      }
+    } else {
+      checkEventName([...path, 'event'], raw.event);
+    }
+    if (raw.endOn !== undefined) {
+      if (!Array.isArray(raw.endOn)) {
+        report(
+          [...path, 'endOn'],
+          `"endOn" takes a list of { "event", "where" } that end the wait unmatched, got ${describe(raw.endOn)}.`
+        );
+      } else if (raw.endOn.length === 0) {
+        report([...path, 'endOn'], '"endOn" cannot be empty: name the events that end the wait.');
+      } else if (raw.endOn.length > MAX_RESET_EVENTS) {
+        report(
+          [...path, 'endOn'],
+          `"endOn" takes at most ${MAX_RESET_EVENTS} entries, got ${raw.endOn.length}.`
+        );
+      } else {
+        const waited = collectWaitedEvents(raw);
+        raw.endOn.forEach((entry, index) => {
+          if (
+            checkMatcher([...path, 'endOn', index], entry, 'an ending event') &&
+            isRecord(entry) &&
+            waited.includes(entry.event)
+          ) {
+            report(
+              [...path, 'endOn', index],
+              `"${String(entry.event)}" is an event this step waits for; a match already ends the wait.`
+            );
+          }
+        });
+      }
+    }
     if (raw.timeout === undefined) {
       report(
         [...path, 'timeout'],
@@ -319,7 +424,7 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
       if (!Array.isArray(raw.resetOn) || raw.resetOn.length === 0) {
         report(
           [...path, 'resetOn'],
-          `"resetOn" takes a list of event names that restart the settle clock, got ${describe(raw.resetOn)}.`
+          `"resetOn" takes a list of events that restart the settle clock, got ${describe(raw.resetOn)}.`
         );
       } else if (raw.resetOn.length > MAX_RESET_EVENTS) {
         report(
@@ -327,15 +432,27 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
           `"resetOn" takes at most ${MAX_RESET_EVENTS} events, got ${raw.resetOn.length}.`
         );
       } else {
-        raw.resetOn.forEach((event, index) => {
-          if (checkEventName([...path, 'resetOn', index], event) && event === raw.event) {
+        const waited = collectWaitedEvents(raw);
+        raw.resetOn.forEach((entry, index) => {
+          const entryPath = [...path, 'resetOn', index];
+          const name = isRecord(entry) ? entry.event : entry;
+          const valid = isRecord(entry)
+            ? checkMatcher(entryPath, entry, 'a reset event')
+            : checkEventName(entryPath, entry);
+          if (valid && waited.includes(name)) {
             report(
-              [...path, 'resetOn', index],
-              `"${String(event)}" is the event this step waits for; it cannot also restart it.`
+              entryPath,
+              `"${String(name)}" is an event this step waits for; it cannot also restart it.`
             );
           }
         });
       }
+    }
+    if (raw.settleFor !== undefined && raw.events !== undefined) {
+      report(
+        [...path, 'settleFor'],
+        '"settleFor" works with a single "event"; with "events" the first match ends the wait.'
+      );
     }
     if (raw.settleFor !== undefined && raw.resetOn === undefined) {
       report([...path, 'resetOn'], '"settleFor" needs "resetOn": the events that restart the settle clock.');
@@ -384,6 +501,117 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
     }
     if (raw.skipIfSentWithin !== undefined) {
       checkDuration([...path, 'skipIfSentWithin'], raw.skipIfSentWithin, '"skipIfSentWithin"');
+    }
+    for (const key of ['imageUrl', 'sound', 'threadId', 'collapseId', 'deepLink'] as const) {
+      if (raw[key] === undefined) continue;
+      if (typeof raw[key] !== 'string') {
+        report([...path, key], `"${key}" takes a string, got ${describe(raw[key])}.`);
+      } else {
+        checkTemplate([...path, key], raw[key]);
+      }
+    }
+    if (
+      raw.badge !== undefined &&
+      (typeof raw.badge !== 'number' || !Number.isInteger(raw.badge) || raw.badge < 0)
+    ) {
+      report([...path, 'badge'], `"badge" takes a whole number, 0 or more, got ${describe(raw.badge)}.`);
+    }
+    if (
+      raw.relevanceScore !== undefined &&
+      (typeof raw.relevanceScore !== 'number' || raw.relevanceScore < 0 || raw.relevanceScore > 1)
+    ) {
+      report(
+        [...path, 'relevanceScore'],
+        `"relevanceScore" takes a number between 0 and 1, got ${describe(raw.relevanceScore)}.`
+      );
+    }
+    if (
+      raw.interruptionLevel !== undefined &&
+      !(INTERRUPTION_LEVELS as readonly unknown[]).includes(raw.interruptionLevel)
+    ) {
+      report(
+        [...path, 'interruptionLevel'],
+        `"interruptionLevel" must be one of ${list(INTERRUPTION_LEVELS)}, got ${describe(raw.interruptionLevel)}.`
+      );
+    }
+    if (raw.priority !== undefined && !(SEND_PRIORITIES as readonly unknown[]).includes(raw.priority)) {
+      report(
+        [...path, 'priority'],
+        `"priority" must be one of ${list(SEND_PRIORITIES)}, got ${describe(raw.priority)}.`
+      );
+    }
+    if (raw.policy !== undefined && !(SEND_POLICY_MODES as readonly unknown[]).includes(raw.policy)) {
+      report(
+        [...path, 'policy'],
+        `"policy" must be one of ${list(SEND_POLICY_MODES)}, got ${describe(raw.policy)}.`
+      );
+    }
+    if (raw.action !== undefined) {
+      if (!isRecord(raw.action) || typeof raw.action.name !== 'string' || raw.action.name.length === 0) {
+        report(
+          [...path, 'action'],
+          `"action" is { "name", "data" }: a handler the app registered, got ${describe(raw.action)}.`
+        );
+      } else {
+        checkUnknownKeys([...path, 'action'], raw.action, ['name', 'data'], 'an action');
+        if (raw.action.data !== undefined) {
+          if (!isRecord(raw.action.data)) {
+            report([...path, 'action', 'data'], `"data" takes an object, got ${describe(raw.action.data)}.`);
+          } else {
+            checkTemplates([...path, 'action', 'data'], raw.action.data);
+          }
+        }
+      }
+    }
+    if (raw.actions !== undefined) {
+      if (!Array.isArray(raw.actions) || raw.actions.length === 0) {
+        report(
+          [...path, 'actions'],
+          `"actions" takes a list of notification buttons { "id", "title" }, got ${describe(raw.actions)}.`
+        );
+      } else if (raw.actions.length > MAX_SEND_ACTIONS) {
+        report(
+          [...path, 'actions'],
+          `A notification shows at most ${MAX_SEND_ACTIONS} buttons, got ${raw.actions.length}.`
+        );
+      } else {
+        const ids = new Set<unknown>();
+        raw.actions.forEach((entry, index) => {
+          const entryPath = [...path, 'actions', index];
+          if (!isRecord(entry)) {
+            report(entryPath, `A button is { "id", "title" }, got ${describe(entry)}.`);
+            return;
+          }
+          checkUnknownKeys(entryPath, entry, ACTION_KEYS, 'a button');
+          for (const key of ['id', 'title'] as const) {
+            if (typeof entry[key] !== 'string' || entry[key].length === 0) {
+              report([...entryPath, key], `"${key}" takes a non-empty string, got ${describe(entry[key])}.`);
+            }
+          }
+          if (typeof entry.id === 'string') {
+            if (ids.has(entry.id))
+              report([...entryPath, 'id'], `"${entry.id}" is already a button of this send.`);
+            ids.add(entry.id);
+          }
+          for (const key of ['destructive', 'foreground', 'input'] as const) {
+            if (entry[key] !== undefined && typeof entry[key] !== 'boolean') {
+              report([...entryPath, key], `"${key}" takes true or false, got ${describe(entry[key])}.`);
+            }
+          }
+          if (entry.placeholder !== undefined && typeof entry.placeholder !== 'string') {
+            report(
+              [...entryPath, 'placeholder'],
+              `"placeholder" takes a string, got ${describe(entry.placeholder)}.`
+            );
+          }
+          if (entry.placeholder !== undefined && entry.input !== true) {
+            report(
+              [...entryPath, 'placeholder'],
+              '"placeholder" only means something on a button with "input": true.'
+            );
+          }
+        });
+      }
     }
   };
 
@@ -528,7 +756,13 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
     }
   };
 
-  const checkSteps = (path: ExpressionPath, raw: unknown, depth: number, seen: Set<string>) => {
+  const checkSteps = (
+    path: ExpressionPath,
+    raw: unknown,
+    depth: number,
+    seen: Set<string>,
+    loops: { inRepeat?: boolean; inForEach?: boolean } = {}
+  ) => {
     if (!Array.isArray(raw)) {
       report(path, `Steps are a list, got ${describe(raw)}.`);
       return;
@@ -587,15 +821,138 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
         case 'waitFor': {
           checkWaitFor([...stepPath, 'waitFor'], step.waitFor);
           const wait = step.waitFor;
-          if (isRecord(wait) && wait.where !== undefined) {
+          if (isRecord(wait)) {
+            if (wait.where !== undefined) {
+              checkExpression(
+                [...stepPath, 'waitFor', 'where'],
+                wait.where,
+                WAIT_FOR_REFS,
+                WORKFLOW_CONDITIONS,
+                seen
+              );
+            }
+            for (const key of ['events', 'resetOn', 'endOn'] as const) {
+              const entries = wait[key];
+              if (!Array.isArray(entries)) continue;
+              entries.forEach((entry, entryIndex) => {
+                if (isRecord(entry) && entry.where !== undefined) {
+                  checkExpression(
+                    [...stepPath, 'waitFor', key, entryIndex, 'where'],
+                    entry.where,
+                    WAIT_FOR_REFS,
+                    WORKFLOW_CONDITIONS,
+                    seen
+                  );
+                }
+              });
+            }
+          }
+          break;
+        }
+        case 'repeat': {
+          const repeat = step.repeat;
+          if (!isRecord(repeat)) {
+            report(
+              [...stepPath, 'repeat'],
+              `"repeat" takes { "steps", "every", "max", "until" }, got ${describe(repeat)}.`
+            );
+            break;
+          }
+          checkUnknownKeys([...stepPath, 'repeat'], repeat, REPEAT_KEYS, 'a repeat step');
+          if (loops.inRepeat) {
+            report([...stepPath, 'repeat'], 'Repeats do not nest. Restructure with one loop.');
+            break;
+          }
+          if (repeat.max === undefined) {
+            report(
+              [...stepPath, 'repeat', 'max'],
+              `A repeat needs a "max": how many passes at most, ${MIN_REPEAT_PASSES} to ${MAX_REPEAT_PASSES}.`
+            );
+          } else if (
+            typeof repeat.max !== 'number' ||
+            !Number.isInteger(repeat.max) ||
+            repeat.max < MIN_REPEAT_PASSES ||
+            repeat.max > MAX_REPEAT_PASSES
+          ) {
+            report(
+              [...stepPath, 'repeat', 'max'],
+              `"max" takes a whole number of passes, ${MIN_REPEAT_PASSES} to ${MAX_REPEAT_PASSES}, got ${describe(repeat.max)}.`
+            );
+          }
+          if (repeat.every === undefined) {
+            report([...stepPath, 'repeat', 'every'], 'A repeat needs an "every": the pause between passes.');
+          } else {
+            checkDuration([...stepPath, 'repeat', 'every'], repeat.every, '"every"');
+          }
+          if (repeat.until !== undefined) {
             checkExpression(
-              [...stepPath, 'waitFor', 'where'],
-              wait.where,
-              WAIT_FOR_REFS,
+              [...stepPath, 'repeat', 'until'],
+              repeat.until,
+              BRANCH_REFS,
               WORKFLOW_CONDITIONS,
               seen
             );
           }
+          checkSteps([...stepPath, 'repeat', 'steps'], repeat.steps, depth + 1, seen, {
+            ...loops,
+            inRepeat: true,
+          });
+          break;
+        }
+        case 'forEach': {
+          const forEach = step.forEach;
+          if (!isRecord(forEach)) {
+            report(
+              [...stepPath, 'forEach'],
+              `"forEach" takes { "items", "as", "max", "steps" }, got ${describe(forEach)}.`
+            );
+            break;
+          }
+          checkUnknownKeys([...stepPath, 'forEach'], forEach, FOREACH_KEYS, 'a forEach step');
+          if (loops.inForEach) {
+            report([...stepPath, 'forEach'], 'Data loops do not nest. Flatten the collection first.');
+            break;
+          }
+          if (typeof forEach.items !== 'string' || !ITEMS_PATH_PATTERN.test(forEach.items)) {
+            report(
+              [...stepPath, 'forEach', 'items'],
+              `"items" is a scope path to a list, such as "vars.workouts.items", got ${describe(forEach.items)}.`
+            );
+          } else {
+            const root = forEach.items.split('.')[0] as string;
+            if (!(FOREACH_ITEM_ROOTS as readonly string[]).includes(root)) {
+              report(
+                [...stepPath, 'forEach', 'items'],
+                `"items" starts from one of ${list(FOREACH_ITEM_ROOTS)}, got "${root}".`
+              );
+            }
+          }
+          if (typeof forEach.as !== 'string' || !VAR_NAME_PATTERN.test(forEach.as)) {
+            report(
+              [...stepPath, 'forEach', 'as'],
+              `"as" names the current item, readable as vars.<name> inside the loop, got ${describe(forEach.as)}.`
+            );
+          }
+          if (forEach.max === undefined) {
+            report(
+              [...stepPath, 'forEach', 'max'],
+              `A forEach needs a "max": how many items at most, 1 to ${MAX_FOREACH_ITEMS}.`
+            );
+          } else if (
+            typeof forEach.max !== 'number' ||
+            !Number.isInteger(forEach.max) ||
+            forEach.max < 1 ||
+            forEach.max > MAX_FOREACH_ITEMS
+          ) {
+            report(
+              [...stepPath, 'forEach', 'max'],
+              `"max" takes a whole number of items, 1 to ${MAX_FOREACH_ITEMS}, got ${describe(forEach.max)}.`
+            );
+          }
+          checkSteps([...stepPath, 'forEach', 'steps'], forEach.steps, depth + 1, seen, {
+            ...loops,
+            inForEach: true,
+          });
           break;
         }
         case 'branch': {
@@ -654,7 +1011,7 @@ export function lintWorkflow(value: unknown): WorkflowIssue[] {
               }
               checkExpression([...casePath, 'when'], entry.when, BRANCH_REFS, WORKFLOW_CONDITIONS, seen);
             }
-            checkSteps([...casePath, 'steps'], entry.steps, depth + 1, new Set(before));
+            checkSteps([...casePath, 'steps'], entry.steps, depth + 1, new Set(before), loops);
           });
           break;
         }

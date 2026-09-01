@@ -139,9 +139,19 @@ function renderedText(payload: StepPayload | undefined, key: string): string | n
 
 type Rule = { key: string; label: string; value: React.ReactNode };
 
+function stepChips(steps: Step[]) {
+  return (
+    <Row>
+      {steps.map((inner) => (
+        <Chip key={'name' in inner ? inner.name : 'exit'}>{'name' in inner ? inner.name : 'exit'}</Chip>
+      ))}
+    </Row>
+  );
+}
+
 function stepRules(step: Step): Rule[] {
   if ('waitFor' in step) {
-    const { settleFor, resetOn, timeout } = step.waitFor;
+    const { settleFor, resetOn, endOn, timeout } = step.waitFor;
     return [
       ...(settleFor ? [{ key: 'quiet', label: 'Quiet for', value: describeDuration(settleFor) }] : []),
       ...(resetOn && resetOn.length > 0
@@ -151,9 +161,29 @@ function stepRules(step: Step): Rule[] {
               label: 'Reset by',
               value: (
                 <Row>
-                  {resetOn.map((name) => (
-                    <Chip key={name} icon='IconZapFilled'>
-                      {name}
+                  {resetOn.map((entry) => {
+                    const name = typeof entry === 'string' ? entry : entry.event;
+                    return (
+                      <Chip key={name} icon='IconZapFilled'>
+                        {name}
+                      </Chip>
+                    );
+                  })}
+                </Row>
+              ),
+            },
+          ]
+        : []),
+      ...(endOn && endOn.length > 0
+        ? [
+            {
+              key: 'end',
+              label: 'Ended by',
+              value: (
+                <Row>
+                  {endOn.map((entry) => (
+                    <Chip key={entry.event} icon='IconZapFilled'>
+                      {entry.event}
                     </Chip>
                   ))}
                 </Row>
@@ -162,6 +192,41 @@ function stepRules(step: Step): Rule[] {
           ]
         : []),
       { key: 'timeout', label: 'Give up', value: describeTimeout(timeout).replace(/^for up to /, 'after ') },
+    ];
+  }
+  if ('repeat' in step) {
+    const { until, steps } = step.repeat;
+    const tree = until ? whereTree(until) : null;
+    return [
+      ...(tree
+        ? [
+            {
+              key: 'until',
+              label: 'Until',
+              value: (
+                <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
+                  <Tooltip>
+                    <TooltipTrigger render={<span className='flex min-w-0 cursor-default justify-end' />}>
+                      <ConditionChips tree={tree} limit={2} />
+                    </TooltipTrigger>
+                    <TooltipContent className='max-w-md p-2'>
+                      <ConditionSummary tree={tree} />
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ),
+            },
+          ]
+        : []),
+      { key: 'runs', label: 'Runs', value: stepChips(steps) },
+    ];
+  }
+  if ('forEach' in step) {
+    const { as, max, steps } = step.forEach;
+    return [
+      { key: 'as', label: 'Item as', value: `vars.${as}` },
+      { key: 'max', label: 'Up to', value: `${max} items` },
+      { key: 'runs', label: 'Runs', value: stepChips(steps) },
     ];
   }
   if ('fetch' in step) {
@@ -207,13 +272,19 @@ export function StepDetails({ step, payload }: { step: Step; payload?: StepPaylo
   if ('wait' in step) return <Note>Wait {describeDuration(step.wait)}</Note>;
   if ('waitUntil' in step) return <Note>Wait until {describeMoment(step.waitUntil)}</Note>;
   if ('waitFor' in step) {
-    const { event, where } = step.waitFor;
+    const { event, events, where } = step.waitFor;
+    const waited = event !== undefined ? [{ event }] : (events ?? []);
     const tree = where ? whereTree(where) : null;
     return (
       <span className='flex min-w-0 flex-col gap-1'>
         <Row>
           <Note>Wait for</Note>
-          <Chip icon='IconZapFilled'>{event}</Chip>
+          {waited.map((entry, index) => (
+            <span key={entry.event} className='flex items-center gap-1'>
+              {index > 0 && <Note>or</Note>}
+              <Chip icon='IconZapFilled'>{entry.event}</Chip>
+            </span>
+          ))}
         </Row>
         {tree && (
           <Row>
@@ -222,6 +293,22 @@ export function StepDetails({ step, payload }: { step: Step; payload?: StepPaylo
           </Row>
         )}
       </span>
+    );
+  }
+  if ('repeat' in step) {
+    const { every, max } = step.repeat;
+    return (
+      <Note>
+        Every {describeDuration(every)}, up to {max} passes
+      </Note>
+    );
+  }
+  if ('forEach' in step) {
+    return (
+      <Row>
+        <Note>For each of</Note>
+        <Chip icon='IconLayersTwoFilled'>{step.forEach.items}</Chip>
+      </Row>
     );
   }
   if ('branch' in step) {
@@ -278,6 +365,7 @@ export function StepDetails({ step, payload }: { step: Step; payload?: StepPaylo
       </Note>
     );
   }
+  if ('repeat' in step || 'forEach' in step) return null;
   const { title, body } = step.send;
   return (
     <span className='flex min-w-0 flex-col gap-0.5'>

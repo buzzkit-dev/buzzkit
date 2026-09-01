@@ -11,6 +11,7 @@ import {
 import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem } from '@buzzkit/ui/components/combobox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +20,9 @@ import {
   DropdownMenuTrigger,
 } from '@buzzkit/ui/components/dropdown-menu';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
+import { Input } from '@buzzkit/ui/components/input';
 import { toast } from '@buzzkit/ui/components/sonner';
+import { Switch } from '@buzzkit/ui/components/switch';
 import { useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
@@ -31,11 +34,11 @@ import {
   type ProviderEntry,
 } from '@/app/components/onboarding/catalog';
 import { ProviderDialog } from '@/app/components/onboarding/provider-dialog';
-import { SettingsRow, SettingsRows } from '@/app/components/settings/card';
+import { SettingsCard, SettingsRow, SettingsRows } from '@/app/components/settings/card';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { channelsAction } from '@/app/lib/actions/channels.server';
-import { type Credential, listCredentials } from '@/app/lib/api.server';
+import { type Credential, getTenant, listCredentials } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
@@ -56,8 +59,11 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const credentials = await listCredentials({ request, env }, token, params.slug, tenant);
-  return { credentials };
+  const [credentials, tenantDetail] = await Promise.all([
+    listCredentials({ request, env }, token, params.slug, tenant),
+    getTenant({ request, env }, token, params.slug, tenant),
+  ]);
+  return { credentials, sendPolicy: tenantDetail.settings.sendPolicy };
 }
 
 export const action = channelsAction;
@@ -167,11 +173,164 @@ function ProviderRow({
   );
 }
 
+const SUBSCRIBER_ZONE_LABEL = "Subscriber's timezone";
+
+function policyZones(): string[] {
+  const supported = (
+    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf?.('timeZone');
+  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return [SUBSCRIBER_ZONE_LABEL, ...new Set([local, 'UTC', ...(supported ?? [])])];
+}
+
+function SendPolicyCard({
+  policy,
+  canManage,
+}: {
+  policy: { quietHours: { from: string; to: string; timezone: string } | null; dailyCap: number | null };
+  canManage: boolean;
+}) {
+  const { submit, pending } = useActionFetcher();
+  const [quietEnabled, setQuietEnabled] = useState(policy.quietHours !== null);
+  const [from, setFrom] = useState(policy.quietHours?.from ?? '22:00');
+  const [to, setTo] = useState(policy.quietHours?.to ?? '08:00');
+  const [zone, setZone] = useState(
+    policy.quietHours && policy.quietHours.timezone !== 'subscriber'
+      ? policy.quietHours.timezone
+      : SUBSCRIBER_ZONE_LABEL
+  );
+  const [zones] = useState(policyZones);
+  const [capEnabled, setCapEnabled] = useState(policy.dailyCap !== null);
+  const [cap, setCap] = useState(String(policy.dailyCap ?? 3));
+
+  const storedZone = policy.quietHours?.timezone ?? 'subscriber';
+  const zoneValue = zone === SUBSCRIBER_ZONE_LABEL ? 'subscriber' : zone;
+  const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const fromValid = timePattern.test(from);
+  const toValid = timePattern.test(to);
+  const quietValid = !quietEnabled || (fromValid && toValid && from !== to);
+  const capNumber = Number(cap);
+  const capValid =
+    !capEnabled ||
+    (/^\d+$/.test(cap.trim()) && Number.isInteger(capNumber) && capNumber >= 1 && capNumber <= 50);
+  const dirty =
+    quietEnabled !== (policy.quietHours !== null) ||
+    capEnabled !== (policy.dailyCap !== null) ||
+    (quietEnabled &&
+      (from !== (policy.quietHours?.from ?? '22:00') ||
+        to !== (policy.quietHours?.to ?? '08:00') ||
+        zoneValue !== storedZone)) ||
+    (capEnabled && cap !== String(policy.dailyCap ?? 3));
+
+  const save = () =>
+    submit('policy', {
+      quietEnabled: String(quietEnabled),
+      from,
+      to,
+      timezone: zoneValue,
+      capEnabled: String(capEnabled),
+      cap,
+    });
+
+  return (
+    <SettingsCard
+      title='Send policy'
+      description='Limits that apply to every send on this tenant.'
+      footer={
+        canManage
+          ? 'A send with policy set to ignore always passes through.'
+          : 'Only admins and owners can edit the send policy.'
+      }
+      action={
+        canManage ? (
+          <Button size='xs' disabled={!dirty || !quietValid || !capValid || pending} onClick={save}>
+            Save
+          </Button>
+        ) : undefined
+      }
+    >
+      <SettingsRows>
+        <SettingsRow
+          title='Quiet hours'
+          subtitle='Sends inside the window wait for the next allowed time.'
+          end={
+            <span className='flex items-center gap-2'>
+              {quietEnabled && (
+                <>
+                  <Input
+                    value={from}
+                    onChange={(event) => setFrom(event.target.value)}
+                    className='w-[74px]'
+                    placeholder='22:00'
+                    aria-invalid={!fromValid || (toValid && from === to) ? true : undefined}
+                    disabled={!canManage}
+                  />
+                  <span className='text-fg-2 text-xs'>to</span>
+                  <Input
+                    value={to}
+                    onChange={(event) => setTo(event.target.value)}
+                    className='w-[74px]'
+                    placeholder='08:00'
+                    aria-invalid={!toValid || (fromValid && from === to) ? true : undefined}
+                    disabled={!canManage}
+                  />
+                  <Combobox
+                    items={zones}
+                    value={zone}
+                    onValueChange={(next) => {
+                      if (typeof next === 'string') setZone(next);
+                    }}
+                  >
+                    <ComboboxInput
+                      className='w-48'
+                      placeholder='Search timezones'
+                      autoComplete='off'
+                      spellCheck={false}
+                      disabled={!canManage}
+                    />
+                    <ComboboxContent>
+                      {(label: string) => (
+                        <ComboboxItem key={label} value={label}>
+                          {label}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxContent>
+                  </Combobox>
+                </>
+              )}
+              <Switch checked={quietEnabled} onCheckedChange={setQuietEnabled} disabled={!canManage} />
+            </span>
+          }
+        />
+        <SettingsRow
+          title='Daily cap'
+          subtitle='Per subscriber per day in their own timezone; sends past it fail as capped.'
+          end={
+            <span className='flex items-center gap-2'>
+              {capEnabled && (
+                <Input
+                  value={cap}
+                  onChange={(event) => setCap(event.target.value)}
+                  className='w-16'
+                  inputMode='numeric'
+                  aria-invalid={capValid ? undefined : true}
+                  disabled={!canManage}
+                />
+              )}
+              <Switch checked={capEnabled} onCheckedChange={setCapEnabled} disabled={!canManage} />
+            </span>
+          }
+        />
+      </SettingsRows>
+    </SettingsCard>
+  );
+}
+
 export default function ChannelsRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const location = useLocation();
   const { submit, pending } = useActionFetcher(() => setRemoveOpen(false));
-  const { credentials } = loaderData;
+  const { credentials, sendPolicy } = loaderData;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [removing, setRemoving] = useState<{ provider: ProviderEntry; credentials: Credential[] } | null>(
     null
@@ -192,6 +351,8 @@ export default function ChannelsRoute({ loaderData, params }: Route.ComponentPro
           </p>
         </div>
       </header>
+
+      <SendPolicyCard policy={sendPolicy} canManage={canManage} />
 
       {CHANNELS.filter((channel) => channel.available).map((channel) => (
         <Card key={channel.id} className='shrink-0'>

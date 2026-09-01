@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, channel, createdAt, deletedAt, updatedAt } from './shared';
 import { subscriber } from './subscriber';
 import { tenant } from './tenant';
@@ -34,6 +34,7 @@ export const topic = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     categoryId: bigRef('category_id').references(() => topicCategory.id, { onDelete: 'set null' }),
+    dailyCap: integer('daily_cap'),
     defaultOptedIn: boolean('default_opted_in').notNull().default(true),
     channelDefaults: jsonb('channel_defaults').notNull().default({}),
     channels: channel('channels').array().notNull().default(sql`'{push,email}'::channel[]`),

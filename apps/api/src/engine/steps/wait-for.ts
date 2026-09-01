@@ -2,17 +2,44 @@ import {
   type Duration,
   describeDuration,
   durationSeconds,
+  type EventMatcher,
   type WaitForStep,
 } from '@buzzkit/schema/workflows';
 import { MAX_SETTLE_ROUNDS } from '../constants';
 import type { RunContext } from '../context';
 import type { WaitPayload } from '../types';
 
-type Settled = { at: string; matched: boolean; eventName: string | null; dataJson: string | null };
+type Settled = {
+  at: string;
+  matched: boolean;
+  eventName: string | null;
+  dataJson: string | null;
+  endedBy?: string | null;
+};
 
-function received(payload: WaitPayload | null, event: string): string {
-  if (!payload) return `No ${event} in time`;
-  return `Received ${payload.name === 'assumed' ? event : payload.name}`;
+function waitedMatchers(waitFor: WaitForStep['waitFor']): EventMatcher[] {
+  if (waitFor.events !== undefined) return waitFor.events;
+  return [
+    { event: waitFor.event as string, ...(waitFor.where !== undefined ? { where: waitFor.where } : {}) },
+  ];
+}
+
+function endMatchers(waitFor: WaitForStep['waitFor']): EventMatcher[] {
+  return waitFor.endOn ?? [];
+}
+
+function resetEventNames(waitFor: WaitForStep['waitFor']): string[] {
+  return (waitFor.resetOn ?? []).map((entry) => (typeof entry === 'string' ? entry : entry.event));
+}
+
+function describeWaited(matchers: EventMatcher[]): string {
+  return matchers.map((matcher) => matcher.event).join(' or ');
+}
+
+function received(payload: WaitPayload | null, waited: string, endedBy: string | null): string {
+  if (endedBy) return `Ended by ${endedBy}`;
+  if (!payload) return `No ${waited} in time`;
+  return `Received ${payload.name === 'assumed' ? waited : payload.name}`;
 }
 
 async function settle(
@@ -23,7 +50,8 @@ async function settle(
 ): Promise<WaitPayload | null | false> {
   const { name, waitFor } = current;
   const settleMs = durationSeconds(waitFor.settleFor as Duration) * 1000;
-  const resetOn = waitFor.resetOn ?? [];
+  const resetOn = resetEventNames(waitFor);
+  const waitedEvent = (waitFor.event ?? waitedMatchers(waitFor)[0]?.event) as string;
   let latest = first;
   for (let round = 0; round < MAX_SETTLE_ROUNDS; round += 1) {
     const suffix = round === 0 ? '' : `:${round}`;
@@ -31,7 +59,7 @@ async function settle(
       ? latest.timestamp
       : await context.do(`${name}:since${suffix}`, async () => {
           const actor = await context.actor();
-          return await actor.quietSince(waitFor.event, resetOn);
+          return await actor.quietSince(waitedEvent, resetOn);
         });
     if (since === null) {
       await context.do(`${name}:listen${suffix}`, async () => {
@@ -39,7 +67,7 @@ async function settle(
         await actor.registerWait(
           context.params.runId,
           name,
-          waitFor.event,
+          waitedEvent,
           waitFor.where ?? null,
           new Date(deadline).toISOString()
         );
@@ -70,6 +98,10 @@ async function settle(
 
 export async function runWaitFor(context: RunContext, current: WaitForStep): Promise<void> {
   const { name, waitFor } = current;
+  const matchers = waitedMatchers(waitFor);
+  const enders = endMatchers(waitFor);
+  const endNames = new Set(enders.map((matcher) => matcher.event));
+  const waited = describeWaited(matchers);
   const deadline = await context.deadline(waitFor.timeout);
   const expiresAt = new Date(deadline).toISOString();
   const settling = waitFor.settleFor ? ` and ${describeDuration(waitFor.settleFor)} of quiet` : '';
@@ -84,7 +116,7 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
           id: 'assumed',
         }
       : null;
-    await context.report(name, 'waiting', `Waiting for ${waitFor.event}${settling}`, { until: expiresAt });
+    await context.report(name, 'waiting', `Waiting for ${waited}${settling}`, { until: expiresAt });
     await context.sleep(
       `${name}:assumed`,
       outcome
@@ -93,11 +125,11 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
           : 0
         : deadline - context.now()
     );
-    await context.report(name, 'completed', received(outcome, waitFor.event), { matched: outcome !== null });
+    await context.report(name, 'completed', received(outcome, waited, null), { matched: outcome !== null });
     context.state.steps[name] = {
       at: new Date(context.now()).toISOString(),
       matched: outcome !== null,
-      event: outcome ? waitFor.event : null,
+      event: outcome ? (matchers[0]?.event ?? null) : null,
       data: outcome ? (JSON.parse(outcome.dataJson) as Record<string, unknown>) : null,
     };
     return;
@@ -105,10 +137,13 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
 
   await context.do(`${name}:register`, async () => {
     const actor = await context.actor();
-    await actor.registerWait(context.params.runId, name, waitFor.event, waitFor.where ?? null, expiresAt);
-    await context.report(name, 'waiting', `Waiting for ${waitFor.event}${settling}`, {
+    for (const matcher of [...matchers, ...enders]) {
+      await actor.registerWait(context.params.runId, name, matcher.event, matcher.where ?? null, expiresAt);
+    }
+    await context.report(name, 'waiting', `Waiting for ${waited}${settling}`, {
       until: expiresAt,
-      ...(waitFor.settleFor ? { settleFor: waitFor.settleFor, resetOn: waitFor.resetOn } : {}),
+      ...(enders.length > 0 ? { endOn: enders.map((matcher) => matcher.event) } : {}),
+      ...(waitFor.settleFor ? { settleFor: waitFor.settleFor, resetOn: resetEventNames(waitFor) } : {}),
     });
     return {};
   });
@@ -121,15 +156,22 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
     outcome = await context.listen(name, `${name}:wait`, deadline - context.now());
   }
 
+  const endedBy = outcome !== null && endNames.has(outcome.name) ? outcome.name : null;
+  const matched = outcome !== null && endedBy === null;
+
   const settled = (await context.do(`${name}:settle`, async () => {
     const actor = await context.actor();
     await actor.deregisterWait(context.params.runId, name);
-    await context.report(name, 'completed', received(outcome, waitFor.event), { matched: outcome !== null });
+    await context.report(name, 'completed', received(outcome, waited, endedBy), {
+      matched,
+      ...(endedBy ? { endedBy } : {}),
+    });
     return {
       at: new Date(context.now()).toISOString(),
-      matched: outcome !== null,
-      eventName: outcome ? waitFor.event : null,
-      dataJson: outcome?.dataJson ?? null,
+      matched,
+      eventName: matched && outcome ? outcome.name : null,
+      dataJson: matched ? (outcome?.dataJson ?? null) : null,
+      endedBy,
     };
   })) as Settled;
 
@@ -138,5 +180,6 @@ export async function runWaitFor(context: RunContext, current: WaitForStep): Pro
     matched: settled.matched,
     event: settled.eventName,
     data: settled.dataJson ? (JSON.parse(settled.dataJson) as Record<string, unknown>) : null,
+    ...(settled.endedBy ? { endedBy: settled.endedBy } : {}),
   };
 }

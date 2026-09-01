@@ -72,6 +72,7 @@ export const topics = new Elysia()
         name: TopicNameSchema,
         description: t.Optional(t.String({ maxLength: 500 })),
         category: t.Optional(t.String({ maxLength: 100 })),
+        dailyCap: t.Optional(t.Integer({ minimum: 1, maximum: 50 })),
         channels: t.Optional(TopicChannelsSchema),
         defaultOptedIn: t.Optional(t.Boolean()),
         channelDefaults: t.Optional(ChannelDefaultsSchema),

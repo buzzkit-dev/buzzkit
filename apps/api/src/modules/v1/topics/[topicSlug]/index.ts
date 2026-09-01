@@ -46,6 +46,7 @@ export const topic = new Elysia()
         body.name === undefined &&
         body.description === undefined &&
         body.category === undefined &&
+        body.dailyCap === undefined &&
         body.channels === undefined &&
         body.defaultOptedIn === undefined &&
         body.channelDefaults === undefined
@@ -78,6 +79,7 @@ export const topic = new Elysia()
         name: t.Optional(TopicNameSchema),
         description: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
         category: t.Optional(t.Union([t.String({ maxLength: 100 }), t.Null()])),
+        dailyCap: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 50 }), t.Null()])),
         channels: t.Optional(TopicChannelsSchema),
         defaultOptedIn: t.Optional(t.Boolean()),
         channelDefaults: t.Optional(ChannelDefaultsSchema),

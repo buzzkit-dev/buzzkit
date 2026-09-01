@@ -20,6 +20,8 @@ function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: 
   const title = String(form.get('title') ?? '').trim();
   const body = String(form.get('body') ?? '').trim();
   const when = String(form.get('when') ?? 'now');
+  const imageUrl = String(form.get('imageUrl') ?? '').trim();
+  const deepLink = String(form.get('deepLink') ?? '').trim();
   const at = String(form.get('at') ?? '').trim();
   const timezone = String(form.get('timezone') ?? '').trim();
 
@@ -39,6 +41,8 @@ function readMessage(form: FormData): { ok: true; input: MessageInput } | { ok: 
       ...(target === 'topic' ? { topic } : target === 'segment' ? { segment } : { to }),
       ...(title ? { title } : {}),
       ...(body ? { body } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
+      ...(deepLink ? { deepLink } : {}),
       ...(when === 'later' ? { schedule: { at, ...(timezone ? { timezone } : {}) } } : {}),
     },
   };

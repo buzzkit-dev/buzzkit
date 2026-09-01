@@ -23,6 +23,14 @@ export const MessagePayloadSchema = t.Object({
   ),
   relevanceScore: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
   targetContentId: t.Optional(t.String({ maxLength: 64 })),
+  deepLink: t.Optional(t.String({ maxLength: 2000 })),
+  action: t.Optional(
+    t.Object({
+      name: t.String({ minLength: 1, maxLength: 64 }),
+      data: t.Optional(t.Record(t.String(), t.Any())),
+    })
+  ),
+  policy: t.Optional(t.Literal('ignore')),
   actions: t.Optional(
     t.Array(
       t.Object({
