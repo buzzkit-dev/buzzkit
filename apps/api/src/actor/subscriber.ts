@@ -135,6 +135,10 @@ export class SubscriberActor extends Agent<Env> {
     });
   }
 
+  hasLocalScheduled(localId: string): boolean {
+    return this.store.hasLocalScheduled(localId);
+  }
+
   listRecent(limit = 50, beforeSequence?: number): ActorEventRow[] {
     return this.store.listRecent(limit, beforeSequence);
   }

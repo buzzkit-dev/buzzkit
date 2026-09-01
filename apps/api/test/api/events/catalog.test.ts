@@ -193,6 +193,7 @@ const sdkPayloads: Record<keyof typeof SDK_EVENTS, { valid: unknown; invalid: un
   'notification.delivered': { valid: { messageId: 'msg_1' }, invalid: { messageId: 1 } },
   'notification.opened': { valid: { messageId: 'msg_1', action: 'view' }, invalid: { action: false } },
   'notification.dismissed': { valid: { messageId: 'msg_1' }, invalid: { messageId: 9 } },
+  'local.scheduled': { valid: { localId: 'run_1:remind', messageId: 'msg_2' }, invalid: {} },
   'activity.started': { valid: { activityId: 'a1', attributesType: 'Match' }, invalid: { activityId: 1 } },
   'activity.ended': { valid: { activityId: 'a1' }, invalid: { attributesType: 2 } },
   'activity.dismissed': { valid: {}, invalid: 'gone' },

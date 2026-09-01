@@ -77,19 +77,34 @@ export async function runLocalWindow(
   await context.record(name, 'sleeping', `Waiting until ${moment}`, { until, timezone: target.timezone });
   await context.sleep(`${name}:sleep`, target.at - context.now());
   context.state.steps[name] = await context.record(name, 'completed', `Reached ${moment}`);
+
+  if (context.live && context.hasSubscriber) {
+    const localId = `${context.params.runId}:${sendStep.name}`;
+    const acked = await context.do(`${name}:ack`, async () => {
+      const actor = await context.actor();
+      return { acked: await actor.hasLocalScheduled(localId) };
+    });
+    if (!acked.acked) {
+      context.current = sendStep.name;
+      await context.withLoopFrame(`${sendStep.name}#fallback`, async () => {
+        await runSend(context, sendStep, { fallback: true });
+      });
+      context.current = name;
+    }
+  }
 }
 
 export async function runSend(
   context: RunContext,
   current: SendStep,
-  options?: { local?: { at: string; cancelOn: string[] } }
+  options?: { local?: { at: string; cancelOn: string[] }; fallback?: boolean }
 ): Promise<void> {
   const { name, send } = current;
   context.state.steps[name] = await context.do(`${name}:send`, async () => {
     const db = createDb({ max: 1 }, { traced: false });
     const tenant = await loadTenant(db, context.params.tenantId);
 
-    if (send.skipIfSentWithin && context.hasSubscriber) {
+    if (send.skipIfSentWithin && context.hasSubscriber && !options?.fallback) {
       const from = new Date(context.now() - durationSeconds(send.skipIfSentWithin) * 1000);
       if (await sentRecently(db, context, current, from)) {
         const what = send.topic ? `A ${send.topic} message` : 'This message';
@@ -103,7 +118,7 @@ export async function runSend(
     const rendering = context.rendering();
     const title = send.title !== undefined ? renderTemplate(send.title, scope, rendering) : null;
     const local =
-      send.deliver === 'local'
+      send.deliver === 'local' && !options?.fallback
         ? (options?.local ?? {
             at: wallClock(new Date(context.now()), context.timezone()),
             cancelOn: unconditionalCancelEvents(context.params.spec),
@@ -164,19 +179,21 @@ export async function runSend(
     const { message } = await createMessage(db, tenant, {
       to: [context.params.externalId],
       ...payload,
-      idempotencyKey: `${context.params.runId}:${name}`,
+      idempotencyKey: `${context.params.runId}:${name}${options?.fallback ? ':fallback' : ''}`,
       run: { id: context.params.runId, step: name },
     });
     await enqueueFanout(message.id);
 
     const messageId = encodeId('message', message.id);
-    const summary = local
-      ? title
-        ? `Scheduled “${title}” on the device`
-        : 'Scheduled a local notification on the device'
-      : title
-        ? `Sent “${title}”`
-        : 'Sent a message';
+    const summary = options?.fallback
+      ? 'No device confirmed the local schedule; sent as a push instead'
+      : local
+        ? title
+          ? `Scheduled “${title}” on the device`
+          : 'Scheduled a local notification on the device'
+        : title
+          ? `Sent “${title}”`
+          : 'Sent a message';
     await context.report(name, 'completed', summary, { messageId });
     return { at: new Date(context.now()).toISOString(), messageId, skipped: false };
   });

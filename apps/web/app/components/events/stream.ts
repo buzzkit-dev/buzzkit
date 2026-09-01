@@ -111,6 +111,11 @@ const RESERVED: Record<string, Definition> = {
     icon: 'IconBell2SnoozeFilled',
     describe: (data) => ({ detail: text(data, 'attributesType') }),
   },
+  '$local.scheduled': {
+    label: 'Local notification scheduled',
+    icon: 'IconCalendarClockFilled',
+    describe: (data) => ({ detail: text(data, 'localId') }),
+  },
   '$deeplink.opened': {
     label: 'Deep link opened',
     icon: 'IconChainLink3Filled',

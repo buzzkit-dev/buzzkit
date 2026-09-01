@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test';
 import type { Step } from '@buzzkit/schema/workflows';
+import { describe, expect, it } from 'vitest';
 import { describeStep, flattenSteps } from '@/app/components/workflows/describe';
 
 describe('E9 step vocabulary', () => {

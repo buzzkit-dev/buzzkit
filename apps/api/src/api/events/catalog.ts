@@ -72,6 +72,10 @@ export const SDK_EVENTS = {
     deepLink: t.Optional(t.String()),
   }),
   'notification.dismissed': t.Object({ messageId: t.Optional(t.String()) }),
+  'local.scheduled': t.Object({
+    localId: t.String(),
+    messageId: t.Optional(t.String()),
+  }),
   'activity.started': t.Object({
     activityId: t.Optional(t.String()),
     attributesType: t.Optional(t.String()),

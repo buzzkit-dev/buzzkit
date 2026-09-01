@@ -71,6 +71,15 @@ export class ActorStore {
     `;
   }
 
+  hasLocalScheduled(localId: string): boolean {
+    const [row] = this.sql<{ id: string }>`
+      SELECT id FROM events
+      WHERE name = '$local.scheduled' AND json_extract(data, '$.localId') = ${localId}
+      LIMIT 1
+    `;
+    return row !== undefined;
+  }
+
   lastEventAt(name: string): string | null {
     const [row] = this.sql<{ last_at: string }>`SELECT last_at FROM projections WHERE name = ${name}`;
     return row?.last_at ?? null;

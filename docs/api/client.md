@@ -22,7 +22,7 @@ Same headers; unregisters the caller's own subscription and returns it with `del
 
 ## POST /v1/client/events
 
-`{ externalId, identityHash?, source: "ios" | "android" | "web", events: [{ name, data?, timestamp?, id? }] }` — up to 100 events per call, batched by the SDK (offline queue, one UUID per event as `id`, the original `timestamp`). Custom names are yours; of the reserved `$` names only the SDK's own are accepted here (`$app.installed`, `$app.updated`, `$app.opened`, `$app.backgrounded`, `$session.ended`, `$notification.delivered`, `$notification.opened`, `$notification.dismissed`, `$activity.started`, `$activity.ended`, `$activity.dismissed`, `$activity.stale`, `$deeplink.opened`, `$action.triggered`, `$permission.changed`, `$identify`). Returns the tracked events with `status: "accepted" | "duplicate"`. See [events.md](events.md).
+`{ externalId, identityHash?, source: "ios" | "android" | "web", events: [{ name, data?, timestamp?, id? }] }` — up to 100 events per call, batched by the SDK (offline queue, one UUID per event as `id`, the original `timestamp`). Custom names are yours; of the reserved `$` names only the SDK's own are accepted here (`$app.installed`, `$app.updated`, `$app.opened`, `$app.backgrounded`, `$session.ended`, `$notification.delivered`, `$notification.opened`, `$notification.dismissed`, `$activity.started`, `$activity.ended`, `$activity.dismissed`, `$activity.stale`, `$local.scheduled`, `$deeplink.opened`, `$action.triggered`, `$permission.changed`, `$identify`). Returns the tracked events with `status: "accepted" | "duplicate"`. See [events.md](events.md).
 
 ## POST /v1/client/live-activities
 

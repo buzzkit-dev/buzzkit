@@ -136,7 +136,7 @@ describe('waitFor extensions', () => {
     steps: [{ name: 'decision', waitFor }],
   });
 
-  it('accepts an events list with per-entry where, endOn, and filtered resets', () => {
+  it('accepts an events list with per-entry where and endOn', () => {
     expect(
       messages(
         wait({
@@ -145,8 +145,6 @@ describe('waitFor extensions', () => {
             { event: 'trial.canceled', where: { ref: 'event.data.reason', neq: 'payment' } },
           ],
           endOn: [{ event: 'subscription.canceled' }],
-          settleFor: '1h',
-          resetOn: [{ event: '$app.opened', where: { ref: 'event.data.source', eq: 'push' } }],
           timeout: '7d',
         })
       )

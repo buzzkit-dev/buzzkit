@@ -134,6 +134,18 @@ describe('ActorStore', () => {
     });
   });
 
+  describe('hasLocalScheduled', () => {
+    it('finds an acknowledgment by its plan id and nothing else', () => {
+      const { store } = createActorStore();
+      store.insertEvent(
+        event({ id: 'evt_1', name: '$local.scheduled', data: { localId: '1-wf_a-2-3:remind' } })
+      );
+      store.insertEvent(event({ id: 'evt_2', name: 'workout.completed', data: { localId: 'other' } }));
+      expect(store.hasLocalScheduled('1-wf_a-2-3:remind')).toBe(true);
+      expect(store.hasLocalScheduled('1-wf_a-2-3:nudge')).toBe(false);
+    });
+  });
+
   describe('findByIdempotencyKey', () => {
     it('returns null when no row carries the key', () => {
       const { store } = createActorStore();
