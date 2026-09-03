@@ -48,6 +48,7 @@
     "./postcss.config": "./postcss.config.mjs",
     "./lib/*": "./src/lib/*.ts",
     "./components/icon": "./src/components/icon/index.tsx",
+    "./components/icon/paths": "./src/components/icon/paths.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts"
   }

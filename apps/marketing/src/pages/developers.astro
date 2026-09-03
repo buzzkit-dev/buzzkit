@@ -1,0 +1,91 @@
+---
+import PageHero from '../components/layout/PageHero.astro';
+import ProseSection from '../components/layout/ProseSection.astro';
+import ClosingCta from '../components/sections/ClosingCta.astro';
+import CodeBlock from '../components/ui/CodeBlock.astro';
+import Site from '../layouts/Site.astro';
+import { site } from '../lib/site';
+
+const quickstart = `curl ${site.apiUrl}/v1/messages \\
+  -H "Authorization: Bearer bk_ws_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "to": "user_42",
+    "title": "Leg day",
+    "body": "6:00 with Maya."
+  }'`;
+---
+
+<Site
+  title='Developers · BuzzKit'
+  image='/og/developers.png'
+  description='The BuzzKit developer hub: the quickstart, API keys and scopes, the REST reference and OpenAPI document, the iOS SDK, a sandbox tenant for testing, and the files agents read.'
+  markdownPath='/developers.md'
+>
+  <PageHero
+    title='Developers.'
+    continuation='One API, one key, one call to send.'
+    intro='Everything for integrating BuzzKit in one place: the quickstart, keys and scopes, the reference and its OpenAPI document, the SDKs, a sandbox for testing and the surface agents read.'
+  />
+  <ProseSection title='Quickstart'>
+    <p>
+      Create an account at <a href={site.signupUrl}>buzzkit.dev/signup</a>, upload the APNs key for your app under the
+      default tenant, and create a workspace API key. Then identify a subscriber with your own user id and send:
+    </p>
+    <CodeBlock lang='bash' code={quickstart} />
+    <p>
+      BuzzKit answers 202 with the message, resolves which devices are reachable, fans out through a durable queue and
+      records every delivery attempt. The full walkthrough, with the subscriber and device steps, is in
+      <a href={site.docsUrl}>the documentation</a>.
+    </p>
+  </ProseSection>
+  <ProseSection title='Keys and scopes'>
+    <p>
+      Every request carries <code>Authorization: Bearer &lt;key&gt;</code>. Workspace keys reach every tenant and pick
+      one with the <code>buzzkit-tenant</code> header, tenant keys are locked to one tenant, and client keys ship inside
+      the app and only reach the client API. Keys carry scopes such as <code>messages:send</code> or
+      <code>subscribers:read</code>, and the scope each operation needs is listed in the OpenAPI document.
+    </p>
+    <p>
+      Keys are created in the dashboard, shown once and revocable at any time. The complete flow for people and agents,
+      including every error code, is <a href='/auth.md'>auth.md</a>.
+    </p>
+  </ProseSection>
+  <ProseSection title='Reference'>
+    <p>
+      The REST API lives under <code>/v1</code> at <code>{site.apiUrl}</code>. Every response is a JSON envelope with
+      <code>success</code>, <code>data</code>, <code>error</code> and <code>metadata</code>, and errors carry a stable
+      snake_case code with the field that failed.
+    </p>
+    <ul>
+      <li><a href={site.docsUrl}>Documentation</a>: guides and the reference for every resource.</li>
+      <li><a href='/openapi.json'>OpenAPI document</a>: every operation with its scope, request and response schemas.</li>
+      <li><a href='/.well-known/api-catalog'>API catalog</a>: the RFC 9727 linkset that points at both.</li>
+      <li><a href={site.githubUrl}>The repository</a>: the API, the dashboard and the docs, MIT licensed.</li>
+    </ul>
+  </ProseSection>
+  <ProseSection title='SDKs'>
+    <p>
+      The <a href={site.iosSdkUrl}>iOS SDK</a> handles registration, identity, events, action buttons, Live Activities
+      and a notification settings screen in Swift. The server SDK lives in the repository under
+      <code>packages/buzzkit</code> and reaches npm with the public launch. Android follows on the same core.
+    </p>
+  </ProseSection>
+  <ProseSection title='Testing without touching production'>
+    <p>
+      A tenant is the isolation boundary, so a second tenant is a sandbox: its subscribers, credentials, sends and
+      workflows never mix with production, and an APNs key scoped to Apple's sandbox environment delivers to
+      development builds only. Workflows also have a dry run, <code>POST /v1/workflows/:slug/test</code>, which walks a
+      version through the engine for one subscriber and reports what it would have done without sending anything.
+    </p>
+  </ProseSection>
+  <ProseSection title='For agents'>
+    <p>
+      Every page on this site has a markdown twin and answers <code>Accept: text/markdown</code>.
+      <a href='/llms.txt'>llms.txt</a> is the index, <a href='/llms-full.txt'>llms-full.txt</a> is the whole site in one
+      file, and the <a href='/.well-known/agent-skills/buzzkit/SKILL.md'>integration skill</a> packages the steps above
+      for coding agents. The <a href='/.well-known/ard.json'>resource catalog</a> lists all of it.
+    </p>
+  </ProseSection>
+  <ClosingCta />
+</Site>

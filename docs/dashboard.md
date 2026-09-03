@@ -65,7 +65,8 @@ Workspaces live at the dashboard root, `/:slug`, which is why every top-level da
 
 | Route | Purpose |
 |---|---|
-| `/` | Pure redirect: no session → `/login` · no workspace → `/onboarding` · else last-visited (or first) workspace |
+| `/` | Pure redirect: no session → `/login` · no workspace → `/onboarding` · else last-visited (or first) workspace. In production the root of buzzkit.dev is the marketing site, so the app's entry is `/dashboard` (same loader); every post-login and post-onboarding redirect targets `/dashboard` |
+| `/dashboard` | The dashboard's entry on the shared buzzkit.dev hostname: the same redirect as `/`. The marketing worker owns the root and its listed paths; the web worker takes `buzzkit.dev/*`, and every marketing path segment is a reserved workspace slug, enforced by `apps/api/test/utils/reservedSlugs.test.ts` |
 | `/login`, `/signup` | Auth forms; visiting with a session bounces to `/` |
 | `/onboarding` | Create the **first** workspace, step one of the onboarding (progress lines, step 1 active); with any workspace already, loader and action both redirect to `/` (further workspaces come from the switcher dialog, intent `create-workspace` on the workspace layout action); the API creates the `default` tenant in the same transaction, then the dashboard continues into `/:slug/onboarding`. With workspaces in hand the loader redirects to `/` and creation happens in the workspace switcher's dialog, whose fetcher posts to this route's action |
 | `/invite/:token` | Public invite preview; accept with a matching signed-in email |

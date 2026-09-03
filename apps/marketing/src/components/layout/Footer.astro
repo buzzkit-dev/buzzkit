@@ -1,0 +1,73 @@
+---
+import { comparisons } from '../../lib/compare';
+import { listFeatureGroups } from '../../lib/features';
+import { site } from '../../lib/site';
+import Logo from '../ui/Logo.astro';
+import FooterColumn, { type Column } from './FooterColumn.astro';
+
+const topColumns: Column[] = listFeatureGroups().map((group) => ({
+  label: group.label,
+  links: [
+    ...group.features.map((feature) => ({ label: feature.name, href: `/features/${feature.slug}` })),
+    ...group.upcoming.map((feature) => ({ label: feature.name })),
+  ],
+}));
+
+const bottomColumns: Column[] = [
+  {
+    label: 'Product',
+    links: [
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'Dashboard', href: site.dashboardUrl },
+      { label: 'Documentation', href: site.docsUrl },
+    ],
+  },
+  {
+    label: 'Compare',
+    links: comparisons.map((comparison) => ({
+      label: comparison.short ?? comparison.competitor,
+      href: `/compare/${comparison.slug}`,
+    })),
+  },
+  {
+    label: 'Developers',
+    links: [
+      { label: 'Overview', href: '/developers' },
+      { label: 'API Reference', href: site.docsUrl },
+      { label: 'OpenAPI', href: '/openapi.json' },
+      { label: 'GitHub', href: site.githubUrl },
+      { label: 'View as Markdown', href: '/index.md' },
+      { label: 'Agent Skills' },
+    ],
+  },
+  {
+    label: 'Company',
+    links: [
+      { label: 'About', href: '/about' },
+      { label: 'Contact', href: '/contact' },
+      { label: 'Privacy', href: '/privacy' },
+    ],
+  },
+];
+---
+
+<footer class='border-bg-3 border-t bg-background-subtle px-6 py-16'>
+  <div class='mx-auto grid max-w-5xl gap-x-8 gap-y-6 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]'>
+    <div class='flex flex-col gap-3 md:row-span-2'>
+      <a href='/' class='flex items-center gap-2 text-fg-4' aria-label='BuzzKit home'>
+        <Logo class='size-6' />
+        <span class='font-semibold text-base tracking-tight'>BuzzKit</span>
+      </a>
+      <p class='max-w-xs text-fg-2 text-sm text-pretty'>
+        The open source notification orchestration layer. Built in the open, for developers and their agents.
+      </p>
+      <p class='mt-auto pt-6 text-fg-1 text-sm'>© 2026 BuzzKit</p>
+    </div>
+    <div class='grid grid-cols-2 gap-8 sm:grid-cols-4 md:col-span-4 md:grid-cols-subgrid'>
+      {topColumns.map((column) => <FooterColumn column={column} />)}
+    </div>
+    <div class='grid grid-cols-2 gap-8 border-bg-3 border-t pt-6 sm:grid-cols-4 md:col-span-4 md:grid-cols-subgrid'>
+      {bottomColumns.map((column) => <FooterColumn column={column} />)}
+    </div>
+  </div>
+</footer>

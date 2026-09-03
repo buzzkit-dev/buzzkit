@@ -18,6 +18,7 @@ Open-source, self-hostable, code-first push notification framework. A developer-
 ```
 apps/
 ├── api/          @buzzkit/api       Cloudflare Worker API (Elysia)
+├── marketing/    @buzzkit/marketing Marketing site at buzzkit.dev (Astro static on Cloudflare Workers)
 └── web/          @buzzkit/web       Platform dashboard (React Router 8 SSR on Cloudflare Workers)
 
 packages/

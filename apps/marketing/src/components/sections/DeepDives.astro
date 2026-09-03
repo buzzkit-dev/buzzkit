@@ -1,0 +1,19 @@
+---
+import { deepDives } from '../../lib/content';
+import { SWIFT_GUIDE } from '../../lib/snippets';
+import { DeliveryLedger } from '../features/DeliveryLedger';
+import CodeBlock from '../ui/CodeBlock.astro';
+import DeepDive from './DeepDive.astro';
+
+const byId = new Map(deepDives.map((dive) => [dive.id, dive]));
+const delivery = byId.get('delivery')!;
+const ios = byId.get('ios')!;
+---
+
+<DeepDive dive={delivery} tone='text-amber-4' reverse>
+  <DeliveryLedger client:visible />
+</DeepDive>
+
+<DeepDive dive={ios} tone='text-sky-4'>
+  <CodeBlock code={SWIFT_GUIDE} lang='swift' />
+</DeepDive>

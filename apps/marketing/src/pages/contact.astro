@@ -1,0 +1,42 @@
+---
+import PageHero from '../components/layout/PageHero.astro';
+import ProseSection from '../components/layout/ProseSection.astro';
+import ClosingCta from '../components/sections/ClosingCta.astro';
+import Site from '../layouts/Site.astro';
+import { site } from '../lib/site';
+---
+
+<Site
+  title='Contact · BuzzKit'
+  image='/og/contact.png'
+  description='How to reach the BuzzKit project: email for questions, GitHub issues for bugs and feature requests, and the repository to follow development.'
+  markdownPath='/contact.md'
+>
+  <PageHero
+    title='Contact.'
+    continuation='Built in the open, answered by people.'
+    intro='The fastest way to reach the project depends on what you need.'
+  />
+  <ProseSection title='Email'>
+    <p>
+      For questions about the hosted version, self-hosting or anything that does not fit an issue, write to{' '}
+      <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>. Real people read it, so a clear description of what
+      you are trying to do gets the most useful answer.
+    </p>
+  </ProseSection>
+  <ProseSection title='Bugs and feature requests'>
+    <p>
+      Bugs, feature requests and questions about the code belong in{' '}
+      <a href={`${site.githubUrl}/issues`}>GitHub issues on the BuzzKit repository</a>. An issue with the request you
+      sent, the response you got and what you expected instead is usually enough to reproduce a problem.
+    </p>
+  </ProseSection>
+  <ProseSection title='Following development'>
+    <p>
+      Development happens in <a href={site.githubUrl}>the main repository</a> and{' '}
+      <a href={site.iosSdkUrl}>the iOS SDK repository</a>. Watching either on GitHub is the way to see releases as they
+      land.
+    </p>
+  </ProseSection>
+  <ClosingCta />
+</Site>

@@ -1,0 +1,39 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://buzzkit.dev/.well-known/api-catalog",
+      "item": [
+        {
+          "href": "https://api.buzzkit.dev/v1"
+        }
+      ]
+    },
+    {
+      "anchor": "https://api.buzzkit.dev/v1",
+      "service-desc": [
+        {
+          "href": "https://buzzkit.dev/openapi.json",
+          "type": "application/vnd.oai.openapi+json"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://docs.buzzkit.dev",
+          "type": "text/html"
+        }
+      ],
+      "service-meta": [
+        {
+          "href": "https://buzzkit.dev/auth.md",
+          "type": "text/markdown"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://api.buzzkit.dev/v1/health",
+          "type": "application/json"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "buzzkit-api",
+  "account_id": "e8563b02f2bf2b6a136f2781445a486f",
+  "routes": [{ "pattern": "api.buzzkit.dev", "custom_domain": true }],
   "main": "src/index.ts",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -13,11 +15,11 @@
   "preview_urls": true,
 
   "vars": {
-    "ENVIRONMENT": "development",
+    "ENVIRONMENT": "production",
     "WORKFLOW_TIME_SCALE": "1",
-    "DASHBOARD_URL": "http://localhost:5180",
+    "DASHBOARD_URL": "https://buzzkit.dev",
     "TRACE_SAMPLE_RATIO": "1",
-    "TINYBIRD_URL": "http://localhost:7181"
+    "TINYBIRD_URL": "https://api.us-east.aws.tinybird.co"
   },
 
   // Cloudflare Email Service. `remote: true` sends real email even in local
@@ -32,7 +34,7 @@
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "your-hyperdrive-id",
+      "id": "9b6e6bad580a458d8079caeb73bd2f58",
       "localConnectionString": "postgresql://postgres:postgres@localhost:5460/buzzkit"
     }
   ],
@@ -42,15 +44,15 @@
   "kv_namespaces": [
     {
       "binding": "AUTH_CACHE",
-      "id": "your-auth-cache-kv-id"
+      "id": "db4ac8ad2808400eb5cebfd1a86e9dcd"
     },
     {
       "binding": "PROVIDER_CACHE",
-      "id": "your-provider-cache-kv-id"
+      "id": "a5e8761f3c154d63bdc7ad831492b092"
     },
     {
       "binding": "ENGINE_DEFS",
-      "id": "your-engine-defs-kv-id"
+      "id": "82b773dd78654313a208b6f882b9e01d"
     }
   ],
 

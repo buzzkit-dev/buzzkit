@@ -1,0 +1,20 @@
+---
+interface Props {
+  title: string;
+  continuation?: string;
+  intro: string;
+}
+
+const { title, continuation, intro } = Astro.props;
+---
+
+<section class='px-6 pt-16 pb-6 lg:pt-24'>
+  <div class='mx-auto flex max-w-5xl flex-col items-start gap-4'>
+    <h1 class='max-w-3xl font-medium text-3xl tracking-tight text-balance lg:text-4xl'>
+      <span class='text-fg-4'>{title}</span>
+      {continuation && <>{' '}<span class='text-fg-2'>{continuation}</span></>}
+    </h1>
+    <p class='max-w-2xl text-fg-2 text-lg text-pretty'>{intro}</p>
+    <slot />
+  </div>
+</section>

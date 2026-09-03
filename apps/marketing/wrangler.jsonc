@@ -1,0 +1,44 @@
+// Static marketing site: Astro output served from Workers static assets, with a
+// thin worker in front for markdown content negotiation and discovery headers.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "buzzkit-marketing",
+  "account_id": "e8563b02f2bf2b6a136f2781445a486f",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "routes": [
+    { "pattern": "buzzkit.dev/", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/index.md", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/features/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/compare/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/pricing*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/about*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/contact*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/privacy*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/docs*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/llms.txt", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/robots.txt", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/sitemap*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/.well-known/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/_astro/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/flags/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/og/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/logo.png", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/apple-touch-icon.png", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/openapi.json", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/auth.md", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/llms-full.txt", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/developers*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/api", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/api/*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/favicon.svg", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/buzzkit.svg", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/404*", "zone_name": "buzzkit.dev" }
+  ]
+}

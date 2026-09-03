@@ -12,19 +12,34 @@ type BabelNode = {
   [key: string]: unknown;
 };
 
-const ROOTS = ['apps/api/src', 'apps/api/test', 'apps/web/app', 'packages'];
+const ROOTS = [
+  'apps/api/src',
+  'apps/api/test',
+  'apps/web/app',
+  'apps/marketing/src',
+  'apps/marketing/worker',
+  'apps/marketing/scripts',
+  'packages',
+];
 
 const SKIPPED_SEGMENTS = new Set(['node_modules', '.types', 'dist', '.wrangler', 'generated']);
 
 const BANNED_VERB_PATTERN = /^(get|fetch|load|set|delete|destroy)[A-Z]/;
 
-const BANNED_VERB_ALLOWLIST = new Set(['deleteCache']);
+const BANNED_VERB_ALLOWLIST = new Set(['deleteCache', 'getStaticPaths']);
 
-const VERB_CHECK_ROOTS = ['apps/api/src', 'packages'];
+const VERB_CHECK_ROOTS = ['apps/api/src', 'apps/marketing', 'packages'];
 
 const COMMENT_CHECK_EXCLUDED_ROOTS = ['packages/ui'];
 
 const ALLOWED_COMMENT_PATTERN = /^\s*(biome-ignore|@ts-|\/\s*<reference|\/v1\/|#region|#endregion)/;
+
+function readSource(file: string): string {
+  const source = readFileSync(file, 'utf8');
+  if (!file.endsWith('.astro')) return source;
+  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  return match ? match[1]! : '';
+}
 
 function listSourceFiles(root: string): string[] {
   const files: string[] = [];
@@ -37,7 +52,7 @@ function listSourceFiles(root: string): string[] {
       files.push(...listSourceFiles(path));
       continue;
     }
-    if (/\.(ts|tsx)$/.test(entry) && !entry.endsWith('.d.ts')) files.push(path);
+    if (/\.(ts|tsx|astro)$/.test(entry) && !entry.endsWith('.d.ts')) files.push(path);
   }
 
   return files;
@@ -115,12 +130,12 @@ function run(): void {
 
   for (const root of ROOTS) {
     for (const file of listSourceFiles(root)) {
-      const source = readFileSync(file, 'utf8');
+      const source = readSource(file);
       let parsed: { program: BabelNode; comments?: BabelComment[] | null };
       try {
         parsed = parse(source, {
           sourceType: 'module',
-          plugins: file.endsWith('.tsx') ? ['typescript', 'jsx'] : ['typescript'],
+          plugins: file.endsWith('.ts') ? ['typescript'] : ['typescript', 'jsx'],
           attachComment: false,
         }) as unknown as { program: BabelNode; comments?: BabelComment[] | null };
       } catch (error) {

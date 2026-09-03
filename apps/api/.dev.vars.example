@@ -28,3 +28,8 @@ AXIOM_TRACES_DATASET=
 # `bun run --cwd packages/tinybird token` prints its workspace token; deployed, a workspace admin token
 # (ingest, queries and short-lived dashboard JWTs). TINYBIRD_URL is a wrangler var (http://localhost:7181 locally).
 TINYBIRD_TOKEN=
+
+# Local overrides of the production values in wrangler.jsonc (wrangler dev applies .dev.vars over vars).
+ENVIRONMENT=development
+DASHBOARD_URL=http://localhost:5180
+TINYBIRD_URL=http://localhost:7181

@@ -1,0 +1,89 @@
+---
+import { Badge } from '@buzzkit/ui/components/badge';
+import { Card } from '@buzzkit/ui/components/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { ArtifactCard } from '../components/hero/Artifact';
+import PageHero from '../components/layout/PageHero.astro';
+import Button from '../components/ui/Button.astro';
+import Site from '../layouts/Site.astro';
+import { site } from '../lib/site';
+
+const attempts = [
+  { attempt: 1, outcome: 'Failed', code: 'page_not_found', latency: '4 ms' },
+  { attempt: 2, outcome: 'Failed', code: 'page_not_found', latency: '3 ms' },
+  { attempt: 3, outcome: 'Gave up', code: 'still_not_found', latency: '2 ms' },
+];
+---
+
+<Site title='Page not found · BuzzKit' description='This page does not exist.' noindex>
+  <PageHero
+    title='Page not found.'
+    continuation='This one never got delivered.'
+    intro='We retried, honestly. The homepage has everything, and the sitemap lists every page on this site.'
+  >
+    <div class='mt-2 flex items-center gap-3'>
+      <Button href='/'>Back to the Homepage</Button>
+      <Button href={site.docsUrl} variant='elevated' external>Read the API Reference</Button>
+    </div>
+  </PageHero>
+  <section class='px-6 py-10'>
+    <div
+      class='relative mx-auto flex max-w-5xl justify-center overflow-hidden rounded-3xl bg-linear-to-b from-brand-1 via-bg-2 to-bg-3 px-6 py-14 lg:px-14 lg:py-20'
+    >
+      <div class='pointer-events-none absolute inset-x-0 top-0 h-64 bg-radial-[at_50%_0%] from-brand-2/70 to-transparent to-70%'></div>
+      <div class='relative flex w-full max-w-3xl flex-col items-center gap-5 md:flex-row md:items-center md:gap-8'>
+        <ArtifactCard
+          artifact={{
+            id: 'not-found',
+            kind: 'banner',
+            app: 'BuzzKit',
+            title: 'Page not found',
+            body: 'Delivery failed after 3 attempts.',
+            when: 'now',
+          }}
+        />
+        <Card className='w-full max-w-md'>
+          <div class='flex items-center gap-2 border-bg-3 border-b px-4 py-3'>
+            <span class='font-medium text-fg-4 text-sm'>
+              Delivery to <span data-missing-path>this page</span>
+            </span>
+            <Badge size='sm' variant='red' className='ml-auto'>
+              Failed
+            </Badge>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Attempt</TableHead>
+                <TableHead>Outcome</TableHead>
+                <TableHead>Error</TableHead>
+                <TableHead>Latency</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {
+                attempts.map((row) => (
+                  <TableRow>
+                    <TableCell className='font-medium text-fg-4'>{row.attempt}</TableCell>
+                    <TableCell>
+                      <Badge size='sm' variant={row.outcome === 'Failed' ? 'red' : 'default'}>
+                        {row.outcome}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className='text-fg-2'>{row.code}</TableCell>
+                    <TableCell className='tabular-nums'>{row.latency}</TableCell>
+                  </TableRow>
+                ))
+              }
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+    </div>
+  </section>
+</Site>
+
+<script>
+  const target = document.querySelector('[data-missing-path]');
+  if (target && location.pathname !== '/404') target.textContent = location.pathname;
+</script>

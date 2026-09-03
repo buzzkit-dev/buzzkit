@@ -1,0 +1,79 @@
+---
+import { comparisons } from '../../lib/compare';
+import { agents } from '../../lib/content';
+import { features } from '../../lib/features';
+import Section from '../layout/Section.astro';
+import Icon from '../ui/Icon.astro';
+
+const links: { label: string; href?: string }[] = [
+  { label: 'llms.txt', href: '/llms.txt' },
+  { label: 'Agent Skills' },
+];
+
+const rows = [
+  agents.surface,
+  features.map((feature) => `/features/${feature.slug}.md`),
+  [...comparisons.map((page) => `/compare/${page.slug}.md`), '/about.md', '/contact.md', '/privacy.md'],
+];
+const speeds = ['marquee-slow', 'marquee-reverse', 'marquee'];
+const chip =
+  'rounded-full border border-background/15 bg-background/10 px-3 py-1 font-mono text-[11px] text-background/60 backdrop-blur-md';
+---
+
+<Section>
+  <div class='selection-inverse relative isolate overflow-hidden rounded-3xl bg-fg-4 p-8 lg:p-12 corner-superellipse/1.125'>
+    <div
+      class='pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle,var(--color-background)_1px,transparent_1.5px)] bg-[size:22px_22px] opacity-15 [mask-image:radial-gradient(70%_90%_at_85%_50%,black,transparent)]'
+    >
+    </div>
+    <div class='pointer-events-none absolute -top-40 -right-24 -z-10 size-[28rem] rounded-full bg-brand-4/35 blur-3xl'></div>
+    <div
+      class='pointer-events-none absolute inset-y-0 right-0 -z-10 hidden w-[38%] flex-col justify-center gap-3 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_30%,black_80%,transparent)] lg:flex'
+      aria-hidden='true'
+    >
+      {
+        rows.map((row, index) => (
+          <div class:list={['flex w-max motion-reduce:animate-none', speeds[index]]}>
+            {[0, 1].map(() => (
+              <div class='flex gap-3 pr-3'>
+                {row.map((item) => (
+                  <span class={chip}>{item}</span>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))
+      }
+    </div>
+    <div class='flex max-w-lg flex-col items-start gap-4'>
+      <h2 class='font-medium text-2xl text-background tracking-tight text-balance lg:text-3xl'>{agents.title}</h2>
+      <p class='text-background/70 text-pretty'>{agents.text}</p>
+      <div class='mt-2 flex items-center gap-2.5 rounded-xl bg-background/10 px-4 py-2.5 text-sm ring-1 ring-background/10 corner-superellipse/1.125'>
+        <Icon name='IconChevronRightMedium' class='size-3.5 text-pink-3' />
+        <span class='text-background/90'>{agents.prompt}</span>
+        <span class='h-4 w-px animate-pulse bg-background/70 motion-reduce:animate-none'></span>
+      </div>
+      <div class='flex flex-wrap items-center gap-4'>
+        {
+          links.map((link) =>
+            link.href ? (
+              <a
+                href={link.href}
+                class='flex items-center gap-1 font-medium text-background/70 text-sm transition-colors duration-150 hover:text-background active:text-background'
+              >
+                {link.label}
+                <Icon name='IconArrowUpRight' class='size-3.5' />
+              </a>
+            ) : (
+              <span class='flex items-center gap-2 font-medium text-background/50 text-sm'>
+                {link.label}
+                <span class='rounded-full bg-background/10 px-2 py-0.5 text-background/60 text-xs'>Soon</span>
+              </span>
+            )
+          )
+        }
+      </div>
+    </div>
+  </div>
+</Section>
+

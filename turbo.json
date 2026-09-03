@@ -21,8 +21,8 @@
     "@buzzkit/ui#generate:icons": {
       "inputs": [
         "scripts/generate-icons.ts",
-        "../../apps/**/*.{ts,tsx,jsx,mdx}",
-        "../../packages/**/*.{ts,tsx,jsx,mdx}",
+        "../../apps/**/*.{ts,tsx,jsx,mdx,astro}",
+        "../../packages/**/*.{ts,tsx,jsx,mdx,astro}",
         "!../../**/node_modules/**",
         "!src/components/icon/paths.ts"
       ],

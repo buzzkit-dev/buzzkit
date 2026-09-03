@@ -1,0 +1,30 @@
+---
+import { hero } from '../../lib/content';
+import { site } from '../../lib/site';
+import { HeroStacks } from '../hero/HeroStacks';
+import { HeroPreview } from '../platform/HeroPreview';
+import Button from '../ui/Button.astro';
+import Icon from '../ui/Icon.astro';
+---
+
+<section class='overflow-hidden px-6 pt-16 pb-11 lg:pt-24'>
+  <div class='relative mx-auto max-w-7xl'>
+    <HeroStacks client:load />
+    <div class='mx-auto flex max-w-3xl flex-col items-center gap-7 text-center'>
+      <h1 class='font-medium text-4xl text-fg-4 leading-[1.1] tracking-tight text-balance lg:text-[2.5rem]'>
+        {hero.headline}
+      </h1>
+      <div class='flex items-center gap-3'>
+        <Button href={site.signupUrl}>{hero.primaryCta}</Button>
+        <Button href={site.githubUrl} variant='elevated' external>
+          <Icon name='IconGithub' class='size-4.5' />
+          {hero.secondaryCta}
+        </Button>
+      </div>
+    </div>
+  </div>
+  <div class='relative mx-auto mt-14 h-[620px] max-w-5xl overflow-hidden rounded-3xl bg-linear-to-b from-brand-1 via-bg-2 to-bg-3'>
+    <div class='pointer-events-none absolute inset-x-0 top-0 h-64 bg-radial-[at_50%_0%] from-brand-2/70 to-transparent to-70%'></div>
+    <HeroPreview client:load />
+  </div>
+</section>

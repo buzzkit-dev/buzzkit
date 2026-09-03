@@ -1,0 +1,24 @@
+---
+import { DEFAULT_ICON_RADIUS, ICON_PATHS, type IconName } from '@buzzkit/ui/components/icon/paths';
+
+interface Props {
+  name: IconName;
+  class?: string;
+  label?: string;
+}
+
+const { name, class: className, label } = Astro.props;
+const variants = ICON_PATHS[name] ?? {};
+const markup = variants[DEFAULT_ICON_RADIUS] ?? Object.values(variants)[0] ?? '';
+const filled = name.endsWith('Filled');
+---
+
+<svg
+  viewBox='0 0 24 24'
+  fill='none'
+  class:list={['shrink-0', filled && 'opacity-50', className]}
+  aria-hidden={label ? undefined : 'true'}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  set:html={markup}
+/>

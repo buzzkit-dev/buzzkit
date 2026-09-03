@@ -1,0 +1,23 @@
+---
+import type { CompareCell } from '../../lib/compare';
+import Badge from '../ui/Badge.astro';
+import Icon from '../ui/Icon.astro';
+
+interface Props {
+  value: CompareCell;
+}
+
+const { value } = Astro.props;
+---
+
+{
+  value === true ? (
+    <Icon name='IconCheckmark1' class='size-4 rotate-[4deg] text-brand-4' label='Included' />
+  ) : value === false ? (
+    <span class='text-fg-1'>—</span>
+  ) : value === 'Soon' ? (
+    <Badge>Soon</Badge>
+  ) : (
+    value
+  )
+}

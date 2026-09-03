@@ -1,0 +1,45 @@
+name: Agentic audit
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Domain to audit
+        default: buzzkit.dev
+        required: true
+
+jobs:
+  audit:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    env:
+      TARGET: ${{ inputs.target || 'buzzkit.dev' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Is Agentic report
+        run: npx --yes is-agentic "$TARGET" --json > is-agentic.json
+      - name: Gate on essential checks
+        run: |
+          node -e '
+            const report = JSON.parse(require("fs").readFileSync("is-agentic.json", "utf8"));
+            const essential = report.score_breakdown.essential;
+            const failing = report.issues.filter((issue) => issue.tier === "essential");
+            console.log(`score ${report.score} (essential ${essential.passing}/${essential.total}, recommended ${report.score_breakdown.recommended.passing}/${report.score_breakdown.recommended.total}) scanned ${report.scanned_at}`);
+            console.log(report.report_url);
+            for (const issue of failing) console.log(`::error title=${issue.name}::${issue.recommendation}`);
+            for (const issue of report.issues.filter((issue) => issue.tier === "recommended")) console.log(`::warning title=${issue.name}::${issue.recommendation}`);
+            if (failing.length > 0) process.exit(1);
+          '
+      - name: Ora audit
+        run: npx --yes ax audit "https://$TARGET" --json > ora.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentic-audit-${{ github.run_id }}
+          path: |
+            is-agentic.json
+            ora.json

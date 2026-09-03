@@ -78,7 +78,7 @@ export async function requireAnonymous(request: Request, env: Env): Promise<void
   const cookie = request.headers.get('Cookie');
   if (!cookie || !readSessionToken(request)) return;
   const { data } = await betterAuth(env).getSession({ fetchOptions: { headers: { cookie } } });
-  if (data) throw redirect('/');
+  if (data) throw redirect('/dashboard');
 }
 
 export function signedOutRedirect(request: Request, env: Env, redirectTo = '/login'): Response {

@@ -1,0 +1,24 @@
+---
+import Agents from '../components/sections/Agents.astro';
+import ClosingCta from '../components/sections/ClosingCta.astro';
+import Faq from '../components/sections/Faq.astro';
+import FeatureBento from '../components/sections/FeatureBento.astro';
+import Hero from '../components/sections/Hero.astro';
+import SelfHost from '../components/sections/SelfHost.astro';
+import ValueProps from '../components/sections/ValueProps.astro';
+import Site from '../layouts/Site.astro';
+import { faq } from '../lib/content';
+import { site } from '../lib/site';
+import { faqStructuredData } from '../lib/structured-data';
+---
+
+<Site title={site.title} description={site.description} markdownPath='/index.md'>
+  <script type='application/ld+json' is:inline set:html={JSON.stringify(faqStructuredData(faq))} slot='head' />
+  <Hero />
+  <ValueProps />
+  <FeatureBento />
+  <Agents />
+  <SelfHost />
+  <Faq id='faq' title='Frequently asked questions' items={faq} />
+  <ClosingCta />
+</Site>

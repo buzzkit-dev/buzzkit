@@ -1,0 +1,11 @@
+---
+import { logo } from '../../lib/logo';
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<img src={logo.src} alt='' class:list={[logo.className, className]} />

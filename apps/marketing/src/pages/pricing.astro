@@ -1,0 +1,157 @@
+---
+import { Card } from '@buzzkit/ui/components/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import PageHero from '../components/layout/PageHero.astro';
+import Section from '../components/layout/Section.astro';
+import { Calculator } from '../components/pricing/Calculator';
+import { DeliveryHint } from '../components/pricing/DeliveryHint';
+import ClosingCta from '../components/sections/ClosingCta.astro';
+import Faq from '../components/sections/Faq.astro';
+import Badge from '../components/ui/Badge.astro';
+import Button from '../components/ui/Button.astro';
+import Icon from '../components/ui/Icon.astro';
+import Site from '../layouts/Site.astro';
+import {
+  calculator,
+  delivery,
+  matrix,
+  overage,
+  plans,
+  pricing,
+  pricingFaq,
+  providers,
+  unmetered,
+} from '../lib/pricing';
+import { faqStructuredData } from '../lib/structured-data';
+
+const cloudPlans = plans.filter((plan) => plan.slug !== 'community');
+const community = plans.find((plan) => plan.slug === 'community')!;
+const matrixPlans = [...cloudPlans, community];
+---
+
+<Site
+  title='Pricing · BuzzKit'
+  image='/og/pricing.png'
+  description={`${pricing.beta.title} ${pricing.intro}`}
+  markdownPath='/pricing.md'
+>
+  <script type='application/ld+json' is:inline set:html={JSON.stringify(faqStructuredData(pricingFaq))} slot='head' />
+  <PageHero title={pricing.title} continuation={pricing.continuation} intro={pricing.intro} />
+  <Section>
+    <div class='rounded-2xl bg-brand-1 px-5 py-4 text-sm corner-superellipse/1.125'>
+      <p class='text-pretty'>
+        <span class='font-medium text-fg-4'>{pricing.beta.title}</span>{' '}<span class='text-fg-3'>{pricing.beta.text}</span>
+      </p>
+    </div>
+    <div class='mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+      {
+        cloudPlans.map((plan) => (
+          <div class='flex flex-col gap-3 rounded-3xl bg-background-subtle p-5 ring-1 ring-bg-3/60 corner-superellipse/1.125'>
+            <div class='flex flex-col gap-1'>
+              <span class='font-medium text-fg-4 text-sm'>{plan.name}</span>
+              <span class='flex items-baseline gap-1 whitespace-nowrap'>
+                {plan.prefix && <span class='text-fg-2 text-sm'>{plan.prefix}</span>}
+                <span class='font-medium text-2xl text-fg-4 tracking-tight'>{plan.price}</span>
+                {plan.period && <span class='text-fg-2 text-sm'>{plan.period}</span>}
+              </span>
+            </div>
+            <p class='min-h-[2lh] text-fg-2 text-sm leading-normal text-pretty'>{plan.audience}</p>
+            <dl class='flex flex-col gap-2 border-bg-3 border-t pt-3'>
+              {plan.numbers.map((entry) => (
+                <div class='flex flex-col'>
+                  <dt class='flex items-center gap-1 text-fg-2/60 text-xs'>
+                    {entry.label}
+                    {entry.label === 'Deliveries' && (
+                      <DeliveryHint client:visible text={delivery.text} rows={delivery.rows} />
+                    )}
+                  </dt>
+                  <dd class='text-fg-2 text-sm'>{entry.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div class='mt-auto pt-2'>
+              <Button href={plan.cta.href} variant={plan.cta.variant} external={plan.cta.href.startsWith('https://github')}>
+                {plan.cta.icon && <Icon name={plan.cta.icon} class='size-4.5' />}
+                {plan.cta.label}
+              </Button>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+    <div class='mt-4 flex flex-col gap-4 rounded-3xl bg-background-subtle p-5 ring-1 ring-bg-3/60 corner-superellipse/1.125 md:flex-row md:items-center md:justify-between'>
+      <p class='text-sm text-pretty flex flex-col'>
+        <span class='font-medium text-fg-4'>Or self-host.</span>{' '}<span class='text-fg-2'>{community.audience}</span>
+      </p>
+      <div class='shrink-0'>
+        <Button href={community.cta.href} variant={community.cta.variant} external>
+          <Icon name='IconGithub' class='size-4.5' />
+          {community.cta.label}
+        </Button>
+      </div>
+    </div>
+  </Section>
+  <Section>
+    <div class='flex flex-col items-start gap-3'>
+      <h2 class='max-w-md font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>{calculator.title}</h2>
+      <p class='max-w-2xl text-fg-2 text-pretty'>{calculator.text}</p>
+    </div>
+    <div class='mt-8'>
+      <Calculator client:visible delivery={delivery} />
+    </div>
+  </Section>
+  <Section>
+    <div class='flex flex-col items-start gap-3'>
+      <h2 class='max-w-md font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>Compare plans</h2>
+      <p class='max-w-2xl text-fg-2 text-pretty'>{providers.text}</p>
+    </div>
+    <Card className='mt-8'>
+      <Table className='table-fixed'>
+        <TableHeader>
+          <TableRow>
+            <TableHead className='w-[34%]'>
+              <span class='sr-only'>Feature</span>
+            </TableHead>
+            {matrixPlans.map((plan) => <TableHead>{plan.name}</TableHead>)}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {
+            matrix.map((group) => (
+              <>
+                <TableRow className='bg-bg-a1/40 hover:bg-bg-a1/40'>
+                  <TableCell colSpan={6} className='py-2 font-medium text-fg-2 text-xs'>
+                    {group.group}
+                  </TableCell>
+                </TableRow>
+                {group.rows.map((row) => (
+                  <TableRow>
+                    <TableCell className='text-fg-4'>
+                      <span class='flex items-center gap-2'>
+                        {row.feature}
+                        {row.planned && <Badge>Planned</Badge>}
+                      </span>
+                    </TableCell>
+                    {row.cells.map((cell) => (
+                      <TableCell className='text-fg-3'>
+                        {cell === true ? (
+                          <Icon name='IconCheckmark1' class='size-4 rotate-[4deg] text-brand-4' label='Included' />
+                        ) : cell === false ? (
+                          <span class='text-fg-1'>—</span>
+                        ) : (
+                          cell
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </>
+            ))
+          }
+        </TableBody>
+      </Table>
+    </Card>
+  </Section>
+  <Faq id='faq' items={pricingFaq} />
+  <ClosingCta />
+</Site>

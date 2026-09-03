@@ -1,0 +1,20 @@
+---
+import type { FaqItem } from '../../lib/content';
+import Section from '../layout/Section.astro';
+import { FaqList } from './FaqList';
+
+interface Props {
+  items: FaqItem[];
+  title?: string;
+  id?: string;
+}
+
+const { items, title = 'Questions', id } = Astro.props;
+---
+
+<Section id={id}>
+  <h2 class='font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>{title}</h2>
+  <div class='mt-6'>
+    <FaqList client:visible items={items} />
+  </div>
+</Section>

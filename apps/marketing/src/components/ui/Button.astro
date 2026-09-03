@@ -1,0 +1,40 @@
+---
+interface Props {
+  href: string;
+  variant?: 'default' | 'elevated' | 'soft' | 'ghost';
+  class?: string;
+  external?: boolean;
+}
+
+const { href, variant = 'default', class: className, external } = Astro.props;
+
+const base = [
+  'group/button relative isolate inline-flex w-fit shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap font-medium',
+  'corner-superellipse/1.125 transition-[color,opacity,scale] duration-150 ease-out',
+  "before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-['']",
+  'before:transition-[background-color,box-shadow,inset] before:duration-150 before:ease-out',
+  'active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y)',
+  'outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-2',
+  "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4.5",
+].join(' ');
+
+const variants = {
+  default:
+    'text-primary-foreground before:bg-primary before:shadow-control hover:before:bg-primary/80 active:before:bg-primary/80',
+  elevated:
+    'text-fg-4 before:bg-background before:shadow-control-elevated hover:before:shadow-control-elevated-hover active:before:bg-bg-1',
+  soft: 'text-fg-3 before:bg-bg-a1 hover:before:bg-bg-a2 active:before:bg-bg-a2',
+  ghost: 'text-fg-2 hover:text-fg-4 active:text-fg-4 hover:before:bg-bg-a2/70 active:before:bg-bg-a2/70',
+};
+
+const size = 'h-8 gap-1.5 rounded-xl px-2.5 text-sm';
+---
+
+<a
+  href={href}
+  class:list={[base, variants[variant], size, className]}
+  target={external ? '_blank' : undefined}
+  rel={external ? 'noreferrer' : undefined}
+>
+  <slot />
+</a>

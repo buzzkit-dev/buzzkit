@@ -14,7 +14,10 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:migrate:production": "bun scripts/production.ts migrate",
+    "db:push:production": "bun scripts/production.ts push",
+    "db:studio:production": "bun scripts/production.ts studio"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

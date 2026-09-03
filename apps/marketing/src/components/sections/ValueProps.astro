@@ -1,0 +1,26 @@
+---
+import { principles, valueProps } from '../../lib/content';
+import { highlight } from '../../lib/highlight';
+import { SEND_CURL } from '../../lib/snippets';
+import { ValueCards } from '../features/ValueCards';
+import Section from '../layout/Section.astro';
+
+const [codeFirst, multiTenant, ownKeys] = valueProps;
+const sendHtml = await highlight(SEND_CURL, 'bash');
+---
+
+<Section id='principles'>
+  <div class='flex flex-col items-start gap-2'>
+    <h2 class='max-w-xl font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>{principles.title}</h2>
+    <p class='max-w-lg text-fg-2 text-pretty'>{principles.text}</p>
+  </div>
+  <div class='mt-10'>
+    <ValueCards
+      client:visible
+      codeFirst={codeFirst!}
+      multiTenant={multiTenant!}
+      ownKeys={ownKeys!}
+      sendHtml={sendHtml}
+    />
+  </div>
+</Section>

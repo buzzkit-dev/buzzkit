@@ -13,6 +13,9 @@
     "apps/web": {
       "ignoreDependencies": ["tailwindcss"],
       "ignoreUnresolved": ["^\\./\\+types/"]
+    },
+    "apps/marketing": {
+      "entry": ["scripts/*.ts"]
     }
   }
 }

@@ -1,0 +1,5 @@
+Contact: mailto:hello@buzzkit.dev
+Expires: 2027-09-01T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://buzzkit.dev/.well-known/security.txt
+Policy: https://buzzkit.dev/privacy

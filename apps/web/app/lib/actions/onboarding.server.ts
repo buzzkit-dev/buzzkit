@@ -6,7 +6,7 @@ import { lastWorkspaceCookie } from '@/app/lib/session.server';
 
 export async function onboardingAction(args: ActionFunctionArgs) {
   const { env, token, ctx, form } = await beginAction(args);
-  if ((await listWorkspaces(ctx, token)).length > 0) throw redirect('/');
+  if ((await listWorkspaces(ctx, token)).length > 0) throw redirect('/dashboard');
 
   const result = await createWorkspaceFromForm(ctx, token, form);
   if (!result.ok) return data({ errors: result.errors }, { status: result.status });

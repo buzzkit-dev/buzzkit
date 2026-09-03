@@ -417,6 +417,10 @@ Draggable panel on [vaul](https://vaul.emilkowal.ski). Same anatomy as Sheet (`D
 
 **Drawer vs Sheet:** a drawer is *dragged*, a sheet is *opened*. Vaul is Radix-based, so its trigger takes `asChild`, not Base UI's `render`.
 
+### NavigationMenu
+
+`@buzzkit/ui/components/navigation-menu`, Base UI's navigation menu for site chrome (the marketing header; the dashboard sidebar stays a `HighlightList`). Triggers are the ghost text style at 32px with a chevron that turns on open; the popup is a portaled `rounded-xl` `bg-bg-1` surface on `shadow-3` that opens 8px below the trigger and **morphs between contents** instead of closing and reopening: the positioner slides to the new trigger and the popup animates its width and height on the sliding-indicator curve (250ms, `cubic-bezier(0.22, 1, 0.36, 1)`) while the outgoing content fades and shifts 32px in the direction of travel. Hover intent is Base UI's, so crossing the gap into the panel never closes it. Items are `NavigationMenuLink`s (`rounded-lg`, `bg-bg-a2/70` hover); a grid of them with an icon tile and a one-line summary is the menu shape, and a sliding highlight inside the grid follows the pointer the way the sidebar's does.
+
 ### Popover / Tooltip
 
 Popover: 288px, `rounded-xl`, title + description with no gap. Tooltip: a 24px dark chip, `rounded-lg`, no arrow — the 4px offset reads as attached. A `Kbd` inside a tooltip inverts automatically.

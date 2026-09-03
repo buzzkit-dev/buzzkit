@@ -11,5 +11,6 @@ Product and architecture documentation — the source of truth for what we're bu
 - [data-model.md](data-model.md) — schema conventions and tables per phase
 - [design.md](design.md) — the design system: tokens, components, motion, writing, the dashboard conventions (served at `/design.md`)
 - [dashboard.md](dashboard.md) — `apps/web`: auth architecture, route map, the onboarding flow, and the dashboard phase plan
+- [marketing.md](marketing.md) — `apps/marketing`: the buzzkit.dev site, its structure, and the agent surface (llms.txt, markdown twins, well-known catalogs) that must stay in sync with copy changes
 - [api/conventions.md](api/conventions.md) — envelope, ids, verbs, lists, errors, idempotency, headers — the contract every endpoint follows
 - api/ — one file per API resource: [health](api/health.md), [workspaces](api/workspaces.md), [tenants](api/tenants.md), [keys](api/keys.md), [credentials](api/credentials.md), [secrets](api/secrets.md), [audit](api/audit.md), [webhooks](api/webhooks.md), [sources](api/sources.md), [events](api/events.md), [segments](api/segments.md), [workflows](api/workflows.md), [subscribers](api/subscribers.md), [topics](api/topics.md), [messages](api/messages.md), [stats](api/stats.md), [client](api/client.md)

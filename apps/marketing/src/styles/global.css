@@ -1,0 +1,82 @@
+@import "@buzzkit/ui/globals.css";
+@source "../../../web/app/components";
+
+@theme {
+  --color-brand-1: oklch(0.962 0.018 273);
+  --color-brand-2: oklch(0.92 0.049 273);
+  --color-brand-3: oklch(0.794 0.105 278.36);
+  --color-brand-4: oklch(0.562 0.234 270.81);
+  --color-brand-deep: oklch(0.477 0.297 271.88);
+  --color-brand-text: oklch(0.49 0.222 271);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes step-pulse {
+  0%,
+  25%,
+  100% {
+    background-color: transparent;
+    color: var(--fg-3);
+  }
+  5%,
+  20% {
+    background-color: var(--bg-a1);
+    color: var(--fg-4);
+  }
+}
+
+.step-pulse {
+  animation: step-pulse 6s ease-in-out infinite;
+}
+
+body {
+  background: var(--background);
+  color: var(--fg-3);
+}
+
+:root {
+  --code-foreground: var(--color-fg-3);
+  --code-background: var(--color-bg-2);
+  --code-token-constant: var(--color-amber-text);
+  --code-token-string: var(--color-green-text);
+  --code-token-string-expression: var(--color-green-text);
+  --code-token-comment: var(--color-fg-1);
+  --code-token-keyword: var(--color-purple-text);
+  --code-token-parameter: var(--color-fg-4);
+  --code-token-function: var(--color-blue-text);
+  --code-token-punctuation: var(--color-fg-2);
+  --code-token-link: var(--color-sky-text);
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee,
+.marquee-slow,
+.marquee-reverse {
+  animation: marquee 52s linear infinite;
+  will-change: transform;
+}
+
+.marquee-slow {
+  animation-duration: 72s;
+}
+
+.marquee-reverse {
+  animation-duration: 62s;
+  animation-direction: reverse;
+}
+
+html {
+  scrollbar-width: auto;
+}
+
+html::-webkit-scrollbar {
+  display: initial;
+}

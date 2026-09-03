@@ -1,0 +1,18 @@
+---
+import { type CodeLanguage, highlight } from '../../lib/highlight';
+
+interface Props {
+  code: string;
+  lang?: CodeLanguage;
+  class?: string;
+}
+
+const { code, lang, class: className } = Astro.props;
+const html = await highlight(code, lang);
+---
+
+<pre
+  class:list={[
+    'overflow-x-auto rounded-xl bg-bg-2 px-4 py-3.5 font-mono text-[13px] text-fg-3 leading-6 whitespace-pre corner-superellipse/1.125',
+    className,
+  ]}><code class='font-mono' set:html={html} /></pre>

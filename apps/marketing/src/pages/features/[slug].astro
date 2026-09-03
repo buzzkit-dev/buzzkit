@@ -1,0 +1,134 @@
+---
+import { FeatureVignette } from '../../components/features/FeatureVignette';
+import PageHero from '../../components/layout/PageHero.astro';
+import Section from '../../components/layout/Section.astro';
+import ClosingCta from '../../components/sections/ClosingCta.astro';
+import Faq from '../../components/sections/Faq.astro';
+import Button from '../../components/ui/Button.astro';
+import Icon from '../../components/ui/Icon.astro';
+import { Snippet } from '../../components/ui/Snippet';
+import Site from '../../layouts/Site.astro';
+import { type FeatureGroup, features, findFeature, type VignetteKind } from '../../lib/features';
+import { type CodeLanguage, highlight } from '../../lib/highlight';
+import { site } from '../../lib/site';
+import { SEND_REQUEST, SWIFT } from '../../lib/snippets';
+import { faqStructuredData } from '../../lib/structured-data';
+
+const CHECK_TONES: Record<FeatureGroup, string> = {
+  Send: 'text-green-4',
+  Automate: 'text-purple-4',
+  Platform: 'text-amber-4',
+  SDKs: 'text-sky-4',
+};
+
+export function getStaticPaths() {
+  return features.map((entry) => ({ params: { slug: entry.slug } }));
+}
+
+const feature = findFeature(Astro.params.slug!);
+const related = feature.related.map(findFeature);
+const sectionCode = await Promise.all(
+  feature.sections.map((section) => (section.code ? highlight(section.code) : Promise.resolve(undefined)))
+);
+const VIGNETTE_CODE: Partial<Record<VignetteKind, [string, CodeLanguage]>> = {
+  send: [SEND_REQUEST, 'http'],
+  ios: [SWIFT, 'swift'],
+};
+const vignetteSnippet = VIGNETTE_CODE[feature.vignette];
+let vignetteCode: string | undefined;
+if (vignetteSnippet) vignetteCode = await highlight(vignetteSnippet[0], vignetteSnippet[1]);
+---
+
+<Site
+  title={`${feature.name} · BuzzKit`}
+  description={feature.summary}
+  markdownPath={`/features/${feature.slug}.md`}
+  image={`/og/features/${feature.slug}.png`}
+>
+  {feature.faq.length > 0 && (
+    <script type='application/ld+json' is:inline set:html={JSON.stringify(faqStructuredData(feature.faq))} slot='head' />
+  )}
+  <PageHero title={feature.title} continuation={feature.continuation} intro={feature.intro}>
+    <div class='mt-2 flex items-center gap-3'>
+      <Button href={site.signupUrl}>Get Started</Button>
+      <Button href={site.docsUrl} variant='elevated' external>Read the API Reference</Button>
+    </div>
+  </PageHero>
+  <section class='px-6 py-10'>
+    <div
+      class='relative mx-auto flex max-w-5xl justify-center overflow-hidden rounded-3xl bg-linear-to-b from-brand-1 via-bg-2 to-bg-3 px-6 py-14 lg:px-14 lg:py-20'
+    >
+      <div class='pointer-events-none absolute inset-x-0 top-0 h-64 bg-radial-[at_50%_0%] from-brand-2/70 to-transparent to-70%'></div>
+      <div class='relative flex w-full justify-center'>
+        <FeatureVignette client:visible kind={feature.vignette} code={vignetteCode} />
+      </div>
+    </div>
+  </section>
+  {
+    feature.sections.map((section, index) => (
+      <Section>
+        <div class='grid items-center gap-10 md:grid-cols-2 lg:gap-16'>
+          <div class:list={['flex min-w-0 flex-col items-start gap-3', index % 2 === 1 && 'md:order-2']}>
+            <h2 class='max-w-md font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>
+              {section.title}
+            </h2>
+            <p class='max-w-lg text-fg-2 text-pretty'>{section.text}</p>
+          </div>
+          <div class:list={['min-w-0', index % 2 === 1 && 'md:order-1']}>
+            {sectionCode[index] && <Snippet client:visible html={sectionCode[index]} className='min-w-0' maxHeight />}
+            {section.points && (
+              <ul class='flex flex-col gap-3 rounded-2xl bg-background-subtle p-6 ring-1 ring-bg-3/60'>
+                {section.points.map((point) => (
+                  <li class='flex items-center gap-2.5 text-fg-3 text-sm'>
+                    <Icon name='IconCheckmark1' class:list={['size-4 shrink-0 rotate-[4deg]', CHECK_TONES[feature.group]]} />
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </Section>
+    ))
+  }
+  {
+    feature.capabilities.length > 0 && (
+      <Section>
+        <div class='grid gap-x-8 gap-y-10 md:grid-cols-3'>
+          {feature.capabilities.map((capability) => (
+            <p class='border-bg-3 border-t pt-4 text-fg-2 text-sm text-pretty'>
+              <span class='font-medium text-fg-4'>{capability.title}.</span>{' '}{capability.text}
+            </p>
+          ))}
+        </div>
+      </Section>
+    )
+  }
+  {feature.faq.length > 0 && <Faq items={feature.faq} />}
+  {
+    related.length > 0 && (
+      <Section>
+        <div class='flex flex-col items-start gap-2'>
+          <h2 class='font-medium text-2xl text-fg-4 tracking-tight lg:text-3xl'>Goes well with</h2>
+        </div>
+        <div class='mt-8 grid gap-4 md:grid-cols-3'>
+          {related.map((entry) => (
+            <a
+              href={`/features/${entry.slug}`}
+              class='flex flex-col gap-3 rounded-2xl bg-background-subtle p-5 ring-1 ring-bg-3/60 transition-[box-shadow] duration-200 hover:ring-bg-4 active:ring-bg-4'
+            >
+              <span class='flex size-8 items-center justify-center rounded-xl bg-bg-2 text-fg-2 ring-1 ring-bg-4/70'>
+                <Icon name={entry.icon as never} class='size-4.5' />
+              </span>
+              <span class='flex flex-col gap-1'>
+                <span class='font-medium text-fg-4'>{entry.name}</span>
+                <span class='text-fg-2 text-sm text-pretty'>{entry.summary}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </Section>
+    )
+  }
+  <ClosingCta />
+</Site>

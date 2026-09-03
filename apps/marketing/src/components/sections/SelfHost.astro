@@ -1,0 +1,27 @@
+---
+import { selfHost } from '../../lib/content';
+import { SELF_HOST } from '../../lib/snippets';
+import Section from '../layout/Section.astro';
+import CodeBlock from '../ui/CodeBlock.astro';
+---
+
+<Section id='self-host'>
+  <div class='grid items-center gap-10 md:grid-cols-2 lg:gap-16'>
+    <div class='flex min-w-0 flex-col items-start gap-2'>
+      <h2 class='max-w-md font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>
+        {selfHost.title}
+      </h2>
+      <p class='max-w-lg text-fg-2 text-pretty'>{selfHost.text}</p>
+    </div>
+    <CodeBlock class='min-w-0' lang='bash' code={SELF_HOST} />
+  </div>
+  <div class='mt-12 grid gap-8 md:grid-cols-3'>
+    {
+      selfHost.facts.map((fact) => (
+        <p class='border-bg-3 border-t pt-4 text-fg-2 text-sm text-pretty'>
+          <span class='font-medium text-fg-4'>{fact.lead}</span>{' '}{fact.text}
+        </p>
+      ))
+    }
+  </div>
+</Section>

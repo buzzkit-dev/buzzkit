@@ -1,0 +1,5 @@
+dist/
+.astro/
+.wrangler/
+.playwright-mcp/
+worker-configuration.d.ts

@@ -174,10 +174,27 @@
           }
         }
       }
+    },
+    {
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off",
+            "noUnusedVariables": "off"
+          }
+        }
+      }
     }
   ],
   "files": {
-    "includes": ["**", "!**/worker-configuration.d.ts", "!.claude"]
+    "includes": [
+      "**",
+      "!**/worker-configuration.d.ts",
+      "!**/.astro",
+      "!.claude",
+      "!apps/marketing/public/openapi.json"
+    ]
   },
   "javascript": {
     "formatter": {

@@ -1,0 +1,24 @@
+---
+import { closing } from '../../lib/content';
+import { site } from '../../lib/site';
+import { HeroStacks } from '../hero/HeroStacks';
+import Section from '../layout/Section.astro';
+import Button from '../ui/Button.astro';
+import Icon from '../ui/Icon.astro';
+---
+
+<Section class='overflow-hidden pb-22'>
+  <div class='relative flex flex-col items-center gap-6 py-8 text-center lg:py-12'>
+    <HeroStacks client:visible />
+    <h2 class='max-w-xl font-medium text-2xl tracking-tight text-balance lg:text-3xl'>
+      <span class='text-fg-4'>{closing.title}</span>{' '}<span class='text-fg-2'>{closing.text}</span>
+    </h2>
+    <div class='flex items-center gap-3'>
+      <Button href={site.signupUrl}>Get Started</Button>
+      <Button href={site.githubUrl} variant='elevated' external>
+        <Icon name='IconGithub' class='size-4.5' />
+        Star on GitHub
+      </Button>
+    </div>
+  </div>
+</Section>

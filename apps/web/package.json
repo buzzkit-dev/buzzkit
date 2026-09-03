@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./components/*": "./app/components/*.tsx"
+  },
   "scripts": {
     "dev": "react-router dev --port 5180",
     "build": "react-router build",

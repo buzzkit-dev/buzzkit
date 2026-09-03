@@ -1,0 +1,37 @@
+---
+import { features } from '../../lib/content';
+import { FeatureCards } from '../features/FeatureCards';
+import Section from '../layout/Section.astro';
+import DeepDives from './DeepDives.astro';
+
+const byId = new Map(features.map((feature) => [feature.id, feature]));
+const copy = (id: string, slug: string) => {
+  const feature = byId.get(id)!;
+  return { title: feature.title, text: feature.text, href: `/features/${slug}` };
+};
+---
+
+<Section id='features'>
+  <div class='flex flex-col items-start gap-2'>
+    <h2 class='max-w-xl font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>
+      Everything a push needs.
+    </h2>
+    <p class='max-w-lg text-fg-2 text-pretty'>
+      The pieces every app rebuilds, shipped as one layer.
+    </p>
+  </div>
+  <div class='mt-10'>
+    <FeatureCards
+      client:visible
+      workflows={copy('workflows', 'workflows')}
+      segments={copy('segments', 'segments')}
+      scheduling={copy('scheduling', 'scheduling')}
+      preferences={copy('preferences', 'topics')}
+      sources={copy('sources', 'sources')}
+      liveActivities={copy('live-activities', 'live-activities')}
+    />
+  </div>
+  <div class='mt-4 flex flex-col gap-4'>
+    <DeepDives />
+  </div>
+</Section>

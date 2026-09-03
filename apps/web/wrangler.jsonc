@@ -1,6 +1,7 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "buzzkit-web",
+  "account_id": "e8563b02f2bf2b6a136f2781445a486f",
   "main": "./workers/app.ts",
   "compatibility_date": "2025-10-08",
   "compatibility_flags": ["nodejs_compat"],
@@ -11,11 +12,13 @@
 
   "upload_source_maps": true,
 
+  "routes": [{ "pattern": "buzzkit.dev/*", "zone_name": "buzzkit.dev" }],
+
   "workers_dev": true,
   "preview_urls": true,
 
   "vars": {
-    "ENVIRONMENT": "development",
-    "API_URL": "http://localhost:8790"
+    "ENVIRONMENT": "production",
+    "API_URL": "https://api.buzzkit.dev"
   }
 }

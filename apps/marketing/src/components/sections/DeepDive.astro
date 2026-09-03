@@ -1,0 +1,34 @@
+---
+import type { DeepDive } from '../../lib/content';
+import Icon from '../ui/Icon.astro';
+
+interface Props {
+  dive: DeepDive;
+  tone: string;
+  reverse?: boolean;
+}
+
+const { dive, tone, reverse = false } = Astro.props;
+---
+
+<div class='rounded-3xl bg-background-subtle p-7 ring-1 ring-bg-3/60 corner-superellipse/1.125'>
+  <div class='grid items-center gap-8 md:grid-cols-2 lg:gap-12'>
+    <div class:list={['flex min-w-0 flex-col items-start gap-2', reverse && 'md:order-2']}>
+      <h3 class='font-medium text-fg-4 text-xl leading-tighter text-balance'>{dive.title}</h3>
+      <p class='max-w-sm text-fg-2 text-sm leading-normal text-pretty'>{dive.text}</p>
+      <ul class='mt-2 flex flex-col gap-2'>
+        {
+          dive.points.map((point) => (
+            <li class='flex items-center gap-2 text-fg-3 text-sm'>
+              <Icon name='IconCheckmark1' class:list={['size-4 rotate-[4deg]', tone]} />
+              {point}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div class:list={['min-w-0', reverse && 'md:order-1']}>
+      <slot />
+    </div>
+  </div>
+</div>

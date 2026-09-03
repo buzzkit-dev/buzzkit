@@ -29,7 +29,7 @@ function* walk(dir: string): Generator<string> {
     if (SKIP_DIRS.has(entry) || entry.startsWith('.')) continue;
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) yield* walk(path);
-    else if (/\.(tsx?|jsx?|mdx)$/.test(entry)) yield path;
+    else if (/\.(tsx?|jsx?|mdx|astro)$/.test(entry)) yield path;
   }
 }
 

@@ -84,6 +84,15 @@ import { Input } from '@buzzkit/ui/components/input';
 import { Kbd, KbdGroup } from '@buzzkit/ui/components/kbd';
 import { Label } from '@buzzkit/ui/components/label';
 import { LivePing } from '@buzzkit/ui/components/live-ping';
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from '@buzzkit/ui/components/navigation-menu';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PastelAvatar } from '@buzzkit/ui/components/pastel-avatar';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
@@ -172,6 +181,7 @@ const SECTIONS = [
   { id: 'pill-tabs', label: 'Pill tabs' },
   { id: 'dropdown', label: 'Dropdown menu' },
   { id: 'popover', label: 'Popover' },
+  { id: 'navigation-menu', label: 'Navigation menu' },
   { id: 'tooltip', label: 'Tooltip' },
   { id: 'dialog', label: 'Dialog' },
   { id: 'alert-dialog', label: 'Alert dialog' },
@@ -1482,6 +1492,41 @@ export default function DesignSystem() {
               </div>
             </PopoverContent>
           </Popover>
+        </Section>
+
+        <Section
+          id='navigation-menu'
+          title='Navigation menu'
+          description='Hover-intent menus for site chrome. The popup morphs between contents instead of reopening.'
+        >
+          <NavigationMenu>
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuTrigger>Messaging</NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <div className='grid w-72 gap-0.5 p-1'>
+                    <NavigationMenuLink href='#navigation-menu'>Messages</NavigationMenuLink>
+                    <NavigationMenuLink href='#navigation-menu'>Workflows</NavigationMenuLink>
+                    <NavigationMenuLink href='#navigation-menu'>Events</NavigationMenuLink>
+                  </div>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuTrigger>Audience</NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <div className='grid w-56 gap-0.5 p-1'>
+                    <NavigationMenuLink href='#navigation-menu'>Subscribers</NavigationMenuLink>
+                    <NavigationMenuLink href='#navigation-menu'>Segments</NavigationMenuLink>
+                  </div>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink href='#navigation-menu' className={navigationMenuTriggerStyle()}>
+                  Pricing
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
         </Section>
 
         <Section

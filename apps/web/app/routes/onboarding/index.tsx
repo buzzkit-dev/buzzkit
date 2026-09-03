@@ -16,7 +16,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const workspaces = await listWorkspaces({ request, env }, token);
-  if (workspaces.length > 0) throw redirect('/');
+  if (workspaces.length > 0) throw redirect('/dashboard');
   return null;
 }
 

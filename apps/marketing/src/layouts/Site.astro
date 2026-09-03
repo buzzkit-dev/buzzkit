@@ -1,0 +1,101 @@
+---
+import '../styles/global.css';
+import Footer from '../components/layout/Footer.astro';
+import { Header } from '../components/layout/Header';
+import { listFeatureGroups } from '../lib/features';
+import { site } from '../lib/site';
+import { pageStructuredData } from '../lib/structured-data';
+
+interface Props {
+  title: string;
+  description: string;
+  markdownPath?: string;
+  image?: string;
+  noindex?: boolean;
+}
+
+const { title, description, markdownPath, image = '/og/home.png', noindex } = Astro.props;
+const canonical = new URL(Astro.url.pathname, site.url).href;
+const imageUrl = `${site.url}${image}`;
+const pageName = title.replace(/ · BuzzKit$/, '');
+const isHome = Astro.url.pathname === '/';
+const menus = {
+  features: listFeatureGroups().map((group) => ({
+    label: group.label,
+    items: [
+      ...group.features.map((feature) => ({
+        label: feature.name,
+        href: `/features/${feature.slug}`,
+        blurb: feature.blurb,
+        icon: feature.icon,
+      })),
+      ...group.upcoming.map((feature) => ({
+        label: feature.name,
+        blurb: feature.blurb,
+        icon: feature.icon,
+        soon: true,
+      })),
+    ],
+  })),
+};
+
+const structuredData = pageStructuredData({ canonical, name: pageName, description, imageUrl, isHome });
+---
+
+<!doctype html>
+<html lang='en'>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1' />
+    <title>{title}</title>
+    <meta name='description' content={description} />
+    <link rel='canonical' href={canonical} />
+    <meta name='robots' content={noindex ? 'noindex' : 'index, follow, max-image-preview:large'} />
+    <meta name='application-name' content={site.name} />
+    <meta name='apple-mobile-web-app-title' content={site.name} />
+    <link rel='icon' href='/favicon.svg' type='image/svg+xml' />
+    <link rel='apple-touch-icon' href='/apple-touch-icon.png' />
+    <link rel='sitemap' href='/sitemap-index.xml' />
+    <link rel='ard' href='/.well-known/ard.json' type='application/json' />
+    {markdownPath && <link rel='alternate' type='text/markdown' href={markdownPath} title={`${title} as markdown`} />}
+    <meta property='og:type' content='website' />
+    <meta property='og:site_name' content={site.name} />
+    <meta property='og:locale' content='en_US' />
+    <meta property='og:title' content={title} />
+    <meta property='og:description' content={description} />
+    <meta property='og:url' content={canonical} />
+    <meta property='og:image' content={imageUrl} />
+    <meta property='og:image:type' content='image/png' />
+    <meta property='og:image:width' content='1200' />
+    <meta property='og:image:height' content='630' />
+    <meta property='og:image:alt' content={`${pageName}, on buzzkit.dev`} />
+    <meta name='twitter:card' content='summary_large_image' />
+    <meta name='twitter:title' content={title} />
+    <meta name='twitter:description' content={description} />
+    <meta name='twitter:image' content={imageUrl} />
+    <meta name='twitter:image:alt' content={`${pageName}, on buzzkit.dev`} />
+    <meta name='theme-color' content='#ffffff' />
+    <script type='application/ld+json' is:inline set:html={JSON.stringify(structuredData)} />
+    <slot name='head' />
+  </head>
+  <body class='flex min-h-dvh flex-col bg-background text-fg-3'>
+    <a
+      href='#content'
+      class='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-100 focus:rounded-xl focus:bg-bg-1 focus:px-3 focus:py-2 focus:text-fg-4 focus:text-sm focus:shadow-2'
+    >
+      Skip to content
+    </a>
+    <Header
+      client:load
+      dashboardUrl={site.dashboardUrl}
+      signupUrl={site.signupUrl}
+      docsUrl={site.docsUrl}
+      githubUrl={site.githubUrl}
+      menus={menus}
+    />
+    <main id='content' class='flex-1'>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

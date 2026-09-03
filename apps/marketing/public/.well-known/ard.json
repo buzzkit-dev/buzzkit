@@ -1,0 +1,104 @@
+{
+  "specVersion": "1.0",
+  "publisher": {
+    "name": "BuzzKit",
+    "url": "https://buzzkit.dev"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:buzzkit.dev:skill:buzzkit",
+      "displayName": "BuzzKit integration skill",
+      "type": "text/markdown",
+      "url": "https://buzzkit.dev/.well-known/agent-skills/buzzkit/SKILL.md",
+      "description": "How to integrate BuzzKit push notifications: device registration with the iOS SDK, subscriber identity, sending from a backend, topics, segments, scheduled sends and workflows.",
+      "representativeQueries": [
+        "add push notifications to my iOS app",
+        "send a push notification from my backend",
+        "let users choose which notifications they get",
+        "send a notification at each user's local time",
+        "automate lifecycle messages when a user does something"
+      ],
+      "capabilities": [
+        "push-notifications",
+        "subscribers",
+        "segments",
+        "topics",
+        "scheduling",
+        "workflows",
+        "live-activities"
+      ],
+      "tags": ["push", "notifications", "ios", "apns", "fcm", "open-source"],
+      "version": "1"
+    },
+    {
+      "identifier": "urn:air:buzzkit.dev:api:openapi",
+      "displayName": "BuzzKit REST API",
+      "type": "application/vnd.oai.openapi+json",
+      "url": "https://buzzkit.dev/openapi.json",
+      "description": "The OpenAPI 3 description of the BuzzKit API: subscribers, subscriptions, topics, events, segments, messages, workflows, sources and webhooks under /v1, authenticated with bearer API keys.",
+      "representativeQueries": [
+        "what endpoints does the BuzzKit API have",
+        "how do I send a message with the BuzzKit API",
+        "how do I register a device token",
+        "how do I create a segment",
+        "how do I authenticate against BuzzKit"
+      ],
+      "capabilities": [
+        "messages",
+        "subscribers",
+        "subscriptions",
+        "events",
+        "segments",
+        "topics",
+        "workflows",
+        "sources",
+        "webhooks"
+      ],
+      "tags": ["api", "openapi", "rest"],
+      "version": "1"
+    },
+    {
+      "identifier": "urn:air:buzzkit.dev:doc:llms-txt",
+      "displayName": "BuzzKit llms.txt",
+      "type": "text/markdown",
+      "url": "https://buzzkit.dev/llms.txt",
+      "description": "The index for agents: what BuzzKit is, when to use it, and links to every page as markdown and every machine-readable resource.",
+      "representativeQueries": [
+        "what is BuzzKit",
+        "when should I use BuzzKit",
+        "BuzzKit vs OneSignal",
+        "how much does BuzzKit cost"
+      ],
+      "capabilities": ["overview", "features", "comparisons", "pricing"],
+      "tags": ["llms.txt", "docs"]
+    },
+    {
+      "identifier": "urn:air:buzzkit.dev:doc:auth",
+      "displayName": "BuzzKit auth.md",
+      "type": "text/markdown",
+      "url": "https://buzzkit.dev/auth.md",
+      "description": "How an agent or a backend obtains and uses BuzzKit credentials: sign-up, API keys and their kinds, scopes, the bearer header, error codes and revocation.",
+      "representativeQueries": [
+        "how do I get a BuzzKit API key",
+        "what is the difference between workspace, tenant and client keys",
+        "why does BuzzKit return 401"
+      ],
+      "capabilities": ["authentication", "api-keys", "scopes"],
+      "tags": ["auth", "api-keys"]
+    },
+    {
+      "identifier": "urn:air:buzzkit.dev:sdk:ios",
+      "displayName": "BuzzKit iOS SDK",
+      "type": "text/html",
+      "url": "https://github.com/buzzkit-dev/buzzkit-ios",
+      "description": "The native iOS SDK: push registration, identity, events, action buttons, Live Activities and a notification settings screen.",
+      "representativeQueries": [
+        "install the BuzzKit iOS SDK",
+        "register for push in Swift with BuzzKit",
+        "start a Live Activity with BuzzKit"
+      ],
+      "capabilities": ["ios", "swift", "push-registration", "live-activities"],
+      "tags": ["sdk", "ios", "swift"]
+    }
+  ]
+}

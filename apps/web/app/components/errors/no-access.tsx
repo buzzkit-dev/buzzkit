@@ -15,7 +15,7 @@ export function NoAccessPage() {
           </p>
         </header>
         <div>
-          <Button nativeButton={false} render={<Link to='/' />}>
+          <Button nativeButton={false} render={<Link to='/dashboard' />}>
             Go to your workspaces
           </Button>
         </div>
