@@ -1,0 +1,163 @@
+---
+title: "Live Activities"
+description: "Start, update and end a Live Activity from your backend, with the SDK keeping every push token registered."
+---
+
+A Live Activity is the live tile your app puts on the Lock Screen and in the Dynamic Island, updated by push while it runs. BuzzKit keeps the ActivityKit tokens registered for you, and your backend starts, updates and ends the activity through one endpoint.
+
+## Declare the attributes type
+
+The attributes type is shared between the app and its widget extension, exactly as ActivityKit requires. Its type name is the identifier BuzzKit uses everywhere as `attributesType`, so `MatchAttributes` below is what your backend sends.
+
+```swift
+import ActivityKit
+
+struct MatchAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
+        var score: Int
+    }
+
+    let matchId: String
+}
+```
+
+Add `NSSupportsLiveActivities` to the app's Info.plist, and `NSSupportsLiveActivitiesFrequentUpdates` if you push more than a handful of updates an hour.
+
+## Keep tokens registered
+
+One call at launch per attributes type is the whole integration.
+
+```swift
+import BuzzKit
+
+BuzzKit.activities.observe(MatchAttributes.self)
+```
+
+`observe(_:)` walks every activity of that type that already exists and every one started later, whoever started it: your app, `start(_:state:)`, or the server. For each one it registers the push token and re-registers it on every rotation, tracks `$activity.started`, `$activity.ended`, `$activity.dismissed` and `$activity.stale`, and tells the server to stop updating an activity that has gone away. On iOS 17.2 and later it also registers the push-to-start token, so the server can start an activity of this type while the app is not running.
+
+Call it once, in `configure`'s wake at launch, for every attributes type your app uses. It is available on iOS 16.2 and later.
+
+## Start one from the app
+
+```swift
+let activity = try BuzzKit.activities.start(
+    MatchAttributes(matchId: "m_1"),
+    state: .init(score: 0)
+)
+```
+
+`start(_:state:staleDate:relevanceScore:)` requests the activity through ActivityKit with `pushType: .token` and monitors it, so the token reaches BuzzKit without another call. It throws what `Activity.request` throws, and is not `async`. Ending it from the app is one call too, which ends it on the device, on the server and as an `$activity.ended` event.
+
+```swift
+await BuzzKit.activities.end(activity)
+```
+
+Pass `dismissalPolicy:` to control how long the ended tile lingers, the way you would with ActivityKit.
+
+## Drive it from your backend
+
+`POST /v1/live-activities/send` takes the subscriber and what should happen. It needs the `messages:send` scope.
+
+<CodeGroup>
+
+```bash Update
+curl https://api.buzzkit.dev/v1/live-activities/send \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "user_42",
+    "event": "update",
+    "activityId": "m_1",
+    "contentState": { "score": 3 },
+    "alert": { "title": "Goal", "body": "2-1 for the away side." }
+  }'
+```
+
+```bash Start
+curl https://api.buzzkit.dev/v1/live-activities/send \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "user_42",
+    "event": "start",
+    "attributesType": "MatchAttributes",
+    "attributes": { "matchId": "m_1" },
+    "contentState": { "score": 0 }
+  }'
+```
+
+```bash End
+curl https://api.buzzkit.dev/v1/live-activities/send \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "user_42",
+    "event": "end",
+    "activityId": "m_1",
+    "contentState": { "score": 3 },
+    "dismissalDate": "2026-09-03T21:00:00.000Z"
+  }'
+```
+
+</CodeGroup>
+
+| Field | What it does |
+| --- | --- |
+| `to` | The subscriber's id in your system. |
+| `event` | `start`, `update` or `end`. |
+| `activityId` | Which activity to update or end. It is the `Activity.id` the SDK registered. |
+| `attributesType` | The attributes type name, which `start` targets through the push-to-start token. |
+| `contentState` | The new content state, matching your `ContentState` keys. Required. |
+| `attributes` | The static attributes, for `start` only. |
+| `alert` | `{ title, body, sound }`, shown as a banner alongside the update. |
+| `staleDate`, `dismissalDate` | ISO timestamps for when the content goes stale and when the ended tile disappears. |
+| `priority` | `high` by default, or `normal`. |
+| `timestamp` | The update's time in epoch seconds, defaulting to now. iOS ignores an update older than one it already applied. |
+
+The response carries one result per registered token with the APNs outcome, so a token APNs rejected is visible in the reply rather than silently dropped.
+
+<Note>
+  `attributesType` is the Swift type's name as written, taken with `String(describing:)`. Rename the struct and the identifier changes, so previously registered push-to-start tokens no longer match. Send the new name from your backend at the same time as the rename ships.
+</Note>
+
+## The token lifecycle
+
+Three kinds of token move through BuzzKit, and `observe(_:)` handles all of them.
+
+| Token | Registered when | Used for |
+| --- | --- | --- |
+| Activity push token | An activity starts, and on every rotation while it runs | `update` and `end` for that one activity |
+| Push-to-start token | At launch on iOS 17.2 and later, per attributes type | `start`, without the app running |
+| Device token | [Registering for push](/sdks/ios/push) | Ordinary notifications |
+
+Registration is idempotent, so re-registering the same token changes nothing. Tokens are registered against the identified subscriber, which is why [identify](/sdks/ios/identity) should run before you start activities. The token's APNs environment is detected from the build, or forced with `Configuration.pushEnvironment`.
+
+The low-level surface stays available when you want to do the plumbing yourself: `register(id:token:attributesType:)`, `registerPushToStartToken(_:attributesType:)`, `monitor(_:)` and `end(id:)`.
+
+## Staying in sync
+
+Two rules keep the server's picture matching the device.
+
+Call `observe(_:)` at every launch, not only the launch that started an activity. Activities outlive app launches, and an activity whose token rotated while nothing was observing it stops receiving updates until it is observed again.
+
+End activities through BuzzKit rather than ActivityKit directly. `BuzzKit.activities.end(activity)` and `end(id:)` both clear the server row, so nothing keeps pushing to a tile that is gone. If you end one with `activity.end` yourself, `observe(_:)` still catches the `.ended` state and cleans up, provided the app is running.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Sending messages" icon="paper-plane" href="/sending/messages">
+    Ordinary sends, targeting and content.
+  </Card>
+  <Card title="Push" icon="bell" href="/sdks/ios/push">
+    Permission, device tokens and environments.
+  </Card>
+  <Card title="Events" icon="bolt" href="/sdks/ios/events">
+    The `$activity.*` events and everything else the SDK reports.
+  </Card>
+  <Card title="Identity" icon="user" href="/sdks/ios/identity">
+    Identifying the subscriber tokens are registered against.
+  </Card>
+</CardGroup>

@@ -1,0 +1,16 @@
+{
+  "name": "@buzzkit/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run openapi && mint dev --port 5182",
+    "build": "bun run openapi && mint validate",
+    "openapi": "bun run --cwd ../api openapi:emit",
+    "broken-links": "mint broken-links",
+    "a11y": "mint a11y"
+  },
+  "devDependencies": {
+    "mint": "^4.2.869"
+  }
+}

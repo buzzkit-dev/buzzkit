@@ -1,0 +1,152 @@
+---
+title: "iOS SDK"
+description: "Install the BuzzKit Swift package, configure it at launch, and understand every option on BuzzKit.Configuration."
+---
+
+The iOS SDK is everything a native app needs to take part in BuzzKit without writing backend code: it identifies the user, registers the device for push, tracks events durably on disk, renders the notification settings screen, routes deep links and remote actions, keeps Live Activity tokens registered, and schedules workflow-driven local notifications. Messages, segments, workflows and topics stay in the dashboard. The SDK keeps the device, the user and their preferences in sync with them.
+
+```swift
+import BuzzKit
+
+BuzzKit.configure(apiKey: "bk_pk_…")
+BuzzKit.identify("user_42")
+let granted = try await BuzzKit.registerForPush()
+BuzzKit.track("workout.completed", data: ["duration": 42])
+```
+
+That is the whole integration.
+
+## Install
+
+Add [github.com/buzzkit-dev/buzzkit-ios](https://github.com/buzzkit-dev/buzzkit-ios) in Xcode under **File → Add Package Dependencies**, or declare it in `Package.swift`:
+
+```swift
+.package(url: "https://github.com/buzzkit-dev/buzzkit-ios", from: "0.1.0")
+```
+
+The package vends three products. Link each to the target that needs it.
+
+| Product | Add to | What it does |
+| --- | --- | --- |
+| `BuzzKit` | The app target | Identity, events, push, preferences, deep links, Live Activities |
+| `BuzzKitUI` | The app target | `BuzzKitPreferencesView`, the drop-in notification settings screen |
+| `BuzzKitNotificationServiceExtension` | A notification service extension target | Rich media attachments, action buttons and delivered receipts |
+
+The package requires iOS 15 or Mac Catalyst 15 and builds with the Swift 6 toolchain under strict concurrency.
+
+## Configure
+
+Call `configure` once, as early in launch as you can. Calling it again logs a warning and keeps the first configuration.
+
+<CodeGroup>
+```swift Key only
+import BuzzKit
+
+@main
+struct GymApp: App {
+    init() {
+        BuzzKit.configure(apiKey: "bk_pk_…")
+    }
+
+    var body: some Scene {
+        WindowGroup { ContentView() }
+    }
+}
+```
+
+```swift Full configuration
+import BuzzKit
+
+@main
+struct GymApp: App {
+    init() {
+        BuzzKit.configure(with: BuzzKit.Configuration(
+            apiKey: "bk_pk_…",
+            logLevel: .info,
+            appGroup: "group.com.example.gym"
+        ))
+    }
+
+    var body: some Scene {
+        WindowGroup { ContentView() }
+    }
+}
+```
+</CodeGroup>
+
+`BuzzKit.isConfigured` tells you whether it has run. Every other call on `BuzzKit` logs an error and does nothing until it has.
+
+## Configuration options
+
+`BuzzKit.Configuration` takes one required argument and seven optional ones.
+
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `apiKey` | `String` | Required | The client key from the dashboard. |
+| `apiURL` | `URL` | `https://api.buzzkit.dev` | The API origin. Point it at your own deployment when self-hosting. |
+| `logLevel` | `BuzzKitLogLevel` | `.warn` | How much the SDK writes to the system log. |
+| `foregroundPresentation` | `ForegroundPresentation` | `.banner` | How a push arriving while the app is open is shown. `.banner` shows the system banner with sound, `.hidden` shows nothing. |
+| `automaticSessionTracking` | `Bool` | `true` | Emits `$app.opened`, `$app.backgrounded` and `$session.ended` automatically. |
+| `appGroup` | `String?` | `nil` | The app group shared with the notification service extension. |
+| `pushEnvironment` | `BuzzKit.PushEnvironment?` | `nil` | Forces `.sandbox` or `.production` instead of detecting the environment from the provisioning profile. |
+| `automaticPushHandling` | `Bool` | `true` | Receives the app delegate's three push callbacks for you. Turn it off to forward them yourself. |
+
+<Note>
+  Setting `appGroup` also writes the API key and API URL into the shared container so the notification service extension can send delivered receipts on its own. Give the app and the extension the same group in Xcode's Signing & Capabilities. See [Push notifications](/sdks/ios/push).
+</Note>
+
+## The client key
+
+Create a client key on the dashboard's API keys page. It carries the `bk_pk_` prefix and is the only kind of key meant to ship inside an app binary: it can reach `/v1/client/*` and nothing else, so it can identify a user, register a device, track events, and read or update that subscriber's own preferences. It cannot send a message, read another subscriber, or reach any other tenant. Extracting it from your binary buys an attacker nothing they could not do by installing the app.
+
+<Warning>
+  A client key alone lets a caller claim any external id. Pass an `identityHash` from your backend so BuzzKit can prove the user is who they say they are, and turn on required verification once every client is sending it. See [Identity](/sdks/ios/identity).
+</Warning>
+
+Key kinds and scopes are covered in full under [Authentication](/authentication).
+
+## Self-hosting
+
+Point `apiURL` at your own deployment. Everything else is identical, including the client key format.
+
+```swift
+BuzzKit.configure(with: BuzzKit.Configuration(
+    apiKey: "bk_pk_…",
+    apiURL: URL(string: "https://push.example.com")!
+))
+```
+
+## Xcode capabilities
+
+A Swift package cannot add capabilities or Info.plist keys to your app, so set these once on the app target.
+
+| Setting | Needed for |
+| --- | --- |
+| Push Notifications capability | Everything |
+| Background Modes → Remote notifications | Silent pushes and workflow-scheduled local notifications |
+| An app group on both the app and the extension | Delivered receipts that survive the extension |
+| A Notification Service Extension target | Rich media, action buttons and delivered receipts |
+| `NSSupportsLiveActivities` in Info.plist | Live Activities |
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Push notifications" icon="bell" href="/sdks/ios/push">
+    Registration, permission, token rotation and the service extension.
+  </Card>
+  <Card title="Identity" icon="user" href="/sdks/ios/identity">
+    Anonymous ids, identify, logout and identity verification.
+  </Card>
+  <Card title="Events" icon="bolt" href="/sdks/ios/events">
+    Tracking, the offline queue and the reserved `$` events.
+  </Card>
+  <Card title="Deep links" icon="link" href="/sdks/ios/deep-links">
+    Route a notification's link, or run a remotely named action.
+  </Card>
+  <Card title="Preferences" icon="sliders" href="/sdks/ios/preferences">
+    The drop-in settings screen, or your own UI over the topics API.
+  </Card>
+  <Card title="Live Activities" icon="clock" href="/sdks/ios/live-activities">
+    Token plumbing for activities started and updated from the server.
+  </Card>
+</CardGroup>

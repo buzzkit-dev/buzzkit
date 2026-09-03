@@ -1,0 +1,177 @@
+---
+title: "Workflows"
+description: "Versioned specs with triggers, waits, branches, loops, fetches and sends that run for one subscriber at a time."
+---
+
+A workflow is a versioned JSON spec: a trigger, a few options and a list of steps. Every run of it is one subscriber going through one published version, so the waits, the branches and the sends are all decided from that person's own attributes, topics and history. You author the spec in the dashboard or through the API, and both validate it against the same schema.
+
+Reading needs the `workflows:read` scope, writing needs `workflows:write`. Both run inside a tenant.
+
+## A complete spec
+
+```json
+{
+  "trigger": {
+    "event": "trial.started",
+    "sources": ["server"],
+    "where": { "ref": "trigger.data.plan", "eq": "monthly" }
+  },
+  "concurrency": "one-per-subscriber",
+  "cancelOn": [{ "event": "subscription.started" }],
+  "defaultTimezone": "Europe/Berlin",
+  "steps": [
+    { "name": "settle", "wait": "2h" },
+    {
+      "name": "status",
+      "fetch": {
+        "url": "https://api.example.com/trial?user={{ subscriber.externalId }}",
+        "headers": { "Authorization": "Bearer {{ secrets.api }}" },
+        "as": "status",
+        "onError": "skip"
+      }
+    },
+    { "name": "cancel", "waitFor": { "event": "trial.canceled", "timeout": { "delay": "1d" } } },
+    {
+      "name": "outcome",
+      "branch": [
+        {
+          "name": "canceled",
+          "when": { "any": [{ "ref": "steps.cancel.matched", "eq": true }, { "ref": "vars.status.canceled", "eq": true }] },
+          "steps": [{ "name": "sorry", "send": { "title": "Your trial is canceled" } }, { "exit": true }]
+        },
+        {
+          "name": "otherwise",
+          "steps": [{ "name": "nudge", "send": { "topic": "trial", "title": "Your trial ends {{ trigger.data.endsAt | date }}", "skipIfSentWithin": "1d" } }]
+        }
+      ]
+    },
+    { "name": "final", "waitUntil": { "delay": "2d", "time": "09:00", "timezone": "subscriber" } },
+    { "name": "bye", "send": { "title": "Thanks for trying, {{ subscriber.attributes.name | default: \"there\" }}" } },
+    { "name": "remember", "set": { "attribute": "trialEnded", "value": true } }
+  ]
+}
+```
+
+## Triggers
+
+A trigger is one of two shapes. An event trigger takes an event `name`, optional `sources` (`server`, `ios`, `android`, `web`, `system`) and an optional `where` over `trigger.data.*`, `subscriber.attributes.*` and the subscriber's history. A schedule trigger takes `schedule` (either `{ "cron": "0 10 * * MON" }` or `{ "daily": "19:00" }`), a `timezone` that is an IANA name or `subscriber`, an optional `segment` slug and an optional `where`. One run starts per member each time a schedule fires.
+
+`concurrency` decides what happens when a second event arrives. `per-event`, the default, starts a run for every matching event. `one-per-subscriber` ignores a new event while a run of this workflow is already live for that subscriber. `cancelOn` lists the events that terminate a live run, each with an optional `where` over `event.data.*`.
+
+## Steps
+
+Every step carries a `name` that is unique in the version, except `exit`.
+
+| Step | What it does |
+| --- | --- |
+| `wait` | Waits a duration such as `15m`, `2h` or `3d`, counted from when the step starts, at most a year. |
+| `waitUntil` | Waits for a moment: `{ delay?, time?, timezone? }`, at least one of `delay` or `time`. `delay` counts from the run's start, `time` snaps to the next occurrence of that wall clock and needs a `timezone`. |
+| `waitFor` | Waits for an event, with an optional `where` and a `timeout`. Records `matched` and the event's `data` under `steps.<name>`. |
+| `branch` | An ordered list of cases, each `{ name, when?, steps }`. The first case whose `when` holds runs, and the step records `taken`. |
+| `repeat` | `{ steps, every, max, until? }` runs its steps, waits `every`, and runs them again until `until` holds or `max` passes are done. |
+| `forEach` | `{ items, as, max, steps }` walks a list from the scope, each item readable as `vars.<as>`. |
+| `fetch` | Calls your own API and lands the reply under `steps.<name>`. |
+| `set` | Writes `{ attribute, value }` on the subscriber or `{ var, value }` on the run. |
+| `send` | Sends a message payload, with the same fields as [a direct send](/sending/messages). |
+| `exit` | Ends the run as completed. |
+
+A `branch` case with no `when` is the fallback. There is at most one, it comes last, and without it nothing runs and `taken` is `else`. Lanes rejoin the steps after the branch unless they end with `exit`, which is what makes `exit` useful inside a case and only a marker at the top level. Branches nest at most four deep, and loops do not nest with themselves, though a `repeat` inside a `forEach` is fine.
+
+`waitFor` with `settleFor` and `resetOn` waits for a quiet moment instead of the bare event. The event starts a clock of `settleFor`, every `resetOn` event restarts it, and the step completes once the clock runs out untouched. `{ "event": "$app.backgrounded", "settleFor": "5m", "resetOn": ["$app.opened"], "timeout": "1d" }` lands the next send when nobody is looking. If the event already happened more recently than any `resetOn` event, the clock starts from that occurrence, and if its window has already run out the step completes matched at once. The step is unmatched only when the `timeout` passes without a settled event.
+
+## Fetching from your own API
+
+`fetch` is `{ method?, url, headers?, body?, timeout?, expect?, as?, onError? }`. The method is `GET` by default, or `POST` by default when a `body` is set. `url` and `headers` may read `{{ secrets.<name> }}` from the tenant's secrets, so a token never sits in the spec. Only `https` is allowed, plus `http://localhost` for self-hosters. `timeout` runs from `1s` to `60s` and is `10s` by default, and `expect.status` lists the codes that count as success, 2xx by default.
+
+The reply lands under `steps.<name>` as `{ status, headers, data }`, and with `as` also under `vars.<as>`. Every call carries `webhook-id`, which is `{runId}:{step}` and identical on every retry so your receiver can dedupe, and `webhook-timestamp`. Authenticate it with a header of your own.
+
+<Note>
+  5xx responses, timeouts and network errors retry three times. An unexpected status is final, and `onError` decides what happens: `fail` fails the run, `skip` records the step as skipped and continues, `continue` continues with `data: null`.
+</Note>
+
+## Versions and publishing
+
+<Steps>
+  <Step title="Create a draft">
+    `POST /v1/workflows` with `{ slug, name, description?, spec }` answers 201 with a `draft` at version 1. The slug `new` is reserved.
+
+    ```bash
+    curl https://api.buzzkit.dev/v1/workflows -X POST \
+      -H "Authorization: Bearer bk_ws_..." \
+      -H "Content-Type: application/json" \
+      -d '{ "slug": "trial-nudge", "name": "Trial nudge", "spec": { "trigger": { "event": "trial.started" }, "steps": [{ "name": "settle", "wait": "2h" }] } }'
+    ```
+  </Step>
+
+  <Step title="Edit it">
+    `PATCH /v1/workflows/trial-nudge` takes `{ name?, description?, spec? }`. A changed spec creates the next version as a draft, an identical one creates nothing, and the published version keeps running throughout.
+  </Step>
+
+  <Step title="Publish">
+    `POST /v1/workflows/trial-nudge/publish` activates the latest version. `status` becomes `active` and `current` points at it.
+  </Step>
+
+  <Step title="Pause it">
+    `POST /v1/workflows/trial-nudge/pause` stops new runs from starting while runs already going finish. Only an active workflow can be paused, otherwise it is a `400 workflow_not_active`, and publishing resumes it.
+  </Step>
+</Steps>
+
+A spec that fails validation is a `400 invalid_spec` whose `param` names the node, such as `spec.steps[0].wait`. Deleting a workflow soft-deletes it, frees the slug and cancels its live runs.
+
+## Dry runs
+
+`POST /v1/workflows/trial-nudge/test` runs a version through the engine without waiting, sending or writing, and returns what it would have done.
+
+```bash
+curl https://api.buzzkit.dev/v1/workflows/trial-nudge/test \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version": 3,
+    "externalId": "user_42",
+    "event": { "name": "trial.started", "data": { "plan": "monthly" }, "source": "server" },
+    "at": "2026-09-01T10:00:00Z",
+    "assume": {
+      "status": { "status": 200, "data": { "canceled": false } },
+      "cancel": { "matched": true, "data": { "reason": "price" } }
+    }
+  }'
+```
+
+`version` picks a version by number, defaulting to the published one, so a draft or an old version can be tried. `externalId` runs it for a real subscriber with their attributes, timezone and history, while `attributes` runs it for a made-up one that has no history. `at` is the dry run's clock: every `wait` and `waitUntil` moves it forward instead of sleeping, so each trace entry says when the step would really happen. `assume` keys steps by name, taking `{ matched, data }` for a `waitFor` and `{ status, data }` for a `fetch`.
+
+The reply is `{ version, trigger, subscriber, outcome, exited, error, path, steps, vars, lint }`. A send records its rendered payload rather than sending it, a set records the value it would write, and a step that would fail ends the trace with `outcome: "failed"` exactly as a real run would. Nothing is created: no message, no attribute write, no event.
+
+<Warning>
+  A dry run is the only way to try a spec safely. A published workflow starts real runs on the next matching event, and those runs send real notifications.
+</Warning>
+
+## Reading runs
+
+A run is `{ id, workflowId, workflow, versionId, externalId, status, step, summary, startedAt, updatedAt }`, with `status` being `running`, `sleeping`, `waiting`, `completed`, `canceled` or `failed`. `step` is the current or last step and `summary` its outcome in words.
+
+| Endpoint | What it returns |
+| --- | --- |
+| `GET /v1/workflows/:slug/runs` | The workflow's runs, newest first, filterable with `?status=`. |
+| `GET /v1/runs` | Every run of the tenant, filterable with `?status=` and `?workflow=`. |
+| `GET /v1/runs/:id` | One run with every event of its timeline. |
+| `GET /v1/subscribers/:externalId/runs` | One subscriber's runs, fresh, live and finished alike. |
+
+Everything a run does is on the subscriber's [event stream](/automation/events) as `$run.started`, `$run.step`, `$run.completed`, `$run.canceled` and `$run.failed`. Sends inside a run are ordinary messages carrying `run: { id, step }`, so a message links back to its run and a run to its messages. A step's status on `$run.step` is `running`, `sleeping`, `waiting`, `completed` or `skipped`, where `skipped` is a send held back by `skipIfSentWithin` or a fetch whose `onError` is `skip`.
+
+A schedule workflow also has `GET /v1/workflows/:slug/schedule`, which returns the next fire time per zone and the last twenty fires with how many runs each started. An event workflow answers `400 not_scheduled`.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/automation/events">
+    The stream a workflow triggers on and reads its history from.
+  </Card>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    The expression grammar workflow conditions are built on.
+  </Card>
+  <Card title="Sending messages" icon="paper-plane" href="/sending/messages">
+    Every field a `send` step can carry.
+  </Card>
+</CardGroup>

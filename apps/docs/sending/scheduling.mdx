@@ -1,0 +1,119 @@
+---
+title: "Scheduling"
+description: "How to hold a message until a moment, in a fixed time zone or in each subscriber's own, and how to cancel it."
+---
+
+Add a `schedule` object to any [send](/sending/messages) and the message is held instead of queued. The response is still `202`, with `status: "scheduled"`, the `schedule` you passed and `scheduledFor`, the first instant the message can fire.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "gym-reminders",
+    "title": "Leg day",
+    "body": "6:00 with Maya.",
+    "schedule": { "at": "2026-09-04T18:00", "timezone": "Europe/Berlin" }
+  }'
+```
+
+## The schedule object
+
+| Field | Meaning |
+| --- | --- |
+| `at` | A wall-clock time with no offset, such as `2026-09-04T18:00`. |
+| `timezone` | An IANA zone name, defaulting to `UTC`, or the literal `"subscriber"`. |
+| `defaultTimezone` | The zone used for subscribers with no time zone of their own. Only valid alongside `"subscriber"`, and defaults to `UTC`. |
+
+`at` carries no offset: it is the time on a clock, and `timezone` decides whose clock that is.
+
+## A fixed time zone
+
+With an IANA zone, the message has one moment. The Worker's minute cron queues it when `scheduledFor` arrives, and from there it behaves like any other send: fan-out, deliveries, retries, all of it described in [Delivery and retries](/sending/delivery).
+
+## Each subscriber's own time zone
+
+Set `timezone` to `"subscriber"` and the message reaches each person as their own clock reaches `at`. So 18:00 means 18:00 in Berlin and 18:00 in Los Angeles, nine hours apart.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "gym-reminders",
+    "title": "Leg day",
+    "body": "6:00 with Maya.",
+    "schedule": {
+      "at": "2026-09-04T18:00",
+      "timezone": "subscriber",
+      "defaultTimezone": "UTC"
+    }
+  }'
+```
+
+The zone comes from the `$timezone` attribute the SDK stamps on the subscriber when it identifies them. Subscribers without one go out with `defaultTimezone`.
+
+Every minute the cron releases the zones that have just reached `at`, fanning out to the subscribers in them. A topic or direct send filters on the attribute in Postgres; an expression send narrows its audience to the zones being released. The message reads `processing` while this happens and its counts grow, so one send spreads over the 26 hours between UTC+14 and UTC−12 before fan-out completes.
+
+<Note>
+  A zone is never sent twice. The message records the zones it has fanned out in `scheduledZones`, a batch that dies is retried on the next tick, and deliveries are unique per subscription.
+</Note>
+
+## When the moment has already passed
+
+A moment that has already passed everywhere on earth is a `400 schedule_in_past`.
+
+A `"subscriber"` schedule is different. If the moment has passed in some zones but not others, the subscribers in those zones are sent to right away and the rest are waited for. Nobody in Berlin is skipped just because you created the message after 18:00 there.
+
+## Invalid schedules
+
+A `400 invalid_schedule` covers everything that cannot be resolved to a moment:
+
+- A time that is not on the calendar, such as `2026-02-30T10:00` or `T24:00`.
+- An unknown zone name.
+- A `defaultTimezone` outside a `"subscriber"` schedule, where it has no meaning.
+
+## Expiry on a scheduled message
+
+`ttlSeconds` counts from the last moment the message can go out, not from when you created it. A message scheduled a week ahead with a one hour TTL is still valid for an hour after it fires, not expired before it ever left.
+
+## Canceling
+
+`POST /v1/messages/:id/cancel` stops a message that has not been sent. It needs the `messages:send` scope.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages/msg_.../cancel \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+What happens depends on how far the message got:
+
+- A message still `scheduled` becomes `canceled` with `canceledAt` set, and nothing is delivered.
+- A `"subscriber"` schedule part way through fan-out keeps the deliveries it already made, stops releasing further zones, and finishes as `completed` with `canceledAt` set.
+- Anything else is a `400 message_not_cancelable`.
+
+<Warning>
+  Cancellation cannot take back what already went out. On a subscriber-timezone message, the zones that have passed `at` have already been delivered to.
+</Warning>
+
+Both creation and cancellation are recorded in the audit log. `message.created` carries `scheduledFor`, and `message.canceled` carries the status the message left.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Sending messages" icon="paper-plane" href="/sending/messages">
+    Targeting, content fields, expiry and idempotency.
+  </Card>
+  <Card title="Delivery and retries" icon="list-check" href="/sending/delivery">
+    What happens once a scheduled message is released.
+  </Card>
+  <Card title="Subscribers" icon="user" href="/audience/subscribers">
+    Where the `$timezone` attribute comes from.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    For anything recurring or triggered rather than a single moment.
+  </Card>
+</CardGroup>

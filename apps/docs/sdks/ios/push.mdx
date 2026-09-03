@@ -1,0 +1,147 @@
+---
+title: "Push notifications"
+description: "Register a device, handle permission and token rotation, control foreground presentation, and set up the notification service extension."
+---
+
+## Register
+
+One call runs the whole flow: the permission prompt, `registerForRemoteNotifications()`, the wait for the APNs device token, environment detection, and registering the push subscription against the API.
+
+```swift
+let granted = try await BuzzKit.registerForPush()
+```
+
+The return value is whether the user granted permission. The device token is registered either way, so a subscriber who said no is still reachable by silent pushes and is still there when they change their mind in Settings. Call it where asking makes sense, during onboarding or right before the first thing worth being notified about, not blindly on first launch.
+
+`registerForPush` throws in two cases. It throws `BuzzKitError.permissionDenied` when the system refuses to present the prompt at all, and `BuzzKitError.network` when permission was granted but the token could not be obtained or registered. When permission was not granted, a failed token registration is logged and swallowed, so the call returns `false` instead of throwing.
+
+<Note>
+  The result is `@discardableResult`. Write `try await BuzzKit.registerForPush()` and ignore the value when you only care that registration happened.
+</Note>
+
+## Permission
+
+`BuzzKit.notificationPermission()` returns the current `UNAuthorizationStatus`, read straight from `UNUserNotificationCenter`.
+
+```swift
+if await BuzzKit.notificationPermission() == .notDetermined {
+    try await BuzzKit.registerForPush()
+}
+```
+
+The SDK checks the status on every launch and after every registration. When it has changed it emits a `$permission.changed` event carrying `status`, and syncs the same value onto the subscriber as an attribute. The values are `notDetermined`, `denied`, `authorized`, `provisional` and `ephemeral`, so a segment or a workflow branch can treat the people who have not been asked yet differently from the people who said no.
+
+## Provisional authorization
+
+```swift
+try await BuzzKit.registerForPush(provisional: true)
+```
+
+Provisional registration adds `.provisional` to the requested options, which means iOS never shows a prompt. Notifications deliver quietly straight to Notification Center, with no banner and no sound, and each one carries **Keep** and **Turn Off** buttons. Use it when you want delivery from day one and would rather earn the real prompt later, after the user has seen that your notifications are worth having. Call `registerForPush()` without the flag at that point to ask properly.
+
+## Later launches and token rotation
+
+You do not need to call `registerForPush` again. On every launch the SDK reads the permission status and, if permission was granted before or a token was ever obtained, silently requests the token again and re-registers the subscription. APNs hands out a new token after a restore, a reinstall or an OS update; because registration re-runs on each launch and the SDK re-registers whenever the token differs from the one it stored, a rotated token never orphans a device.
+
+## APNs environment
+
+APNs tokens belong to one environment, and a sandbox token is useless against the production host. The SDK reads `aps-environment` out of the embedded provisioning profile: `development` registers the subscription as `sandbox`, anything else registers it as production. Simulators are always sandbox.
+
+Override the detection when your build configuration does not match your profile:
+
+```swift
+BuzzKit.configure(with: BuzzKit.Configuration(
+    apiKey: "bk_pk_…",
+    pushEnvironment: .sandbox
+))
+```
+
+## Foreground presentation
+
+The SDK installs itself as the `UNUserNotificationCenter` delegate and forwards every callback to whatever delegate your app installed first. Notifications that did not come from BuzzKit pass straight through untouched.
+
+By default a BuzzKit push arriving while the app is open presents as a banner in the list, with sound and badge. Set `foregroundPresentation: .hidden` in the configuration to suppress that globally, or decide per notification with `BuzzKitDelegate`:
+
+```swift
+final class NotificationCoordinator: BuzzKitDelegate {
+    func buzzKit(
+        _ buzzKit: BuzzKit,
+        willPresent payload: PushPayload
+    ) -> UNNotificationPresentationOptions? {
+        payload.data["priority"] == .string("high") ? [.banner, .sound] : []
+    }
+}
+
+BuzzKit.delegate = coordinator
+```
+
+Return `nil` to fall back to the configured default. The delegate also reports opens through `buzzKit(_:didOpen:actionIdentifier:)` and silent pushes through `buzzKit(_:didReceive:)`.
+
+## Badge
+
+`registerForPush` asks for `.alert`, `.badge` and `.sound` together, and the default foreground presentation includes `.badge`. The badge number itself comes from the `badge` field on the message you send, applied by iOS. The SDK never sets or clears the badge on its own, so managing a running count is yours to do.
+
+## Manual delegate forwarding
+
+With `automaticPushHandling: false` the SDK stops hooking the app delegate and you forward three callbacks yourself.
+
+```swift
+func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+) {
+    BuzzKit.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+}
+
+func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+) {
+    BuzzKit.didFailToRegisterForRemoteNotifications(error: error)
+}
+
+func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+) async -> UIBackgroundFetchResult {
+    await BuzzKit.didReceiveRemoteNotification(userInfo: userInfo).fetchResult
+}
+```
+
+The third one matters even if you do not care about the token: silent pushes are how workflows schedule and cancel [local notifications](/sdks/ios/local-notifications) on the device.
+
+## The notification service extension
+
+A service extension gives you three things the app process cannot do: images attached to the notification, action buttons registered before it is shown, and a `$notification.delivered` receipt for every push that actually arrived.
+
+<Steps>
+  <Step title="Add the target">
+    In Xcode, add a **Notification Service Extension** target and link the `BuzzKitNotificationServiceExtension` product to it.
+  </Step>
+
+  <Step title="Replace the generated class">
+    ```swift
+    import BuzzKitNotificationServiceExtension
+
+    final class NotificationService: BuzzKitNotificationService {
+        override var buzzKitAppGroup: String? { "group.com.example.gym" }
+    }
+    ```
+
+    That is the entire extension. The base class downloads the image, registers the notification category with the message's action buttons, and sends the delivered receipt.
+  </Step>
+
+  <Step title="Share an app group">
+    Add the same app group to the app target and the extension target, and pass it as `appGroup` in `BuzzKit.Configuration`.
+  </Step>
+</Steps>
+
+<Warning>
+  Without an app group, delivered receipts are best effort. The extension lives for only a few seconds, and when the receipt cannot reach the API in that window it is written into the shared container and delivered by the app on its next launch. The shared container is also where the app leaves the API key and API URL for the extension to use, so the extension has no key of its own to configure.
+</Warning>
+
+Opens are reported by the app, not the extension, as `$notification.opened` with the `messageId`, the tapped action's id and any text the user typed. Dismissing a notification with action buttons reports `$notification.dismissed`. Both are ordinary [events](/sdks/ios/events), which means a workflow can wait on them.
+
+## Reading a payload yourself
+
+`PushPayload(userInfo:)` parses any notification's `userInfo` into the message id, deep link, action, image and your own data. It returns `nil` for notifications that did not come from BuzzKit, so it doubles as the test for whether a push is yours to handle. BuzzKit keeps all of its own metadata under a single `bk` key, so the `data` you sent arrives at the root of the payload exactly as you sent it.

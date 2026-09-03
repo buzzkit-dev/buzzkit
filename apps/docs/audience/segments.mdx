@@ -1,0 +1,154 @@
+---
+title: "Segments"
+description: "Saved, versioned expressions over attributes, events, activity and channel reach, evaluated at the moment you send."
+---
+
+A segment is a named expression, not a list. BuzzKit stores the condition and evaluates it the moment the segment is used, so membership is always current. Every edit creates a new version, and a send pins the version it used.
+
+## The expression grammar
+
+An expression is one condition or a group of them. Groups are `{ all: [...] }`, `{ any: [...] }` and `{ not: … }`, each needing at least one child. Nesting goes at most 8 levels deep with at most 50 conditions in total.
+
+```json
+{
+  "all": [
+    { "ref": "attributes.plan", "eq": "pro" },
+    { "count": "workout.completed", "within": "7d", "gte": 3 },
+    { "channel": "push" }
+  ]
+}
+```
+
+| Condition | Shape | Matches subscribers who |
+| --- | --- | --- |
+| Attribute | `{ "ref": "attributes.plan", "eq": "pro" }` | Have the attribute and it compares as asked. |
+| Did event | `{ "count": "workout.completed", "within": "7d", "gte": 3 }` | Tracked the event that many times, optionally inside a window. |
+| Never did event | `{ "never": "app.reviewed", "within": "30d" }` | Have no such event, ever or inside the window. |
+| Activity | `{ "lastSeen": { "within": "30d" } }` | Were last seen on a device inside the window. `olderThan` inverts it. |
+| Channel | `{ "channel": "push" }` | Hold at least one registered, unmuted subscription on that channel. |
+
+### Attribute comparisons
+
+Comparators are `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in` (up to 100 values), `contains` (a case-insensitive substring) and `exists`. Nested keys use dots, as in `attributes.address.city`, and `ref: "externalId"` compares the external id itself.
+
+The value's type picks the reading. Numbers compare numerically, booleans as booleans, everything else as text.
+
+<Note>
+  `eq`, `gt` and the other ordered comparators require the key to be present. `neq` is the exact complement of `eq`, so a missing key counts as not equal. `eq: null` and `exists: false` both mean the key is missing.
+</Note>
+
+### Events, activity and durations
+
+Event counts take `eq`, `gt`, `gte`, `lt` and `lte` on a non-negative integer. `eq: 0`, `lt: n` and `lte: n` all include subscribers who never tracked the event at all, which is the same audience `never` describes without a count.
+
+Activity means the last time the subscriber was seen on a device. iOS, Android and web events count; events you send from your server do not. Subscribers never seen on a device match neither `within` nor `olderThan`.
+
+Durations are written `<n>m`, `<n>h` or `<n>d`, so `15m`, `12h` and `30d`. Event names follow the [tracking rules](/automation/events), and system events such as `$app.opened` count like any other.
+
+## Create and version a segment
+
+<Steps>
+  <Step title="Create it">
+    ```bash
+    curl https://api.buzzkit.dev/v1/segments \
+      -X POST \
+      -H "Authorization: Bearer bk_ws_..." \
+      -H "Content-Type: application/json" \
+      -d '{
+        "slug": "active-pro",
+        "name": "Active pro users",
+        "expression": {
+          "all": [
+            { "ref": "attributes.plan", "eq": "pro" },
+            { "count": "workout.completed", "within": "7d", "gte": 3 }
+          ]
+        }
+      }'
+    ```
+
+    You get `201` with the segment at version 1. `new` and `preview` are reserved slugs and answer 400 `slug_reserved`; a slug already in use is a 409 `slug_taken`.
+  </Step>
+
+  <Step title="Edit it">
+    `PATCH /v1/segments/active-pro` takes `name`, `description` (`null` clears it) and `expression`. A changed expression creates the next version. An identical one does not, so a save with no edit is free.
+  </Step>
+
+  <Step title="Read it back">
+    `GET /v1/segments/active-pro` returns the segment with its current version: `{ id, slug, name, description, version: { id, number, expression, createdAt }, createdAt, updatedAt }`. `GET /v1/segments` lists every segment of the tenant the same way.
+  </Step>
+</Steps>
+
+`DELETE /v1/segments/:slug` soft-deletes it and frees the slug. Messages already sent keep the version they used.
+
+## Preview before you save
+
+`POST /v1/segments/preview` evaluates an expression without saving anything and answers `{ count, sample }`, the number of subscribers matching right now and the first 20 of them as subscriber list items. It needs only `segments:read`, so it is the dry run to make before a large send.
+
+```bash
+curl https://api.buzzkit.dev/v1/segments/preview \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expression": { "all": [{ "ref": "attributes.plan", "eq": "pro" }, { "never": "app.reviewed", "within": "30d" }] }
+  }'
+```
+
+For a saved segment, `GET /v1/segments/:slug/members` pages the full membership by subscriber id with `limit` up to 100 and `cursor` from `nextCursor`. The first page carries `total`.
+
+<Tip>
+  Segments are compiled into a single query over the derived event stream, so a segment is as fresh as the last flushed event, usually within seconds. A deleted subscriber never matches.
+</Tip>
+
+## Send to a segment
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "segment": "active-pro",
+    "topic": "gym-reminders",
+    "title": "Leg day",
+    "body": "6:00 with Maya."
+  }'
+```
+
+The fan-out pages through the members 500 at a time and pins the segment version at send time, so an edit made while the message is in flight never changes who it reaches. The message's `targets` carry `{ segment, segmentVersion }`.
+
+`segment` cannot be combined with `to` (400 `targets_conflict`). It can be combined with `topic`, which then filters members by their [topic preference](/audience/topics) exactly as a topic send does. An unknown or deleted segment on a send is a 404.
+
+## Inline expressions
+
+When an audience is used once, skip the segment and pass the same grammar inline as `where`. It is evaluated for this send only and stored verbatim on the message as `targets.where`, so the audience stays explainable afterwards.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "where": {
+      "all": [
+        { "ref": "attributes.plan", "eq": "pro" },
+        { "lastSeen": { "olderThan": "30d" } }
+      ]
+    },
+    "title": "Still with us?",
+    "body": "Your streak is waiting."
+  }'
+```
+
+An invalid expression, saved or inline, is a 400 `invalid_expression` whose `param` points at the failing node, for example `expression.all[1]` or `where.all[1]`.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Messages" icon="paper-plane" href="/sending/messages">
+    Every targeting option, content field and the delivery guarantees behind them.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    Run the same conditions per subscriber, with waits and branches.
+  </Card>
+</CardGroup>

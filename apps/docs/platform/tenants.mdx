@@ -1,0 +1,100 @@
+---
+title: "Tenants"
+description: "How workspaces and tenants divide your account, and how one workspace key sends for many customers."
+---
+
+A **workspace** holds your team, your billing and your API keys. A **tenant** inside it is the isolation boundary: it owns the subscribers, the provider credentials, the topics and the sends. Nothing crosses from one tenant to another.
+
+Every workspace is created with a tenant called `default`, and it cannot be deleted. Leave the tenant header off and every call lands in `default`, which is all a single app needs.
+
+## When you need more than one
+
+Create a tenant per customer when you are a platform sending on someone else's behalf, so each customer has their own Apple and Firebase keys, their own subscribers and their own topics. A gym software company gives every gym a tenant; a gym's members only ever exist inside it.
+
+```bash
+curl https://api.buzzkit.dev/v1/tenants \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Gymly",
+    "slug": "gymly",
+    "metadata": { "externalId": "cus_123" }
+  }'
+```
+
+The slug is the stable address for every tenant-scoped call, so pick it carefully. It has to be lowercase letters, digits and hyphens, and unique in the workspace. `metadata` is free-form, which is where your own customer id belongs. Creating a tenant also creates a `Default` client key for it, which you will find in the workspace key listing.
+
+<Note>
+  The default tenant's slug cannot be changed, and the default tenant cannot be deleted. Deleting any other tenant soft-deletes it and revokes the tenant keys that were issued for it.
+</Note>
+
+## Selecting a tenant per request
+
+A workspace key (`bk_ws_...`) implies its workspace, and `BuzzKit-Tenant` picks the tenant for that request, the way a Stripe platform passes `Stripe-Account` with one platform secret key. One key covers every tenant, so there are no per-tenant keys to mint, store or rotate.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "BuzzKit-Tenant: gymly" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "user_42", "title": "Leg day", "body": "6:00 with Maya." }'
+```
+
+Omit the header and the default tenant is used. A key addressing a workspace or tenant it does not belong to is a 403, always. See [Authentication](/authentication) for the full key matrix.
+
+### Tenant keys
+
+A tenant key (`bk_tn_...`) is the restricted alternative. It is locked to one tenant's data plane and needs no header, because it already implies its tenant. It is rejected on workspace-level routes, including tenant management itself. Reach for one when you are handing a customer or a semi-trusted subsystem direct access and want the blast radius to stop at a single tenant.
+
+## Settings
+
+Each tenant carries a `settings` object that a `PATCH` deep-merges per group. Reads always return the fully resolved object with defaults applied, and an unknown group, key or type is a 400.
+
+```bash
+curl https://api.buzzkit.dev/v1/tenants/gymly \
+  -X PATCH \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "settings": {
+      "identity": { "requireVerification": true },
+      "channels": { "push": { "enabled": true } }
+    }
+  }'
+```
+
+`channels.<channel>.enabled` is a per-tenant kill switch, so you can pause a channel without deleting its credential. `identity.requireVerification` turns on identity verification for client calls, described below.
+
+## The identity secret
+
+A client key ships inside your app binary, so on its own it lets any caller claim any `externalId`. Each tenant has an identity secret that closes that gap. Your backend computes `identityHash = HMAC-SHA256(externalId, identitySecret)` as hex and hands it to the app at login, and the app passes it on every client call.
+
+A valid hash always marks the subscriber verified, whether or not you enforce it, so verified and anonymous subscribers coexist and you can tell them apart. An invalid hash is always a 401. Turning on `identity.requireVerification` makes the hash mandatory for every client call in that tenant, and a stolen hash then impersonates only the one subscriber it was minted for.
+
+The tenant object never contains the secret. It lives behind two session-only endpoints that require an admin in the dashboard:
+
+- `GET /v1/tenants/:tenantSlug/identity-secret` reveals it once for your backend's configuration.
+- `POST /v1/tenants/:tenantSlug/identity-secret/rotate` replaces it. Every hash minted with the old secret stops verifying immediately.
+
+<Warning>
+  API keys get a 403 on both, and the `tenants:secrets` scope cannot be granted to a key at all. Read the secret from the dashboard, keep it on your server, and never ship it in the app.
+</Warning>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Key kinds, scopes and the tenant header.
+  </Card>
+  <Card title="Subscribers" icon="user" href="/audience/subscribers">
+    Who lives inside a tenant and how you address them.
+  </Card>
+  <Card title="iOS SDK" icon="apple" href="/sdks/ios/identity">
+    Client keys, identify and the identity hash on the device.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/platform/webhooks">
+    Endpoints belong to the workspace and can be filtered to one tenant.
+  </Card>
+</CardGroup>

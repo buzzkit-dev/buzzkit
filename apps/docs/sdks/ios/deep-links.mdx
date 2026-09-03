@@ -1,0 +1,140 @@
+---
+title: "Deep links and actions"
+description: "Route a notification tap to the right screen, run remotely configured actions and action buttons, and report delivered and opened receipts."
+---
+
+A notification created in the dashboard or sent through [`POST /v1/messages`](/sending/messages) can carry a `deepLink`, a named `action`, up to four `actions` buttons, or all three. The SDK parses them into a `PushPayload` and routes them when the notification is opened, so what a notification does is decided on the server and never needs an app release.
+
+## Handling a deep link
+
+Register one closure at launch, after `BuzzKit.configure`.
+
+```swift
+import BuzzKit
+
+BuzzKit.onDeepLink { url in
+    router.open(url)
+}
+```
+
+The closure runs on every notification whose payload has a `deepLink` that parses as a `URL`. When you need more than the URL, implement `BuzzKitDelegate` instead and return `true` to say you consumed it.
+
+```swift
+final class NotificationRouter: BuzzKitDelegate {
+    func buzzKit(_ buzzKit: BuzzKit, openDeepLink url: URL) -> Bool {
+        guard url.scheme == "gym" else { return false }
+        router.open(url)
+        return true
+    }
+}
+
+BuzzKit.delegate = NotificationRouter()
+```
+
+BuzzKit tries three routes in order and stops at the first that takes the URL.
+
+| Order | Route | When it wins |
+| --- | --- | --- |
+| 1 | `BuzzKitDelegate.buzzKit(_:openDeepLink:)` | A delegate is set and it returns `true`. |
+| 2 | The `onDeepLink` closure | No delegate handled it and a closure is registered. |
+| 3 | `UIApplication.open` | Nothing handled it, so the system takes the URL. |
+
+Every routed link is tracked as `$deeplink.opened` with the `url`, the `messageId`, and `via` set to `delegate`, `handler` or `system`, so you can see in the event stream which links fell through to the system.
+
+## Registering named actions
+
+Actions are the half you configure remotely. The app registers handlers by name once, and any message or workflow step can name one with data chosen on the server.
+
+```swift
+BuzzKit.actions.register("show_offer") { action in
+    guard case .string(let offerId)? = action.data["offerId"] else { return }
+    paywall.present(offerId: offerId)
+}
+
+BuzzKit.actions.register("start_workout") { _ in
+    router.open(.workout)
+}
+```
+
+`action.name` is the name the message used and `action.data` is a `[String: JSONValue]` dictionary, so read values by pattern matching the case you expect, or take `anyValue` for a Foundation object. `BuzzKit.actions.unregister("show_offer")` removes a handler.
+
+Both the handler and the deep link run when a payload carries both: the action first, then the link. Every action is tracked as `$action.triggered` with `name` and `handled`, so a message naming an action no build has a handler for is visible in the event stream rather than silent. On the device it logs a warning and does nothing else.
+
+<Tip>
+  Ship a small set of capable handlers, such as opening a paywall, a screen or a purchase flow, then decide in the dashboard which notification calls which with what data. That is what lets you change a campaign's destination without shipping an app update.
+</Tip>
+
+## Action buttons
+
+Buttons come from the message's `actions` array, each with `id`, `title`, `destructive`, `foreground`, `input` and `placeholder`. The [notification service extension](/sdks/ios/push#the-notification-service-extension) turns them into a `UNNotificationCategory` before the notification is displayed, using the message's `category` or a category id derived from the buttons themselves. Buttons therefore need the extension in your app: without it the notification still arrives, with no buttons on it.
+
+A button with `input: true` becomes a `UNTextInputNotificationAction` whose `placeholder` is the field's placeholder text.
+
+The tapped button reaches your app through the delegate.
+
+```swift
+func buzzKit(_ buzzKit: BuzzKit, didOpen payload: PushPayload, actionIdentifier: String?) {
+    switch actionIdentifier {
+    case "confirm": bookings.confirm(payload.data)
+    case "skip": bookings.skip(payload.data)
+    default: break
+    }
+}
+```
+
+`actionIdentifier` is the button's `id`, and `nil` when the person tapped the notification body rather than a button. `payload.data` holds the message's custom `data` exactly as sent.
+
+<Note>
+  Text a person types into an input button is reported to BuzzKit as the `input` field of the `$notification.opened` event, and is not passed to the delegate. Read it from the subscriber's event stream, or branch on it in a [workflow](/automation/workflows).
+</Note>
+
+## Delivered and opened receipts
+
+Three events tell you what happened to each notification, all carrying the `messageId` of the send that produced them.
+
+| Event | Sent when | Sent by |
+| --- | --- | --- |
+| `$notification.delivered` | The notification arrives on the device | The notification service extension |
+| `$notification.opened` | The person opens it, with `action`, `input` and `deepLink` when present | The app |
+| `$notification.dismissed` | The person clears it without opening | The app |
+
+Opened and dismissed receipts work with no setup beyond `BuzzKit.configure`. Delivered receipts need a [notification service extension](/sdks/ios/push#the-notification-service-extension), because that is the only code Apple runs for a notification the person has not touched. It is the same extension that registers action buttons, so adding it once turns on both.
+
+```swift
+import BuzzKitNotificationServiceExtension
+
+final class NotificationService: BuzzKitNotificationService {
+    override var buzzKitAppGroup: String? { "group.com.example.gym" }
+}
+```
+
+BuzzKit sets `mutable-content` on every message carrying an image or buttons, which is what makes iOS launch the extension in the first place.
+
+<Warning>
+  The extension gets only a few seconds of runtime. With an app group shared between the app and the extension, a receipt that cannot reach the API in that window is written to the shared container and delivered on the app's next launch. Without one, receipts are best effort.
+</Warning>
+
+### Receipts and the delivery ledger
+
+The two records answer different questions and both are worth reading.
+
+The [delivery ledger](/sending/delivery) is the server's view: one delivery per device with every attempt, the exact payload sent, the provider's response and a latency. It reaches `sent` when APNs accepted the notification, which is the most a push provider ever confirms.
+
+Receipts are the device's view, and they arrive as events on the subscriber rather than as changes to delivery rows. `$notification.delivered` is the proof the notification actually landed on a phone, and `$notification.opened` is what open rates are computed from. Workflows read the same events: an `opened` or `delivered` condition on an earlier `send` step branches on exactly these receipts.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Sending messages" icon="paper-plane" href="/sending/messages">
+    The `deepLink`, `action` and `actions` fields that produce all of this.
+  </Card>
+  <Card title="Delivery and retries" icon="list-check" href="/sending/delivery">
+    Deliveries, attempts and what the provider said.
+  </Card>
+  <Card title="Events" icon="bolt" href="/sdks/ios/events">
+    Tracking your own events, and the reserved ones the SDK sends.
+  </Card>
+  <Card title="Local notifications" icon="clock" href="/sdks/ios/local-notifications">
+    Notifications a workflow hands the device to schedule itself.
+  </Card>
+</CardGroup>

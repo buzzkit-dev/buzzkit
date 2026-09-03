@@ -1,0 +1,113 @@
+---
+title: "Local notifications"
+description: "How a workflow hands a notification to the device to schedule itself, how the device acknowledges it, and when the server sends a push instead."
+---
+
+A [workflow](/automation/workflows) `send` step can carry `deliver: "local"`. Instead of pushing the notification when it is due, BuzzKit sends a silent push at the start of the wait that hands the device the whole notification, and the device schedules it itself. The notification then fires at the right wall clock moment with no network involved, and can cancel itself the moment the person does the thing it was going to nudge them about.
+
+Use it for anything the person is meant to act on at a specific local time, such as a workout reminder, a medication dose or a streak nudge. Use an ordinary push for anything whose content is only known at send time.
+
+## What the app has to do
+
+Nothing beyond configuring the SDK. `BuzzKit.configure` installs everything, and scheduling, cancellation and acknowledgment run without a line of app code.
+
+Three things have to be true for the device to receive the plan.
+
+- The app has been launched at least once, so the SDK is configured and the device has a push subscription.
+- The **Remote notifications** background mode is enabled, so iOS wakes the app for the silent push.
+- Notification permission is granted, since the scheduled notification is an ordinary local notification.
+
+With `Configuration.automaticPushHandling` turned off, forward the silent push yourself from the app delegate.
+
+```swift
+func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+) async -> UIBackgroundFetchResult {
+    let outcome = await BuzzKit.didReceiveRemoteNotification(userInfo: userInfo)
+    return outcome == .newData ? .newData : .noData
+}
+```
+
+## What happens on the device
+
+The silent push carries a plan under `bk.local`: an id, the wall clock moment to fire, the title, the body, your `data`, and the event names that cancel it.
+
+<Steps>
+  <Step title="Schedule">
+    The SDK builds a `UNCalendarNotificationTrigger` from the plan's date components, so the notification fires at that wall clock time in whatever timezone the device is in when it arrives. The request keeps the originating `messageId`, which is why an open on a locally scheduled notification is tracked like any other push.
+  </Step>
+
+  <Step title="Acknowledge">
+    The SDK immediately tracks `$local.scheduled` with the plan's `localId`, and flushes the event queue rather than waiting for the next batch. That event is the acknowledgment the workflow run looks for.
+  </Step>
+
+  <Step title="Cancel on an event">
+    The plan's `cancelOn` names are registered on the device and persisted. When your app tracks a matching event, the pending notification is removed straight away, offline included.
+
+    ```swift
+    BuzzKit.track("workout.completed")
+    ```
+  </Step>
+
+  <Step title="Cancel from the server">
+    When a run is cancelled centrally, BuzzKit sends a `bk.cancel` push carrying the run id. A cancel id matches a scheduled notification exactly or by prefix, so one cancel removes every notification that run scheduled.
+  </Step>
+</Steps>
+
+`cancelOn` comes from the workflow's own `cancelOn` rules, the ones with no `where`, since only those can be decided on a device with no view of the subscriber.
+
+## Writing the step
+
+A `waitUntil` step immediately followed by a `send` with `deliver: "local"` is what makes a local window. The plan goes out when the wait begins, and the wait covers the whole window before the notification is due.
+
+```json
+{
+  "trigger": { "event": "workout.scheduled" },
+  "cancelOn": [{ "event": "workout.completed" }],
+  "steps": [
+    {
+      "name": "morning-of",
+      "waitUntil": { "time": "07:00", "timezone": "subscriber" }
+    },
+    {
+      "name": "nudge",
+      "send": {
+        "deliver": "local",
+        "title": "Leg day",
+        "body": "6:00 with Maya.",
+        "deepLink": "gym://workouts/legs"
+      }
+    }
+  ]
+}
+```
+
+Quiet hours still apply. When the tenant has them configured and the step's `policy` is not `ignore`, the moment is shifted out of quiet hours before the plan is handed to the device.
+
+## When the cloud fallback fires
+
+When the wait reaches its moment, the run checks whether that subscriber ever acknowledged the plan. If no `$local.scheduled` event with the plan's id arrived, the run sends the same message again as an ordinary push, under its own idempotency key, and the run summary records that no device confirmed the schedule.
+
+This covers exactly the cases silent pushes cannot: iOS budgets silent pushes per hour, defers them in Low Power Mode, and never delivers one to a force-quit app. Sending the plan when the wait begins rather than when the notification is due gives the silent push the whole window to land, and the fallback catches the device that stayed force-quit through all of it.
+
+<Note>
+  The fallback only runs for live runs with a subscriber, so a dry run never sends anything. A subscriber who acknowledged on one device and has a second device that did not is treated as acknowledged, because the acknowledgment is per subscriber, not per device.
+</Note>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    Triggers, waits, branches and the `send` step this builds on.
+  </Card>
+  <Card title="Events" icon="bolt" href="/sdks/ios/events">
+    Tracking the events that cancel a scheduled notification.
+  </Card>
+  <Card title="Deep links and actions" icon="link" href="/sdks/ios/deep-links">
+    Routing the tap when the notification fires.
+  </Card>
+  <Card title="Push" icon="bell" href="/sdks/ios/push">
+    Permission, tokens and the background modes this needs.
+  </Card>
+</CardGroup>

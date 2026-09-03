@@ -70,8 +70,7 @@ const matrixPlans = [...cloudPlans, community];
               ))}
             </dl>
             <div class='mt-auto pt-2'>
-              <Button href={plan.cta.href} variant={plan.cta.variant} external={plan.cta.href.startsWith('https://github')}>
-                {plan.cta.icon && <Icon name={plan.cta.icon} class='size-4.5' />}
+              <Button href={plan.cta.href} variant={plan.cta.variant} external={plan.cta.href.startsWith('https://')}>
                 {plan.cta.label}
               </Button>
             </div>
@@ -85,7 +84,6 @@ const matrixPlans = [...cloudPlans, community];
       </p>
       <div class='shrink-0'>
         <Button href={community.cta.href} variant={community.cta.variant} external>
-          <Icon name='IconGithub' class='size-4.5' />
           {community.cta.label}
         </Button>
       </div>

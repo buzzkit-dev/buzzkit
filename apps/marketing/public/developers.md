@@ -43,7 +43,7 @@ The REST API lives under `/v1` at `https://api.buzzkit.dev`. Every response is a
 
 ## SDKs
 
-The iOS SDK handles registration, identity, events, action buttons, Live Activities and a notification settings screen in Swift: https://github.com/buzzkit-dev/buzzkit-ios. The server SDK lives in the repository under `packages/buzzkit` and reaches npm with the public launch. Android follows on the same core.
+The iOS SDK handles registration, identity, events, action buttons, Live Activities and a notification settings screen in Swift: https://docs.buzzkit.dev/sdks/ios/overview. The server SDK lives in the repository under `packages/buzzkit` and reaches npm with the public launch. Android follows on the same core.
 
 ## Testing without touching production
 

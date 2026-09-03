@@ -35,21 +35,28 @@ ${comparisons.map((comparison) => `- [BuzzKit vs ${comparison.competitor}](${sit
 - OpenAPI description: ${site.url}/openapi.json
 - API catalog (RFC 9727): ${site.url}/.well-known/api-catalog
 - Authentication walkthrough: ${site.url}/auth.md
-- iOS SDK: ${site.iosSdkUrl}
+- iOS SDK: ${site.iosDocsUrl}
 - Agent skills index: ${site.url}/.well-known/agent-skills/index.json
 - BuzzKit integration skill: ${site.url}/.well-known/agent-skills/buzzkit/SKILL.md
 - Agentic resource catalog: ${site.url}/.well-known/ard.json
 
 ## Documentation
 
-- Messages and delivery: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/messages.md
-- Subscribers and subscriptions: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/subscribers.md
-- Events: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/events.md
-- Topics & Preferences: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/topics.md
-- Segments: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/segments.md
-- Workflows: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/workflows.md
-- Sources: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/sources.md
-- Client API: https://github.com/buzzkit-dev/buzzkit/blob/main/docs/api/client.md
+Every page below also answers as markdown at the same URL with .md appended.
+
+- Sending messages: ${site.docsUrl}/sending/messages
+- Scheduling: ${site.docsUrl}/sending/scheduling
+- Delivery and retries: ${site.docsUrl}/sending/delivery
+- Subscribers: ${site.docsUrl}/audience/subscribers
+- Segments: ${site.docsUrl}/audience/segments
+- Topics and preferences: ${site.docsUrl}/audience/topics
+- Events: ${site.docsUrl}/automation/events
+- Workflows: ${site.docsUrl}/automation/workflows
+- Sources: ${site.docsUrl}/automation/sources
+- Tenants: ${site.docsUrl}/platform/tenants
+- Webhooks: ${site.docsUrl}/platform/webhooks
+- iOS SDK: ${site.docsUrl}/sdks/ios/overview
+- Everything in one file: ${site.docsUrl}/llms-full.txt
 
 ## This site
 

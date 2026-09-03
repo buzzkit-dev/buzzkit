@@ -10,7 +10,7 @@ export function renderDevelopersIndex(): string {
 - [OpenAPI document](${site.url}/openapi.json): every /v1 operation with its scope and schemas
 - [API catalog](${site.url}/.well-known/api-catalog): the RFC 9727 linkset
 - [Documentation](${site.docsUrl}): guides and the reference for every resource
-- [iOS SDK](${site.iosSdkUrl}): registration, identity, events, action buttons, Live Activities
+- [iOS SDK](${site.iosDocsUrl}): registration, identity, events, action buttons, Live Activities
 - [Integration skill](${site.url}/.well-known/agent-skills/buzzkit/SKILL.md): the steps packaged for coding agents
 - Everything on the site: ${site.url}/llms.txt
 `;

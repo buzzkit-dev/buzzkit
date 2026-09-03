@@ -578,7 +578,6 @@ function OverviewContent({
             className='pt-0'
             icon='IconPaperPlaneTopRightFilled'
             title='No deliveries in this period'
-            description='Send a message and its deliveries appear here day by day.'
           />
         ) : (
           <CardContent className='pt-1 pb-3'>
@@ -594,13 +593,7 @@ function OverviewContent({
             <CardDescription>Events tracked per {stats.interval}.</CardDescription>
           </CardHeader>
           {stats.events.total === 0 ? (
-            <EmptyState
-              size='sm'
-              className='pt-0'
-              icon='IconZapFilled'
-              title='No events in this period'
-              description='Track an event from your app or backend and it appears here.'
-            />
+            <EmptyState size='sm' className='pt-0' icon='IconZapFilled' title='No events in this period' />
           ) : (
             <CardContent className='pt-1 pb-3'>
               <PeriodChart
@@ -625,13 +618,7 @@ function OverviewContent({
             )}
           </CardHeader>
           {stats.runs.started === 0 ? (
-            <EmptyState
-              size='sm'
-              className='pt-0'
-              icon='IconAgentsFilled'
-              title='No runs in this period'
-              description='Publish a workflow and its runs appear here as events trigger them.'
-            />
+            <EmptyState size='sm' className='pt-0' icon='IconAgentsFilled' title='No runs in this period' />
           ) : (
             <CardContent className='pt-1 pb-3'>
               <PeriodChart series={stats.series} interval={stats.interval} lines={RUN_LINES} height='12rem' />
@@ -658,12 +645,7 @@ function OverviewContent({
             )}
           </CardHeader>
           {messages.length === 0 ? (
-            <EmptyState
-              size='sm'
-              icon='IconPaperPlaneTopRightFilled'
-              title='No messages yet'
-              description='Send one from your backend and it appears here.'
-            />
+            <EmptyState size='sm' icon='IconPaperPlaneTopRightFilled' title='No messages yet' />
           ) : (
             <Table>
               <TableHeader>
@@ -698,12 +680,7 @@ function OverviewContent({
             )}
           </CardHeader>
           {subscribers.length === 0 ? (
-            <EmptyState
-              size='sm'
-              icon='IconTeamFilled'
-              title='No subscribers yet'
-              description='Identify a user from your app and they appear here.'
-            />
+            <EmptyState size='sm' icon='IconTeamFilled' title='No subscribers yet' />
           ) : (
             <Table>
               <TableHeader>
@@ -738,12 +715,7 @@ function OverviewContent({
             )}
           </CardHeader>
           {stats.topEvents.length === 0 ? (
-            <EmptyState
-              size='sm'
-              icon='IconZapFilled'
-              title='No events in this period'
-              description='The most tracked event names of the period appear here.'
-            />
+            <EmptyState size='sm' icon='IconZapFilled' title='No events in this period' />
           ) : (
             <Table>
               <TableHeader>
@@ -777,12 +749,7 @@ function OverviewContent({
             )}
           </CardHeader>
           {stats.workflows.length === 0 ? (
-            <EmptyState
-              size='sm'
-              icon='IconAgentsFilled'
-              title='No active workflows'
-              description='Publish a workflow and its live runs appear here.'
-            />
+            <EmptyState size='sm' icon='IconAgentsFilled' title='No active workflows' />
           ) : (
             <Table>
               <TableHeader>

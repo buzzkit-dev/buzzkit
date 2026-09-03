@@ -52,7 +52,7 @@ bun dev
 
 ## Docs
 
-Product and architecture documentation lives in [`docs/`](docs/README.md).
+Product documentation, the guides and the API reference are at [docs.buzzkit.dev](https://docs.buzzkit.dev). Architecture and internal design notes live in [`docs/`](docs/README.md).
 
 ## License
 

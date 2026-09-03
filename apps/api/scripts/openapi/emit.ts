@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { api } from '@buzzkit/api/contract';
+import { BEARER_SCHEME, DOCUMENT_INFO, DOCUMENT_SERVERS, documentation } from '@buzzkit/api/libs/openapi';
 import { openapi } from '@elysiajs/openapi';
 import Elysia from 'elysia';
 
@@ -14,8 +15,6 @@ type Document = {
   components: Record<string, unknown>;
 };
 
-const SITE_URL = 'https://buzzkit.dev';
-const API_URL = 'https://api.buzzkit.dev';
 const ACTIONS: Record<string, string> = {
   cancel: 'Cancel',
   publish: 'Publish',
@@ -149,13 +148,156 @@ function attachErrorResponses(operation: Operation, method: string): void {
   }
 }
 
+const ERROR_SCHEMA = {
+  type: 'object',
+  description:
+    'The envelope every error uses. `error.code` is a stable lowercase snake_case code, `error.param` names the offending field when there is one, and `metadata.requestId` is what to quote in support requests.',
+  required: ['success', 'data', 'error', 'metadata'],
+  properties: {
+    success: { type: 'boolean', enum: [false] },
+    data: { type: 'object', nullable: true, description: 'Always null on an error.' },
+    error: {
+      type: 'object',
+      required: ['code', 'message'],
+      properties: {
+        code: { type: 'string', example: 'invalid_api_key' },
+        message: { type: 'string' },
+        param: { type: 'string', nullable: true },
+        details: {
+          type: 'array',
+          nullable: true,
+          description: 'Present on validation errors: one entry per failing field.',
+          items: {
+            type: 'object',
+            properties: { param: { type: 'string' }, message: { type: 'string' } },
+          },
+        },
+      },
+    },
+    metadata: {
+      type: 'object',
+      required: ['timestamp'],
+      properties: {
+        timestamp: { type: 'string', format: 'date-time' },
+        requestId: { type: 'string' },
+      },
+    },
+  },
+};
+
+const EXPRESSION_SCHEMA = {
+  description:
+    'A segment condition. Groups nest with all, any and not; a leaf compares an attribute, counts an event in a window, tests activity or tests channel reachability.',
+  anyOf: [
+    {
+      type: 'object',
+      required: ['all'],
+      properties: { all: { type: 'array', items: { $ref: '#/components/schemas/Expression' } } },
+    },
+    {
+      type: 'object',
+      required: ['any'],
+      properties: { any: { type: 'array', items: { $ref: '#/components/schemas/Expression' } } },
+    },
+    {
+      type: 'object',
+      required: ['not'],
+      properties: { not: { $ref: '#/components/schemas/Expression' } },
+    },
+    { type: 'object', additionalProperties: true },
+  ],
+};
+
+const ANY_SCHEMA = { type: 'object', additionalProperties: true };
+
+const SCHEMA_SLOTS = ['schema', 'items', 'additionalProperties', 'not'];
+
+const SCHEMA_LISTS = ['anyOf', 'oneOf', 'allOf'];
+
+function isEmptySchema(node: unknown): boolean {
+  return node !== null && typeof node === 'object' && !Array.isArray(node) && Object.keys(node).length === 0;
+}
+
+function fillSchema(node: unknown): unknown {
+  return isEmptySchema(node) ? { ...ANY_SCHEMA } : node;
+}
+
+function normalizeSchemas(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const entry of node) normalizeSchemas(entry);
+    return;
+  }
+  if (node === null || typeof node !== 'object') return;
+
+  const record = node as Record<string, unknown>;
+
+  if (record.type === 'null') {
+    record.type = 'object';
+    record.nullable = true;
+  }
+
+  delete record.$id;
+  delete record.$schema;
+
+  if ('const' in record) {
+    record.enum = [record.const];
+    delete record.const;
+  }
+
+  const patterned = record.patternProperties;
+  if (patterned !== null && typeof patterned === 'object') {
+    const [fallback] = Object.values(patterned as Record<string, unknown>);
+    delete record.patternProperties;
+    record.additionalProperties = fallback === undefined ? true : fillSchema(fallback);
+  }
+
+  const union = record.anyOf;
+  if (Array.isArray(union) && union.some((member) => (member as Record<string, unknown>)?.type === 'null')) {
+    const rest = union.filter((member) => (member as Record<string, unknown>)?.type !== 'null');
+    delete record.anyOf;
+    record.nullable = true;
+    if (rest.length === 1) Object.assign(record, fillSchema(rest[0]));
+    else if (rest.length > 1) record.anyOf = rest.map(fillSchema);
+  }
+
+  for (const slot of SCHEMA_SLOTS) {
+    if (slot in record) record[slot] = fillSchema(record[slot]);
+  }
+  for (const list of SCHEMA_LISTS) {
+    const members = record[list];
+    if (Array.isArray(members)) record[list] = members.map(fillSchema);
+  }
+  const properties = record.properties;
+  if (properties !== null && typeof properties === 'object' && !Array.isArray(properties)) {
+    for (const [name, value] of Object.entries(properties as Record<string, unknown>)) {
+      (properties as Record<string, unknown>)[name] = fillSchema(value);
+    }
+  }
+
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'example' || key === 'examples' || key === 'default' || key === 'enum') continue;
+    normalizeSchemas(value);
+  }
+}
+
+function linkReferences(node: unknown, known: ReadonlySet<string>): void {
+  if (Array.isArray(node)) {
+    for (const entry of node) linkReferences(entry, known);
+    return;
+  }
+  if (node === null || typeof node !== 'object') return;
+
+  const record = node as Record<string, unknown>;
+  const reference = record.$ref;
+  if (typeof reference === 'string' && !reference.startsWith('#/')) {
+    if (known.has(reference)) record.$ref = `#/components/schemas/${reference}`;
+    else delete record.$ref;
+  }
+  for (const value of Object.values(record)) linkReferences(value, known);
+}
+
 function describe(spec: Document): Document {
   const scopes = resolveScopes();
-  const packageVersion = (
-    JSON.parse(readFileSync(resolve(import.meta.dirname, '../../package.json'), 'utf8')) as {
-      version: string;
-    }
-  ).version;
   const seen = new Map<string, number>();
   for (const [path, operations] of Object.entries(spec.paths)) {
     for (const [method, operation] of Object.entries(operations)) {
@@ -171,70 +313,38 @@ function describe(spec: Document): Document {
     }
   }
   return {
-    openapi: spec.openapi,
-    info: {
-      title: 'BuzzKit API',
-      version: packageVersion,
-      description:
-        'The BuzzKit REST API: subscribers, subscriptions, topics, events, segments, messages, workflows, sources and webhooks, all under /v1. Every response is a JSON envelope { success, data, error, metadata }; errors carry a lowercase snake_case code, a message and, when a field is at fault, its param.',
-      contact: { name: 'BuzzKit', url: SITE_URL, email: 'hello@buzzkit.dev' },
-      license: { name: 'AGPL-3.0', url: 'https://github.com/buzzkit-dev/buzzkit/blob/main/LICENSE' },
-    },
-    externalDocs: { description: 'BuzzKit documentation', url: 'https://docs.buzzkit.dev' },
-    servers: [
-      { url: API_URL, description: 'BuzzKit Cloud' },
-      { url: 'http://localhost:8790', description: 'Local development' },
-    ],
+    ...spec,
+    info: DOCUMENT_INFO,
+    servers: DOCUMENT_SERVERS,
     security: [{ bearerAuth: [] }],
     paths: spec.paths,
     components: {
       ...spec.components,
       schemas: {
         ...((spec.components.schemas as Record<string, unknown> | undefined) ?? {}),
-        Error: {
-          type: 'object',
-          description:
-            'The envelope every error uses. `error.code` is a stable lowercase snake_case code, `error.param` names the offending field when there is one, and `metadata.requestId` is what to quote in support requests.',
-          required: ['success', 'data', 'error', 'metadata'],
-          properties: {
-            success: { type: 'boolean', enum: [false] },
-            data: { type: 'null' },
-            error: {
-              type: 'object',
-              required: ['code', 'message'],
-              properties: {
-                code: { type: 'string', example: 'invalid_api_key' },
-                message: { type: 'string' },
-                param: { type: 'string', nullable: true },
-                details: { nullable: true },
-              },
-            },
-            metadata: {
-              type: 'object',
-              required: ['timestamp'],
-              properties: {
-                timestamp: { type: 'string', format: 'date-time' },
-                requestId: { type: 'string' },
-              },
-            },
-          },
-        },
+        Expression: EXPRESSION_SCHEMA,
+        Error: ERROR_SCHEMA,
       },
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          description:
-            'An API key from the dashboard. The scopes listed on each operation are the `resource:action` grants a key needs (`messages:send`, `subscribers:read`, `topics:*`, `*`); `account:*` scopes and key management are session-only.  Workspace keys (bk_ws_) reach every tenant and pick one with the buzzkit-tenant header; tenant keys (bk_tn_) are locked to one tenant; client keys (bk_pk_) ship inside an app and only work on /v1/client/*. Keys carry scopes such as messages:write or subscribers:read.',
-        },
-      },
+      securitySchemes: { bearerAuth: BEARER_SCHEME },
     },
   } as Document;
 }
 
-const app = new Elysia().use(openapi({ path: '/openapi' })).use(api);
+const app = new Elysia().use(openapi({ path: '/openapi', documentation })).use(api);
 const response = await app.handle(new Request('http://buzzkit/openapi/json'));
 const emitted = describe((await response.json()) as Document);
-const target = resolve(import.meta.dirname, '../../../marketing/public/openapi.json');
-writeFileSync(target, `${JSON.stringify(emitted, null, 2)}\n`);
-process.stdout.write(`[OpenAPI] Wrote ${Object.keys(emitted.paths).length} paths to ${target}\n`);
+normalizeSchemas(emitted.paths);
+normalizeSchemas(emitted.components);
+linkReferences(
+  emitted.paths,
+  new Set(Object.keys((emitted.components.schemas ?? {}) as Record<string, unknown>))
+);
+const document = `${JSON.stringify(emitted, null, 2)}\n`;
+const targets = [
+  resolve(import.meta.dirname, '../../../marketing/public/openapi.json'),
+  resolve(import.meta.dirname, '../../../docs/openapi.json'),
+];
+for (const target of targets) writeFileSync(target, document);
+process.stdout.write(
+  `[OpenAPI] Wrote ${Object.keys(emitted.paths).length} paths to ${targets.length} targets\n`
+);

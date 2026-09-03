@@ -1,0 +1,102 @@
+---
+title: "Events"
+description: "Track what people do in your app, understand the offline queue, and read the reserved events the SDK emits on its own."
+---
+
+## Track
+
+```swift
+BuzzKit.track("workout.completed", data: ["duration": 42, "program": "legs"])
+```
+
+The signature is `track(_ name: String, data: [String: JSONValue]? = nil)`. It returns immediately; the event is written to disk on a background task, so calling it from a view body or a button action is fine.
+
+`data` takes `[String: JSONValue]`, and `JSONValue` is expressible by string, integer, float, boolean, nil, array and dictionary literals. Ordinary Swift literals work as they are, including nested structures:
+
+```swift
+BuzzKit.track("cart.checked_out", data: [
+    "total": 49.9,
+    "currency": "EUR",
+    "items": ["mat", "strap"],
+    "coupon": nil,
+    "shipping": ["method": "express", "express": true],
+])
+```
+
+### Naming
+
+A custom name must be non-empty, at most 128 bytes of UTF-8, and must not start with `$`. The `$` prefix is reserved for the events the SDK emits itself. An event with an invalid name is logged as an error and dropped rather than sent, so a typo never reaches your event stream.
+
+## The offline queue
+
+Every tracked event is written to a SQLite database on the device before anything touches the network, so tracking works on a plane and survives the app being killed mid-flight. When you configure an `appGroup`, that database lives in the shared container.
+
+Events are sent in batches of at most 100, and a batch is deleted only after the server has acknowledged it. Batches are grouped by identity, so events tracked before a login are sent under the anonymous id and events after it under the real one, even when both are still queued.
+
+The queue flushes:
+
+- Three seconds after an event is tracked
+- Five seconds after `configure`, on every launch
+- When the device comes back online
+- When the app goes to the background
+- When the user identifies under a new id
+- When a notification is opened or dismissed
+
+Two calls let you take over:
+
+```swift
+let pending = await BuzzKit.pendingEventCount()
+await BuzzKit.flushEvents()
+```
+
+<Note>
+  A batch the server rejects with an API error is dropped rather than retried, because retrying a malformed batch would block everything queued behind it. Network failures are different: the batch stays queued and its attempt count rises, and events are given up on only after 20 failed attempts.
+</Note>
+
+## Reserved events
+
+The SDK emits these on its own. They are ordinary events on the subscriber and can be used anywhere a custom event can, including as a workflow trigger and inside a segment.
+
+| Event | When it fires | Data |
+| --- | --- | --- |
+| `$app.installed` | First launch after install | `version`, `build` |
+| `$app.updated` | First launch after the version or build changed | `fromVersion`, `toVersion`, `fromBuild`, `toBuild` |
+| `$app.opened` | A session starts | |
+| `$app.backgrounded` | The app enters the background | |
+| `$session.ended` | A session is closed out | `durationSec` |
+| `$notification.delivered` | The push arrived on the device, sent by the service extension | `messageId` |
+| `$notification.opened` | The user opened the notification | `messageId`, `action`, `input`, `deepLink` |
+| `$notification.dismissed` | The user dismissed a notification carrying action buttons | `messageId` |
+| `$local.scheduled` | A workflow's silent push scheduled a local notification | `localId`, `messageId` |
+| `$deeplink.opened` | A notification's deep link was routed | `url`, `via`, `messageId` |
+| `$action.triggered` | A notification named a remote action | `name`, `handled`, `messageId` |
+| `$permission.changed` | The notification permission changed | `status` |
+| `$activity.started` | A Live Activity started being monitored | `activityId`, `attributesType` |
+| `$activity.ended` | A Live Activity ended | `activityId`, `attributesType` |
+| `$activity.dismissed` | A Live Activity was dismissed from the Lock Screen | `activityId`, `attributesType` |
+| `$activity.stale` | A Live Activity passed its stale date | `activityId`, `attributesType` |
+
+The `via` on `$deeplink.opened` says who routed the link: `delegate` for `BuzzKitDelegate`, `handler` for the closure passed to `BuzzKit.onDeepLink`, and `system` when nothing handled it and the URL went to iOS. `handled` on `$action.triggered` is `false` when the message named an action the app has no handler registered for, which makes an unshipped action visible instead of silent.
+
+## Sessions
+
+With `automaticSessionTracking` on, which is the default, the SDK watches the app lifecycle. Coming to the foreground starts a session and emits `$app.opened`; going to the background emits `$app.backgrounded`.
+
+Returning within 30 seconds resumes the same session rather than starting a new one, so switching to Mail and back does not inflate your session count. Beyond that threshold the previous session is closed with `$session.ended`, carrying the duration in seconds under `durationSec`, and a new one begins. `$session.ended` is timestamped at the moment the app was backgrounded, not at the moment it was emitted.
+
+Set `automaticSessionTracking: false` in the configuration to emit none of the three.
+
+## Where events go
+
+Events land in the tenant's event stream, the same place events from your backend arrive through `POST /v1/events`. From there they do two things, both described under [Events](/automation/events):
+
+<CardGroup cols={2}>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    Build an audience from what people did, such as everyone who completed a workout in the last week.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    Trigger a workflow on an event, or wait for one before the next step runs.
+  </Card>
+</CardGroup>
+
+The notification events matter most in workflows. A step can wait for `$notification.opened` and branch on whether it arrived, which is how a nudge stops nudging once it has worked.

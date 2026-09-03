@@ -1,0 +1,149 @@
+---
+title: "Topics and preferences"
+description: "Named notification categories with per-channel opt-in, so your app gets a notification settings screen without a custom table or a backend proxy."
+---
+
+A topic is a named category of notification, such as `gym-reminders`, `running-reminders` or `marketing`. Subscribers hold a preference per topic, so you need no preferences table of your own.
+
+Preferences are per topic **and** per channel. Someone can keep running-reminder pushes and kill running-reminder emails. When you send to a topic, BuzzKit filters to the opted-in subscribers for you.
+
+## Create a topic
+
+```bash
+curl https://api.buzzkit.dev/v1/topics \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slug": "gym-reminders",
+    "name": "Gym reminders",
+    "description": "Nudges before a scheduled workout.",
+    "category": "Training",
+    "channels": ["push"],
+    "defaultOptedIn": true,
+    "dailyCap": 3
+  }'
+```
+
+| Field | What it does |
+| --- | --- |
+| `channels` | The channels the topic is offered on, at least one. Omit it and the topic gets every connected channel. An email-only digest is `["email"]`. |
+| `defaultOptedIn` | The baseline for subscribers who never chose. Defaults to `true`. |
+| `channelDefaults` | Per-channel overrides of that baseline, such as `{ "push": false }`. It may only name offered channels, otherwise 400 `channel_not_offered`. |
+| `category` | Groups the topic under a heading in a settings screen. Found or created by name; manage the names through `/v1/topic-categories`. |
+| `dailyCap` | 1 to 50, or `null` to clear. |
+
+<Warning>
+  Every channel in `channels` must already have a live credential on the tenant. A topic offered on a channel with no credential is a 400 `channel_not_connected`. Connect Apple or Firebase first, as in the [quickstart](/quickstart).
+</Warning>
+
+`GET /v1/topics` pages the catalog newest first with `limit`, `cursor` and `total`, and `GET /v1/topics/:topicSlug` retrieves one.
+
+`PATCH /v1/topics/:topicSlug` updates any field, checking a renamed slug for conflicts. Narrowing `channels` drops the `channelDefaults` entries for channels no longer offered, but the subscribers' stored preferences for those channels are kept and come back if you offer the channel again. `DELETE /v1/topics/:topicSlug` soft-deletes it, and it disappears from every preference list.
+
+## How preferences resolve
+
+A subscriber's preference list is always the full topic catalog with a resolved state per offered channel. Subscribers store only their deviations.
+
+```json
+[
+  {
+    "id": "tpc_...",
+    "slug": "gym-reminders",
+    "name": "Gym reminders",
+    "description": "Nudges before a scheduled workout.",
+    "channels": {
+      "push": { "optedIn": true, "isDefault": true }
+    }
+  }
+]
+```
+
+`isDefault: true` means the subscriber never chose for that channel, so the topic's default applies and keeps following it if you change it later. The order of resolution is the subscriber's explicit choice, then `channelDefaults[channel]`, then `defaultOptedIn`.
+
+## Sending to a topic
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "gym-reminders",
+    "title": "Leg day",
+    "body": "6:00 with Maya."
+  }'
+```
+
+Every opted-in subscriber is reached, on the message's channel only, through their enabled and active subscriptions. Combine `topic` with `to` or with a [segment](/audience/segments) and the topic acts as a filter on that audience instead of being the audience. A topic that is not offered on the message's channel is a 400 `channel_not_offered`.
+
+<Note>
+  A send reaches a subscription only when the subscription is enabled and active **and** the topic and channel preference is opted in. Muting one device and opting out of a topic are separate controls that compose. See [subscribers](/audience/subscribers).
+</Note>
+
+## Reading and writing preferences from your backend
+
+```bash
+curl https://api.buzzkit.dev/v1/subscribers/user_42/preferences \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+The PATCH takes a `preferences` map with merge semantics. A value is either a boolean, which applies to every offered channel, or a per-channel map.
+
+```bash
+curl https://api.buzzkit.dev/v1/subscribers/user_42/preferences \
+  -X PATCH \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "preferences": { "marketing": false, "gym-reminders": { "push": true } } }'
+```
+
+An unknown topic is a 404. An unknown channel is a 400, as is naming a channel the topic does not offer. A channel a topic does not offer is absent from its `channels` map, and the boolean shorthand applies to the offered channels only.
+
+## Reading and writing preferences from the app
+
+The same pair exists on the client API, authenticated by a [client key](/authentication) you ship in the app, so no endpoint of your own sits in front of it. `GET /v1/client/preferences` returns the resolved list with each topic's `category`, ready to render as grouped sections, and `PATCH /v1/client/preferences` writes a change back.
+
+<CodeGroup>
+
+```bash Read
+curl https://api.buzzkit.dev/v1/client/preferences \
+  -H "Authorization: Bearer bk_pk_..." \
+  -H "BuzzKit-Subscriber: user_42" \
+  -H "BuzzKit-Identity: 9f2c..."
+```
+
+```bash Update
+curl https://api.buzzkit.dev/v1/client/preferences \
+  -X PATCH \
+  -H "Authorization: Bearer bk_pk_..." \
+  -H "BuzzKit-Subscriber: user_42" \
+  -H "BuzzKit-Identity: 9f2c..." \
+  -H "Content-Type: application/json" \
+  -d '{ "preferences": { "gym-reminders": false } }'
+```
+
+</CodeGroup>
+
+`BuzzKit-Subscriber` names the caller. `BuzzKit-Identity` carries the identity hash and is required once verification is enforced on the tenant. Identify the subscriber before showing the screen so preferences work even when push permission was denied. The [iOS SDK](/sdks/ios/preferences) wraps both calls.
+
+## Caps and quiet hours
+
+<Accordion title="How a topic's daily cap interacts with the tenant send policy">
+  A topic's `dailyCap` limits how many messages from that one topic a subscriber receives per local day. A send past it is recorded as `capped` in the delivery ledger rather than delivered.
+
+  It sits on top of the tenant-wide `sendPolicy.dailyCap`, which counts sent deliveries per subscriber per local day across everything. Three workout reminders a day at most, while the rest of your notifications flow under the wider limit.
+
+  The tenant policy also carries `quietHours`, which defers a delivery to the next allowed local time instead of failing it. With `timezone: "subscriber"` it follows each person's `$timezone`; a fixed IANA name reads one clock. Both halves are off by default and set per tenant. See [tenants](/platform/tenants).
+</Accordion>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Subscribers" icon="user" href="/audience/subscribers">
+    Identity, attributes and the subscriptions a topic send is filtered against.
+  </Card>
+  <Card title="Messages" icon="paper-plane" href="/sending/messages">
+    Content, targeting and what happens after a send is accepted.
+  </Card>
+</CardGroup>

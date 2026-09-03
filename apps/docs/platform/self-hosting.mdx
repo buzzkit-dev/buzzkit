@@ -1,0 +1,69 @@
+---
+title: "Self-hosting"
+description: "What BuzzKit runs on, what you need to bring, where configuration lives, and which values you cannot change later."
+---
+
+BuzzKit is open source and runs on your own Cloudflare account. Multi-tenancy, workflows, segments and the event stream are all in the repository, and a self-hosted deployment serves the same API as buzzkit.dev.
+
+<Card title="buzzkit-dev/buzzkit" icon="github" href="https://github.com/buzzkit-dev/buzzkit" horizontal>
+  The repository, and the current setup instructions in its README.
+</Card>
+
+## What it runs on
+
+| Piece | What it is |
+| --- | --- |
+| API | A Cloudflare Worker running Elysia. There is no Node server and no container to size. |
+| Dashboard | A second Worker, React Router 8 with server rendering. It holds no secrets of its own and talks to the API. |
+| PostgreSQL | The state of what is: workspaces, tenants, subscribers, topics, messages, deliveries and the audit log. Reached through Hyperdrive. |
+| Tinybird | The event stream, what happened. Data sources, materialized views and endpoints are defined in the repository and deployed into your own workspace. |
+| Durable Objects | One SQLite-backed actor per subscriber holding the ordered event inbox, the projections and the workflow runs. |
+| Queues and cron | Message fan-out, delivery attempts, event flushes and webhook deliveries, with a five-minute reconciliation sweep. |
+
+## What you need to bring
+
+- A Cloudflare account for the two Workers, plus KV, Queues, Durable Objects and Hyperdrive.
+- A PostgreSQL database.
+- A Tinybird workspace for the event stream. A free workspace is enough to start.
+- Provider credentials for the channels you use, such as an Apple Developer key or a Firebase service account. These are uploaded through the dashboard, never configured as environment variables.
+
+GitHub sign-in, Axiom logging and OTLP tracing are optional. Leaving them unset turns the feature off rather than breaking anything, and email and password sign-in is always available.
+
+<Note>
+  Cloudflare Queues are not created for you on deploy. The repository's instructions list the queues to create by name before the first deployment.
+</Note>
+
+## Where configuration lives
+
+Non-secret values live in each app's `wrangler.jsonc` under `vars` and are overridden per environment at deploy time. Secrets live in `.dev.vars` locally, copied from `.dev.vars.example` and git-ignored, and in `wrangler secret put` once deployed. The full table of every variable, secret and binding, with a column saying whether a self-hoster actually needs it, is `docs/configuration.md` in the repository.
+
+Three of them are worth knowing about before you start, because they are not the kind of value you change later:
+
+- `CREDENTIAL_MASTER_KEY_V1` wraps every provider credential you upload. Rotation is additive: you add the next version, deploy, wait for the sweep to re-wrap, then drop the old one. Losing every version that still wraps a row means re-uploading that credential.
+- `SQIDS_ALPHABET` derives your public ids. Generate one per deployment and never change it.
+- `BETTER_AUTH_SECRET` signs sessions. Rotating it signs everyone out.
+
+<Warning>
+  Rate limiting is not built into the API. Put Cloudflare WAF rate-limit rules on the sign-in, sign-up and `/v1/client/*` paths at deploy time.
+</Warning>
+
+## Licensing
+
+The core is [AGPL-3.0](https://github.com/buzzkit-dev/buzzkit/blob/main/LICENSE): the API, the dashboard, the marketing site and the internal packages. The SDKs your customers embed are MIT, both the `buzzkit` server package and the [iOS SDK](https://github.com/buzzkit-dev/buzzkit-ios), so shipping them inside a closed-source application carries no copyleft obligation.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Connect a channel, create keys and send, against your own deployment.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Keys and scopes, identical whether hosted or self-hosted.
+  </Card>
+  <Card title="Tenants" icon="layer-group" href="/platform/tenants">
+    The isolation boundary, the tenant header and per-tenant settings.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/platform/webhooks">
+    Endpoints, signing, the retry schedule and replays.
+  </Card>
+</CardGroup>

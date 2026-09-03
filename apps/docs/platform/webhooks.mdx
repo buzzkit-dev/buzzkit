@@ -1,0 +1,137 @@
+---
+title: "Webhooks"
+description: "Receive workspace events on your own endpoint, verify the signature, and inspect or replay every delivery."
+---
+
+Webhooks push what happened in BuzzKit to a URL you own. One endpoint receives both ledgers BuzzKit keeps: the control-plane audit log, which records what people and keys changed, and the subscriber event stream, which records what happened to a subscriber. Both are filtered by name, signed the same way and retried on the same schedule.
+
+Endpoints belong to the workspace, so the routes are workspace-context and take the workspace slug in the path. `webhooks:read` is member-level and `webhooks:write` is admin-level. Tenant keys are refused, though an endpoint can filter down to a single tenant.
+
+## Creating an endpoint
+
+```bash
+curl https://api.buzzkit.dev/v1/workspaces/acme/webhooks \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://hooks.example.com/buzzkit",
+    "description": "Production receiver",
+    "events": ["$subscription.registered", "message.*"],
+    "tenant": "gymly"
+  }'
+```
+
+The response is the only time the signing secret is returned in full at creation. `tenant` is optional and narrows the endpoint to one [tenant](/platform/tenants). A workspace can hold at most 50 endpoints. In production the URL has to be `https` and publicly routable, and a URL that carries credentials or points at a private address is a `400 invalid_url`.
+
+## Choosing events
+
+`events` takes exact names, `resource.*` patterns, `*` for everything public, or your own event names such as `order.completed` and `order.*`. Leave it out and the endpoint receives every public event.
+
+```bash
+curl https://api.buzzkit.dev/v1/workspaces/acme/webhooks/catalog \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+The catalog returns the subscribable BuzzKit events grouped by resource, which is what the dashboard's picker renders. Workflow runs are stream events like any other: subscribe to `$run.*` and every run reaches your endpoint with its `runId`, `workflow` and `versionId`. Private audit names such as `key.*`, `webhook.*` and `profile.*` can never be subscribed, and asking for one is a `400 invalid_event`.
+
+<Note>
+  An endpoint only receives what happened after it existed. Creating, editing or re-enabling an endpoint never back-delivers events from before that change.
+</Note>
+
+## The payload
+
+Every delivery carries an immutable event object with its own id, not a bare notification. The payload is built once and stored, so retries and replays re-send the exact same snapshot.
+
+```json
+{
+  "id": "whe_...",
+  "type": "$subscription.registered",
+  "apiVersion": "v1",
+  "createdAt": "2026-09-03T10:00:00.000Z",
+  "workspace": { "id": "ws_...", "slug": "acme" },
+  "tenant": { "id": "tnt_...", "slug": "gymly" },
+  "data": {
+    "object": {
+      "id": "evt_...",
+      "sequence": 3,
+      "name": "$subscription.registered",
+      "source": "system",
+      "data": { "externalId": "user_42", "channel": "push", "platform": "ios" },
+      "subscriber": { "id": "sub_...", "externalId": "user_42" }
+    }
+  }
+}
+```
+
+Control-plane events add `actor`, `target` and `request`, and `*.updated` events carry `changes` and `previousAttributes`. To read an event back from the API instead of trusting the body, `GET /v1/workspaces/:slug/webhooks/events/:id` returns the same object.
+
+Ordering is not promised. Dedupe on the `webhook-id` header and order on `createdAt`, or on the `sequence` inside `data.object` for stream events.
+
+## Verifying the signature
+
+Signing follows [Standard Webhooks](https://www.standardwebhooks.com). Every request carries `webhook-id` (the event id, stable across retries), `webhook-timestamp` (unix seconds) and `webhook-signature` (`v1,<base64 HMAC-SHA256 over "id.timestamp.body">`). The `buzzkit` package ships the check.
+
+```ts
+import { verifyWebhook } from 'buzzkit/webhooks';
+
+const rawBody = await request.text();
+const { id } = await verifyWebhook(rawBody, request.headers, process.env.BUZZKIT_WEBHOOK_SECRET);
+```
+
+`verifyWebhook` compares in constant time and rejects anything older than five minutes. It accepts an array of secrets while you are rotating. Read the raw body before parsing it, verify, then dedupe on `id`.
+
+To verify by hand, concatenate `webhook-id`, `webhook-timestamp` and the raw body with dots, take the HMAC-SHA256 of that string with the secret, base64 the result, and compare it in constant time against the value after `v1,`. The header can hold several space-separated signatures during a rotation, so treat a match on any one of them as valid, and reject a timestamp that is far from now.
+
+<Warning>
+  Verify against the exact bytes you received. Parsing the JSON and re-serializing it changes the body and the signature will not match.
+</Warning>
+
+## Deliveries and retries
+
+Every delivery is a row you can read, and every attempt underneath it records its status, error, duration and the first 4 KB of the response.
+
+```bash
+curl "https://api.buzzkit.dev/v1/workspaces/acme/webhooks/whk_.../deliveries?status=failed" \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+The list is newest first and takes `status` as `pending`, `success`, `failed` or `exhausted`. `GET /v1/workspaces/:slug/webhooks/:id/deliveries/:deliveryId` returns one delivery with every attempt and the event it carried.
+
+A 2xx is a success. Anything else is a failed attempt: a non-2xx status, a timeout after 30 seconds, or a network error. Redirects are not followed, so a 3xx counts as a failure like any other non-2xx. Retries run at 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and then every 12 hours, ten attempts in all over about three days, after which the delivery is `exhausted`.
+
+An endpoint that has been failing continuously for three days is disabled. Any success resets the streak. Re-enable it with `PATCH { "enabled": true }`, which clears the failure streak and re-enqueues the deliveries that were left pending or failed, so recovery does not wait.
+
+### Replaying
+
+```bash
+curl https://api.buzzkit.dev/v1/workspaces/acme/webhooks/whk_.../deliveries/whd_.../replay \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+A replay answers 202 and re-sends the stored payload as one more attempt. Replaying against a disabled endpoint is a `400 endpoint_disabled`, so re-enable the endpoint first.
+
+## Rotating the secret
+
+```bash
+curl https://api.buzzkit.dev/v1/workspaces/acme/webhooks/whk_.../rotate \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+You get a new `whsec_` secret. The previous one keeps verifying for 24 hours and both signatures are sent on every request during that window. Pass both secrets to `verifyWebhook` until the old one expires.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/automation/events">
+    The subscriber event stream that feeds `$` webhook events.
+  </Card>
+  <Card title="Tenants" icon="layer-group" href="/platform/tenants">
+    Filtering an endpoint down to a single tenant.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    The scopes an endpoint's routes require.
+  </Card>
+</CardGroup>

@@ -1,0 +1,152 @@
+---
+title: "Sources"
+description: "Inbound webhook endpoints that verify another service's deliveries and turn them into events on a subscriber's stream."
+---
+
+A source is an inbound webhook endpoint of a tenant that turns another service's webhooks into [events](/automation/events). Stripe posts `customer.subscription.created`, the source verifies the signature, finds the subscriber the payload is about, and records `subscription.started` on their timeline as if your backend had tracked it. The event carries `source: "webhook"` and `data.$provider: "stripe"`, so [segments](/audience/segments), [workflow](/automation/workflows) triggers and cancel rules see it without any code on your side.
+
+Reading needs the `sources:read` scope, writing needs `sources:write`. Both run inside a tenant.
+
+## Providers are templates
+
+`stripe`, `superwall`, `revenuecat` and `custom` each fill in a verification scheme and a default mapping when the source is created, and give it a label and a logo. Both the scheme and the mapping are stored on the source and editable afterwards, so anything a Stripe source does, a custom source can be configured to do.
+
+```bash
+curl https://api.buzzkit.dev/v1/sources \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Stripe billing", "provider": "stripe", "secret": "whsec_..." }'
+```
+
+A source comes back with its ingest `url`, its `verification`, its `mapping`, a `hasSecret` flag and a `status`.
+
+| Status | What it means |
+| --- | --- |
+| `unverified` | No secret was given. The endpoint answers every delivery and records what it looks like, but creates no events. |
+| `active` | Deliveries are verified and mapped into events. |
+| `paused` | Deliveries are still verified and recorded, then dropped with the reason `paused`. |
+
+Setting a secret activates an unverified source. Activating without one is refused with `source_unverified`.
+
+<Tip>
+  Create the source without a secret first, point the provider at the ingest URL, and read the deliveries it records. You see the real payloads before a single event exists, which is what you want when writing the mapping. Then add the secret to switch it on.
+</Tip>
+
+## Verification
+
+The provider's signature is the credential, so `POST /v1/sources/:id/ingest` is unauthenticated. It carries no bearer key, and the raw body and headers are verified exactly as received rather than after any reserialization.
+
+```json
+{ "scheme": "stripe", "header": "stripe-signature" }
+{ "scheme": "standard-webhooks", "headers": { "id": "svix-id", "timestamp": "svix-timestamp", "signature": "svix-signature" } }
+{ "scheme": "header", "header": "x-buzzkit-secret" }
+```
+
+The `stripe` preset uses the first, an HMAC in one header with a timestamp and a tolerance window, and RevenueCat signs the same way under its own header name. The `superwall` preset uses Standard Webhooks with the Svix header names. The `custom` preset compares a shared secret in `x-buzzkit-secret` in constant time. Any source may switch scheme with `PATCH { verification }`, and a shape that fails lint is refused with `invalid_verification` and `details.problems`.
+
+Secrets are sealed at rest, like credentials and workflow secrets, and are never returned by the API.
+
+<Warning>
+  Where the secret comes from differs per provider. Stripe shows the endpoint's signing secret under Developers, Webhooks, once you have added the ingest URL. Superwall shows it with Copy Secret on the webhook you create. RevenueCat shows it once when HMAC webhook signing is toggled on. For a custom source you choose the value yourself.
+</Warning>
+
+## The mapping
+
+The mapping says how one provider payload becomes one event.
+
+```json
+{
+  "type": "type",
+  "id": "id",
+  "timestamp": "created",
+  "subscriber": { "path": "data.object.customer", "attribute": "stripeCustomerId" },
+  "events": {
+    "customer.subscription.created": "subscription.started",
+    "invoice.paid": "payment.succeeded"
+  },
+  "data": { "status": "data.object.status", "plan": "data.object.plan.nickname" },
+  "where": { "ref": "livemode", "eq": true }
+}
+```
+
+| Key | What it does |
+| --- | --- |
+| `type` | Path to the provider's event type. Required. |
+| `id` | Path to the provider's event id, used for deduplication. |
+| `timestamp` | Path to when it happened, read as seconds, milliseconds or ISO. |
+| `subscriber` | A path to the subscriber's external id, or `{ path, attribute }` to match the value at `path` against a subscriber attribute. |
+| `events` | Provider type to event name. `true` keeps the provider's own name, and `{ "*": true }` passes every type through. |
+| `data` | The event's data, each key mapped to a path in the payload. |
+| `where` | The segment expression grammar over the payload, with bare payload paths as references. |
+
+Paths are dotted and may index into arrays, as in `a.b.0.c`. A mapping holds at most 50 mapped types and 20 picked data paths, and the event names it produces follow the ordinary tracking rules, so none of them may start with `$`. A mapping that fails lint is refused with `invalid_mapping` and `details.problems`, each entry naming a path and a message.
+
+## Previewing a mapping
+
+`POST /v1/sources/:id/preview` runs a mapping over a sample payload exactly as ingest would, subscriber lookup included, without creating anything. Pass the payload on its own to try the stored mapping, or pass a `mapping` to try a candidate before saving it.
+
+```bash
+curl https://api.buzzkit.dev/v1/sources/src_.../preview \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "id": "evt_1P",
+      "type": "customer.subscription.created",
+      "created": 1756900000,
+      "livemode": true,
+      "data": { "object": { "customer": "cus_9", "status": "trialing" } }
+    }
+  }'
+```
+
+The reply is `{ outcome, event?, reason?, detail?, suggestions }`, where `event` carries the resolved `externalId`. The signature check and deduplication are skipped, so a stored delivery's payload previews cleanly. `suggestions` carries the detected provider and candidate paths for `type`, `id`, `timestamp`, `subscriber` and `data`, which is the same detection the dashboard runs on a pasted payload.
+
+## The delivery ledger
+
+Every request to the ingest URL is recorded as a delivery with exactly one outcome.
+
+| Outcome | When | Response |
+| --- | --- | --- |
+| `unverified` | The source has no secret. Recorded with a detail such as `Looks like stripe` when the provider is recognizable. | 200 |
+| `rejected` | The signature or secret is wrong, missing or stale. The `reason` is `missing_headers`, `invalid_signature` or `timestamp_out_of_tolerance`. | 401 |
+| `dropped` | The mapping produced no event. The `reason` is `no_type`, `unlisted_type`, `filtered`, `no_subscriber`, `invalid_data` or `paused`. | 200 |
+| `duplicate` | The provider's event id already became an event on this source. | 200 |
+| `event` | Tracked on the subscriber, with the event name, `eventId` and `subscriberId`. | 200 |
+
+The response body is `{ outcome, reason }`, though providers only need the status. A body above 256 KB is refused with a `400 payload_too_large`, and an unknown or deleted source answers 404.
+
+`GET /v1/sources/:id/deliveries` lists them newest first, filterable with `outcome` and cursor-paginated. Each row carries `providerEventId`, `providerType`, `outcome`, `reason`, `detail`, `subscriberId`, `event`, `eventId`, the raw `payload` and `receivedAt`. The provider type and event id are read through the mapping's paths on every outcome the payload allows, so a rejected or filtered delivery still tells you what it was. Deliveries keep the raw payload for 30 days.
+
+```bash
+curl "https://api.buzzkit.dev/v1/sources/src_.../deliveries?outcome=dropped" \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+## Managing sources
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/v1/sources` | The tenant's sources. |
+| POST | `/v1/sources` | `{ name, provider, verification?, mapping?, secret? }`. Without `verification` or `mapping` the preset's are used. |
+| GET | `/v1/sources/:id` | One source. |
+| PATCH | `/v1/sources/:id` | `{ name?, provider?, verification?, mapping?, secret?, status? }`. A new secret replaces the old one and activates an unverified source. |
+| DELETE | `/v1/sources/:id` | Soft delete. The ingest URL answers 404 from then on. |
+
+Changes are audit entries and public [webhook](/platform/webhooks) events: `source.created`, `source.updated` and `source.deleted`. An update carries its `changes` along with `previousAttributes`, and a replaced secret shows only as `secret: "replaced"` because secret material is never diffed.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/automation/events">
+    Where a mapped delivery lands, and how to read it back.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    Trigger a run on the event a source produced.
+  </Card>
+  <Card title="Subscribers" icon="user" href="/audience/subscribers">
+    The attributes a `{ path, attribute }` lookup matches against.
+  </Card>
+</CardGroup>

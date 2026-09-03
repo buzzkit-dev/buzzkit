@@ -3,6 +3,7 @@ import { authHandler } from '@buzzkit/api/libs/auth/index';
 import { error } from '@buzzkit/api/libs/error';
 import { latency } from '@buzzkit/api/libs/latency';
 import { logger } from '@buzzkit/api/libs/logger';
+import { documentation } from '@buzzkit/api/libs/openapi';
 import { telemetry } from '@buzzkit/api/libs/telemetry';
 import { v1 } from '@buzzkit/api/modules/v1/index';
 import cors from '@elysiajs/cors';
@@ -21,6 +22,7 @@ export const app = new Elysia({
   .use(
     openapi({
       path: '/swagger',
+      documentation,
     })
   )
   .use(authHandler)

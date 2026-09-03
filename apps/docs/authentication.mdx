@@ -1,0 +1,72 @@
+---
+title: "Authentication"
+description: "API keys, what each kind can reach, how scopes work, and how to select a tenant per request."
+---
+
+Every request carries a bearer key: `Authorization: Bearer <key>`. Keys are created in the dashboard, shown once, and stored only as a SHA-256 hash. There is no OAuth flow, so a person creates a key and your backend uses it.
+
+## Which key to use
+
+| Kind | Prefix | Where it runs | What it reaches |
+| --- | --- | --- | --- |
+| Workspace | `bk_ws_` | Your backend | Every tenant in the workspace. Pick one per request with the `BuzzKit-Tenant` header, or omit it for the default tenant. |
+| Tenant | `bk_tn_` | A backend that should see one tenant only | That tenant's data plane. Rejected on workspace-level routes. |
+| Client | `bk_pk_` | Inside your app binary | `/v1/client/*` only: identify, device registration, events and the subscriber's own preferences. |
+
+Most integrations need one workspace key. Reach for a tenant key when a customer or a semi-trusted service should have direct access with a single tenant's blast radius. Ship a client key in the app; it cannot read other subscribers or send.
+
+## Selecting a tenant
+
+A workspace key implies its workspace. Add `BuzzKit-Tenant: <slug>` to work inside a specific tenant, the way a Stripe platform passes `Stripe-Account`. Leave it off and the default tenant is used, so a single-app integration never has to think about tenants.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "BuzzKit-Tenant: gymly" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "user_42", "title": "Leg day", "body": "6:00 with Maya." }'
+```
+
+Tenant keys already imply their tenant and need no header. A key used against a workspace or tenant it does not belong to is a 403, always.
+
+## Scopes
+
+Every route declares one required scope, written as `resource:action`: `messages:send`, `subscribers:read`, `events:write`, `topics:*`, or `*` for everything a key may hold. The scope each operation needs is listed on its page in the API reference. A key without it gets a 403 with the code `missing_permission`.
+
+<Warning>
+  Keys can never mint keys. `keys:*`, `invites:*`, `members:write`, `workspace:delete` and `tenants:secrets` are session-only and cannot be granted to a key at all. A key can only ever operate the data plane it was issued for, and revoking it ends that.
+</Warning>
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| 401 | `missing_authorization` | No `Authorization` header. |
+| 401 | `invalid_api_key` | Unknown, revoked or malformed key. A key presented under the wrong prefix is also invalid. |
+| 401 | `api_key_expired` | The key's expiry has passed. |
+| 403 | `missing_permission` | The key lacks the route's scope. |
+| 403 | `forbidden` | The key belongs to another workspace or tenant, or is the wrong kind for the route. |
+| 404 | `not_found` | The addressed resource does not exist for this credential. Malformed ids are 404 too, so existence is never leaked. |
+
+Every response, success or failure, uses the same envelope:
+
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "invalid_api_key",
+    "message": "Invalid API key",
+    "param": null,
+    "details": null
+  },
+  "metadata": { "timestamp": "2026-09-03T10:00:00.000Z", "requestId": "..." }
+}
+```
+
+Branch on `error.code`, never on `error.message`. Quote `metadata.requestId` in support requests; it is also returned as the `Request-Id` header.
+
+## Rotation
+
+Create the replacement key first, move your backend over, then revoke the old one from the dashboard or with `DELETE /v1/workspaces/:workspaceSlug/keys/:id`. Revocation takes effect immediately in the region that served the request and within about a minute everywhere else.

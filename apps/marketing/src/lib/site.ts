@@ -11,5 +11,7 @@ export const site = {
   githubUrl: 'https://github.com/buzzkit-dev/buzzkit',
   iosSdkUrl: 'https://github.com/buzzkit-dev/buzzkit-ios',
   docsUrl: 'https://docs.buzzkit.dev',
+  iosDocsUrl: 'https://docs.buzzkit.dev/sdks/ios/overview',
+  selfHostingUrl: 'https://docs.buzzkit.dev/platform/self-hosting',
   contactEmail: 'hello@buzzkit.dev',
 };

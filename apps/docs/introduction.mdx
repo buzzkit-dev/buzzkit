@@ -1,0 +1,57 @@
+---
+title: "Introduction"
+description: "One API for sending, targeting, scheduling and automating mobile push on your own APNs and FCM credentials."
+---
+
+BuzzKit sends, segments, schedules and automates mobile push through a REST API, a dashboard and an iOS SDK, using your own Apple and Firebase credentials. Run it hosted on buzzkit.dev or self-host the same codebase.
+
+## Identify, then send
+
+Identify a subscriber with your own user id, then send. BuzzKit answers 202 with a message id, works out which devices are reachable, fans out through a durable queue with retries, and records every attempt per device.
+
+<CodeGroup>
+
+```bash Identify
+curl https://api.buzzkit.dev/v1/subscribers/user_42 \
+  -X PUT \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "attributes": { "name": "Maya", "plan": "pro" }, "timezone": "Europe/Berlin" }'
+```
+
+```bash Send
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "user_42", "title": "Leg day", "body": "6:00 with Maya." }'
+```
+
+</CodeGroup>
+
+<CardGroup cols={2}>
+  <Card title="Sending" icon="paper-plane" href="/sending/messages">
+    Target one subscriber, a topic, a saved segment or an inline expression, with retries and a full delivery ledger.
+  </Card>
+  <Card title="Scheduling" icon="clock" href="/sending/scheduling">
+    Hold a message until a moment, in a fixed time zone or in each subscriber's own.
+  </Card>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    Saved, versioned conditions over attributes, events and activity, evaluated at send time.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    Versioned specs with waits, branches, loops and fetches that run per subscriber.
+  </Card>
+  <Card title="Topics and preferences" icon="bell" href="/audience/topics">
+    A notification settings screen for your app with no backend code.
+  </Card>
+  <Card title="Multi-tenancy" icon="layer-group" href="/platform/tenants">
+    A tenant per customer, each with isolated subscribers and credentials, behind one key.
+  </Card>
+</CardGroup>
+
+## How it fits together
+
+Your backend calls the API with a workspace key. A **workspace** holds your team and billing; a **tenant** inside it is the isolation boundary that owns subscribers, credentials and sends. Simple apps use the default tenant and never think about it. A platform sending for its own customers gives each customer a tenant and picks one per request with a header.
+
+Your app embeds the iOS SDK with a client key. The SDK registers the device, identifies the user by the id you already use, and tracks events. Those events feed segments and trigger workflows.

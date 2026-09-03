@@ -75,6 +75,10 @@ The SDK registers the device token, queues events offline with replay, handles n
 
 ## Reference
 
-- API Reference: https://docs.buzzkit.dev
-- Full endpoint docs: https://github.com/buzzkit-dev/buzzkit/tree/main/docs/api
+- Documentation: https://docs.buzzkit.dev. Every page also answers as markdown at the same URL with `.md` appended.
+- Everything in one file: https://docs.buzzkit.dev/llms-full.txt
+- API reference, every endpoint with its scope and schemas: https://docs.buzzkit.dev/api-reference
+- OpenAPI description: https://buzzkit.dev/openapi.json
+- Authentication walkthrough: https://buzzkit.dev/auth.md
+- Docs MCP server, search and read the docs as tools: https://docs.buzzkit.dev/mcp
 - llms.txt: https://buzzkit.dev/llms.txt

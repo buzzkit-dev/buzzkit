@@ -1,0 +1,85 @@
+---
+title: "Identity"
+description: "Move a device from its anonymous id to a real user, set attributes, sign out cleanly, and prove identity with a hash from your backend."
+---
+
+## Anonymous by default
+
+From first launch the SDK mints a stable anonymous id (`anon_` followed by 21 random characters) and stores it on the device. Everything works before anyone logs in: events queue and send, sessions are tracked, and the push subscription registers under that id. Nothing about the SDK requires a logged-in user.
+
+When you later call `identify`, the device switches to the real id and its history comes with it, so the events someone generated during onboarding are still there once they sign up.
+
+## Identify
+
+```swift
+BuzzKit.identify(
+    "user_42",
+    email: user.email,
+    identityHash: session.buzzkitHash,
+    attributes: ["plan": "trial"]
+)
+```
+
+The signature is `identify(_ externalId: String, email: String? = nil, identityHash: String? = nil, attributes: [String: JSONValue]? = nil)`. It returns immediately and does its work on a serial queue, so identity calls never race each other.
+
+Three things happen. The subscriber is created or updated with the id, email and attributes you passed, along with the device context. If the identity actually changed, the queued events are flushed and the push subscription is re-registered under the new id.
+
+Call it at login, and on every launch where the user is already signed in. It is an idempotent upsert on your own id, so calling it repeatedly costs nothing.
+
+<Note>
+  `externalId` is your own user id. It is the same id your backend addresses in `PUT /v1/subscribers/:externalId` and in `to` on a send, which is what keeps the app and your server talking about the same person. See [Subscribers](/audience/subscribers).
+</Note>
+
+## Attributes
+
+```swift
+BuzzKit.setAttributes(["plan": "pro", "streak": 4, "coach": "maya"])
+```
+
+Attributes are custom key-values on the subscriber and they drive segments and workflow conditions. They take `[String: JSONValue]`, and `JSONValue` is expressible by string, integer, float, boolean, nil, array and dictionary literals, so ordinary Swift literals work without any wrapping.
+
+The server merges what the device sends into what is already on the subscriber. Adding and changing keys from the app is safe, and nothing your backend set is wiped by a call from the device.
+
+The SDK maintains one attribute of its own, the device's notification permission, refreshed on launch and on every change. Segments read it like any other attribute.
+
+## Logout
+
+```swift
+BuzzKit.logout()
+```
+
+Logout does three things in order. It deletes this device's push subscription for the user who is signing out, so the next person to use the phone never receives the previous user's notifications. It clears the stored external id and identity hash and generates a brand new anonymous id, not the one used before the first login. Then it re-registers the device under that fresh anonymous identity, so push still works for whoever is holding the phone now.
+
+## Identity verification
+
+A client key is embedded in your binary, so on its own it lets any caller claim any external id. Verification closes that: your backend computes an HMAC of the user's id under the tenant's identity secret and hands the result to the app at login.
+
+```
+identityHash = HMAC-SHA256(externalId, identitySecret)   // hex encoded
+```
+
+Fetch the identity secret once from the tenant's settings in the dashboard and keep it on your server. It must never ship in the app.
+
+<CodeGroup>
+```ts Your backend
+import { createHmac } from 'node:crypto'
+
+const identityHash = createHmac('sha256', process.env.BUZZKIT_IDENTITY_SECRET)
+  .update(user.id)
+  .digest('hex')
+
+return { userId: user.id, identityHash }
+```
+
+```swift Your app
+let session = try await api.signIn(email: email, password: password)
+
+BuzzKit.identify(session.userId, identityHash: session.identityHash)
+```
+</CodeGroup>
+
+Pass the hash to `identify` and the subscriber is marked verified. The SDK stores it and attaches it to every call it makes from then on, including events, subscription updates and preference changes, for as long as the user stays identified. `logout` discards it along with the id.
+
+<Warning>
+  Turning on required verification for a tenant rejects every unverified client call outright. Ship the hash from every client first and confirm your subscribers are showing as verified, then enforce it. Tenant settings and the identity secret are covered under [Tenants](/platform/tenants).
+</Warning>

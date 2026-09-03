@@ -1,0 +1,165 @@
+---
+title: "Sending messages"
+description: "How one POST /v1/messages call picks an audience, carries content, and gets accepted for asynchronous delivery."
+---
+
+Everything you send goes through one endpoint. `POST /v1/messages` takes an audience, a payload and a few options, answers `202` with a message id and `status: "queued"`, then resolves who is reachable and fans out in the background. The 202 says the send was accepted, not that a device has it. Read [Delivery and retries](/sending/delivery) for what happens after it.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "user_42",
+    "title": "Leg day",
+    "body": "6:00 with Maya.",
+    "data": { "deepLink": "app://workouts/legs" }
+  }'
+```
+
+The route needs the `messages:send` scope and runs inside a tenant. A workspace key uses the default tenant unless you pass `BuzzKit-Tenant`, as described in [Authentication](/authentication). `channel` defaults to `push`.
+
+## Choosing an audience
+
+There are four ways to say who a message is for, and at least one is required.
+
+| Field | Reaches |
+| --- | --- |
+| `to` | One subscriber id, or an array of up to 1000 of your ids. |
+| `topic` | Every subscriber opted in to that [topic](/audience/topics). |
+| `segment` | Every member of a saved [segment](/audience/segments), evaluated at send time and pinned to the version it used, returned as `targets.segmentVersion`. |
+| `where` | An inline expression in the same grammar as a segment, evaluated once for this send and stored verbatim in `targets.where`. Nothing is saved as a segment. |
+
+`to`, `segment` and `where` are mutually exclusive. Sending two of them is a `400 targets_conflict`. `topic` is the exception: it combines with any of the other three, and narrows the result to the subscribers whose topic preferences allow the message.
+
+<CodeGroup>
+
+```bash Topic
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "gym-reminders",
+    "title": "Leg day",
+    "body": "6:00 with Maya."
+  }'
+```
+
+```bash Segment and topic
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "segment": "active-lifters", "topic": "gym-reminders", "title": "Leg day", "body": "6:00 with Maya." }'
+```
+
+```bash Inline expression
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "where": { "all": [{ "attribute": "plan", "eq": "pro" }] }, "title": "Leg day", "body": "6:00 with Maya." }'
+```
+
+</CodeGroup>
+
+An invalid `where` is a `400 invalid_expression` whose `param` points at the offending node, such as `where.all[1]`. An unknown topic or segment is a 404, and a topic that is not offered on the message's channel is a `400 channel_not_offered`.
+
+## Content
+
+At least one of `title`, `body` or `data` is required, otherwise the call is a 400 `payload_missing`.
+
+| Field | Purpose |
+| --- | --- |
+| `title`, `subtitle`, `body` | The text of the notification. |
+| `data` | Your own JSON payload, delivered alongside the notification. |
+| `badge` | The app icon badge number. |
+| `sound` | The sound to play. |
+| `imageUrl` | An image attached to the notification. |
+| `threadId` | Groups related notifications together. |
+| `collapseId` | The provider's collapse identifier. |
+| `targetContentId` | The identifier of the app content the notification refers to. |
+| `priority` | `high` by default, or `normal`. |
+| `interruptionLevel` | `passive`, `active`, `timeSensitive` or `critical`. |
+| `relevanceScore` | A number from 0 to 1. |
+| `category` | The notification category. |
+| `actions` | Up to four buttons, each with `id`, `title`, `destructive`, `foreground`, `input` and `placeholder`. |
+| `deepLink` | A link the app opens when the notification is tapped. |
+| `action` | `{ name, data }`, which runs a handler the app registered. |
+| `policy` | `"ignore"` bypasses the tenant send policy, for the security-alert class of message. |
+
+The iOS SDK registers your `actions` and the opened receipt carries the tapped button id along with any text the person typed.
+
+```json
+{
+  "to": "user_42",
+  "title": "Leg day",
+  "body": "6:00 with Maya.",
+  "threadId": "workouts",
+  "interruptionLevel": "timeSensitive",
+  "actions": [
+    { "id": "confirm", "title": "I'm in", "foreground": true },
+    { "id": "skip", "title": "Skip", "destructive": true }
+  ],
+  "deepLink": "app://workouts/legs"
+}
+```
+
+## Expiry
+
+`ttlSeconds` sets how long the message stays worth sending, from 60 seconds up to 28 days, defaulting to 24 hours. It becomes the message's `expiresAt`, and is passed through to APNs as `apns-expiration` and to FCM as `android.ttl`. Deliveries still pending when it passes are failed with `expired`.
+
+## Idempotency
+
+Send an `Idempotency-Key` header, or the equivalent `idempotencyKey` body field, and a retried request cannot send twice. Keys are unique per tenant and never expire.
+
+```bash
+curl https://api.buzzkit.dev/v1/messages \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Idempotency-Key: workout-2026-09-03-user_42" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "user_42", "title": "Leg day", "body": "6:00 with Maya." }'
+```
+
+A replay of the same request returns the original message with `202` and the header `Idempotent-Replayed: true`, and sends nothing. The request fingerprint is stored with the key, so the same key with a different request is a `409 idempotency_key_reused` rather than a silently dropped send.
+
+<Note>
+  Creation is insert-first, so five simultaneous identical requests create one message and all five get `202` with the same object. Four of them carry `Idempotent-Replayed: true`.
+</Note>
+
+## Provider escape hatches
+
+When you need something BuzzKit does not model, pass it straight through. `apns.payload` is merged into the APNs payload, `fcm.android` into the FCM Android block, and `fcm.payload` into the FCM message. `apns.environment` picks which credential is used, sandbox or production. It defaults to production and falls back to whichever environment exists.
+
+```json
+{
+  "to": "user_42",
+  "title": "Leg day",
+  "body": "6:00 with Maya.",
+  "apns": {
+    "environment": "sandbox",
+    "payload": { "aps": { "content-available": 1 } }
+  }
+}
+```
+
+<Warning>
+  Nothing can be sent on a channel with no credential. A channel disabled in tenant settings is a `400 channel_disabled`, and a channel the tenant has no credential for is a `400 channel_not_connected`, refused before anything is queued.
+</Warning>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Scheduling" icon="clock" href="/sending/scheduling">
+    Hold a message until a moment, in a fixed zone or in each subscriber's own.
+  </Card>
+  <Card title="Delivery and retries" icon="list-check" href="/sending/delivery">
+    Fan-out, the attempt ledger, retries and token invalidation.
+  </Card>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    The grammar behind `segment` and `where`.
+  </Card>
+</CardGroup>

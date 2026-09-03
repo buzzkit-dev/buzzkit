@@ -1,0 +1,55 @@
+---
+title: "API reference"
+description: "How to read this reference: the base URL, the response envelope, authentication, pagination and idempotency, which apply to every endpoint."
+---
+
+The BuzzKit API is a REST API under `/v1`. Every endpoint on the left is generated from the same OpenAPI description the API itself serves, so it always matches the running code. Download it from [buzzkit.dev/openapi.json](https://buzzkit.dev/openapi.json).
+
+## Base URL
+
+```
+https://api.buzzkit.dev/v1
+```
+
+Self-hosted deployments use their own host with the same paths.
+
+## Authentication
+
+Every request carries `Authorization: Bearer <key>`. Each operation lists the scope its key needs. Workspace keys pick a tenant with `BuzzKit-Tenant: <slug>` and default to the workspace's `default` tenant without it.
+
+See [Authentication](/authentication) for key kinds, scopes and error codes.
+
+## The envelope
+
+Every response, success or failure, has the same four fields.
+
+```json
+{
+  "success": true,
+  "data": { },
+  "error": null,
+  "metadata": { "timestamp": "2026-09-03T10:00:00.000Z", "requestId": "..." }
+}
+```
+
+On an error, `data` is null and `error` carries a stable lowercase snake_case `code`, a human `message`, and `param` naming the field at fault when there is one. Validation errors add `details`, one entry per failing field. Branch on `code`, never on `message`. `metadata.requestId` is also returned as the `Request-Id` header; quote it in support requests.
+
+## Identifiers
+
+Ids are opaque and prefixed by entity: `ws_`, `tnt_`, `key_`, `sub_`, `tpc_`, `msg_`, `dlv_`. Workspaces, tenants and topics are addressed by slug, subscribers by your own `externalId` (URL-encode it), everything else by id.
+
+A malformed id, an id belonging to another entity, and an id from another tenant all return **404**. Existence is never leaked.
+
+## Lists and pagination
+
+Every list returns the same shape.
+
+```json
+{ "items": [], "hasMore": false, "nextCursor": null }
+```
+
+Paginated lists take `limit` (default 50, max 100) and `cursor`, and are ordered newest first. Pass the previous response's `nextCursor` to get the next page. Lists backed by Postgres also carry `total`, the count across every page under the same filters; lists over the event stream do not.
+
+## Idempotency
+
+`POST /v1/messages` accepts an `Idempotency-Key` header. Keys are unique per tenant and never expire. Replaying the same request returns the original message with `202` and `Idempotent-Replayed: true` without sending again. Reusing a key with a different body is a `409 idempotency_key_reused`.

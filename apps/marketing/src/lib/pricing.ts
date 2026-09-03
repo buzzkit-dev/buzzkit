@@ -8,7 +8,7 @@ export interface Plan {
   period?: string;
   audience: string;
   numbers: { label: string; value: string }[];
-  cta: { label: string; href: string; variant: 'default' | 'elevated'; icon?: 'IconGithub' };
+  cta: { label: string; href: string; variant: 'default' | 'elevated' };
 }
 
 export const pricing = {
@@ -35,8 +35,8 @@ export const plans: Plan[] = [
       { label: 'Support', value: 'Community' },
     ],
     cta: {
-      label: 'Clone the Repository',
-      href: 'https://github.com/buzzkit-dev/buzzkit',
+      label: 'Read the Self Hosting Guide',
+      href: 'https://docs.buzzkit.dev/platform/self-hosting',
       variant: 'elevated',
     },
   },

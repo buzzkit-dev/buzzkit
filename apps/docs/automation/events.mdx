@@ -1,0 +1,148 @@
+---
+title: "Events"
+description: "Track what a subscriber did from your backend or the app, and read it back from the catalog, the stream and a subscriber timeline."
+---
+
+An event is a fact about a subscriber: they finished a workout, started a trial, opened the app. You track events from your backend or from the app, and BuzzKit keeps them on the subscriber's stream. That stream is what [segments](/audience/segments) filter on and what [workflows](/automation/workflows) trigger on, so any event you track can later pick an audience or start a run.
+
+Tracking needs the `events:write` scope, reading needs `events:read`. Both run inside a tenant, so a workspace key uses the default tenant unless you pass `BuzzKit-Tenant`.
+
+## Tracking from your backend
+
+`POST /v1/events` takes up to 100 events per call, and a bare event object is accepted as shorthand for a list of one. It answers `202` with the list in input order.
+
+<CodeGroup>
+
+```bash One event
+curl https://api.buzzkit.dev/v1/events \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "externalId": "user_42",
+    "name": "workout.completed",
+    "data": { "workoutId": "w_1", "duration": 42 }
+  }'
+```
+
+```bash A batch
+curl https://api.buzzkit.dev/v1/events \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "events": [
+      { "externalId": "user_42", "name": "workout.completed", "id": "w_1-done" },
+      { "externalId": "user_42", "name": "streak.extended", "data": { "days": 7 } }
+    ]
+  }'
+```
+
+</CodeGroup>
+
+An unknown `externalId` creates the subscriber, the same way a device registration does, and the stream then also carries a `$subscriber.created`.
+
+## Tracking from the app
+
+The iOS SDK posts to `POST /v1/client/events` with a client key, in the shape `{ externalId, identityHash?, source, events }`, up to 100 events per call. `source` is `ios`, `android` or `web`. Identity verification applies as on every client call, and a valid hash stamps the subscriber verified. See [Authentication](/authentication) for what a client key can reach.
+
+An offline client keeps its events queued with their original `timestamp` and drains them in batches when it is back online.
+
+## The event
+
+```json
+{
+  "id": "evt_01j6...",
+  "sequence": 4127,
+  "externalId": "user_42",
+  "name": "workout.completed",
+  "source": "ios",
+  "timestamp": "2026-09-03T09:12:00.000Z",
+  "receivedAt": "2026-09-03T09:12:00.412Z",
+  "data": { "workoutId": "w_1", "duration": 42 },
+  "runId": null,
+  "messageId": null,
+  "step": null
+}
+```
+
+| Field | What it is |
+| --- | --- |
+| `name` | Yours, matching `[a-z0-9][a-z0-9_.-]{0,99}`, dot-separated by convention. |
+| `externalId` | Your own user id for the subscriber. |
+| `data` | A free-form JSON object, at most 8KB serialized. An array or a scalar is a validation error. |
+| `timestamp` | When it happened, on the sender's clock. Optional, defaults to now. |
+| `id` | Your optional dedupe key, unique per subscriber. |
+| `sequence` | The subscriber's own arrival order, assigned by BuzzKit. |
+| `source` | `server`, `ios`, `android`, `web`, `system` or `webhook`. |
+| `runId`, `messageId`, `step` | Set on engine events, so a step links back to its run. |
+
+`timestamp` may be up to seven days in the past, for offline queues, and at most one hour ahead, for clock skew. Anything outside that is a `400 invalid_timestamp`. A `data` payload over the limit is `event_data_too_large`.
+
+`id` is a dedupe key, not the event's id: sending the same `id` again returns the original event with `status: "duplicate"` and stores nothing. BuzzKit always assigns its own `evt_` id.
+
+<Tip>
+  Give every event an `id` and retry the whole request on a 429, a 5xx or a network failure until you get a 202. Replays are deduped and answered as `duplicate`, so a retry can never double count. Never retry any other 4xx, the request is malformed and will fail again.
+</Tip>
+
+## Reserved names
+
+Names starting with `$` belong to BuzzKit. A `$` name sent to `POST /v1/events` is a `400 reserved_event`, and from the app only the SDK's own names are accepted.
+
+<Accordion title="The system events worth knowing">
+  The SDK may send `$app.installed`, `$app.updated`, `$app.opened`, `$app.backgrounded`, `$session.ended`, `$notification.delivered`, `$notification.opened`, `$notification.dismissed`, `$activity.started`, `$activity.ended`, `$activity.dismissed`, `$activity.stale`, `$local.scheduled`, `$deeplink.opened`, `$action.triggered`, `$permission.changed` and `$identify`.
+
+  The engine writes `$subscriber.created`, `$subscriber.updated`, `$subscriber.deleted`, `$subscription.registered`, `$subscription.muted`, `$subscription.unmuted`, `$subscription.removed`, `$subscription.invalidated`, `$preferences.updated`, the `$run.*` events of a workflow run, and `$send`.
+
+  `$subscriber.created` is written once, on whichever call first sees the `externalId`. `$subscription.muted` and `$subscription.unmuted` are written only when `enabled` actually changes, and `$preferences.updated` only when a preference actually changes.
+</Accordion>
+
+Reserved events are as usable as your own. `$app.opened` can trigger a workflow, `$notification.opened` can decide a branch, and both sit on the timeline alongside everything you track.
+
+## Reading
+
+Reads come from the event stream, not from Postgres, so they are seconds behind writes and paginate by keyset rather than by page number.
+
+| Endpoint | What it returns |
+| --- | --- |
+| `GET /v1/events` | The tenant's newest events, filterable by `name`, `source`, `provider` and `after`. |
+| `GET /v1/events/names` | The catalog: every name the tenant has seen, ordered by 7-day volume. |
+| `GET /v1/events/names/:name` | One catalog entry plus a volume series and the 20 newest samples. |
+| `GET /v1/events/volume` | The tenant-wide volume series, optionally narrowed with `?name=`. |
+| `GET /v1/subscribers/:externalId/timeline` | One subscriber's events, newest first. |
+
+```bash
+curl "https://api.buzzkit.dev/v1/events?name=workout.completed&limit=50" \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+A catalog entry carries `counts` for the last 24 hours, 7 days, 30 days and all time, along with `subscribers7d`, the `sources` and `providers` behind it, and `firstAt` and `lastAt`. Volume takes `?range=24h|7d|30d` and returns buckets with a count and a subscriber count each, with empty buckets omitted.
+
+<Note>
+  `GET /v1/events` carries no `total`. It is a keyset over the stream rather than a counted table, so you page it with the previous response's `nextCursor`. Every other convention, the envelope and the `{ items, hasMore, nextCursor }` list shape, is unchanged.
+</Note>
+
+The subscriber timeline is the whole picture for one person: identifies, registrations, mutes, preference changes, workflow steps and every event you tracked, in order.
+
+```bash
+curl https://api.buzzkit.dev/v1/subscribers/user_42/timeline \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+## Embedding the stream
+
+`GET /v1/events/token` returns a short-lived JWT with a `url` and an `expiresAt`, valid for an hour, that reads the catalog, volume, recent and timeline endpoints for one tenant. The tenant is fixed in the token and cannot be overridden, and the token cannot ingest, so it is safe in a browser that renders those views.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    Turn events into conditions that pick an audience at send time.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    React to an event with waits, branches and sends.
+  </Card>
+  <Card title="Sources" icon="webhook" href="/automation/sources">
+    Turn another service's webhooks into events with no code.
+  </Card>
+</CardGroup>

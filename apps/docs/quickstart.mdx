@@ -1,0 +1,96 @@
+---
+title: "Quickstart"
+description: "Create a workspace, connect Apple, create keys, register a device, identify a subscriber and send your first push."
+---
+
+<Steps>
+  <Step title="Create a workspace">
+    Sign up at [buzzkit.dev/signup](https://buzzkit.dev/signup). Every account starts with a workspace and a `default` tenant, which is the tenant every call uses when you send no `BuzzKit-Tenant` header.
+  </Step>
+
+  <Step title="Connect Apple">
+    In the dashboard, open **Settings → Channels** and upload the APNs key for your app: the `.p8` file, your Team ID, the Key ID and your bundle id.
+
+    BuzzKit probes the key against both APNs hosts and stores one credential per environment it is valid for, so a key scoped to sandbox, to production or to both needs no choice from you.
+
+    <Note>
+      Nothing can be sent on a channel with no credential. Topics, subscriptions and sends all answer `400 channel_not_connected` until one is connected.
+    </Note>
+  </Step>
+
+  <Step title="Create an API key">
+    Under **API keys**, create a workspace key. The secret is shown once and stored only as a hash. Give it the scopes your backend needs, `subscribers:write`, `messages:send` and `events:write` to start.
+
+    Create a client key too. It carries fixed capabilities rather than scopes, is safe to ship inside your app binary, and can only reach `/v1/client/*`.
+  </Step>
+
+  <Step title="Register a device">
+    Add the [iOS SDK](/sdks/ios/overview) to your app with the client key. On launch it asks for permission, registers the device token and identifies the user by the id your backend already uses.
+
+    ```swift
+    import BuzzKit
+
+    BuzzKit.configure(apiKey: "bk_pk_...")
+    BuzzKit.identify("user_42")
+    try await BuzzKit.registerForPush()
+    ```
+  </Step>
+
+  <Step title="Identify the subscriber from your backend">
+    The same subscriber can be created or updated from your server. This is an idempotent upsert on your own id, so it is safe to call on every login.
+
+    ```bash
+    curl https://api.buzzkit.dev/v1/subscribers/user_42 \
+      -X PUT \
+      -H "Authorization: Bearer bk_ws_..." \
+      -H "Content-Type: application/json" \
+      -d '{
+        "attributes": { "name": "Maya", "plan": "pro" },
+        "timezone": "Europe/Berlin"
+      }'
+    ```
+  </Step>
+
+  <Step title="Send">
+    ```bash
+    curl https://api.buzzkit.dev/v1/messages \
+      -X POST \
+      -H "Authorization: Bearer bk_ws_..." \
+      -H "Content-Type: application/json" \
+      -d '{
+        "to": "user_42",
+        "title": "Leg day",
+        "body": "Let’s go. 6:00 with Maya.",
+        "data": { "deepLink": "app://workouts/legs" }
+      }'
+    ```
+
+    You get back `202` with a message id (`msg_...`) and `status: "queued"`. Delivery is asynchronous, so the 202 says the send was accepted, not that a device has it.
+  </Step>
+
+  <Step title="Check what happened">
+    ```bash
+    curl https://api.buzzkit.dev/v1/messages/msg_.../deliveries \
+      -H "Authorization: Bearer bk_ws_..."
+    ```
+
+    One delivery per device, each with its status. `GET /v1/deliveries/:id/attempts` shows every attempt with the provider response and latency.
+  </Step>
+</Steps>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Key kinds, scopes and how to pick a tenant per request.
+  </Card>
+  <Card title="Topics and preferences" icon="bell" href="/audience/topics">
+    Let people choose what reaches them, with the settings screen rendered from the API.
+  </Card>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    Send to everyone who matches conditions instead of a list of ids.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/automation/workflows">
+    React to what a user did, with waits, branches and dry runs.
+  </Card>
+</CardGroup>

@@ -19,6 +19,8 @@ Two layers, one codebase:
 apps/api/                → @buzzkit/api            Cloudflare Worker API (Elysia + CloudflareAdapter)
 apps/web/                → @buzzkit/web            Platform dashboard (Vite + React Router 8 SSR on CF Workers, dev port 5180)
 apps/marketing/          → @buzzkit/marketing      Marketing site at buzzkit.dev (Astro static + React islands on CF Workers assets, dev port 5181; agent surface in `docs/marketing.md`)
+apps/docs/               → @buzzkit/docs           Documentation at docs.buzzkit.dev (Mintlify: docs.json + MDX, dev port 5182; the
+                                                  API reference is generated from `openapi.json`, emitted from the API contract on every dev/build)
 packages/buzzkit/        → buzzkit                 The public server SDK (send, subscribers, events, webhooks, segment expressions)
 packages/schema/         → @buzzkit/schema         Grammars the API and the dashboard both validate (`/workflows`: types, lint, parsers), private
 packages/database/       → @buzzkit/database       Drizzle ORM, PostgreSQL schema, migrations

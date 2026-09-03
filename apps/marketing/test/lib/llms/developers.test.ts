@@ -19,7 +19,7 @@ describe('renderDevelopersIndex', () => {
       expect(body).toContain(`${site.url}${path}`);
     }
     expect(body).toContain(site.docsUrl);
-    expect(body).toContain(site.iosSdkUrl);
+    expect(body).toContain(site.iosDocsUrl);
   });
 
   it('only links paths the site serves', () => {

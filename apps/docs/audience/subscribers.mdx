@@ -1,0 +1,152 @@
+---
+title: "Subscribers"
+description: "How BuzzKit stores your users, the attributes you set on them, the subscriptions that make them reachable, and how to read what each one received."
+---
+
+A subscriber is one of your users, addressed everywhere by the id you already use for them, so there is no BuzzKit id to store. A **subscription** is one way to reach that person on one channel: a push subscription is a device, an email subscription is an address. Nothing channel-specific lives on the subscriber itself, so one person can hold several subscriptions per channel, such as two phones or two addresses.
+
+## Identify a subscriber
+
+`PUT /v1/subscribers/:externalId` is an idempotent upsert on your own id. It answers `201` the first time and `200` on every call after, so it is safe on every login.
+
+```bash
+curl https://api.buzzkit.dev/v1/subscribers/user_42 \
+  -X PUT \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "attributes": { "name": "Maya", "plan": "pro" },
+    "email": "maya@acme.com",
+    "timezone": "Europe/Berlin"
+  }'
+```
+
+`email` is sugar that upserts an email subscription. `timezone` takes an IANA name and sets `$timezone` from your backend, which is what [scheduling in each subscriber's local time](/sending/scheduling) reads. Anything else is a 400 `invalid_timezone`.
+
+<Note>
+  `externalId` must be URL-encoded in the path. Emails, slashes and spaces all work as ids.
+</Note>
+
+An identical PUT writes nothing. A create records `$subscriber.created` on the [event stream](/automation/events) and a change records `$subscriber.updated`, both carrying the attributes snapshot.
+
+## Attributes
+
+`attributes` is a free-form JSON object. Segments filter on it, workflows branch on it, and your own reads see it on every subscriber. Two rules apply:
+
+- The server-side PUT **replaces** attributes wholesale when the field is present. The client API merges instead, so the app can add keys without wiping what your backend set.
+- The serialized object is capped at 64KB. Past that the call is a 400 `attributes_too_large`.
+
+### System attributes
+
+Keys starting with `$` belong to BuzzKit and are refused in a PUT body with a 400 `system_attribute`. They survive a wholesale replace and ride along in `attributes` on every read.
+
+| Attribute | Where it comes from |
+| --- | --- |
+| `$country`, `$city`, `$region`, `$timezone` | The edge's view of the device request |
+| `$language` | The device request's `Accept-Language` |
+| `$platform` | The push registration |
+| `$pushPermission` | The permission state the SDK reports on identify |
+| `$appVersion`, `$appBuild`, `$sdkVersion`, `$osVersion`, `$deviceModel` | The `device` block the SDK sends on identify |
+
+They refresh on every client identify and every client subscription registration, newest wins. `$timezone` is the one you can also set from your backend, through the `timezone` field above, for subscribers whose devices never call the client API.
+
+## Subscriptions
+
+A subscription is registered by channel shape, and it creates the subscriber implicitly if the id is new.
+
+<CodeGroup>
+
+```bash Push
+curl https://api.buzzkit.dev/v1/subscriptions \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "externalId": "user_42", "channel": "push", "platform": "ios", "token": "a1b2c3..." }'
+```
+
+```bash Email
+curl https://api.buzzkit.dev/v1/subscriptions \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "externalId": "user_42", "channel": "email", "address": "maya@acme.com" }'
+```
+
+</CodeGroup>
+
+Registration is idempotent by tenant, channel and endpoint. Re-registering refreshes `lastSeenAt`, reactivates an endpoint that was marked invalid, and moves the endpoint if the `externalId` changed, which is what happens when a device changes hands. You get `201` on create and `200` on a refresh. Every write that is more than a `lastSeenAt` refresh records `$subscription.registered` on the stream, and a move also records `$subscription.removed` for the previous owner. The channel must have a live credential on the tenant, otherwise the call is a 400 `channel_not_connected`.
+
+Push subscriptions also carry `environment`, `production` by default and `sandbox` for debug builds. It selects which APNs credential slot is used at delivery time.
+
+In practice the [iOS SDK](/sdks/ios/push) makes this call for you on every launch. Register from your backend when you hold the token yourself.
+
+### Muting one device versus removing it
+
+`PATCH /v1/subscriptions/:id` with `{ "enabled": false }` mutes a single subscription. The work iPhone goes quiet while every other device of the same person keeps receiving. A refresh never resets `enabled`, so a muted subscription stays muted when the app re-registers.
+
+`DELETE /v1/subscriptions/:id` soft-deletes it instead. The endpoint can register again fresh, and a fresh registration is not muted.
+
+A send goes out only through subscriptions that are enabled, active, and opted in to the message's [topic and channel](/audience/topics).
+
+<Note>
+  `status` is `active` or `invalid`. Delivery feedback from the provider, an APNs 410 or an FCM `UNREGISTERED`, flips a push subscription to `invalid` on its own, so dead tokens need no pruning of yours.
+</Note>
+
+## Identity verification
+
+A client key alone lets any caller claim any `externalId`. To prove the claim, your backend computes `identityHash = HMAC-SHA256(externalId, identitySecret)` as hex and hands it to the app at login. The secret comes from `GET /v1/tenants/:slug/identity-secret`, which is session-only. Keep it server-side and never ship it in the app binary. `POST /v1/tenants/:slug/identity-secret/rotate` invalidates every outstanding hash.
+
+A valid hash on any client call stamps the subscriber `verified` with an `identityVerifiedAt`, both visible on every subscriber read, so anonymous and verified users coexist and you can tell them apart. An invalid hash is a 401 whether or not enforcement is on. Turn enforcement on per tenant and every client call must then carry a valid hash.
+
+<Warning>
+  With verification off, an attacker can register their own device under someone else's id. BuzzKit still refuses to move an endpoint that already belongs to another subscriber from an unverified call, but enable verification before you send anything sensitive.
+</Warning>
+
+## Reading a subscriber
+
+<CodeGroup>
+
+```bash Retrieve
+curl https://api.buzzkit.dev/v1/subscribers/user_42 \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+```bash Timeline
+curl "https://api.buzzkit.dev/v1/subscribers/user_42/timeline?name=workout.completed" \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+```bash Deliveries
+curl https://api.buzzkit.dev/v1/subscribers/user_42/deliveries \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+</CodeGroup>
+
+The retrieve embeds the subscriber's subscriptions along with `verified` and `identityVerifiedAt`. `GET /v1/subscribers/:externalId/subscriptions` returns the same list on its own.
+
+The **timeline** is this person's slice of the event stream, newest first, keyset-paginated and filterable by `name`, `source` and `provider`. It holds every event you tracked plus the lifecycle BuzzKit writes for them: `$subscriber.created`, `updated` and `deleted`, `$subscription.registered`, `muted`, `unmuted`, `removed` and `invalidated`, `$preferences.updated` and `$identify`. Every `$subscription.*` event names the subscription it is about, with `externalId`, `channel`, `platform` and `endpoint`, so a timeline row can say which device changed.
+
+The **deliveries** list is every delivery addressed to this subscriber, newest first with a `total`, each carrying a summary of its message: `id`, `channel`, `topic`, `title`, `body` and `createdAt`. It needs the `messages:read` scope. See [delivery](/sending/delivery) for the statuses.
+
+## Listing and searching
+
+```bash
+curl "https://api.buzzkit.dev/v1/subscribers?search=user_4&limit=50" \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+`search` matches external ids starting with the text, or a `name` attribute containing it. Each item carries `lastSeenAt`, the newest across the subscriber's live subscriptions and `null` when there are none, `channels` such as `["push", "email"]`, and `platforms` such as `["ios", "android"]`.
+
+`DELETE /v1/subscribers/:externalId` soft-deletes the subscriber and all their subscriptions.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Segments" icon="filter" href="/audience/segments">
+    Target subscribers by attributes, events and activity instead of by id.
+  </Card>
+  <Card title="Topics and preferences" icon="bell" href="/audience/topics">
+    Let each subscriber choose which notifications reach them, per channel.
+  </Card>
+</CardGroup>

@@ -1,0 +1,107 @@
+---
+title: "Delivery and retries"
+description: "What happens after the 202: fan-out, the attempt ledger, the retry schedule, token invalidation and how to read results."
+---
+
+A [send](/sending/messages) is accepted before anyone is reached. After the `202`, BuzzKit works out who is reachable, creates one delivery per reachable subscription, and drives each delivery through the provider with retries. Every attempt is kept, with the request that was sent, the response that came back, a classification and a latency.
+
+## Fan-out
+
+BuzzKit resolves the audience against everything that decides reachability:
+
+- The subscriber is enabled.
+- They have an active subscription on the message's channel.
+- Their topic and channel preferences allow the message.
+- The channel is not disabled for the tenant.
+
+Each subscription that survives gets one delivery. Fan-out runs in pages of 500 subscriptions, and each page chains the next with a cursor persisted on the message, so a topic with a million subscribers is 2000 small jobs that resume from the cursor if one dies.
+
+## Attempts
+
+Each delivery is handed to the provider one attempt at a time. Exactly one provider call happens per attempt: the worker claims the attempt with a 60 second atomic lease before calling out, so a duplicate job, whether from a queue redelivery or the cron racing a delayed retry, loses the claim and is skipped rather than double-sending or double-counting. Attempts are also unique per delivery and attempt number.
+
+Every attempt is written to the ledger with:
+
+| Field | What it holds |
+| --- | --- |
+| `outcome` | Whether the attempt succeeded. |
+| `errorCode` | The shared classification, if it failed. |
+| `providerReason`, `providerStatus` | The provider's own words. |
+| `request` | The exact payload that was sent. |
+| `response` | The captured response, first 4KB. |
+| `latencyMs` | How long the provider call took. |
+| `nextAttemptAt` | When the next attempt is due, if there is one. |
+
+<Note>
+  Credentials and auth headers are never stored on an attempt.
+</Note>
+
+## Retries
+
+Every provider classifies its native reasons into one shared taxonomy, and the retry policy is written against that taxonomy rather than against a provider.
+
+| Code | Retried | Effect |
+| --- | --- | --- |
+| `rate_limited`, `provider_unavailable`, `transport`, `timeout` | Yes | `retrying`, with backoff. |
+| `invalid_endpoint` | No | Delivery `invalid`, and the subscription is flipped to `invalid`. |
+| `invalid_credential`, `payload_invalid`, `payload_too_large`, `unknown` | No | `failed`. |
+| `no_credential`, `expired`, `unsupported` | No | `failed` immediately. |
+| `unsubscribed` | No | `failed` immediately. |
+
+Retried attempts run at `5s, 30s, 2m, 10m, 30m, 1h, 2h` after the first one, eight attempts over roughly three and three quarter hours, each with plus or minus 20% jitter. A provider's `Retry-After` is honored, and `rate_limited` and `timeout` carry a 60 second floor so an overloaded provider is never hammered.
+
+Retries are durable in two places at once. The next attempt is written to the delivery row as `nextAttemptAt` and scheduled on the queue with a delay. If the queue ever loses the job, a reconciliation cron runs every five minutes to re-drive due retries, pick up lost jobs and stalled fan-outs, and expire overdue deliveries. A worker that dies mid-attempt leaves an expired lease, which the cron re-drives after ten minutes.
+
+`unsubscribed` is checked at attempt time, not at fan-out. If someone muted the topic, removed the subscription or had it invalidated in the hours between fan-out and a retry, the retry stops rather than reaching a person who opted out.
+
+## Token invalidation
+
+When a provider says an endpoint is dead, BuzzKit believes it. APNs answering 410 or `BadDeviceToken`, and FCM answering `UNREGISTERED`, both classify as `invalid_endpoint`. The delivery is marked `invalid`, the subscription is flipped to `invalid`, and a `subscription.invalidated` event is emitted, so the endpoint is never tried again.
+
+## Delivery statuses
+
+`pending` is queued and `retrying` is deferred. `sent` means the provider accepted the notification, which is the most a push provider ever confirms. `delivered` and `bounced` are asynchronous confirmations for channels that report them, and are sub-states of `sent`. `failed` is terminal, and `invalid` means the endpoint is dead.
+
+## Reading results
+
+Start with the message. `GET /v1/messages/:id` returns `status`, `expiresAt`, `completedAt`, `run` when a [workflow](/automation/workflows) step sent it, and `counts { total, pending, sent, delivered, bounced, failed, invalid }`.
+
+Counts are a projection of the delivery rows, which are the ground truth. While a message is `processing` they advance incrementally so progress is visible. Completion is derived rather than counted: once fan-out has finished and nothing is still `pending` or `retrying`, every counter is recounted from the deliveries and written exactly, so the final numbers are right even if a batch crashed mid-update. At completion, `sent + failed + invalid = total`.
+
+<CodeGroup>
+
+```bash Deliveries
+curl "https://api.buzzkit.dev/v1/messages/msg_.../deliveries?status=failed" \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+```bash Attempts
+curl https://api.buzzkit.dev/v1/deliveries/dlv_.../attempts \
+  -H "Authorization: Bearer bk_ws_..."
+```
+
+</CodeGroup>
+
+`GET /v1/messages/:id/deliveries` is keyset paginated and can be narrowed with `status`. Each delivery carries `provider`, `status`, `attempts`, `lastErrorCode`, `lastErrorMessage`, `nextAttemptAt`, `firstAttemptedAt`, `lastAttemptedAt`, `sentAt`, `settledAt` and `providerMessageId`, plus who it went to: the subscriber's `externalId` and the subscription's `platform` and `endpoint`. `GET /v1/deliveries/:id` returns one on its own.
+
+`GET /v1/deliveries/:id/attempts` is the ledger, every attempt for that delivery in full.
+
+Like every list in the API, these return `{ items, hasMore, nextCursor }`. Pass `limit`, up to 100, and the previous page's `nextCursor` to page through. Lists over Postgres also carry `total`, the number of items across every page under the same filters. An invalid cursor is a `400 invalid_cursor`.
+
+<Tip>
+  When a send looks wrong, read it in this order: the message's `counts` to see the shape of the failure, then the deliveries filtered by `status` to see who it hit, then one delivery's attempts to see what the provider actually said.
+</Tip>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Sending messages" icon="paper-plane" href="/sending/messages">
+    Targeting, content, expiry and idempotency.
+  </Card>
+  <Card title="Scheduling" icon="clock" href="/sending/scheduling">
+    Holding a message until a moment before any of this begins.
+  </Card>
+  <Card title="Subscribers" icon="user" href="/audience/subscribers">
+    Subscriptions, endpoints and what makes one reachable.
+  </Card>
+</CardGroup>

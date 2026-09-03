@@ -1,0 +1,124 @@
+---
+title: "Notification preferences"
+description: "Ship a notification settings screen with the drop-in BuzzKitPreferencesView, or build your own against BuzzKit.preferences."
+---
+
+Every subscriber's [topic](/audience/topics) preferences are readable and writable with the client key already in your app, so a notification settings screen needs no table of your own and no endpoint in front of it. `BuzzKitUI` gives you the screen; `BuzzKit.preferences` gives you the data if you would rather build it.
+
+## The drop-in screen
+
+```swift
+import BuzzKitUI
+
+NavigationStack {
+    BuzzKitPreferencesView()
+        .navigationTitle("Notifications")
+}
+```
+
+The view is a `List` and nothing else, so present it in a page, a sheet or a tab and give it its own title. It loads on appearance, supports pull to refresh, saves optimistically as the person flips a toggle, and reloads from the server when a save fails. A failed first load shows a "Try again" row instead of an empty screen.
+
+<Note>
+  Identify the subscriber before showing the screen. Preferences belong to the identified subscriber, and the screen works even when notification permission was denied, which is what lets someone fix their choices before granting permission.
+</Note>
+
+### Your own rows
+
+Pass a row builder to keep the loading, saving and error handling while owning the look completely. The builder is handed the topic and a `Binding<Bool>` for the whole topic.
+
+```swift
+BuzzKitPreferencesView { topic, isOptedIn in
+    HStack {
+        Image(systemName: icon(for: topic.slug))
+        Toggle(topic.name, isOn: isOptedIn)
+    }
+}
+```
+
+Writing through that binding opts the topic in or out on every channel at once. For per-channel control in a custom row, build on the data layer below.
+
+### Your own data source
+
+Hand the view its own `load` and `save` for previews, tests or a backend that proxies BuzzKit. `save` applies one change and returns the full new list; `saveChannel` does the same for a single channel and falls back to `save` when you leave it out.
+
+```swift
+BuzzKitPreferencesView(
+    load: { try await myBackend.topics() },
+    save: { slug, enabled in try await myBackend.set(slug, enabled: enabled) }
+)
+```
+
+Both initializers take a row builder as well, so a custom data source and a custom row combine.
+
+## What the person sees
+
+Topics arrive resolved: the full catalog, each with the user's state per channel. The screen renders them in the order the server returns them, so a topic or a category added in the dashboard appears without an app update.
+
+| In the dashboard | On the screen |
+| --- | --- |
+| A topic's `category` | A section header. Uncategorized topics form one section with no header. |
+| A topic offered on one channel | A row with a toggle. |
+| A topic offered on several channels | A row with a menu: Off, then a checkable entry per channel, summarized inline as "Push, Email". |
+| A topic's `name` and `description` | The row's title and its footnote. |
+
+The multi-channel menu is part of the default row. A custom row builder gets the plain topic binding instead, since a custom row decides its own shape.
+
+## Building a custom screen
+
+`BuzzKit.preferences` is the whole data layer. Every call is `async throws` and needs an identified subscriber.
+
+```swift
+let topics = try await BuzzKit.preferences.all()
+
+try await BuzzKit.preferences.set("gym-reminders", enabled: false)
+try await BuzzKit.preferences.set("digest", channel: .push, enabled: true)
+```
+
+Both `set` overloads return the full updated `[BuzzKit.Topic]`, so a screen can render the server's answer rather than guessing what changed. They are `@discardableResult`, so ignore the return when you do not need it.
+
+A `BuzzKit.Topic` carries the `slug`, `name`, `description`, `category`, and `channels` as `[BuzzKit.Channel: BuzzKit.ChannelPreference]`.
+
+```swift
+for topic in topics {
+    let push = topic.channels[.push]
+    print(topic.name, push?.isOptedIn ?? false, push?.isDefault ?? true)
+}
+```
+
+| Type | What it holds |
+| --- | --- |
+| `Channel` | `.push`, `.email`, or any channel by `rawValue`. `displayName` is the capitalized name to show. |
+| `ChannelPreference` | `isOptedIn` is the resolved answer. `isDefault` is `true` while the person has never chosen, so the topic's default still applies and keeps following it if you change it in the dashboard. |
+| `Topic.isOptedIn` | Whether the topic is on for at least one channel. |
+| `Topic.settingAllChannels(optedIn:)` | A copy with every channel flipped, for optimistic UI before the save returns. |
+
+Group topics into sections the same way the drop-in screen does.
+
+```swift
+ForEach(BuzzKit.TopicGroup.group(topics)) { group in
+    Section(group.category ?? "") {
+        ForEach(group.topics) { topic in
+            row(for: topic)
+        }
+    }
+}
+```
+
+`TopicGroup.group(_:)` preserves first appearance order, so the dashboard's ordering carries through to a custom screen too.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Topics and preferences" icon="bell" href="/audience/topics">
+    Creating topics, channels, defaults and daily caps.
+  </Card>
+  <Card title="Identity" icon="user" href="/sdks/ios/identity">
+    Identifying the subscriber these preferences belong to.
+  </Card>
+  <Card title="Push" icon="bell" href="/sdks/ios/push">
+    Permission and device registration.
+  </Card>
+  <Card title="Sending messages" icon="paper-plane" href="/sending/messages">
+    Sending to a topic, and how preferences filter the audience.
+  </Card>
+</CardGroup>

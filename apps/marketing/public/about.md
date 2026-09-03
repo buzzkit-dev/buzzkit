@@ -21,4 +21,4 @@ BuzzKit is that work, done once and open source: batteries included, running on 
 
 ## How it is built
 
-The API runs on Cloudflare Workers. Postgres stores what is, Tinybird stores what happened, and a Durable Object per subscriber holds what is true right now, so events for one person are processed in order and workflows answer history questions from the subscriber's own stream. Channels are generic: mobile push ships first, and future channels arrive as connectors without rewriting the core. The code, the docs and the roadmap live in the BuzzKit repository: https://github.com/buzzkit-dev/buzzkit
+The API runs on Cloudflare Workers. Postgres stores what is, Tinybird stores what happened, and a Durable Object per subscriber holds what is true right now, so events for one person are processed in order and workflows answer history questions from the subscriber's own stream. Channels are generic: mobile push ships first, and future channels arrive as connectors without rewriting the core. The documentation is at https://docs.buzzkit.dev, and the code and the roadmap live in the BuzzKit repository: https://github.com/buzzkit-dev/buzzkit
