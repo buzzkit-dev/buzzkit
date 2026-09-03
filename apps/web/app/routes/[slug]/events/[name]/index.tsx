@@ -13,23 +13,18 @@ import { Icon } from '@buzzkit/ui/components/icon';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableDetail,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableDetail, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Suspense, useRef, useState } from 'react';
+import { Await, Link, useNavigate } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EventSourceBadge } from '@/app/components/badges';
 import { describeStreamEvent, summarizeData } from '@/app/components/events/stream';
 import { VolumeChart } from '@/app/components/events/volume-chart';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { type EventNameDetail, type EventRange, getEventName } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
@@ -44,6 +39,14 @@ const RANGES: Array<{ value: EventRange; label: string }> = [
 
 const DEFAULT_RANGE: EventRange = '7d';
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Subscriber', className: 'w-52', fill: 'h-4 w-32' },
+  { label: 'Source', className: 'w-32', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Data', fill: 'h-4 w-40' },
+  { label: 'Time', className: 'w-24', fill: 'h-4 w-14' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-12', fill: 'h-4 w-4' },
+];
+
 type Field = { key: string; types: string[]; example: string };
 
 export function meta({ params }: Route.MetaArgs) {
@@ -56,11 +59,12 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const tenant = await resolveTenant(request, params.slug);
   const range = RANGES.find((entry) => entry.value === requestUrl(request).searchParams.get('range'))?.value;
 
-  const detail = await getEventName({ request, env }, token, params.slug, tenant, params.name, {
+  return {
     range: range ?? DEFAULT_RANGE,
-  });
-
-  return { detail, range: range ?? DEFAULT_RANGE };
+    detail: getEventName({ request, env }, token, params.slug, tenant, params.name, {
+      range: range ?? DEFAULT_RANGE,
+    }),
+  };
 }
 
 function inferFields(samples: EventNameDetail['samples']): Field[] {
@@ -145,12 +149,107 @@ function SampleRow({
   );
 }
 
+function EventDetail({ detail, slug }: { detail: EventNameDetail; slug: string }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const fields = inferFields(detail.samples);
+
+  return (
+    <>
+      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-4'>
+        <Tile label='Last 24 hours' value={detail.counts.last24h} />
+        <Tile label='Last 7 days' value={detail.counts.last7d} />
+        <Tile label='Last 30 days' value={detail.counts.last30d} />
+        <Tile label='Users (7d)' value={detail.subscribers7d} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Volume</CardTitle>
+          <CardDescription>
+            Events per{' '}
+            {detail.volume.bucketSeconds === 3600
+              ? 'hour'
+              : detail.volume.bucketSeconds === 86400
+                ? 'day'
+                : 'six hours'}
+            .
+          </CardDescription>
+          <CardAction className='gap-1.5'>
+            {detail.sources.map((source) =>
+              source === 'webhook' && detail.providers.length > 0 ? (
+                detail.providers.map((provider) => (
+                  <EventSourceBadge key={provider} source='webhook' provider={provider} />
+                ))
+              ) : (
+                <EventSourceBadge key={source} source={source} />
+              )
+            )}
+          </CardAction>
+        </CardHeader>
+        <CardContent className='pt-1 pb-3'>
+          <VolumeChart volume={detail.volume} />
+        </CardContent>
+      </Card>
+
+      <div className='grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]'>
+        <Card className='min-w-0'>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Recent</CardTitle>
+          </CardHeader>
+          {detail.samples.length === 0 ? (
+            <EmptyState size='sm' icon='IconHistoryFilled' title='Nothing recent' />
+          ) : (
+            <Table className='table-fixed'>
+              <TableColumns columns={COLUMNS} />
+              <TableBody>
+                {detail.samples.map((sample) => (
+                  <SampleRow
+                    key={sample.id}
+                    sample={sample}
+                    slug={slug}
+                    expanded={expanded === sample.id}
+                    onToggle={() => setExpanded((current) => (current === sample.id ? null : sample.id))}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+
+        <Card className='min-w-0'>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Fields</CardTitle>
+          </CardHeader>
+          {fields.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconParagraphFilled'
+              title='No data fields'
+              description='Send a data object with the event to see its fields here.'
+            />
+          ) : (
+            <ul className='flex flex-col divide-y divide-bg-3'>
+              {fields.map((field) => (
+                <li key={field.key} className='flex items-center justify-between gap-3 px-4 py-2.5'>
+                  <div className='flex min-w-0 flex-col'>
+                    <Truncate className='font-medium text-fg-4 text-sm'>{field.key}</Truncate>
+                    <Truncate className='text-fg-2 text-xs'>{field.example}</Truncate>
+                  </div>
+                  <span className='shrink-0 text-fg-2 text-xs'>{field.types.join(' | ')}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+
 export default function EventNameRoute({ loaderData, params }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { detail, range } = loaderData;
-  const { label } = describeStreamEvent({ name: detail.name, data: {} });
-  const fields = inferFields(detail.samples);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const { label } = describeStreamEvent({ name: params.name, data: {} });
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -171,10 +270,16 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
           <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             {label}
           </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            {label !== detail.name && <span>{detail.name} · </span>}
-            First seen <Time at={detail.firstAt} />, last <TimeAgo at={detail.lastAt} />.
-          </p>
+          <Suspense fallback={<BlockSkeleton className='h-5 w-72 rounded-md' />}>
+            <Await resolve={detail}>
+              {(data) => (
+                <p className='text-pretty text-base text-fg-2 leading-tighter'>
+                  {label !== data.name && <span>{data.name} · </span>}
+                  First seen <Time at={data.firstAt} />, last <TimeAgo at={data.lastAt} />.
+                </p>
+              )}
+            </Await>
+          </Suspense>
         </div>
         <PillTabs
           items={RANGES}
@@ -194,101 +299,19 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
         ref={scrollerRef}
         className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
       >
-        <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-4'>
-          <Tile label='Last 24 hours' value={detail.counts.last24h} />
-          <Tile label='Last 7 days' value={detail.counts.last7d} />
-          <Tile label='Last 30 days' value={detail.counts.last30d} />
-          <Tile label='Users (7d)' value={detail.subscribers7d} />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Volume</CardTitle>
-            <CardDescription>
-              Events per{' '}
-              {detail.volume.bucketSeconds === 3600
-                ? 'hour'
-                : detail.volume.bucketSeconds === 86400
-                  ? 'day'
-                  : 'six hours'}
-              .
-            </CardDescription>
-            <CardAction className='gap-1.5'>
-              {detail.sources.map((source) =>
-                source === 'webhook' && detail.providers.length > 0 ? (
-                  detail.providers.map((provider) => (
-                    <EventSourceBadge key={provider} source='webhook' provider={provider} />
-                  ))
-                ) : (
-                  <EventSourceBadge key={source} source={source} />
-                )
-              )}
-            </CardAction>
-          </CardHeader>
-          <CardContent className='pt-1 pb-3'>
-            <VolumeChart volume={detail.volume} />
-          </CardContent>
-        </Card>
-
-        <div className='grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]'>
-          <Card className='min-w-0'>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Recent</CardTitle>
-            </CardHeader>
-            {detail.samples.length === 0 ? (
-              <EmptyState size='sm' icon='IconHistoryFilled' title='Nothing recent' />
+        <Deferred resolve={detail}>
+          {(data) =>
+            data === undefined ? (
+              <>
+                <BlockSkeleton className='h-[4.75rem] w-full rounded-2xl' />
+                <BlockSkeleton className='h-56 w-full rounded-2xl' />
+                <TableSkeleton columns={COLUMNS} rows={6} />
+              </>
             ) : (
-              <Table className='table-fixed'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className='w-52'>Subscriber</TableHead>
-                    <TableHead className='w-32'>Source</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead className='w-24'>Time</TableHead>
-                    <TableHead className='w-12' />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {detail.samples.map((sample) => (
-                    <SampleRow
-                      key={sample.id}
-                      sample={sample}
-                      slug={params.slug}
-                      expanded={expanded === sample.id}
-                      onToggle={() => setExpanded((current) => (current === sample.id ? null : sample.id))}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
-
-          <Card className='min-w-0'>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Fields</CardTitle>
-            </CardHeader>
-            {fields.length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconParagraphFilled'
-                title='No data fields'
-                description='Send a data object with the event to see its fields here.'
-              />
-            ) : (
-              <ul className='flex flex-col divide-y divide-bg-3'>
-                {fields.map((field) => (
-                  <li key={field.key} className='flex items-center justify-between gap-3 px-4 py-2.5'>
-                    <div className='flex min-w-0 flex-col'>
-                      <Truncate className='font-medium text-fg-4 text-sm'>{field.key}</Truncate>
-                      <Truncate className='text-fg-2 text-xs'>{field.example}</Truncate>
-                    </div>
-                    <span className='shrink-0 text-fg-2 text-xs'>{field.types.join(' | ')}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
+              <EventDetail detail={data} slug={params.slug} />
+            )
+          }
+        </Deferred>
       </div>
     </div>
   );

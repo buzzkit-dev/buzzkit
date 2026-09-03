@@ -33,3 +33,7 @@ TINYBIRD_TOKEN=
 ENVIRONMENT=development
 DASHBOARD_URL=http://localhost:5180
 TINYBIRD_URL=http://localhost:7181
+
+# Simulated API latency for local loading work: "500-1500" for a random delay in that range, or a single number.
+# Ignored unless ENVIRONMENT=development. Leave empty for instant responses.
+SIMULATED_LATENCY_MS=

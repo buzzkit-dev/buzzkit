@@ -3,12 +3,15 @@ import { Card, CardHeader, CardTitle } from '@buzzkit/ui/components/card';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useRef } from 'react';
 import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
 import { describeRunEvent } from '@/app/components/workflows/describe';
 import { type RunPath, WorkflowFlow } from '@/app/components/workflows/flow';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
@@ -17,14 +20,8 @@ import { getRun, getWorkflow, type RunEvent } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  return [
-    {
-      title: loaderData
-        ? `${loaderData.run.externalId} · ${loaderData.run.workflow} · BuzzKit`
-        : 'Run · BuzzKit',
-    },
-  ];
+export function meta() {
+  return [{ title: 'Run · BuzzKit' }];
 }
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
@@ -32,21 +29,25 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
-  const run = await getRun(ctx, token, params.slug, tenant, params.runId);
-  const workflow = await getWorkflow(ctx, token, params.slug, tenant, run.workflow).catch(() => null);
-  const version = workflow?.versions?.find((entry) => entry.id === run.versionId) ?? null;
-  const live = workflow?.current ?? null;
   return {
-    run,
-    workflow,
-    spec: version?.spec ?? workflow?.spec ?? null,
-    version:
-      version === null
-        ? null
-        : {
-            number: version.number,
-            note: live && live.id !== version.id ? `Version ${live.number} is published now` : null,
-          },
+    detail: (async () => {
+      const run = await getRun(ctx, token, params.slug, tenant, params.runId);
+      const workflow = await getWorkflow(ctx, token, params.slug, tenant, run.workflow).catch(() => null);
+      const version = workflow?.versions?.find((entry) => entry.id === run.versionId) ?? null;
+      const live = workflow?.current ?? null;
+      return {
+        run,
+        workflow,
+        spec: version?.spec ?? workflow?.spec ?? null,
+        version:
+          version === null
+            ? null
+            : {
+                number: version.number,
+                note: live && live.id !== version.id ? `Version ${live.number} is published now` : null,
+              },
+      };
+    })(),
   };
 }
 
@@ -79,9 +80,15 @@ function EventItem({ event, slug }: { event: RunEvent; slug: string }) {
   );
 }
 
-export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
-  const { run, workflow, spec, version } = loaderData;
-  const workflowBase = `/${params.slug}/workflows/${run.workflow}`;
+function RunContent({
+  data,
+  slug,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['detail']>;
+  slug: string;
+}) {
+  const { run, workflow, spec, version } = data;
+  const workflowBase = `/${slug}/workflows/${run.workflow}`;
   const steps = run.events.filter((event) => event.name === '$run.step' && event.step);
   const path: RunPath = {
     reached: new Set(
@@ -105,7 +112,7 @@ export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
   useLinkedScroll(mainRef, asideRef);
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+    <>
       <Button
         variant='ghost'
         size='sm'
@@ -153,7 +160,7 @@ export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
             ) : (
               <ul className='flex flex-col divide-y divide-bg-3'>
                 {run.events.map((event) => (
-                  <EventItem key={event.id} event={event} slug={params.slug} />
+                  <EventItem key={event.id} event={event} slug={slug} />
                 ))}
               </ul>
             )}
@@ -177,7 +184,7 @@ export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
               </DetailRow>
               <DetailRow label='Subscriber' copy={run.externalId}>
                 <Link
-                  to={`/${params.slug}/subscribers/${encodeURIComponent(run.externalId)}`}
+                  to={`/${slug}/subscribers/${encodeURIComponent(run.externalId)}`}
                   className='truncate underline-offset-2 hover:underline'
                 >
                   {run.externalId}
@@ -202,6 +209,35 @@ export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
           </Card>
         </div>
       </div>
+    </>
+  );
+}
+
+function RunSkeleton() {
+  return (
+    <>
+      <Skeleton className='-ml-2 h-8 w-32 shrink-0 rounded-xl' />
+      <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5'>
+          <BlockSkeleton className='h-96 w-full rounded-2xl' />
+          <BlockSkeleton className='h-64 w-full rounded-2xl' />
+        </div>
+        <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0'>
+          <BlockSkeleton className='h-80 w-full rounded-2xl' />
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
+  const { detail } = loaderData;
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Deferred resolve={detail}>
+        {(data) => (data === undefined ? <RunSkeleton /> : <RunContent data={data} slug={params.slug} />)}
+      </Deferred>
     </div>
   );
 }

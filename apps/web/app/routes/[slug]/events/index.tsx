@@ -11,13 +11,16 @@ import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EventSourceBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
 import { VolumeChart } from '@/app/components/events/volume-chart';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { TIME_TOOLTIP_DELAY, TimeAgo } from '@/app/hooks/use-time-ago';
 import { type EventRange, getEventVolume, listEventNames } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
@@ -33,6 +36,15 @@ const RANGES: Array<{ value: EventRange; label: string }> = [
 
 const DEFAULT_RANGE: EventRange = '7d';
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Event', fill: 'h-5 w-44' },
+  { label: 'Last 24h', className: 'w-24', fill: 'h-4 w-10' },
+  { label: 'Last 7d', className: 'w-24', fill: 'h-4 w-10' },
+  { label: 'Users (7d)', className: 'w-28', fill: 'h-4 w-10' },
+  { label: 'Sources', className: 'w-52', fill: 'h-5 w-20 rounded-full' },
+  { label: 'Last seen', className: 'w-28', fill: 'h-4 w-16' },
+];
+
 export function meta() {
   return [{ title: 'Events · BuzzKit' }];
 }
@@ -44,12 +56,16 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const ctx = { request, env };
   const range = RANGES.find((entry) => entry.value === requestUrl(request).searchParams.get('range'))?.value;
 
-  const [names, volume] = await Promise.all([
-    listEventNames(ctx, token, params.slug, tenant),
-    getEventVolume(ctx, token, params.slug, tenant, { range: range ?? DEFAULT_RANGE }),
-  ]);
-
-  return { names, volume, range: range ?? DEFAULT_RANGE };
+  return {
+    range: range ?? DEFAULT_RANGE,
+    results: (async () => {
+      const [names, volume] = await Promise.all([
+        listEventNames(ctx, token, params.slug, tenant),
+        getEventVolume(ctx, token, params.slug, tenant, { range: range ?? DEFAULT_RANGE }),
+      ]);
+      return { names, volume };
+    })(),
+  };
 }
 
 function SourcesCell({ sources, providers }: { sources: string[]; providers: string[] }) {
@@ -79,7 +95,7 @@ function SourcesCell({ sources, providers }: { sources: string[]; providers: str
 }
 
 export default function EventsRoute({ loaderData, params }: Route.ComponentProps) {
-  const { names, volume, range } = loaderData;
+  const { range, results } = loaderData;
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
   const navigate = useNavigate();
   const snippet = [
@@ -102,95 +118,102 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
         </div>
       </header>
 
-      {names.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon='IconHistoryFilled'
-            title='No events yet'
-            description='Track one from your server or the app and it shows up here within seconds.'
-            className='py-10'
-          >
-            <CodeBlock code={snippet} className='max-w-xl text-left' />
-          </EmptyState>
-        </Card>
-      ) : (
-        <>
-          <Card className='shrink-0'>
-            <CardHeader>
-              <CardTitle>Volume</CardTitle>
-              <CardDescription>
-                Events per{' '}
-                {volume.bucketSeconds === 3600
-                  ? 'hour'
-                  : volume.bucketSeconds === 86400
-                    ? 'day'
-                    : 'six hours'}
-                .
-              </CardDescription>
-              <CardAction>
-                <PillTabs
-                  items={RANGES}
-                  value={range}
-                  itemClassName='h-6.5 px-2.5 text-xs'
-                  onValueChange={(value) =>
-                    navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
-                      replace: true,
-                      preventScrollReset: true,
-                    })
-                  }
-                />
-              </CardAction>
-            </CardHeader>
-            <CardContent className='pt-1 pb-3'>
-              <VolumeChart volume={volume} />
-            </CardContent>
-          </Card>
+      <Deferred resolve={results}>
+        {(data) => {
+          const names = data?.names ?? [];
+          if (data !== undefined && names.length === 0) {
+            return (
+              <Card>
+                <EmptyState
+                  icon='IconHistoryFilled'
+                  title='No events yet'
+                  description='Track one from your server or the app and it shows up here within seconds.'
+                  className='py-10'
+                >
+                  <CodeBlock code={snippet} className='max-w-xl text-left' />
+                </EmptyState>
+              </Card>
+            );
+          }
+          return (
+            <>
+              {data === undefined ? (
+                <BlockSkeleton className='h-56 w-full shrink-0 rounded-2xl' />
+              ) : (
+                <Card className='shrink-0'>
+                  <CardHeader>
+                    <CardTitle>Volume</CardTitle>
+                    <CardDescription>
+                      Events per{' '}
+                      {data.volume.bucketSeconds === 3600
+                        ? 'hour'
+                        : data.volume.bucketSeconds === 86400
+                          ? 'day'
+                          : 'six hours'}
+                      .
+                    </CardDescription>
+                    <CardAction>
+                      <PillTabs
+                        items={RANGES}
+                        value={range}
+                        itemClassName='h-6.5 px-2.5 text-xs'
+                        onValueChange={(value) =>
+                          navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
+                            replace: true,
+                            preventScrollReset: true,
+                          })
+                        }
+                      />
+                    </CardAction>
+                  </CardHeader>
+                  <CardContent className='pt-1 pb-3'>
+                    <VolumeChart volume={data.volume} />
+                  </CardContent>
+                </Card>
+              )}
 
-          <Card className='min-h-0 shrink'>
-            <Table className='table-fixed'>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Event</TableHead>
-                  <TableHead className='w-24'>Last 24h</TableHead>
-                  <TableHead className='w-24'>Last 7d</TableHead>
-                  <TableHead className='w-28'>Users (7d)</TableHead>
-                  <TableHead className='w-52'>Sources</TableHead>
-                  <TableHead className='w-28'>Last seen</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {names.map((entry) => (
-                  <TableRow key={entry.name}>
-                    <TableCell>
-                      <Link
-                        to={`/${params.slug}/events/${encodeURIComponent(entry.name)}`}
-                        className='flex min-w-0 outline-none focus-visible:underline'
-                      >
-                        <EventName name={entry.name} />
-                      </Link>
-                    </TableCell>
-                    <TableCell className='tabular-nums'>
-                      <NumberFlow value={entry.counts.last24h} className='leading-none' />
-                    </TableCell>
-                    <TableCell className='tabular-nums'>
-                      <NumberFlow value={entry.counts.last7d} className='leading-none' />
-                    </TableCell>
-                    <TableCell className='tabular-nums'>
-                      <NumberFlow value={entry.subscribers7d} className='leading-none' />
-                    </TableCell>
-                    <TableCell className='py-2'>
-                      <SourcesCell sources={entry.sources} providers={entry.providers} />
-                    </TableCell>
-                    <TableCell>
-                      <TimeAgo at={entry.lastAt} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </>
-      )}
+              {data === undefined ? (
+                <TableSkeleton columns={COLUMNS} rows={8} />
+              ) : (
+                <Card className='min-h-0 shrink'>
+                  <Table className='table-fixed'>
+                    <TableColumns columns={COLUMNS} />
+                    <TableBody>
+                      {names.map((entry) => (
+                        <TableRow key={entry.name}>
+                          <TableCell>
+                            <Link
+                              to={`/${params.slug}/events/${encodeURIComponent(entry.name)}`}
+                              className='flex min-w-0 outline-none focus-visible:underline'
+                            >
+                              <EventName name={entry.name} />
+                            </Link>
+                          </TableCell>
+                          <TableCell className='tabular-nums'>
+                            <NumberFlow value={entry.counts.last24h} className='leading-none' />
+                          </TableCell>
+                          <TableCell className='tabular-nums'>
+                            <NumberFlow value={entry.counts.last7d} className='leading-none' />
+                          </TableCell>
+                          <TableCell className='tabular-nums'>
+                            <NumberFlow value={entry.subscribers7d} className='leading-none' />
+                          </TableCell>
+                          <TableCell className='py-2'>
+                            <SourcesCell sources={entry.sources} providers={entry.providers} />
+                          </TableCell>
+                          <TableCell>
+                            <TimeAgo at={entry.lastAt} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
+            </>
+          );
+        }}
+      </Deferred>
     </div>
   );
 }

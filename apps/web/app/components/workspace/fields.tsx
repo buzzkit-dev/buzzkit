@@ -65,7 +65,7 @@ export function WorkspaceFields({
           value={slugValue}
           onChange={(event) => {
             setSlugTouched(true);
-            setSlug(event.target.value);
+            setSlug(event.target.value.toLowerCase());
           }}
           placeholder='acme'
           required

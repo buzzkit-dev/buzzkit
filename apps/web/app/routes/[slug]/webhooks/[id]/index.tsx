@@ -23,13 +23,12 @@ import { FieldGroup } from '@buzzkit/ui/components/field';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import {
   Table,
   TableBody,
   TableCell,
   TableDetail,
-  TableHead,
-  TableHeader,
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
@@ -40,6 +39,9 @@ import { Link, useNavigate, useOutletContext, useRevalidator, useSearchParams } 
 import { cloudflareContext } from '@/app/cloudflare';
 import { EndpointStatusBadge, WebhookAttemptBadge, WebhookStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
+import { CardSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { describeEvents } from '@/app/components/webhooks/describe';
 import { ALL_TENANTS, EndpointFields, useEndpointForm } from '@/app/components/webhooks/endpoint-form';
 import { EventsSummary } from '@/app/components/webhooks/events-summary';
@@ -82,11 +84,22 @@ type Filter = 'all' | NonNullable<WebhookDeliveryQuery['status']>;
 
 type Attempt = WebhookDeliveryDetail['attempts'][number];
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData ? `${loaderData.endpoint.url} · BuzzKit` : 'Webhook · BuzzKit' }];
+type Detail = Awaited<Awaited<ReturnType<typeof loader>>['detail']>;
+
+const DELIVERY_COLUMNS: TableColumn[] = [
+  { label: 'Event', fill: 'h-4 w-40' },
+  { label: 'Status', className: 'w-24', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Attempts', className: 'w-20', fill: 'h-4 w-6' },
+  { label: 'Response', className: 'w-24', fill: 'h-4 w-8' },
+  { label: 'Last attempt', className: 'w-28', fill: 'h-4 w-16' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-12', fill: 'h-4 w-4' },
+];
+
+export function meta() {
+  return [{ title: 'Webhook · BuzzKit' }];
 }
 
-export async function loader({ request, context, params }: Route.LoaderArgs) {
+export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
@@ -94,29 +107,26 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const status = FILTERS.find((entry) => entry.value === search.get('status'))?.value;
   const expandedId = search.get('delivery');
 
-  const [endpoint, page, tenants, catalog, expanded] = await Promise.all([
-    getWebhook(ctx, token, params.slug, params.id),
-    listWebhookDeliveries(ctx, token, params.slug, params.id, {
-      ...readPage(request),
-      ...(status && status !== 'all' ? { status } : {}),
-    }),
-    listTenants(ctx, token, params.slug),
-    getWebhookCatalog(ctx, token, params.slug),
-    expandedId
-      ? getWebhookDelivery(ctx, token, params.slug, params.id, expandedId).catch((error) => {
-          if (error instanceof ApiError && error.status === 404) return null;
-          throw error;
-        })
-      : null,
-  ]);
-
   return {
-    endpoint,
-    deliveries: paginate(request, page),
-    tenants,
-    catalog,
     filter: status ?? 'all',
-    expanded,
+    detail: (async () => {
+      const [endpoint, page, tenants, catalog, expanded] = await Promise.all([
+        getWebhook(ctx, token, params.slug, params.id),
+        listWebhookDeliveries(ctx, token, params.slug, params.id, {
+          ...readPage(request),
+          ...(status && status !== 'all' ? { status } : {}),
+        }),
+        listTenants(ctx, token, params.slug),
+        getWebhookCatalog(ctx, token, params.slug),
+        expandedId
+          ? getWebhookDelivery(ctx, token, params.slug, params.id, expandedId).catch((error) => {
+              if (error instanceof ApiError && error.status === 404) return null;
+              throw error;
+            })
+          : null,
+      ]);
+      return { endpoint, deliveries: paginate(request, page), tenants, catalog, expanded };
+    })(),
   };
 }
 
@@ -388,7 +398,30 @@ function EditForm({
   );
 }
 
-export default function WebhookRoute({ loaderData, params }: Route.ComponentProps) {
+function EndpointFallback() {
+  return (
+    <>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
+        <div className='flex min-w-0 flex-col gap-1'>
+          <Skeleton className='h-7 w-48' />
+          <Skeleton className='h-4 w-72' />
+        </div>
+      </header>
+
+      <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5 [&>*]:shrink-0'>
+          <TableSkeleton columns={DELIVERY_COLUMNS} rows={5} />
+        </div>
+        <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'>
+          <CardSkeleton title='Overview' lines={4} />
+          <CardSkeleton title='Signing secret' lines={1} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EndpointDetail({ detail, base, filter }: { detail: Detail; base: string; filter: Filter }) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -398,9 +431,8 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
     if (data.deleted) void navigate(base);
   });
   const { submit: replay, pending: replaying } = useActionFetcher();
-  const { endpoint, deliveries, tenants, catalog, filter, expanded } = loaderData;
+  const { endpoint, deliveries, tenants, catalog, expanded } = detail;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
-  const base = `/${params.slug}/webhooks`;
   const tenantName = tenants.find((entry) => entry.id === endpoint.tenantId)?.name ?? null;
   const [revealed, setRevealed] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -444,18 +476,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
   }, [deliveries.items, revalidator]);
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Webhooks
-      </Button>
-
+    <>
       <header className='flex shrink-0 items-center justify-between gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex min-w-0 items-center gap-2.5 font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
@@ -532,16 +553,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
               />
             ) : (
               <Table className='table-fixed'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Event</TableHead>
-                    <TableHead className='w-24'>Status</TableHead>
-                    <TableHead className='w-20'>Attempts</TableHead>
-                    <TableHead className='w-24'>Response</TableHead>
-                    <TableHead className='w-28'>Last attempt</TableHead>
-                    <TableHead className='w-12' />
-                  </TableRow>
-                </TableHeader>
+                <TableColumns columns={DELIVERY_COLUMNS} />
                 <TableBody>
                   {deliveries.items.map((delivery) => (
                     <DeliveryRow
@@ -686,6 +698,36 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+export default function WebhookRoute({ loaderData, params }: Route.ComponentProps) {
+  const { detail, filter } = loaderData;
+  const base = `/${params.slug}/webhooks`;
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={base} />}
+      >
+        Webhooks
+      </Button>
+
+      <Deferred resolve={detail}>
+        {(data) =>
+          data === undefined ? (
+            <EndpointFallback />
+          ) : (
+            <EndpointDetail detail={data} base={base} filter={filter} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

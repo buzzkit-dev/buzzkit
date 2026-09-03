@@ -102,7 +102,7 @@ function SlugCard({ workspace, canEdit }: { workspace: Workspace; canEdit: boole
         <Input
           value={slug}
           onChange={(event) => {
-            setSlug(event.target.value);
+            setSlug(event.target.value.toLowerCase());
             setClientError(null);
           }}
           onKeyDown={(event) => {

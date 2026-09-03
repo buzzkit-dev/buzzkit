@@ -1,8 +1,10 @@
 import { Avatar } from '@buzzkit/ui/components/avatar';
 import { Flag } from '@buzzkit/ui/components/flag';
-import { TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
+import { TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Link } from 'react-router';
 import { ChannelBadge, PlatformBadge, VerifiedBadge } from '@/app/components/badges';
+import { type TableColumn, TableColumns } from '@/app/components/loading/table';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import type { Subscriber } from '@/app/lib/api.server';
@@ -12,18 +14,27 @@ type SubscriberRowData = Pick<
   'id' | 'externalId' | 'attributes' | 'verified' | 'channels' | 'platforms' | 'createdAt' | 'lastSeenAt'
 >;
 
+export const SUBSCRIBER_COLUMNS: TableColumn[] = [
+  {
+    label: 'Subscriber',
+    content: (
+      <span className='flex items-center gap-2.5'>
+        <Skeleton className='size-[30px] shrink-0 rounded-full' />
+        <span className='flex flex-col gap-1'>
+          <Skeleton className='h-3.5 w-28' />
+          <Skeleton className='h-3 w-20' />
+        </span>
+      </span>
+    ),
+  },
+  { label: 'Country', fill: 'h-4 w-24' },
+  { label: 'Channels', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Subscribed', fill: 'h-4 w-20' },
+  { label: 'Last seen', fill: 'h-4 w-16' },
+];
+
 export function SubscriberColumns() {
-  return (
-    <TableHeader>
-      <TableRow>
-        <TableHead>Subscriber</TableHead>
-        <TableHead>Country</TableHead>
-        <TableHead>Channels</TableHead>
-        <TableHead>Subscribed</TableHead>
-        <TableHead>Last seen</TableHead>
-      </TableRow>
-    </TableHeader>
-  );
+  return <TableColumns columns={SUBSCRIBER_COLUMNS} />;
 }
 
 export function SubscriberRow({ subscriber, base }: { subscriber: SubscriberRowData; base: string }) {

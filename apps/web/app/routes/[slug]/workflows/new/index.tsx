@@ -107,7 +107,7 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
                 value={slugValue}
                 onChange={(event) => {
                   setSlugTouched(true);
-                  setSlug(event.target.value);
+                  setSlug(event.target.value.toLowerCase());
                 }}
                 placeholder='trial-follow-up'
                 maxLength={64}

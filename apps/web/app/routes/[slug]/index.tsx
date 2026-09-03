@@ -27,6 +27,8 @@ import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge, PlatformBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { LiveRuns } from '@/app/components/workflows/live-runs';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
@@ -46,6 +48,8 @@ import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
 const DEFAULT_RANGE = '7d';
+
+const TILE_PLACEHOLDERS = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 const UTC = { timeZone: 'UTC' } as const;
 
@@ -86,18 +90,21 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const range = requestUrl(request).searchParams.get('range') ?? DEFAULT_RANGE;
   const window = resolveRange(range);
 
-  const [credentials, stats, messages, subscribers] = await Promise.all([
-    listCredentials(ctx, token, params.slug, tenant),
-    getStats(ctx, token, params.slug, tenant, window.from ? window : resolveRange(DEFAULT_RANGE)),
-    listMessages(ctx, token, params.slug, tenant, { limit: 5 }),
-    listSubscribers(ctx, token, params.slug, tenant, { limit: 5 }),
-  ]);
-
   return {
-    hasChannel: credentials.length > 0,
-    stats,
-    messages: messages.items,
-    subscribers: subscribers.items,
+    overview: (async () => {
+      const [credentials, stats, messages, subscribers] = await Promise.all([
+        listCredentials(ctx, token, params.slug, tenant),
+        getStats(ctx, token, params.slug, tenant, window.from ? window : resolveRange(DEFAULT_RANGE)),
+        listMessages(ctx, token, params.slug, tenant, { limit: 5 }),
+        listSubscribers(ctx, token, params.slug, tenant, { limit: 5 }),
+      ]);
+      return {
+        hasChannel: credentials.length > 0,
+        stats,
+        messages: messages.items,
+        subscribers: subscribers.items,
+      };
+    })(),
   };
 }
 
@@ -437,12 +444,14 @@ function SubscriberRow({ subscriber, base }: { subscriber: Subscriber; base: str
     </TableRow>
   );
 }
-
-export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
-  const { workspace } = useOutletContext<WorkspaceOutletContext>();
-  const { hasChannel, stats, messages, subscribers } = loaderData;
-  const base = `/${workspace.slug}`;
-  const filters = useFilters(['range'] as const);
+function OverviewContent({
+  data,
+  base,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['overview']>;
+  base: string;
+}) {
+  const { hasChannel, stats, messages, subscribers } = data;
 
   const delivered = stats.deliveries.sent;
   const failed = stats.deliveries.failed + stats.deliveries.invalid;
@@ -456,24 +465,7 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
   });
 
   return (
-    <div className='flex w-full flex-col gap-6'>
-      <header className='flex items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Overview
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Track subscribers, messages, deliveries, events and workflows over time.
-          </p>
-        </div>
-        <FilterRange
-          presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
-          value={filters.values.range ?? DEFAULT_RANGE}
-          onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
-          allowAny={false}
-        />
-      </header>
-
+    <>
       {!hasChannel && (
         <Card className='flex-row items-center gap-3 px-4 py-3'>
           <IconTile icon='IconPaperPlaneTopRightFilled' size='sm' className='text-fg-2' />
@@ -809,6 +801,55 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
           )}
         </Card>
       </div>
+    </>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <>
+      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-3'>
+        {TILE_PLACEHOLDERS.map((tile) => (
+          <BlockSkeleton key={tile} className='h-28 w-full rounded-2xl' />
+        ))}
+      </div>
+      <BlockSkeleton className='h-80 w-full rounded-2xl' />
+      <div className='grid gap-5 lg:grid-cols-2'>
+        <BlockSkeleton className='h-64 w-full rounded-2xl' />
+        <BlockSkeleton className='h-64 w-full rounded-2xl' />
+      </div>
+    </>
+  );
+}
+
+export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
+  const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const { overview } = loaderData;
+  const base = `/${workspace.slug}`;
+  const filters = useFilters(['range'] as const);
+
+  return (
+    <div className='flex w-full flex-col gap-6'>
+      <header className='flex items-center justify-between gap-4'>
+        <div className='flex flex-col gap-0.5'>
+          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
+            Overview
+          </h1>
+          <p className='text-pretty text-base text-fg-2 leading-tighter'>
+            Track subscribers, messages, deliveries, events and workflows over time.
+          </p>
+        </div>
+        <FilterRange
+          presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
+          value={filters.values.range ?? DEFAULT_RANGE}
+          onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
+          allowAny={false}
+        />
+      </header>
+
+      <Deferred resolve={overview}>
+        {(data) => (data === undefined ? <OverviewSkeleton /> : <OverviewContent data={data} base={base} />)}
+      </Deferred>
     </div>
   );
 }

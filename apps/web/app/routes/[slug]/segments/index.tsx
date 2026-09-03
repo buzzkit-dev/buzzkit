@@ -1,11 +1,13 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { Conditions } from '@/app/components/conditions/chips';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { segmentsAction } from '@/app/lib/actions/segments.server';
 import { listSegments, type Segment } from '@/app/lib/api.server';
@@ -17,12 +19,17 @@ export function meta() {
   return [{ title: 'Segments · BuzzKit' }];
 }
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Segment', className: 'w-72', fill: 'h-4 w-40' },
+  { label: 'Conditions', fill: 'h-5 w-48 rounded-full' },
+  { label: 'Updated', className: 'w-32', fill: 'h-4 w-16' },
+];
+
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const segments = await listSegments({ request, env }, token, params.slug, tenant);
-  return { segments };
+  return { segments: listSegments({ request, env }, token, params.slug, tenant) };
 }
 
 export const action = segmentsAction;
@@ -73,37 +80,34 @@ export default function SegmentsRoute({ loaderData, params }: Route.ComponentPro
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {segments.length === 0 ? (
-          <EmptyState
-            icon='IconTargetFilled'
-            title='No segments yet'
-            description='Describe who to reach with conditions on attributes, events and activity, then send to them.'
-            className='py-10'
-          >
-            {canManage && (
-              <Button icon='IconPlusMedium' nativeButton={false} render={<Link to={`${base}/new`} />}>
-                New segment
-              </Button>
-            )}
-          </EmptyState>
-        ) : (
-          <Table className='table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-72'>Segment</TableHead>
-                <TableHead>Conditions</TableHead>
-                <TableHead className='w-32'>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {segments.map((segment) => (
-                <SegmentRow key={segment.id} segment={segment} base={base} />
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+      <Deferred resolve={segments}>
+        {(data) => {
+          const rows = data ?? [];
+          return data === undefined ? (
+            <TableSkeleton columns={COLUMNS} />
+          ) : (
+            <Card className='min-h-0 shrink'>
+              {rows.length === 0 ? (
+                <EmptyState
+                  icon='IconTargetFilled'
+                  title='No segments yet'
+                  description='Describe who to reach with conditions on attributes, events and activity, then send to them.'
+                  className='py-10'
+                />
+              ) : (
+                <Table className='table-fixed'>
+                  <TableColumns columns={COLUMNS} />
+                  <TableBody>
+                    {rows.map((segment) => (
+                      <SegmentRow key={segment.id} segment={segment} base={base} />
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Card>
+          );
+        }}
+      </Deferred>
     </div>
   );
 }

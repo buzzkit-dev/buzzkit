@@ -7,12 +7,14 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/com
 import { Input } from '@buzzkit/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
 import { toast } from '@buzzkit/ui/components/sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { SourceStatusBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { mappedEventCount, providerLabel } from '@/app/components/sources/describe';
 import { ProviderLogo } from '@/app/components/sources/logo';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
@@ -31,12 +33,19 @@ export function meta() {
   return [{ title: 'Sources · BuzzKit' }];
 }
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Source', fill: 'h-4 w-48' },
+  { label: 'Provider', className: 'w-28', fill: 'h-4 w-20' },
+  { label: 'Status', className: 'w-28', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Last delivery', className: 'w-32', fill: 'h-4 w-20' },
+  { label: 'Created', className: 'w-32', fill: 'h-4 w-20' },
+];
+
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const sources = await listSources({ request, env }, token, params.slug, tenant);
-  return { sources };
+  return { sources: listSources({ request, env }, token, params.slug, tenant) };
 }
 
 export const action = sourcesAction;
@@ -187,39 +196,34 @@ export default function SourcesRoute({ loaderData, params }: Route.ComponentProp
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {sources.length === 0 ? (
-          <EmptyState
-            icon='IconMailboxFilled'
-            title='No sources yet'
-            description='Add a source to receive webhooks from Stripe, Superwall or your own server as events on the subscriber.'
-            className='py-10'
-          >
-            {canManage && (
-              <Button icon='IconPlusMedium' onClick={openDialog}>
-                Add source
-              </Button>
-            )}
-          </EmptyState>
-        ) : (
-          <Table className='table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source</TableHead>
-                <TableHead className='w-28'>Provider</TableHead>
-                <TableHead className='w-28'>Status</TableHead>
-                <TableHead className='w-32'>Last delivery</TableHead>
-                <TableHead className='w-32'>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sources.map((source) => (
-                <SourceRow key={source.id} source={source} slug={params.slug} />
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+      <Deferred resolve={sources}>
+        {(data) => {
+          const rows = data ?? [];
+          return data === undefined ? (
+            <TableSkeleton columns={COLUMNS} />
+          ) : (
+            <Card className='min-h-0 shrink'>
+              {rows.length === 0 ? (
+                <EmptyState
+                  icon='IconMailboxFilled'
+                  title='No sources yet'
+                  description='Add a source to receive webhooks from Stripe, Superwall or your own server as events on the subscriber.'
+                  className='py-10'
+                />
+              ) : (
+                <Table className='table-fixed'>
+                  <TableColumns columns={COLUMNS} />
+                  <TableBody>
+                    {rows.map((source) => (
+                      <SourceRow key={source.id} source={source} slug={params.slug} />
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Card>
+          );
+        }}
+      </Deferred>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent showCloseButton>

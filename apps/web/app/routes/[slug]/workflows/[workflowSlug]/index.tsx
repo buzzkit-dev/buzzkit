@@ -24,16 +24,9 @@ import { Field, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Input } from '@buzzkit/ui/components/input';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TablePagination,
-  TableRow,
-} from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TablePagination, TableRow } from '@buzzkit/ui/components/table';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
@@ -42,6 +35,9 @@ import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge, WorkflowStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns } from '@/app/components/loading/table';
 import {
   describeSchedule,
   describeTrigger,
@@ -86,6 +82,22 @@ const RUN_FILTERS: { value: RunFilter; label: string }[] = [
   { value: 'failed', label: 'Failed' },
 ];
 
+const FIRE_COLUMNS: TableColumn[] = [
+  { label: 'Due', fill: 'h-4 w-20' },
+  { label: 'Timezone', fill: 'h-4 w-24' },
+  { label: 'Version', fill: 'h-4 w-16' },
+  { label: 'Runs', className: 'text-right', fill: 'h-4 w-10' },
+  { label: 'Status', fill: 'h-5 w-20 rounded-full' },
+];
+
+const RUN_COLUMNS: TableColumn[] = [
+  { label: 'Subscriber', fill: 'h-4 w-40' },
+  { label: 'Status', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Step', fill: 'h-4 w-20' },
+  { label: 'Started', fill: 'h-4 w-16' },
+  { label: 'Updated', fill: 'h-4 w-16' },
+];
+
 type Tab = (typeof TABS)[number]['value'];
 
 type RunFilter = RunStatus | 'all';
@@ -98,8 +110,8 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData ? `${loaderData.workflow.name} · BuzzKit` : 'Workflow · BuzzKit' }];
+export function meta() {
+  return [{ title: 'Workflow · BuzzKit' }];
 }
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
@@ -110,21 +122,26 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const search = requestUrl(request).searchParams;
   const requested = TABS.find((entry) => entry.value === search.get('tab'))?.value ?? 'steps';
   const runStatus = RUN_FILTERS.find((entry) => entry.value === search.get('status'))?.value ?? 'all';
-  const workflow = await getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug);
-  const scheduled = 'schedule' in workflow.spec.trigger;
-  const tab = requested === 'schedule' && !scheduled ? 'steps' : requested;
-  const [runs, schedule] = await Promise.all([
-    tab === 'runs'
-      ? listWorkflowRuns(ctx, token, params.slug, tenant, params.workflowSlug, {
-          ...readPage(request),
-          ...(runStatus === 'all' ? {} : { status: runStatus }),
-        })
-      : Promise.resolve(null),
-    tab === 'schedule'
-      ? getWorkflowSchedule(ctx, token, params.slug, tenant, params.workflowSlug).catch(() => null)
-      : Promise.resolve(null),
-  ]);
-  return { workflow, scheduled, tab, runStatus, runs: runs ? paginate(request, runs) : null, schedule };
+  return {
+    runStatus,
+    detail: (async () => {
+      const workflow = await getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug);
+      const scheduled = 'schedule' in workflow.spec.trigger;
+      const tab = requested === 'schedule' && !scheduled ? 'steps' : requested;
+      const [runs, schedule] = await Promise.all([
+        tab === 'runs'
+          ? listWorkflowRuns(ctx, token, params.slug, tenant, params.workflowSlug, {
+              ...readPage(request),
+              ...(runStatus === 'all' ? {} : { status: runStatus }),
+            })
+          : Promise.resolve(null),
+        tab === 'schedule'
+          ? getWorkflowSchedule(ctx, token, params.slug, tenant, params.workflowSlug).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      return { workflow, scheduled, tab, runs: runs ? paginate(request, runs) : null, schedule };
+    })(),
+  };
 }
 
 export const action = workflowsAction;
@@ -388,15 +405,7 @@ function ScheduleTab({
         />
       ) : (
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Due</TableHead>
-              <TableHead>Timezone</TableHead>
-              <TableHead>Version</TableHead>
-              <TableHead className='text-right'>Runs</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
+          <TableColumns columns={FIRE_COLUMNS} />
           <TableBody>
             {schedule.fires.map((fire) => (
               <TableRow key={`${fire.firedAt}:${fire.version}`}>
@@ -506,12 +515,20 @@ function DetailsDialog({
   );
 }
 
-export default function WorkflowRoute({ loaderData, params }: Route.ComponentProps) {
+function WorkflowContent({
+  data,
+  slug,
+  runStatus,
+  canManage,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['detail']>;
+  slug: string;
+  runStatus: RunFilter;
+  canManage: boolean;
+}) {
   const navigate = useNavigate();
-  const { workspace } = useOutletContext<WorkspaceOutletContext>();
-  const { workflow, scheduled, tab, runStatus, runs, schedule } = loaderData;
-  const base = `/${params.slug}/workflows`;
-  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+  const { workflow, scheduled, tab, runs, schedule } = data;
+  const base = `/${slug}/workflows`;
   const spec = workflow.spec;
   const versions = workflow.versions ?? [];
   const shown =
@@ -524,13 +541,13 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
   const [openVersion, setOpenVersion] = useState<WorkflowVersion | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [filter, setFilter] = useState<RunFilter>(runStatus);
-  const { submit, pending } = useActionFetcher((data) => {
-    if (data.deleted) {
+  const { submit, pending } = useActionFetcher((result) => {
+    if (result.deleted) {
       toast.success('Workflow deleted');
       void navigate(base);
-    } else if (data.published) {
+    } else if (result.published) {
       toast.success(workflow.status === 'paused' ? 'Workflow resumed' : 'Workflow published');
-    } else if (data.paused) {
+    } else if (result.paused) {
       setPauseOpen(false);
       toast.success('Workflow paused');
     }
@@ -555,18 +572,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
   useEffect(() => setFilter(runStatus), [runStatus]);
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Workflows
-      </Button>
-
+    <>
       <header className='flex shrink-0 items-center justify-between gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex items-center gap-2.5 text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
@@ -643,9 +649,7 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
           />
         )}
 
-        {tab === 'schedule' && (
-          <ScheduleTab schedule={schedule} slug={params.slug} status={workflow.status} />
-        )}
+        {tab === 'schedule' && <ScheduleTab schedule={schedule} slug={slug} status={workflow.status} />}
 
         {tab === 'code' && (
           <CodeTab key={workflow.draft?.id ?? workflow.current?.id ?? workflow.id} workflow={workflow} />
@@ -694,18 +698,10 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
               />
             ) : (
               <Table className='border-bg-3 border-t'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subscriber</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Step</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableColumns columns={RUN_COLUMNS} />
                 <TableBody>
                   {runs.items.map((run) => (
-                    <RunRow key={run.id} run={run} slug={params.slug} />
+                    <RunRow key={run.id} run={run} slug={slug} />
                   ))}
                 </TableBody>
                 <TablePagination {...runs.pagination} />
@@ -797,6 +793,50 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+function WorkflowSkeleton() {
+  return (
+    <>
+      <header className='flex shrink-0 flex-col gap-2'>
+        <Skeleton className='h-7 w-56' />
+        <Skeleton className='h-4 w-80' />
+      </header>
+      <BlockSkeleton className='h-[28rem] w-full rounded-2xl' />
+    </>
+  );
+}
+
+export default function WorkflowRoute({ loaderData, params }: Route.ComponentProps) {
+  const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const { runStatus, detail } = loaderData;
+  const base = `/${params.slug}/workflows`;
+  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={base} />}
+      >
+        Workflows
+      </Button>
+
+      <Deferred resolve={detail}>
+        {(data) =>
+          data === undefined ? (
+            <WorkflowSkeleton />
+          ) : (
+            <WorkflowContent data={data} slug={params.slug} runStatus={runStatus} canManage={canManage} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

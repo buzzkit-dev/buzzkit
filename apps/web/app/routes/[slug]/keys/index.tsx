@@ -24,20 +24,14 @@ import { Input } from '@buzzkit/ui/components/input';
 import { type ScopeGroup, ScopePicker } from '@buzzkit/ui/components/scope-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
 import { toast } from '@buzzkit/ui/components/sonner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TablePagination,
-  TableRow,
-} from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TablePagination, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { KeyKindBadge, RevokedBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
@@ -95,19 +89,34 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Name', fill: 'h-4 w-28' },
+  { label: 'Key', fill: 'h-3.5 w-24' },
+  { label: 'Type', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Tenant', fill: 'h-4 w-20' },
+  { label: 'Access', fill: 'h-4 w-20' },
+  { label: 'Last used', fill: 'h-4 w-16' },
+  { label: 'Created', fill: 'h-4 w-16' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-0', fill: 'h-6 w-6 rounded-lg' },
+];
+
 export function meta() {
   return [{ title: 'API keys · BuzzKit' }];
 }
 
-export async function loader({ request, context, params }: Route.LoaderArgs) {
+export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
-  const [page, tenants] = await Promise.all([
-    listKeys(ctx, token, params.slug, readPage(request)),
-    listTenants(ctx, token, params.slug),
-  ]);
-  return { ...paginate(request, page), tenants };
+  return {
+    page: (async () => {
+      const [page, tenants] = await Promise.all([
+        listKeys(ctx, token, params.slug, readPage(request)),
+        listTenants(ctx, token, params.slug),
+      ]);
+      return { ...paginate(request, page), tenants };
+    })(),
+  };
 }
 
 export const action = keysAction;
@@ -405,14 +414,12 @@ function KeyRow({
 
 export default function KeysRoute({ loaderData }: Route.ComponentProps) {
   const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { items: keys, pagination, tenants } = loaderData;
+  const { page } = loaderData;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [open, setOpen] = useState(false);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const { submit, pending } = useActionFetcher(() => setRevokeOpen(false));
-  const tenantName = (tenantId: string | null) =>
-    tenants.find((entry) => entry.id === tenantId)?.name ?? null;
 
   const openRevoke = (key: ApiKey) => {
     setRevoking(key);
@@ -435,47 +442,46 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {keys.length === 0 ? (
-          <EmptyState
-            icon='IconKeyholeFilled'
-            title='No API keys yet'
-            description='Create a key to call the API from your backend, or a client key to embed in your app.'
-            className='py-10'
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Key</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Tenant</TableHead>
-                <TableHead>Access</TableHead>
-                <TableHead>Last used</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>
-                  <span className='sr-only'>Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {keys.map((apiKey) => (
-                <KeyRow
-                  key={apiKey.id}
-                  apiKey={apiKey}
-                  tenantName={tenantName(apiKey.tenantId)}
-                  canManage={canManage}
-                  onRevoke={openRevoke}
-                />
-              ))}
-            </TableBody>
-            <TablePagination {...pagination} />
-          </Table>
-        )}
-      </Card>
+      <Deferred resolve={page}>
+        {(data) => {
+          const keys = data?.items ?? [];
+          const tenants = data?.tenants ?? [];
+          return data === undefined ? (
+            <TableSkeleton columns={COLUMNS} fixed={false} />
+          ) : (
+            <>
+              <Card className='min-h-0 shrink'>
+                {keys.length === 0 ? (
+                  <EmptyState
+                    icon='IconKeyholeFilled'
+                    title='No API keys yet'
+                    description='Create a key to call the API from your backend, or a client key to embed in your app.'
+                    className='py-10'
+                  />
+                ) : (
+                  <Table>
+                    <TableColumns columns={COLUMNS} />
+                    <TableBody>
+                      {keys.map((apiKey) => (
+                        <KeyRow
+                          key={apiKey.id}
+                          apiKey={apiKey}
+                          tenantName={tenants.find((entry) => entry.id === apiKey.tenantId)?.name ?? null}
+                          canManage={canManage}
+                          onRevoke={openRevoke}
+                        />
+                      ))}
+                    </TableBody>
+                    <TablePagination {...data.pagination} />
+                  </Table>
+                )}
+              </Card>
 
-      <KeyDialog open={open} onOpenChange={setOpen} tenants={tenants} apiUrl={apiUrl} />
+              <KeyDialog open={open} onOpenChange={setOpen} tenants={tenants} apiUrl={apiUrl} />
+            </>
+          );
+        }}
+      </Deferred>
 
       <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
         <AlertDialogContent>

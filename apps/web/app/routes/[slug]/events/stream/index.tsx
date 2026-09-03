@@ -3,7 +3,7 @@ import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { FilterBar, FilterClear, FilterSelect } from '@buzzkit/ui/components/filter-bar';
+import { FilterBar, FilterClear, type FilterOption, FilterSelect } from '@buzzkit/ui/components/filter-bar';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { LivePing } from '@buzzkit/ui/components/live-ping';
 import {
@@ -11,15 +11,13 @@ import {
   TableBody,
   TableCell,
   TableDetail,
-  TableHead,
-  TableHeader,
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useOutletContext } from 'react-router';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { Await, Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EventSourceBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
@@ -29,6 +27,8 @@ import {
   type StreamSource,
   summarizeData,
 } from '@/app/components/events/stream';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { providerLabel } from '@/app/components/sources/describe';
 import { useFilters } from '@/app/hooks/use-filters';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
@@ -51,6 +51,19 @@ const FILTER_KEYS = ['event', 'source'] as const;
 const SOURCES = Object.keys(SOURCE_LABELS) as StreamSource[];
 
 const LIVE_INTERVAL_MS = 3000;
+
+const COLUMNS: TableColumn[] = [
+  { label: 'Event', className: 'w-64', fill: 'h-5 w-40' },
+  { label: 'Subscriber', className: 'w-44', fill: 'h-4 w-28' },
+  { label: 'Source', className: 'w-32', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Data', fill: 'h-4 w-48' },
+  { label: 'Time', className: 'w-24', fill: 'h-4 w-14' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-12', fill: 'h-4 w-4' },
+];
+
+type StreamFilter = { name: string | null; source: string | null; provider: string | null };
+
+type StreamData = Awaited<Route.ComponentProps['loaderData']['results']>;
 
 type LiveEvent = Omit<StreamEvent, 'runId' | 'messageId'> & {
   runId: string | null;
@@ -92,32 +105,37 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     provider,
   };
 
-  const [events, names, live] = await Promise.all([
-    listEvents(ctx, token, params.slug, tenant, query),
-    listEventNames(ctx, token, params.slug, tenant),
-    page.cursor ? null : getEventsToken(ctx, token, params.slug, tenant),
-  ]);
-
-  const seenSources = new Set<string>();
-  for (const entry of names) {
-    for (const seen of entry.sources) {
-      if (seen !== 'webhook') seenSources.add(seen);
-      else if (entry.providers.length > 0) for (const each of entry.providers) seenSources.add(each);
-      else seenSources.add('webhook');
-    }
-  }
-  const sourceOptions = [...seenSources].sort().map((value) => ({
-    value,
-    label: SOURCE_PRESETS[value as SourceProvider]
-      ? providerLabel(value)
-      : (SOURCE_LABELS[value as StreamSource] ?? value),
-  }));
   return {
-    ...paginate(request, events),
-    names: names.map((entry) => entry.name),
-    sourceOptions,
     filter: { name: query.name ?? null, source: query.source ?? null, provider: query.provider ?? null },
-    live,
+    results: (async () => {
+      const [events, names, live] = await Promise.all([
+        listEvents(ctx, token, params.slug, tenant, query),
+        listEventNames(ctx, token, params.slug, tenant),
+        page.cursor ? null : getEventsToken(ctx, token, params.slug, tenant),
+      ]);
+
+      const seenSources = new Set<string>();
+      for (const entry of names) {
+        for (const seen of entry.sources) {
+          if (seen !== 'webhook') seenSources.add(seen);
+          else if (entry.providers.length > 0) for (const each of entry.providers) seenSources.add(each);
+          else seenSources.add('webhook');
+        }
+      }
+      const sourceOptions = [...seenSources].sort().map((value) => ({
+        value,
+        label: SOURCE_PRESETS[value as SourceProvider]
+          ? providerLabel(value)
+          : (SOURCE_LABELS[value as StreamSource] ?? value),
+      }));
+
+      return {
+        ...paginate(request, events),
+        names: names.map((entry) => entry.name),
+        sourceOptions,
+        live,
+      };
+    })(),
   };
 }
 
@@ -132,7 +150,7 @@ function isoTime(value: string): string {
 async function fetchNewer(
   token: EventsToken,
   after: { receivedAt: string; id: string | null },
-  filter: { name: string | null; source: string | null; provider: string | null }
+  filter: StreamFilter
 ): Promise<LiveEvent[]> {
   const url = new URL(`${token.url}/v0/pipes/event_recent.json`);
   url.searchParams.set('tenant_id', '0');
@@ -167,11 +185,7 @@ function newestOf(events: { receivedAt: string; id: string }[]): { receivedAt: s
     : { receivedAt: new Date(0).toISOString(), id: null };
 }
 
-function useLiveEvents(
-  initial: StreamEvent[],
-  token: EventsToken | null,
-  filter: { name: string | null; source: string | null; provider: string | null }
-) {
+function useLiveEvents(initial: StreamEvent[], token: EventsToken | null, filter: StreamFilter) {
   const [events, setEvents] = useState<LiveEvent[]>(initial);
   const newest = useRef(newestOf(initial));
 
@@ -264,12 +278,47 @@ function EventRow({
   );
 }
 
-export default function StreamRoute({ loaderData, params }: Route.ComponentProps) {
+function StreamFilters({
+  names,
+  sourceOptions,
+  cold,
+}: {
+  names: string[];
+  sourceOptions: FilterOption[];
+  cold: boolean;
+}) {
+  const filters = useFilters(FILTER_KEYS);
+
+  return (
+    <FilterBar>
+      <FilterSelect
+        label='Event'
+        value={filters.values.event}
+        options={names.map((name) => ({
+          value: name,
+          label: describeStreamEvent({ name, data: {} }).label,
+        }))}
+        onValueChange={(value) => filters.set('event', value)}
+        disabled={cold}
+      />
+      <FilterSelect
+        label='Source'
+        value={filters.values.source}
+        options={sourceOptions}
+        onValueChange={(value) => filters.set('source', value)}
+        disabled={cold}
+      />
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+    </FilterBar>
+  );
+}
+
+function Stream({ data, filter, slug }: { data: StreamData; filter: StreamFilter; slug: string }) {
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
-  const { items, pagination, names, sourceOptions, filter, live } = loaderData;
+  const filters = useFilters(FILTER_KEYS);
+  const { items, pagination, names, sourceOptions, live } = data;
   const fresh = names.length === 0;
   const [expanded, setExpanded] = useState<string | null>(null);
-  const filters = useFilters(FILTER_KEYS);
   const events = useLiveEvents(items, live, filter);
   const snippet = [
     `curl -X POST ${apiUrl}/v1/events \\`,
@@ -279,39 +328,8 @@ export default function StreamRoute({ loaderData, params }: Route.ComponentProps
   ].join('\n');
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='flex items-center gap-2.5 text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Stream
-            {live && <LivePing />}
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Every event as it arrives, newest first.
-          </p>
-        </div>
-      </header>
-
-      {!fresh && (
-        <FilterBar>
-          <FilterSelect
-            label='Event'
-            value={filters.values.event}
-            options={names.map((name) => ({
-              value: name,
-              label: describeStreamEvent({ name, data: {} }).label,
-            }))}
-            onValueChange={(value) => filters.set('event', value)}
-          />
-          <FilterSelect
-            label='Source'
-            value={filters.values.source}
-            options={sourceOptions}
-            onValueChange={(value) => filters.set('source', value)}
-          />
-          {filters.active && <FilterClear onClick={filters.clear} />}
-        </FilterBar>
-      )}
+    <>
+      {!fresh && <StreamFilters names={names} sourceOptions={sourceOptions} cold={false} />}
 
       <Card className='min-h-0 shrink'>
         {fresh ? (
@@ -336,22 +354,13 @@ export default function StreamRoute({ loaderData, params }: Route.ComponentProps
           </EmptyState>
         ) : (
           <Table className='table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-64'>Event</TableHead>
-                <TableHead className='w-44'>Subscriber</TableHead>
-                <TableHead className='w-32'>Source</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className='w-24'>Time</TableHead>
-                <TableHead className='w-12' />
-              </TableRow>
-            </TableHeader>
+            <TableColumns columns={COLUMNS} />
             <TableBody>
               {events.map((event) => (
                 <EventRow
                   key={event.id}
                   event={event}
-                  slug={params.slug}
+                  slug={slug}
                   expanded={expanded === event.id}
                   onToggle={() => setExpanded((current) => (current === event.id ? null : event.id))}
                 />
@@ -361,6 +370,41 @@ export default function StreamRoute({ loaderData, params }: Route.ComponentProps
           </Table>
         )}
       </Card>
+    </>
+  );
+}
+
+export default function StreamRoute({ loaderData, params }: Route.ComponentProps) {
+  const { filter, results } = loaderData;
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
+        <div className='flex flex-col gap-0.5'>
+          <h1 className='flex items-center gap-2.5 text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
+            Stream
+            <Suspense fallback={null}>
+              <Await resolve={results}>{({ live }) => live && <LivePing />}</Await>
+            </Suspense>
+          </h1>
+          <p className='text-pretty text-base text-fg-2 leading-tighter'>
+            Every event as it arrives, newest first.
+          </p>
+        </div>
+      </header>
+
+      <Deferred resolve={results}>
+        {(data) =>
+          data === undefined ? (
+            <>
+              <StreamFilters names={[]} sourceOptions={[]} cold />
+              <TableSkeleton columns={COLUMNS} rows={8} />
+            </>
+          ) : (
+            <Stream data={data} filter={filter} slug={params.slug} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

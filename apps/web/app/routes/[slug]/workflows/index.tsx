@@ -1,11 +1,13 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { WorkflowStatusBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { LiveRuns } from '@/app/components/workflows/live-runs';
 import { TriggerConditions } from '@/app/components/workflows/trigger';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
@@ -19,12 +21,19 @@ export function meta() {
   return [{ title: 'Workflows · BuzzKit' }];
 }
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Workflow', className: 'w-64', fill: 'h-4 w-40' },
+  { label: 'Trigger', fill: 'h-5 w-48 rounded-full' },
+  { label: 'Status', className: 'w-24', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Live runs', className: 'w-32', fill: 'h-4 w-20' },
+  { label: 'Updated', className: 'w-28', fill: 'h-4 w-16' },
+];
+
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const workflows = await listWorkflows({ request, env }, token, params.slug, tenant);
-  return { workflows };
+  return { workflows: listWorkflows({ request, env }, token, params.slug, tenant) };
 }
 
 export const action = workflowsAction;
@@ -84,39 +93,34 @@ export default function WorkflowsRoute({ loaderData, params }: Route.ComponentPr
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {workflows.length === 0 ? (
-          <EmptyState
-            icon='IconAgentsFilled'
-            title='No workflows yet'
-            description='Create a workflow and it runs for every subscriber whose events match its trigger.'
-            className='py-10'
-          >
-            {canManage && (
-              <Button variant='soft' nativeButton={false} render={<Link to={`${base}/new`} />}>
-                Create workflow
-              </Button>
-            )}
-          </EmptyState>
-        ) : (
-          <Table className='table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-64'>Workflow</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead className='w-24'>Status</TableHead>
-                <TableHead className='w-32'>Live runs</TableHead>
-                <TableHead className='w-28'>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workflows.map((workflow) => (
-                <WorkflowRow key={workflow.id} workflow={workflow} base={base} />
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+      <Deferred resolve={workflows}>
+        {(data) => {
+          const rows = data ?? [];
+          return data === undefined ? (
+            <TableSkeleton columns={COLUMNS} />
+          ) : (
+            <Card className='min-h-0 shrink'>
+              {rows.length === 0 ? (
+                <EmptyState
+                  icon='IconAgentsFilled'
+                  title='No workflows yet'
+                  description='Create a workflow and it runs for every subscriber whose events match its trigger.'
+                  className='py-10'
+                />
+              ) : (
+                <Table className='table-fixed'>
+                  <TableColumns columns={COLUMNS} />
+                  <TableBody>
+                    {rows.map((workflow) => (
+                      <WorkflowRow key={workflow.id} workflow={workflow} base={base} />
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Card>
+          );
+        }}
+      </Deferred>
     </div>
   );
 }

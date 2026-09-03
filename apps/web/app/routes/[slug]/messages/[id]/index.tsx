@@ -21,8 +21,6 @@ import {
   TableBody,
   TableCell,
   TableDetail,
-  TableHead,
-  TableHeader,
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
@@ -48,6 +46,9 @@ import {
 } from '@/app/components/badges';
 import { Conditions } from '@/app/components/conditions/chips';
 import { DetailRow } from '@/app/components/detail/row';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
 import { describeTarget } from '@/app/components/messages/target';
@@ -79,12 +80,20 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'pending', label: 'Pending' },
 ];
 
+const DELIVERY_COLUMNS: TableColumn[] = [
+  { label: 'Subscriber', fill: 'h-4 w-48' },
+  { label: 'Status', className: 'w-24', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Error', className: 'w-28', fill: 'h-4 w-16' },
+  { label: 'Sent', className: 'w-16', fill: 'h-4 w-12' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-12', fill: 'h-4 w-4' },
+];
+
 type DeliveryStatus = (typeof STATUSES)[number];
 
 type Filter = DeliveryStatus | 'all';
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData ? `${loaderData.title} · BuzzKit` : 'Message · BuzzKit' }];
+export function meta() {
+  return [{ title: 'Message · BuzzKit' }];
 }
 
 const RECIPIENT_TIMEZONE_LOOKUPS = 20;
@@ -101,37 +110,41 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const status = STATUSES.find((entry) => entry === statusParam);
   const deliveryId = url.searchParams.get('delivery');
 
-  const [message, deliveries, attempts] = await Promise.all([
-    getMessage(ctx, token, params.slug, tenant, params.id),
-    listMessageDeliveries(ctx, token, params.slug, tenant, params.id, { ...readPage(request), status }),
-    deliveryId ? listDeliveryAttempts(ctx, token, params.slug, tenant, deliveryId) : Promise.resolve(null),
-  ]);
-  const payload = message.payload as { title?: string; body?: string };
-  const recipients = (message.targets as { to?: string[] }).to ?? [];
-  const schedule = message.schedule as unknown as { timezone: string } | null;
-  let lookups: Array<Awaited<ReturnType<typeof getSubscriber>> | null> = [];
-  if (schedule?.timezone === 'subscriber') {
-    lookups = await Promise.all(
-      recipients
-        .slice(0, RECIPIENT_TIMEZONE_LOOKUPS)
-        .map((externalId) => getSubscriber(ctx, token, params.slug, tenant, externalId).catch(() => null))
-    );
-  }
-  const recipientTimezones = [
-    ...new Set(
-      lookups
-        .map((recipient) => (recipient?.attributes as { $timezone?: unknown } | undefined)?.$timezone)
-        .filter((zone): zone is string => typeof zone === 'string')
-    ),
-  ];
-
   return {
-    message,
-    recipientTimezones,
-    title: payload.title ?? 'Untitled',
     status: (status ?? 'all') as Filter,
-    deliveries: paginate(request, deliveries),
-    expanded: deliveryId ? { id: deliveryId, attempts: attempts ?? [] } : null,
+    deliveryId,
+    detail: (async () => {
+      const [message, deliveries, attempts] = await Promise.all([
+        getMessage(ctx, token, params.slug, tenant, params.id),
+        listMessageDeliveries(ctx, token, params.slug, tenant, params.id, { ...readPage(request), status }),
+        deliveryId
+          ? listDeliveryAttempts(ctx, token, params.slug, tenant, deliveryId)
+          : Promise.resolve(null),
+      ]);
+      const recipients = (message.targets as { to?: string[] }).to ?? [];
+      const schedule = message.schedule as unknown as { timezone: string } | null;
+      let lookups: Array<Awaited<ReturnType<typeof getSubscriber>> | null> = [];
+      if (schedule?.timezone === 'subscriber') {
+        lookups = await Promise.all(
+          recipients
+            .slice(0, RECIPIENT_TIMEZONE_LOOKUPS)
+            .map((externalId) => getSubscriber(ctx, token, params.slug, tenant, externalId).catch(() => null))
+        );
+      }
+      const recipientTimezones = [
+        ...new Set(
+          lookups
+            .map((recipient) => (recipient?.attributes as { $timezone?: unknown } | undefined)?.$timezone)
+            .filter((zone): zone is string => typeof zone === 'string')
+        ),
+      ];
+      return {
+        message,
+        recipientTimezones,
+        deliveries: paginate(request, deliveries),
+        attempts: attempts ?? [],
+      };
+    })(),
   };
 }
 
@@ -374,20 +387,31 @@ function FunnelRow({
   );
 }
 
-export default function MessageRoute({ loaderData, params }: Route.ComponentProps) {
+function MessageContent({
+  data,
+  slug,
+  status,
+  deliveryId,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['detail']>;
+  slug: string;
+  status: Filter;
+  deliveryId: string | null;
+}) {
   const navigate = useNavigate();
-  const { message, status, deliveries, expanded, recipientTimezones } = loaderData;
+  const { message, deliveries, recipientTimezones } = data;
+  const expanded = deliveryId ? { id: deliveryId, attempts: data.attempts } : null;
   const payload = message.payload as unknown as { title?: string; body?: string };
   const counts = message.counts;
   const target = describeTarget(message.targets);
   const inline = (message.targets as { where?: Expression }).where ?? null;
   const plainTargets = message.targets as { to?: string[]; topic?: string; segment?: string };
   const targetHref = plainTargets.segment
-    ? `/${params.slug}/segments/${plainTargets.segment}`
+    ? `/${slug}/segments/${plainTargets.segment}`
     : plainTargets.topic
-      ? `/${params.slug}/topics`
+      ? `/${slug}/topics`
       : plainTargets.to?.length === 1
-        ? `/${params.slug}/subscribers/${encodeURIComponent(plainTargets.to[0] ?? '')}`
+        ? `/${slug}/subscribers/${encodeURIComponent(plainTargets.to[0] ?? '')}`
         : null;
   const schedule = message.schedule as unknown as { at: string; timezone: string } | null;
   const cancelable =
@@ -419,18 +443,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
   useEffect(() => setFilter(status), [status]);
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={`/${params.slug}/messages`} />}
-      >
-        Messages
-      </Button>
-
+    <>
       <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
         <ScrollFade targetRef={mainRef} />
         <div
@@ -522,7 +535,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
               {message.run && (
                 <DetailRow label='Workflow run' copy={message.run.id}>
                   <Link
-                    to={`/${params.slug}/runs/${message.run.id}`}
+                    to={`/${slug}/runs/${message.run.id}`}
                     className='truncate underline-offset-2 hover:underline'
                   >
                     {message.run.step}
@@ -581,23 +594,13 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
               />
             ) : (
               <Table className='table-fixed'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subscriber</TableHead>
-                    <TableHead className='w-24'>Status</TableHead>
-                    <TableHead className='w-28'>Error</TableHead>
-                    <TableHead className='w-16'>Sent</TableHead>
-                    <TableHead className='w-12'>
-                      <span className='sr-only'>Attempts</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableColumns columns={DELIVERY_COLUMNS} />
                 <TableBody>
                   {deliveries.items.map((delivery) => (
                     <DeliveryRow
                       key={delivery.id}
                       delivery={delivery}
-                      slug={params.slug}
+                      slug={slug}
                       expanded={expanded?.id === delivery.id}
                       attempts={expanded?.id === delivery.id ? expanded.attempts : []}
                       onToggle={() => go({ delivery: expanded?.id === delivery.id ? null : delivery.id })}
@@ -669,6 +672,50 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+function MessageSkeleton() {
+  return (
+    <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
+      <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5'>
+        <BlockSkeleton className='h-80 w-full rounded-2xl' />
+        <TableSkeleton columns={DELIVERY_COLUMNS} rows={5} />
+      </div>
+      <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0'>
+        <BlockSkeleton className='h-64 w-full rounded-2xl' />
+        <BlockSkeleton className='h-48 w-full rounded-2xl' />
+      </div>
+    </div>
+  );
+}
+
+export default function MessageRoute({ loaderData, params }: Route.ComponentProps) {
+  const { status, deliveryId, detail } = loaderData;
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${params.slug}/messages`} />}
+      >
+        Messages
+      </Button>
+
+      <Deferred resolve={detail}>
+        {(data) =>
+          data === undefined ? (
+            <MessageSkeleton />
+          ) : (
+            <MessageContent data={data} slug={params.slug} status={status} deliveryId={deliveryId} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

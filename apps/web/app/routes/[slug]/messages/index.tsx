@@ -10,20 +10,14 @@ import {
   FilterSelect,
 } from '@buzzkit/ui/components/filter-bar';
 import { Icon } from '@buzzkit/ui/components/icon';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TablePagination,
-  TableRow,
-} from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TablePagination, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
 import { SendDialog } from '@/app/components/messages/send-dialog';
@@ -55,6 +49,15 @@ const STATUS_OPTIONS = [
   { value: 'canceled', label: 'Canceled' },
 ] as const;
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Message', fill: 'h-4 w-48' },
+  { label: 'Channel', fill: 'h-5 w-14 rounded-full' },
+  { label: 'To', fill: 'h-4 w-28' },
+  { label: 'Status', fill: 'h-5 w-20 rounded-full' },
+  { label: 'Deliveries', fill: 'h-4 w-24' },
+  { label: 'Sent', fill: 'h-4 w-16' },
+];
+
 export function meta() {
   return [{ title: 'Messages · BuzzKit' }];
 }
@@ -77,12 +80,17 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   };
   const filtered = Boolean(query.q || status || channel || query.topic || query.from);
 
-  const [page, topics, segments] = await Promise.all([
-    listMessages(ctx, token, params.slug, tenant, query),
-    listTopics(ctx, token, params.slug, tenant, { limit: 100 }),
-    listSegments(ctx, token, params.slug, tenant),
-  ]);
-  return { ...paginate(request, page), filtered, topics: topics.items, segments };
+  return {
+    filtered,
+    results: (async () => {
+      const [page, topics, segments] = await Promise.all([
+        listMessages(ctx, token, params.slug, tenant, query),
+        listTopics(ctx, token, params.slug, tenant, { limit: 100 }),
+        listSegments(ctx, token, params.slug, tenant),
+      ]);
+      return { ...paginate(request, page), topics: topics.items, segments };
+    })(),
+  };
 }
 
 export const action = messagesAction;
@@ -141,9 +149,8 @@ function MessageRow({ message, base }: { message: Message; base: string }) {
 
 export default function MessagesRoute({ loaderData, params }: Route.ComponentProps) {
   const { apiUrl, connected } = useOutletContext<WorkspaceOutletContext>();
-  const { items: messages, pagination, filtered, topics, segments } = loaderData;
+  const { filtered, results } = loaderData;
   const base = `/${params.slug}/messages`;
-  const fresh = !filtered && messages.length === 0;
   const [open, setOpen] = useState(false);
   const filters = useFilters(FILTER_KEYS);
 
@@ -163,97 +170,112 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
         </Button>
       </header>
 
-      {!fresh && (
-        <FilterBar>
-          <FilterSelect
-            label='Status'
-            value={filters.values.status as (typeof STATUS_OPTIONS)[number]['value'] | null}
-            options={[...STATUS_OPTIONS]}
-            onValueChange={(value) => filters.set('status', value)}
-          />
-          {connected.length > 1 && (
-            <FilterSelect
-              label='Channel'
-              value={filters.values.channel as Channel | null}
-              options={CHANNEL_OPTIONS.filter((option) => connected.includes(option.value))}
-              onValueChange={(value) => filters.set('channel', value)}
-            />
-          )}
-          {topics.length > 0 && (
-            <FilterSelect
-              label='Topic'
-              value={filters.values.topic}
-              options={topics.map((topic) => ({ value: topic.slug, label: topic.name }))}
-              onValueChange={(value) => filters.set('topic', value)}
-            />
-          )}
-          <FilterRange
-            presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
-            value={filters.values.range}
-            onValueChange={(value) => filters.set('range', value)}
-          />
-          {filters.active && <FilterClear onClick={filters.clear} />}
-          <FilterSearch
-            value={filters.search}
-            onChange={(event) => filters.setSearch(event.target.value)}
-            loading={filters.searching}
-            placeholder='Search messages'
-            aria-label='Search messages'
-          />
-        </FilterBar>
-      )}
+      <Deferred resolve={results}>
+        {(data) => {
+          const cold = data === undefined;
+          const messages = data?.items ?? [];
+          const topics = data?.topics ?? [];
+          const segments = data?.segments ?? [];
+          const fresh = data !== undefined && !filtered && messages.length === 0;
+          return (
+            <>
+              {!fresh && (
+                <FilterBar>
+                  <FilterSelect
+                    label='Status'
+                    value={filters.values.status as (typeof STATUS_OPTIONS)[number]['value'] | null}
+                    options={[...STATUS_OPTIONS]}
+                    onValueChange={(value) => filters.set('status', value)}
+                    disabled={cold}
+                  />
+                  {connected.length > 1 && (
+                    <FilterSelect
+                      label='Channel'
+                      value={filters.values.channel as Channel | null}
+                      options={CHANNEL_OPTIONS.filter((option) => connected.includes(option.value))}
+                      onValueChange={(value) => filters.set('channel', value)}
+                      disabled={cold}
+                    />
+                  )}
+                  {topics.length > 0 && (
+                    <FilterSelect
+                      label='Topic'
+                      value={filters.values.topic}
+                      options={topics.map((topic) => ({ value: topic.slug, label: topic.name }))}
+                      onValueChange={(value) => filters.set('topic', value)}
+                      disabled={cold}
+                    />
+                  )}
+                  <FilterRange
+                    presets={Object.entries(RANGES).map(([value, range]) => ({
+                      value,
+                      label: range.label,
+                    }))}
+                    value={filters.values.range}
+                    onValueChange={(value) => filters.set('range', value)}
+                    disabled={cold}
+                  />
+                  {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+                  <FilterSearch
+                    value={filters.search}
+                    onChange={(event) => filters.setSearch(event.target.value)}
+                    loading={filters.searching || cold}
+                    placeholder='Search messages'
+                    aria-label='Search messages'
+                  />
+                </FilterBar>
+              )}
 
-      <Card className='min-h-0 shrink'>
-        {fresh ? (
-          <EmptyState
-            icon='IconPaperPlaneTopRightFilled'
-            title='No messages yet'
-            description='Send one from your backend, or a test message from here, and it appears with every delivery.'
-            className='py-10'
-          >
-            <CodeBlock className='w-full max-w-xl text-left' code={sendSnippet(apiUrl)} />
-          </EmptyState>
-        ) : messages.length === 0 ? (
-          <EmptyState
-            icon='IconPaperPlaneTopRightFilled'
-            title='No messages match'
-            description='Nothing sent from this workspace matches these filters.'
-            className='py-10'
-          >
-            <Button variant='soft' onClick={filters.clear}>
-              Clear filters
-            </Button>
-          </EmptyState>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Message</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Deliveries</TableHead>
-                <TableHead>Sent</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {messages.map((message) => (
-                <MessageRow key={message.id} message={message} base={base} />
-              ))}
-            </TableBody>
-            <TablePagination {...pagination} />
-          </Table>
-        )}
-      </Card>
+              {data === undefined ? (
+                <TableSkeleton columns={COLUMNS} rows={8} fixed={false} />
+              ) : (
+                <Card className='min-h-0 shrink'>
+                  {fresh ? (
+                    <EmptyState
+                      icon='IconPaperPlaneTopRightFilled'
+                      title='No messages yet'
+                      description='Send one from your backend, or a test message from here, and it appears with every delivery.'
+                      className='py-10'
+                    >
+                      <CodeBlock className='w-full max-w-xl text-left' code={sendSnippet(apiUrl)} />
+                    </EmptyState>
+                  ) : messages.length === 0 ? (
+                    <EmptyState
+                      icon='IconPaperPlaneTopRightFilled'
+                      title='No messages match'
+                      description='Nothing sent from this workspace matches these filters.'
+                      className='py-10'
+                    >
+                      <Button variant='soft' onClick={filters.clear}>
+                        Clear filters
+                      </Button>
+                    </EmptyState>
+                  ) : (
+                    <Table>
+                      <TableColumns columns={COLUMNS} />
+                      <TableBody>
+                        {messages.map((message) => (
+                          <MessageRow key={message.id} message={message} base={base} />
+                        ))}
+                      </TableBody>
+                      <TablePagination {...data.pagination} />
+                    </Table>
+                  )}
+                </Card>
+              )}
 
-      <SendDialog
-        topics={topics}
-        segments={segments}
-        channels={connected}
-        messagesBase={base}
-        open={open}
-        onOpenChange={setOpen}
-      />
+              <SendDialog
+                topics={topics}
+                segments={segments}
+                channels={connected}
+                messagesBase={base}
+                open={open}
+                onOpenChange={setOpen}
+              />
+            </>
+          );
+        }}
+      </Deferred>
     </div>
   );
 }

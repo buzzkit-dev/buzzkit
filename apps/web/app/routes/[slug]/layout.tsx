@@ -1,7 +1,7 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { data, Link, Outlet, redirect, useLocation } from 'react-router';
+import { data, Link, Outlet, redirect, type ShouldRevalidateFunctionArgs, useLocation } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { Sidebar } from '@/app/components/layout/sidebar';
 import { workspaceAction } from '@/app/lib/actions/workspace.server';
@@ -93,6 +93,18 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     }
     throw error;
   }
+}
+
+export function shouldRevalidate({
+  currentParams,
+  currentUrl,
+  nextParams,
+  nextUrl,
+  formMethod,
+}: ShouldRevalidateFunctionArgs) {
+  if (formMethod !== undefined && formMethod !== 'GET') return true;
+  if (currentParams.slug !== nextParams.slug) return true;
+  return currentUrl.searchParams.get('tenant') !== nextUrl.searchParams.get('tenant');
 }
 
 export const action = workspaceAction;

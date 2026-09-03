@@ -47,14 +47,13 @@ import { Input } from '@buzzkit/ui/components/input';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import {
   Table,
   TableBody,
   TableCell,
   TableDetail,
-  TableHead,
-  TableHeader,
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
@@ -68,6 +67,9 @@ import { cloudflareContext } from '@/app/cloudflare';
 import { IngestOutcomeBadge, SourceStatusBadge } from '@/app/components/badges';
 import { ConditionChips } from '@/app/components/conditions/chips';
 import { DetailRow } from '@/app/components/detail/row';
+import { CardSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import {
   describeReason,
   providerLabel,
@@ -134,9 +136,19 @@ type Suggestion = {
   action?: { label: string; apply: (mapping: SourceMapping) => SourceMapping };
 };
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: loaderData ? `${loaderData.source.name} · BuzzKit` : 'Source · BuzzKit' }];
+type Detail = Awaited<Awaited<ReturnType<typeof loader>>['detail']>;
+
+export function meta() {
+  return [{ title: 'Source · BuzzKit' }];
 }
+
+const DELIVERY_COLUMNS: TableColumn[] = [
+  { label: 'Received', fill: 'h-4 w-40' },
+  { label: 'Outcome', className: 'w-28', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Result', fill: 'h-4 w-40' },
+  { label: 'Time', className: 'w-28', fill: 'h-4 w-16' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-12', fill: 'h-4 w-4' },
+];
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
@@ -145,19 +157,23 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const ctx = { request, env };
   const requested = requestUrl(request).searchParams.get('outcome') ?? '';
   const outcome = (DELIVERY_OUTCOMES as readonly string[]).includes(requested) ? requested : undefined;
-  const [source, page] = await Promise.all([
-    getSource(ctx, token, params.slug, tenant, params.id),
-    listSourceDeliveries(ctx, token, params.slug, tenant, params.id, {
-      ...readPage(request),
-      ...(outcome ? { outcome } : {}),
-    }),
-  ]);
   return {
-    source,
-    deliveries: paginate(request, page),
-    ingestUrl: `${env.API_URL}${source.url}`,
     setup: requestUrl(request).searchParams.has('setup'),
     outcomeFilter: outcome ?? 'all',
+    detail: (async () => {
+      const [source, page] = await Promise.all([
+        getSource(ctx, token, params.slug, tenant, params.id),
+        listSourceDeliveries(ctx, token, params.slug, tenant, params.id, {
+          ...readPage(request),
+          ...(outcome ? { outcome } : {}),
+        }),
+      ]);
+      return {
+        source,
+        deliveries: paginate(request, page),
+        ingestUrl: `${env.API_URL}${source.url}`,
+      };
+    })(),
   };
 }
 
@@ -816,7 +832,38 @@ function EditForm({ source, onClose }: { source: Source; onClose: () => void }) 
   );
 }
 
-export default function SourceRoute({ loaderData, params }: Route.ComponentProps) {
+function SourceFallback() {
+  return (
+    <>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
+        <div className='flex min-w-0 flex-col gap-1'>
+          <Skeleton className='h-7 w-48' />
+          <Skeleton className='h-4 w-72' />
+        </div>
+      </header>
+
+      <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5 [&>*]:shrink-0'>
+          <CardSkeleton title='Mapping' lines={5} />
+          <TableSkeleton columns={DELIVERY_COLUMNS} rows={4} />
+        </div>
+        <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'>
+          <CardSkeleton title='Overview' lines={5} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SourceDetail({
+  detail,
+  setup,
+  outcomeFilter,
+}: {
+  detail: Detail;
+  setup: boolean;
+  outcomeFilter: string;
+}) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { submit, pending } = useActionFetcher((data) => {
@@ -832,9 +879,8 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
     toast.success('Preset applied');
   });
   const previewFetcher = useFetcher<{ key?: string; preview?: ServerPreview | null }>();
-  const { source, deliveries, ingestUrl, setup, outcomeFilter } = loaderData;
+  const { source, deliveries, ingestUrl } = detail;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
-  const base = `/${params.slug}/sources`;
   const mapping = source.mapping;
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
@@ -927,18 +973,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
   }, [previewKey]);
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Sources
-      </Button>
-
+    <>
       <header className='flex shrink-0 items-center justify-between gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex min-w-0 items-center gap-2.5 font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
@@ -1137,15 +1172,7 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
               />
             ) : (
               <Table className='table-fixed'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Received</TableHead>
-                    <TableHead className='w-28'>Outcome</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead className='w-28'>Time</TableHead>
-                    <TableHead className='w-12' />
-                  </TableRow>
-                </TableHeader>
+                <TableColumns columns={DELIVERY_COLUMNS} />
                 <TableBody>
                   {deliveries.items.map((delivery) => (
                     <DeliveryRow
@@ -1312,6 +1339,36 @@ export default function SourceRoute({ loaderData, params }: Route.ComponentProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+export default function SourceRoute({ loaderData, params }: Route.ComponentProps) {
+  const { detail, setup, outcomeFilter } = loaderData;
+  const base = `/${params.slug}/sources`;
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={base} />}
+      >
+        Sources
+      </Button>
+
+      <Deferred resolve={detail}>
+        {(data) =>
+          data === undefined ? (
+            <SourceFallback />
+          ) : (
+            <SourceDetail detail={data} setup={setup} outcomeFilter={outcomeFilter} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

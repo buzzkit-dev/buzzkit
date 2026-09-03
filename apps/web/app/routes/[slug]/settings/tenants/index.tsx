@@ -20,12 +20,15 @@ import {
 } from '@buzzkit/ui/components/dropdown-menu';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { DefaultTenantBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
@@ -39,11 +42,26 @@ export function meta() {
   return [{ title: 'Tenants · BuzzKit' }];
 }
 
-export async function loader({ request, context, params }: Route.LoaderArgs) {
+const COLUMNS: TableColumn[] = [
+  {
+    label: 'Tenant',
+    className: 'max-w-96',
+    content: (
+      <span className='flex flex-col gap-1'>
+        <Skeleton className='h-3.5 w-36' />
+        <Skeleton className='h-3 w-24' />
+      </span>
+    ),
+  },
+  { label: 'Id', fill: 'h-4 w-52' },
+  { label: 'Created', fill: 'h-4 w-24' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-0', fill: 'h-6 w-6 rounded-lg' },
+];
+
+export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
-  const tenants = await listTenants({ request, env }, token, params.slug);
-  return { tenants };
+  return { tenants: listTenants({ request, env }, token, params.slug) };
 }
 
 export const action = tenantsAction;
@@ -227,37 +245,36 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Tenant</TableHead>
-              <TableHead>Id</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>
-                <span className='sr-only'>Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tenants.map((tenant) => (
-              <TenantRow
-                key={tenant.id}
-                tenant={tenant}
-                canManage={canManage}
-                onEdit={(target) => {
-                  setEditing(target);
-                  setDialogOpen(true);
-                }}
-                onDelete={(target) => {
-                  setDeleting(target);
-                  setDeleteOpen(true);
-                }}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      <Deferred resolve={tenants}>
+        {(data) => {
+          const rows = data ?? [];
+          if (data === undefined) return <TableSkeleton columns={COLUMNS} fixed={false} />;
+          return (
+            <Card className='min-h-0 shrink'>
+              <Table>
+                <TableColumns columns={COLUMNS} />
+                <TableBody>
+                  {rows.map((tenant) => (
+                    <TenantRow
+                      key={tenant.id}
+                      tenant={tenant}
+                      canManage={canManage}
+                      onEdit={(target) => {
+                        setEditing(target);
+                        setDialogOpen(true);
+                      }}
+                      onDelete={(target) => {
+                        setDeleting(target);
+                        setDeleteOpen(true);
+                      }}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          );
+        }}
+      </Deferred>
 
       <TenantDialog tenant={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
 

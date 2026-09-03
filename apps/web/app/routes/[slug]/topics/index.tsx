@@ -22,21 +22,15 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/com
 import { Input } from '@buzzkit/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
 import { Switch } from '@buzzkit/ui/components/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TablePagination,
-  TableRow,
-} from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TablePagination, TableRow } from '@buzzkit/ui/components/table';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Fragment, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { OptInBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
@@ -61,6 +55,19 @@ const CHOICES: { value: ChannelChoice; label: string }[] = [
 
 type ChannelChoice = 'off' | 'default' | 'in' | 'out';
 
+function columnsFor(channels: typeof AVAILABLE_CHANNELS): TableColumn[] {
+  return [
+    { label: 'Topic', fill: 'h-4 w-40' },
+    { label: 'Slug', fill: 'h-4 w-24' },
+    ...channels.map((channel) => ({
+      label: COLUMN_LABELS[channel.id] ?? channel.name,
+      fill: 'h-5 w-16 rounded-full',
+    })),
+    { label: 'Created', fill: 'h-4 w-20' },
+    { key: 'actions', label: 'Actions', hidden: true, className: 'w-0', fill: 'h-4 w-4' },
+  ];
+}
+
 export function meta() {
   return [{ title: 'Topics · BuzzKit' }];
 }
@@ -69,11 +76,15 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const [page, categories] = await Promise.all([
-    listTopics({ request, env }, token, params.slug, tenant, readPage(request)),
-    listTopicCategories({ request, env }, token, params.slug, tenant),
-  ]);
-  return { ...paginate(request, page), categories: categories.items };
+  return {
+    page: (async () => {
+      const [page, categories] = await Promise.all([
+        listTopics({ request, env }, token, params.slug, tenant, readPage(request)),
+        listTopicCategories({ request, env }, token, params.slug, tenant),
+      ]);
+      return { ...paginate(request, page), categories: categories.items };
+    })(),
+  };
 }
 
 export const action = topicsAction;
@@ -193,7 +204,7 @@ function TopicDialog({
               value={slugValue}
               onChange={(event) => {
                 setSlugTouched(true);
-                setSlug(event.target.value);
+                setSlug(event.target.value.toLowerCase());
               }}
               placeholder='running-reminders'
               maxLength={64}
@@ -402,8 +413,9 @@ function TopicRow({
 
 export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
   const { connected } = useOutletContext<WorkspaceOutletContext>();
-  const { items: topics, pagination, categories } = loaderData;
+  const { page } = loaderData;
   const columns = AVAILABLE_CHANNELS.filter((channel) => (connected as string[]).includes(channel.id));
+  const tableColumns = columnsFor(columns);
   const [editing, setEditing] = useState<Topic | null>(null);
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<Topic | null>(null);
@@ -425,15 +437,13 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
     setDeleting(topic);
     setDeleteOpen(true);
   };
-  const onRenameCategory = (name: string) => {
-    const match = categories.find((option) => option.name === name);
-    if (!match) return;
-    setCategoryName(match.name);
-    setRenamingCategory(match);
+  const onRenameCategory = (category: { id: string; name: string } | null) => {
+    if (!category) return;
+    setCategoryName(category.name);
+    setRenamingCategory(category);
   };
-  const onDeleteCategory = (name: string) => {
-    const match = categories.find((option) => option.name === name);
-    if (match) setDeletingCategory(match);
+  const onDeleteCategory = (category: { id: string; name: string } | null) => {
+    if (category) setDeletingCategory(category);
   };
 
   return (
@@ -450,93 +460,100 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
         </Button>
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {topics.length === 0 ? (
-          <EmptyState
-            icon='IconTagFilled'
-            title='No topics yet'
-            description='Create a topic and subscribers can choose whether they receive it on each channel.'
-            className='py-10'
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Topic</TableHead>
-                <TableHead>Slug</TableHead>
-                {columns.map((channel) => (
-                  <TableHead key={channel.id}>{COLUMN_LABELS[channel.id] ?? channel.name}</TableHead>
-                ))}
-                <TableHead>Created</TableHead>
-                <TableHead>
-                  <span className='sr-only'>Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groupTopics(topics).map((group) => (
-                <Fragment key={group.category ?? 'uncategorized'}>
-                  {group.showsHeader && (
-                    <TableRow className='hover:bg-transparent'>
-                      <TableCell
-                        colSpan={columns.length + 3}
-                        className='py-1.5 font-medium text-fg-2 text-xs'
-                      >
-                        {group.category ?? 'No category'}
-                      </TableCell>
-                      <TableCell className='w-0 py-0.5 text-right'>
-                        {group.category !== null && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button
-                                  variant='ghost'
-                                  size='icon-xs'
-                                  icon='IconDotGrid1x3Horizontal'
-                                  aria-label='Category actions'
-                                />
-                              }
-                            />
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem onClick={() => onRenameCategory(group.category as string)}>
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant='destructive'
-                                onClick={() => onDeleteCategory(group.category as string)}
+      <Deferred resolve={page}>
+        {(data) => {
+          const topics = data?.items ?? [];
+          const categories = data?.categories ?? [];
+          const categoryFor = (name: string) => categories.find((option) => option.name === name) ?? null;
+          return data === undefined ? (
+            <TableSkeleton columns={tableColumns} fixed={false} />
+          ) : (
+            <>
+              <Card className='min-h-0 shrink'>
+                {topics.length === 0 ? (
+                  <EmptyState
+                    icon='IconTagFilled'
+                    title='No topics yet'
+                    description='Create a topic and subscribers can choose whether they receive it on each channel.'
+                    className='py-10'
+                  />
+                ) : (
+                  <Table>
+                    <TableColumns columns={tableColumns} />
+                    <TableBody>
+                      {groupTopics(topics).map((group) => (
+                        <Fragment key={group.category ?? 'uncategorized'}>
+                          {group.showsHeader && (
+                            <TableRow className='hover:bg-transparent'>
+                              <TableCell
+                                colSpan={columns.length + 3}
+                                className='py-1.5 font-medium text-fg-2 text-xs'
                               >
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {group.topics.map((topic) => (
-                    <TopicRow
-                      key={topic.id}
-                      topic={topic}
-                      columns={columns}
-                      onEdit={openDialog}
-                      onDelete={openDelete}
-                    />
-                  ))}
-                </Fragment>
-              ))}
-            </TableBody>
-            <TablePagination {...pagination} />
-          </Table>
-        )}
-      </Card>
+                                {group.category ?? 'No category'}
+                              </TableCell>
+                              <TableCell className='w-0 py-0.5 text-right'>
+                                {group.category !== null && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger
+                                      render={
+                                        <Button
+                                          variant='ghost'
+                                          size='icon-xs'
+                                          icon='IconDotGrid1x3Horizontal'
+                                          aria-label='Category actions'
+                                        />
+                                      }
+                                    />
+                                    <DropdownMenuContent align='end'>
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          onRenameCategory(categoryFor(group.category as string))
+                                        }
+                                      >
+                                        Rename
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        variant='destructive'
+                                        onClick={() =>
+                                          onDeleteCategory(categoryFor(group.category as string))
+                                        }
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {group.topics.map((topic) => (
+                            <TopicRow
+                              key={topic.id}
+                              topic={topic}
+                              columns={columns}
+                              onEdit={openDialog}
+                              onDelete={openDelete}
+                            />
+                          ))}
+                        </Fragment>
+                      ))}
+                    </TableBody>
+                    <TablePagination {...data.pagination} />
+                  </Table>
+                )}
+              </Card>
 
-      <TopicDialog
-        topic={editing}
-        connected={connected}
-        open={open}
-        onOpenChange={setOpen}
-        categories={categories}
-      />
+              <TopicDialog
+                topic={editing}
+                connected={connected}
+                open={open}
+                onOpenChange={setOpen}
+                categories={categories}
+              />
+            </>
+          );
+        }}
+      </Deferred>
 
       <Dialog open={renamingCategory !== null} onOpenChange={(next) => !next && setRenamingCategory(null)}>
         <DialogContent showCloseButton>

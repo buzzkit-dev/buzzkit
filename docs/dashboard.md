@@ -65,6 +65,8 @@ Workspaces live at the dashboard root, `/:slug`, which is why every top-level da
 
 | Route | Purpose |
 |---|---|
+**Loading model.** Every route loader returns promises rather than awaiting the API, so navigation lands immediately; the page renders its chrome and passes the promise to `Deferred`, which shows the rows this path resolved to last time while it refreshes and a skeleton only on a cold load. The workspace layout revalidates only on a workspace change, a tenant change or a non-GET submission, and sidebar links prefetch on intent.
+
 | `/` | Pure redirect: no session → `/login` · no workspace → `/onboarding` · else last-visited (or first) workspace. In production the root of buzzkit.dev is the marketing site, so the app's entry is `/dashboard` (same loader); every post-login and post-onboarding redirect targets `/dashboard` |
 | `/dashboard` | The dashboard's entry on the shared buzzkit.dev hostname: the same redirect as `/`. The marketing worker owns the root and its listed paths; the web worker takes `buzzkit.dev/*`, and every marketing path segment is a reserved workspace slug, enforced by `apps/api/test/utils/reservedSlugs.test.ts` |
 | `/login`, `/signup` | Auth forms; visiting with a session bounces to `/` |

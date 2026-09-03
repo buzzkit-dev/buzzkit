@@ -73,12 +73,14 @@ function FilterSelect<V extends string>({
   options,
   onValueChange,
   className,
+  disabled,
 }: {
   label: string;
   value: V | null;
   options: FilterOption<V>[] | FilterGroup<V>[];
   onValueChange: (value: V | null) => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const any = { value: ANY, label: `Any ${label.toLowerCase()}` };
   const groups = options.filter(isGroup);
@@ -96,6 +98,7 @@ function FilterSelect<V extends string>({
     >
       <SelectTrigger
         aria-label={label}
+        disabled={disabled}
         data-active={value !== null ? '' : undefined}
         className={cn('w-auto data-active:text-fg-4', className)}
       >
@@ -151,6 +154,7 @@ function FilterRange({
   onValueChange,
   className,
   allowAny = true,
+  disabled,
 }: {
   label?: string;
   presets: FilterOption[];
@@ -159,6 +163,7 @@ function FilterRange({
   className?: string;
   /** Offer "Any time" (clears the range). Off for pages that always need a window. */
   allowAny?: boolean;
+  disabled?: boolean;
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
@@ -189,6 +194,7 @@ function FilterRange({
         <SelectTrigger
           ref={triggerRef}
           aria-label={label}
+          disabled={disabled}
           data-active={value !== null ? '' : undefined}
           className={cn('w-auto data-active:text-fg-4', className)}
         >

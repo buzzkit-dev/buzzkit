@@ -110,6 +110,7 @@ export function Sidebar({
                   ) : (
                     <Link
                       to={`${base}${page.path}`}
+                      prefetch='intent'
                       aria-current={active ? 'page' : undefined}
                       data-highlighted={highlighted ? '' : undefined}
                       onPointerEnter={() => setHovered(key)}
@@ -147,6 +148,7 @@ export function Sidebar({
                                 <Link
                                   key={child.path}
                                   to={`${base}${child.path}`}
+                                  prefetch='intent'
                                   aria-current={isCurrent(page, child) ? 'page' : undefined}
                                   data-highlighted={childHighlighted ? '' : undefined}
                                   onPointerEnter={() => setHovered(child.path)}

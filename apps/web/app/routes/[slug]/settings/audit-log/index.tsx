@@ -10,13 +10,12 @@ import {
   FilterSelect,
 } from '@buzzkit/ui/components/filter-bar';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import {
   Table,
   TableBody,
   TableCell,
   TableDetail,
-  TableHead,
-  TableHeader,
   TablePagination,
   TableRow,
 } from '@buzzkit/ui/components/table';
@@ -27,6 +26,8 @@ import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { DetailRow } from '@/app/components/detail/row';
 import { describeEvent, EVENT_GROUPS, EVENT_NAMES } from '@/app/components/events/describe';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { type AuditEvent, type AuditQuery, listAuditEvents } from '@/app/lib/api.server';
@@ -57,11 +58,29 @@ const TARGETS: Record<string, { label: string; icon: IconName }> = {
   message: { label: 'Message', icon: 'IconPaperPlaneTopRightFilled' },
 };
 
+const COLUMNS: TableColumn[] = [
+  {
+    label: 'Event',
+    className: 'w-56',
+    content: (
+      <span className='flex items-center gap-2'>
+        <Skeleton className='size-4 shrink-0 rounded-md' />
+        <Skeleton className='h-4 w-32' />
+      </span>
+    ),
+  },
+  { label: 'Details', fill: 'h-4 w-64' },
+  { label: 'Actor', className: 'w-52', fill: 'h-4 w-32' },
+  { label: 'Target', className: 'w-52', fill: 'h-4 w-32' },
+  { label: 'Time', className: 'w-16', fill: 'h-4 w-12' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-12', fill: 'h-4 w-4' },
+];
+
 export function meta() {
   return [{ title: 'Audit log · BuzzKit' }];
 }
 
-export async function loader({ request, context, params }: Route.LoaderArgs) {
+export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const search = requestUrl(request).searchParams;
@@ -76,8 +95,13 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   };
   const filtered = Boolean(query.q || event || actorType || query.from);
 
-  const page = await listAuditEvents({ request, env }, token, params.slug, query);
-  return { ...paginate(request, page), filtered };
+  return {
+    filtered,
+    events: (async () => {
+      const page = await listAuditEvents({ request, env }, token, params.slug, query);
+      return paginate(request, page);
+    })(),
+  };
 }
 
 function targetOf(
@@ -230,8 +254,7 @@ function EventRow({
 }
 
 export default function AuditLogRoute({ loaderData, params }: Route.ComponentProps) {
-  const { items: events, pagination, filtered } = loaderData;
-  const fresh = !filtered && events.length === 0;
+  const { events, filtered } = loaderData;
   const [expanded, setExpanded] = useState<string | null>(null);
   const filters = useFilters(FILTER_KEYS);
 
@@ -248,88 +271,97 @@ export default function AuditLogRoute({ loaderData, params }: Route.ComponentPro
         </div>
       </header>
 
-      {!fresh && (
-        <FilterBar>
-          <FilterSelect
-            label='Event'
-            value={filters.values.event}
-            options={EVENT_GROUPS.map((group) => ({
-              label: group.label,
-              options: Object.entries(group.events).map(([value, definition]) => ({
-                value,
-                label: definition.label,
-              })),
-            }))}
-            onValueChange={(value) => filters.set('event', value)}
-          />
-          <FilterSelect
-            label='Actor'
-            value={filters.values.actor as (typeof ACTORS)[number]['value'] | null}
-            options={ACTORS.map((actor) => ({ value: actor.value, label: actor.label }))}
-            onValueChange={(value) => filters.set('actor', value)}
-          />
-          <FilterRange
-            presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
-            value={filters.values.range}
-            onValueChange={(value) => filters.set('range', value)}
-          />
-          {filters.active && <FilterClear onClick={filters.clear} />}
-          <FilterSearch
-            value={filters.search}
-            onChange={(change) => filters.setSearch(change.target.value)}
-            loading={filters.searching}
-            placeholder='Search the audit log'
-            aria-label='Search the audit log'
-          />
-        </FilterBar>
-      )}
-
-      <Card className='min-h-0 shrink'>
-        {fresh ? (
-          <EmptyState
-            icon='IconHistoryFilled'
-            title='No changes yet'
-            description='Every change made from the dashboard, the API or BuzzKit itself is recorded here as it happens.'
-            className='py-10'
-          />
-        ) : events.length === 0 ? (
-          <EmptyState
-            icon='IconHistoryFilled'
-            title='No changes match'
-            description='Nothing recorded in this workspace matches these filters.'
-            className='py-10'
-          >
-            <Button variant='soft' onClick={filters.clear}>
-              Clear filters
-            </Button>
-          </EmptyState>
-        ) : (
-          <Table className='table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-56'>Event</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead className='w-52'>Actor</TableHead>
-                <TableHead className='w-52'>Target</TableHead>
-                <TableHead className='w-16'>Time</TableHead>
-                <TableHead className='w-12' />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {events.map((event) => (
-                <EventRow
-                  key={event.id}
-                  event={event}
-                  slug={params.slug}
-                  expanded={expanded === event.id}
-                  onToggle={() => setExpanded((current) => (current === event.id ? null : event.id))}
+      <Deferred resolve={events}>
+        {(data) => {
+          const cold = data === undefined;
+          const items = data?.items ?? [];
+          const fresh = data !== undefined && !filtered && items.length === 0;
+          return (
+            <>
+              <FilterBar>
+                <FilterSelect
+                  label='Event'
+                  value={filters.values.event}
+                  options={EVENT_GROUPS.map((group) => ({
+                    label: group.label,
+                    options: Object.entries(group.events).map(([value, definition]) => ({
+                      value,
+                      label: definition.label,
+                    })),
+                  }))}
+                  onValueChange={(value) => filters.set('event', value)}
+                  disabled={cold}
                 />
-              ))}
-            </TableBody>
-            <TablePagination {...pagination} />
-          </Table>
-        )}
-      </Card>
+                <FilterSelect
+                  label='Actor'
+                  value={filters.values.actor as (typeof ACTORS)[number]['value'] | null}
+                  options={ACTORS.map((actor) => ({ value: actor.value, label: actor.label }))}
+                  onValueChange={(value) => filters.set('actor', value)}
+                  disabled={cold}
+                />
+                <FilterRange
+                  presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
+                  value={filters.values.range}
+                  onValueChange={(value) => filters.set('range', value)}
+                  disabled={cold}
+                />
+                {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+                <FilterSearch
+                  value={filters.search}
+                  onChange={(change) => filters.setSearch(change.target.value)}
+                  loading={filters.searching || cold}
+                  placeholder='Search the audit log'
+                  aria-label='Search the audit log'
+                />
+              </FilterBar>
+
+              {data === undefined ? (
+                <TableSkeleton columns={COLUMNS} />
+              ) : (
+                <Card className='min-h-0 shrink'>
+                  {fresh ? (
+                    <EmptyState
+                      icon='IconHistoryFilled'
+                      title='No changes yet'
+                      description='Every change made from the dashboard, the API or BuzzKit itself is recorded here as it happens.'
+                      className='py-10'
+                    />
+                  ) : items.length === 0 ? (
+                    <EmptyState
+                      icon='IconHistoryFilled'
+                      title='No changes match'
+                      description='Nothing recorded in this workspace matches these filters.'
+                      className='py-10'
+                    >
+                      <Button variant='soft' onClick={filters.clear}>
+                        Clear filters
+                      </Button>
+                    </EmptyState>
+                  ) : (
+                    <Table className='table-fixed'>
+                      <TableColumns columns={COLUMNS} />
+                      <TableBody>
+                        {items.map((event) => (
+                          <EventRow
+                            key={event.id}
+                            event={event}
+                            slug={params.slug}
+                            expanded={expanded === event.id}
+                            onToggle={() =>
+                              setExpanded((current) => (current === event.id ? null : event.id))
+                            }
+                          />
+                        ))}
+                      </TableBody>
+                      <TablePagination {...data.pagination} />
+                    </Table>
+                  )}
+                </Card>
+              )}
+            </>
+          );
+        }}
+      </Deferred>
     </div>
   );
 }

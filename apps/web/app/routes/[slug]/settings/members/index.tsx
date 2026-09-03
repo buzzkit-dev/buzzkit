@@ -28,13 +28,16 @@ import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RoleBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { membersAction } from '@/app/lib/actions/members.server';
@@ -67,18 +70,51 @@ export function meta() {
   return [{ title: 'Members · BuzzKit' }];
 }
 
-export async function loader({ request, context, params }: Route.LoaderArgs) {
+const MEMBER_COLUMNS: TableColumn[] = [
+  {
+    label: 'Member',
+    className: 'max-w-96',
+    content: (
+      <span className='flex items-center gap-3'>
+        <Skeleton className='size-6 shrink-0 rounded-full' />
+        <span className='flex flex-col gap-1'>
+          <Skeleton className='h-3.5 w-32' />
+          <Skeleton className='h-3 w-40' />
+        </span>
+      </span>
+    ),
+  },
+  { label: 'Role', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Joined', fill: 'h-4 w-24' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-0', fill: 'h-6 w-6 rounded-lg' },
+];
+
+const INVITE_PLACEHOLDERS = ['a', 'b'];
+
+const INVITE_COLUMNS: TableColumn[] = [
+  { label: 'Email', fill: 'h-4 w-48' },
+  { label: 'Role', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Invited', fill: 'h-4 w-24' },
+  { label: 'Expires', fill: 'h-4 w-24' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-0', fill: 'h-6 w-6 rounded-lg' },
+];
+
+export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
-  const [members, invites] = await Promise.all([
-    listMembers(ctx, token, params.slug),
-    listInvites(ctx, token, params.slug).catch((error) => {
-      if (error instanceof ApiError && error.status === 403) return [] as Invite[];
-      throw error;
-    }),
-  ]);
-  return { members, invites };
+  return {
+    people: (async () => {
+      const [members, invites] = await Promise.all([
+        listMembers(ctx, token, params.slug),
+        listInvites(ctx, token, params.slug).catch((error) => {
+          if (error instanceof ApiError && error.status === 403) return [] as Invite[];
+          throw error;
+        }),
+      ]);
+      return { members, invites };
+    })(),
+  };
 }
 
 export const action = membersAction;
@@ -351,7 +387,7 @@ export default function MembersRoute({ loaderData }: Route.ComponentProps) {
   const { workspace, profile } = useOutletContext<WorkspaceOutletContext>();
   const remove = useActionFetcher(() => setRemoveOpen(false));
   const revoke = useActionFetcher(() => setRevokeOpen(false));
-  const { members, invites } = loaderData;
+  const { people } = loaderData;
   const actor = (workspace.role ?? null) as Role | null;
   const canManage = actor === 'owner' || actor === 'admin';
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -378,76 +414,93 @@ export default function MembersRoute({ loaderData }: Route.ComponentProps) {
         )}
       </header>
 
-      <Card className='shrink-0'>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Member</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead>
-                <span className='sr-only'>Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {members.map((member) => (
-              <MemberRow
-                key={member.id}
-                member={member}
-                self={member.user.id === profile.id}
-                actor={actor}
-                onRemove={(target) => {
-                  setRemoving(target);
-                  setRemoveOpen(true);
-                }}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      <Deferred resolve={people}>
+        {(data) => {
+          if (data === undefined) {
+            return (
+              <>
+                <TableSkeleton columns={MEMBER_COLUMNS} rows={3} className='shrink-0' fixed={false} />
+                <Card className='shrink-0'>
+                  <CardHeader divider>
+                    <CardTitle>Invites</CardTitle>
+                    <CardDescription>People who were invited and have not joined yet.</CardDescription>
+                  </CardHeader>
+                  <Table>
+                    <TableColumns columns={INVITE_COLUMNS} />
+                    <TableBody>
+                      {INVITE_PLACEHOLDERS.map((row) => (
+                        <TableRow key={row}>
+                          {INVITE_COLUMNS.map((column) => (
+                            <TableCell key={column.key ?? column.label} className={column.className}>
+                              <Skeleton className={column.fill ?? 'h-4 w-24'} />
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </>
+            );
+          }
+          const { members, invites } = data;
+          return (
+            <>
+              <Card className='shrink-0'>
+                <Table>
+                  <TableColumns columns={MEMBER_COLUMNS} />
+                  <TableBody>
+                    {members.map((member) => (
+                      <MemberRow
+                        key={member.id}
+                        member={member}
+                        self={member.user.id === profile.id}
+                        actor={actor}
+                        onRemove={(target) => {
+                          setRemoving(target);
+                          setRemoveOpen(true);
+                        }}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
 
-      <Card className='shrink-0'>
-        <CardHeader divider>
-          <CardTitle>Invites</CardTitle>
-          <CardDescription>People who were invited and have not joined yet.</CardDescription>
-        </CardHeader>
-        {invites.length === 0 ? (
-          <EmptyState
-            size='sm'
-            icon='IconInviteFilled'
-            title='No pending invites'
-            description='Invite a teammate and they appear here until they accept.'
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Invited</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>
-                  <span className='sr-only'>Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invites.map((invite) => (
-                <InviteRow
-                  key={invite.id}
-                  invite={invite}
-                  canManage={canManage}
-                  onRevoke={(target) => {
-                    setRevoking(target);
-                    setRevokeOpen(true);
-                  }}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+              <Card className='shrink-0'>
+                <CardHeader divider>
+                  <CardTitle>Invites</CardTitle>
+                  <CardDescription>People who were invited and have not joined yet.</CardDescription>
+                </CardHeader>
+                {invites.length === 0 ? (
+                  <EmptyState
+                    size='sm'
+                    icon='IconInviteFilled'
+                    title='No pending invites'
+                    description='Invite a teammate and they appear here until they accept.'
+                  />
+                ) : (
+                  <Table>
+                    <TableColumns columns={INVITE_COLUMNS} />
+                    <TableBody>
+                      {invites.map((invite) => (
+                        <InviteRow
+                          key={invite.id}
+                          invite={invite}
+                          canManage={canManage}
+                          onRevoke={(target) => {
+                            setRevoking(target);
+                            setRevokeOpen(true);
+                          }}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Card>
+            </>
+          );
+        }}
+      </Deferred>
 
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 

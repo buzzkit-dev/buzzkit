@@ -4,12 +4,14 @@ import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { FieldGroup } from '@buzzkit/ui/components/field';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EndpointStatusBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { EndpointFields, useEndpointForm } from '@/app/components/webhooks/endpoint-form';
 import { EventsSummary } from '@/app/components/webhooks/events-summary';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
@@ -30,16 +32,38 @@ export function meta() {
   return [{ title: 'Webhooks · BuzzKit' }];
 }
 
-export async function loader({ request, context, params }: Route.LoaderArgs) {
+const ENDPOINT_COLUMNS: TableColumn[] = [
+  { label: 'Endpoint', fill: 'h-4 w-56' },
+  { label: 'Status', className: 'w-24', fill: 'h-5 w-16 rounded-full' },
+];
+
+const TENANT_COLUMN: TableColumn = { label: 'Tenant', className: 'w-36', fill: 'h-4 w-24' };
+
+const DETAIL_COLUMNS: TableColumn[] = [
+  { label: 'Events', className: 'w-48', fill: 'h-4 w-32' },
+  { label: 'Created', className: 'w-32', fill: 'h-4 w-20' },
+];
+
+function columnsFor(showTenant: boolean): TableColumn[] {
+  return showTenant
+    ? [...ENDPOINT_COLUMNS, TENANT_COLUMN, ...DETAIL_COLUMNS]
+    : [...ENDPOINT_COLUMNS, ...DETAIL_COLUMNS];
+}
+
+export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
-  const [endpoints, catalog, tenants] = await Promise.all([
-    listWebhooks(ctx, token, params.slug),
-    getWebhookCatalog(ctx, token, params.slug),
-    listTenants(ctx, token, params.slug),
-  ]);
-  return { endpoints, catalog, tenants };
+  return {
+    page: (async () => {
+      const [endpoints, catalog, tenants] = await Promise.all([
+        listWebhooks(ctx, token, params.slug),
+        getWebhookCatalog(ctx, token, params.slug),
+        listTenants(ctx, token, params.slug),
+      ]);
+      return { endpoints, catalog, tenants };
+    })(),
+  };
 }
 
 export const action = webhooksAction;
@@ -154,12 +178,10 @@ function EndpointRow({
 
 export default function WebhooksRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
-  const { endpoints, catalog, tenants } = loaderData;
+  const { page } = loaderData;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(0);
-  const tenantName = (tenantId: string | null) =>
-    tenants.find((entry) => entry.id === tenantId)?.name ?? null;
   const openDialog = () => {
     setOpened((count) => count + 1);
     setOpen(true);
@@ -181,57 +203,55 @@ export default function WebhooksRoute({ loaderData, params }: Route.ComponentPro
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {endpoints.length === 0 ? (
-          <EmptyState
-            icon='IconWebhooksFilled'
-            title='No endpoints yet'
-            description='Add an endpoint to start receiving events.'
-            className='py-10'
-          >
-            {canManage && (
-              <Button icon='IconPlusMedium' onClick={openDialog}>
-                Add endpoint
-              </Button>
-            )}
-          </EmptyState>
-        ) : (
-          <Table className='table-fixed'>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Endpoint</TableHead>
-                <TableHead className='w-24'>Status</TableHead>
-                {tenants.length > 1 && <TableHead className='w-36'>Tenant</TableHead>}
-                <TableHead className='w-48'>Events</TableHead>
-                <TableHead className='w-32'>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {endpoints.map((endpoint) => (
-                <EndpointRow
-                  key={endpoint.id}
-                  endpoint={endpoint}
-                  tenantName={tenantName(endpoint.tenantId)}
-                  showTenant={tenants.length > 1}
-                  slug={params.slug}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+      <Deferred resolve={page}>
+        {(data) => {
+          const endpoints = data?.endpoints ?? [];
+          const tenants = data?.tenants ?? [];
+          return data === undefined ? (
+            <TableSkeleton columns={columnsFor(false)} />
+          ) : (
+            <>
+              <Card className='min-h-0 shrink'>
+                {endpoints.length === 0 ? (
+                  <EmptyState
+                    icon='IconWebhooksFilled'
+                    title='No endpoints yet'
+                    description='Add an endpoint to start receiving events.'
+                    className='py-10'
+                  />
+                ) : (
+                  <Table className='table-fixed'>
+                    <TableColumns columns={columnsFor(tenants.length > 1)} />
+                    <TableBody>
+                      {endpoints.map((endpoint) => (
+                        <EndpointRow
+                          key={endpoint.id}
+                          endpoint={endpoint}
+                          tenantName={tenants.find((entry) => entry.id === endpoint.tenantId)?.name ?? null}
+                          showTenant={tenants.length > 1}
+                          slug={params.slug}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton>
-          <CreateForm
-            key={opened}
-            catalog={catalog}
-            tenants={tenants}
-            slug={params.slug}
-            onClose={() => setOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent showCloseButton>
+                  <CreateForm
+                    key={opened}
+                    catalog={data.catalog}
+                    tenants={tenants}
+                    slug={params.slug}
+                    onClose={() => setOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+            </>
+          );
+        }}
+      </Deferred>
     </div>
   );
 }

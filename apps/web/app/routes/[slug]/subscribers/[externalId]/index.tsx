@@ -28,15 +28,7 @@ import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { Switch } from '@buzzkit/ui/components/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableDetail,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableDetail, TableRow } from '@buzzkit/ui/components/table';
 import {
   Tooltip,
   TooltipContent,
@@ -61,6 +53,9 @@ import {
 } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
 import { describeStreamEvent, SOURCE_LABELS, type StreamSource } from '@/app/components/events/stream';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { providerLabel } from '@/app/components/sources/describe';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
@@ -95,6 +90,27 @@ const SUBSCRIPTION_ICONS: Record<string, IconName> = {
   sms: 'IconBubbleTextFilled',
 };
 
+const MESSAGE_COLUMNS: TableColumn[] = [
+  { label: 'Message', fill: 'h-4 w-56' },
+  { label: 'Channel', fill: 'h-5 w-14 rounded-full' },
+  { label: 'Status', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Sent', fill: 'h-4 w-16' },
+];
+
+const RUN_COLUMNS: TableColumn[] = [
+  { label: 'Workflow', fill: 'h-4 w-40' },
+  { label: 'Step', className: 'w-24', fill: 'h-4 w-16' },
+  { label: 'Status', className: 'w-28', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Updated', className: 'w-[104px]', fill: 'h-4 w-16' },
+];
+
+const ACTIVITY_COLUMNS: TableColumn[] = [
+  { label: 'Event', fill: 'h-8 w-56' },
+  { label: 'Source', className: 'w-28', fill: 'h-5 w-16 rounded-full' },
+  { label: 'Time', className: 'w-16', fill: 'h-4 w-12' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-10', fill: 'h-4 w-4' },
+];
+
 type AttributeRow = {
   key: string;
   label: string;
@@ -106,9 +122,8 @@ type AttributeRow = {
   tooltip?: React.ReactNode;
 };
 
-export function meta({ loaderData }: Route.MetaArgs) {
-  if (!loaderData) return [{ title: 'Subscriber · BuzzKit' }];
-  return [{ title: `${loaderData.name ?? loaderData.subscriber.externalId} · BuzzKit` }];
+export function meta() {
+  return [{ title: 'Subscriber · BuzzKit' }];
 }
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
@@ -122,45 +137,50 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const providerFilter =
     sourceValue && SOURCE_PRESETS[sourceValue as SourceProvider] ? sourceValue : undefined;
   const sourceFilter = providerFilter ? 'webhook' : sourceValue;
-  const [subscriber, preferences, deliveries, events, runs, names] = await Promise.all([
-    getSubscriber(ctx, token, params.slug, tenant, params.externalId),
-    getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
-    listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
-    listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, {
-      limit: 25,
-      name: eventFilter,
-      source: sourceFilter,
-      provider: providerFilter,
-    }),
-    listSubscriberRuns(ctx, token, params.slug, tenant, params.externalId),
-    listEventNames(ctx, token, params.slug, tenant),
-  ]);
-  const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
-  const name = typeof attributes.name === 'string' && attributes.name.trim() ? attributes.name : null;
-  const seenSources = new Set<string>();
-  for (const entry of names) {
-    for (const source of entry.sources) {
-      if (source !== 'webhook') seenSources.add(source);
-      else if (entry.providers.length > 0) for (const provider of entry.providers) seenSources.add(provider);
-      else seenSources.add('webhook');
-    }
-  }
-  const sourceOptions = [...seenSources].sort().map((value) => ({
-    value,
-    label: SOURCE_PRESETS[value as SourceProvider]
-      ? providerLabel(value)
-      : (SOURCE_LABELS[value as StreamSource] ?? value),
-  }));
   return {
-    subscriber,
-    preferences,
-    deliveries,
-    events,
-    runs,
-    name,
-    eventNames: names.map((entry) => entry.name),
-    sourceOptions,
     activityFiltered: Boolean(eventFilter || sourceValue),
+    detail: (async () => {
+      const [subscriber, preferences, deliveries, events, runs, names] = await Promise.all([
+        getSubscriber(ctx, token, params.slug, tenant, params.externalId),
+        getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
+        listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
+        listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, {
+          limit: 25,
+          name: eventFilter,
+          source: sourceFilter,
+          provider: providerFilter,
+        }),
+        listSubscriberRuns(ctx, token, params.slug, tenant, params.externalId),
+        listEventNames(ctx, token, params.slug, tenant),
+      ]);
+      const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
+      const name = typeof attributes.name === 'string' && attributes.name.trim() ? attributes.name : null;
+      const seenSources = new Set<string>();
+      for (const entry of names) {
+        for (const source of entry.sources) {
+          if (source !== 'webhook') seenSources.add(source);
+          else if (entry.providers.length > 0)
+            for (const provider of entry.providers) seenSources.add(provider);
+          else seenSources.add('webhook');
+        }
+      }
+      const sourceOptions = [...seenSources].sort().map((value) => ({
+        value,
+        label: SOURCE_PRESETS[value as SourceProvider]
+          ? providerLabel(value)
+          : (SOURCE_LABELS[value as StreamSource] ?? value),
+      }));
+      return {
+        subscriber,
+        preferences,
+        deliveries,
+        events,
+        runs,
+        name,
+        eventNames: names.map((entry) => entry.name),
+        sourceOptions,
+      };
+    })(),
   };
 }
 
@@ -642,24 +662,21 @@ function ActivityRow({
   );
 }
 
-export default function SubscriberRoute({ loaderData, params }: Route.ComponentProps) {
+function SubscriberContent({
+  data,
+  params,
+  activityFiltered,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['detail']>;
+  params: { slug: string };
+  activityFiltered: boolean;
+}) {
   const filters = useFilters(['event', 'source']);
-  const {
-    subscriber,
-    preferences,
-    deliveries,
-    events,
-    runs,
-    name,
-    eventNames,
-    sourceOptions,
-    activityFiltered,
-  } = loaderData;
+  const { subscriber, preferences, deliveries, events, runs, name, eventNames, sourceOptions } = data;
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const custom = Object.fromEntries(
     Object.entries(attributes).filter(([key]) => !key.startsWith('$') && key !== 'name' && key !== 'email')
   );
-  const base = `/${params.slug}/subscribers`;
   const email = attribute({ attributes }, 'email');
   const country = attribute({ attributes }, '$country');
   const city = attribute({ attributes }, '$city');
@@ -683,6 +700,257 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
   useLinkedScroll(mainRef, asideRef);
 
   return (
+    <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
+      <ScrollFade targetRef={mainRef} />
+      <div
+        ref={mainRef}
+        className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
+      >
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Overview</CardTitle>
+          </CardHeader>
+          <dl className='flex flex-col'>
+            {name && (
+              <DetailRow label='Name' copy={name}>
+                {name}
+              </DetailRow>
+            )}
+            <DetailRow label='External id' copy={subscriber.externalId}>
+              <span className='text-xs'>{subscriber.externalId}</span>
+              <VerifiedBadge verified={subscriber.verified} />
+            </DetailRow>
+            {email && (
+              <DetailRow label='Email' copy={email}>
+                {email}
+              </DetailRow>
+            )}
+            {country && (
+              <DetailRow label='Country' copy={countryName(country)}>
+                <Flag code={country} />
+                {countryName(country)}
+              </DetailRow>
+            )}
+            {(city || region) && (
+              <DetailRow label='City' copy={[city, region].filter(Boolean).join(', ')}>
+                {[city, region].filter(Boolean).join(', ')}
+              </DetailRow>
+            )}
+            {timezone && (
+              <DetailRow label='Timezone' copy={timezone}>
+                {timezone}
+                {now && <span className='text-fg-2'>· {now} now</span>}
+              </DetailRow>
+            )}
+            {language && (
+              <DetailRow label='Language' copy={language}>
+                {languageName(language)}
+              </DetailRow>
+            )}
+            <DetailRow label='Subscribed'>
+              <Time at={subscriber.createdAt} />
+            </DetailRow>
+            <DetailRow label='Last seen'>
+              {lastSeenAt ? <TimeAgo at={lastSeenAt} /> : <span className='text-fg-2'>Never</span>}
+            </DetailRow>
+            <DetailRow label='Verified'>
+              {subscriber.identityVerifiedAt ? (
+                <Time at={subscriber.identityVerifiedAt} />
+              ) : (
+                <span className='text-fg-2'>No</span>
+              )}
+            </DetailRow>
+          </dl>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Messages</CardTitle>
+          </CardHeader>
+          {deliveries.items.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconPaperPlaneTopRightFilled'
+              title='No messages yet'
+              description='Everything sent to this subscriber shows up here with its delivery status.'
+            />
+          ) : (
+            <Table>
+              <TableColumns columns={MESSAGE_COLUMNS} />
+              <TableBody>
+                {messages.map((delivery) => (
+                  <DeliveryRow key={delivery.id} delivery={delivery} params={params} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Runs</CardTitle>
+          </CardHeader>
+          {runs.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconAgentsFilled'
+              title='No runs yet'
+              description='A run appears here when an event from this subscriber matches a workflow.'
+            />
+          ) : (
+            <Table className='table-fixed'>
+              <TableColumns columns={RUN_COLUMNS} />
+              <TableBody>
+                {runs.map((run) => (
+                  <RunRow key={run.id} run={run} slug={params.slug} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Activity</CardTitle>
+            <CardAction>
+              <FilterBar className='mb-0'>
+                <FilterSelect
+                  label='Event'
+                  value={filters.values.event}
+                  options={eventNames.map((eventName) => ({ value: eventName, label: eventName }))}
+                  onValueChange={(value) => filters.set('event', value)}
+                  className='h-[26px] rounded-[10px] text-xs'
+                />
+                <FilterSelect
+                  label='Source'
+                  value={filters.values.source}
+                  options={sourceOptions}
+                  onValueChange={(value) => filters.set('source', value)}
+                  className='h-[26px] rounded-[10px] text-xs'
+                />
+                {filters.active && (
+                  <FilterClear className='h-[26px] rounded-[10px] text-xs' onClick={filters.clear} />
+                )}
+              </FilterBar>
+            </CardAction>
+          </CardHeader>
+          {events.items.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconBellFilled'
+              title={activityFiltered ? 'No events match' : 'No activity yet'}
+              description={
+                activityFiltered
+                  ? 'Nothing on this timeline matches the filters.'
+                  : 'Events from the app and your server appear here, newest first.'
+              }
+            />
+          ) : (
+            <Table className='table-fixed'>
+              <TableColumns columns={ACTIVITY_COLUMNS} />
+              <TableBody>
+                {activity.map((event) => (
+                  <ActivityRow
+                    key={event.id}
+                    event={event}
+                    expanded={expandedEventId === event.id}
+                    onToggle={() => setExpandedEventId(expandedEventId === event.id ? null : event.id)}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      </div>
+
+      <ScrollFade targetRef={asideRef} />
+      <div
+        ref={asideRef}
+        className='-m-1 flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-1 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'
+      >
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Subscriptions</CardTitle>
+          </CardHeader>
+          {subscriber.subscriptions.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconBellFilled'
+              title='No subscriptions yet'
+              description='Devices and addresses registered from your app appear here.'
+            />
+          ) : (
+            <ul className='flex flex-col divide-y divide-bg-3'>
+              {subscriber.subscriptions.map((subscription) => (
+                <SubscriptionRow key={subscription.id} subscription={subscription} />
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Preferences</CardTitle>
+          </CardHeader>
+          {preferences.length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconTagFilled'
+              title='No topics yet'
+              description='Create a topic and this subscriber’s choice per channel appears here.'
+            />
+          ) : (
+            <ul className='flex flex-col divide-y divide-bg-3'>
+              {preferences.map((preference) => (
+                <PreferenceRow key={preference.id} preference={preference} />
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Attributes</CardTitle>
+          </CardHeader>
+          {Object.keys(custom).length === 0 ? (
+            <EmptyState
+              size='sm'
+              icon='IconParagraph'
+              title='No attributes yet'
+              description='Attributes your backend sends with identify appear here.'
+            />
+          ) : (
+            <AttributeList attributes={custom} />
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SubscriberSkeleton() {
+  return (
+    <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
+      <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5'>
+        <BlockSkeleton className='h-96 w-full rounded-2xl' />
+        <TableSkeleton columns={MESSAGE_COLUMNS} rows={3} />
+        <TableSkeleton columns={RUN_COLUMNS} rows={3} />
+        <TableSkeleton columns={ACTIVITY_COLUMNS} rows={5} />
+      </div>
+      <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0'>
+        <BlockSkeleton className='h-48 w-full rounded-2xl' />
+        <BlockSkeleton className='h-48 w-full rounded-2xl' />
+        <BlockSkeleton className='h-56 w-full rounded-2xl' />
+      </div>
+    </div>
+  );
+}
+
+export default function SubscriberRoute({ loaderData, params }: Route.ComponentProps) {
+  const { activityFiltered, detail } = loaderData;
+  const base = `/${params.slug}/subscribers`;
+
+  return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
       <Button
         variant='ghost'
@@ -695,252 +963,15 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
         Subscribers
       </Button>
 
-      <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
-        <ScrollFade targetRef={mainRef} />
-        <div
-          ref={mainRef}
-          className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
-        >
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Overview</CardTitle>
-            </CardHeader>
-            <dl className='flex flex-col'>
-              {name && (
-                <DetailRow label='Name' copy={name}>
-                  {name}
-                </DetailRow>
-              )}
-              <DetailRow label='External id' copy={subscriber.externalId}>
-                <span className='text-xs'>{subscriber.externalId}</span>
-                <VerifiedBadge verified={subscriber.verified} />
-              </DetailRow>
-              {email && (
-                <DetailRow label='Email' copy={email}>
-                  {email}
-                </DetailRow>
-              )}
-              {country && (
-                <DetailRow label='Country' copy={countryName(country)}>
-                  <Flag code={country} />
-                  {countryName(country)}
-                </DetailRow>
-              )}
-              {(city || region) && (
-                <DetailRow label='City' copy={[city, region].filter(Boolean).join(', ')}>
-                  {[city, region].filter(Boolean).join(', ')}
-                </DetailRow>
-              )}
-              {timezone && (
-                <DetailRow label='Timezone' copy={timezone}>
-                  {timezone}
-                  {now && <span className='text-fg-2'>· {now} now</span>}
-                </DetailRow>
-              )}
-              {language && (
-                <DetailRow label='Language' copy={language}>
-                  {languageName(language)}
-                </DetailRow>
-              )}
-              <DetailRow label='Subscribed'>
-                <Time at={subscriber.createdAt} />
-              </DetailRow>
-              <DetailRow label='Last seen'>
-                {lastSeenAt ? <TimeAgo at={lastSeenAt} /> : <span className='text-fg-2'>Never</span>}
-              </DetailRow>
-              <DetailRow label='Verified'>
-                {subscriber.identityVerifiedAt ? (
-                  <Time at={subscriber.identityVerifiedAt} />
-                ) : (
-                  <span className='text-fg-2'>No</span>
-                )}
-              </DetailRow>
-            </dl>
-          </Card>
-
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Messages</CardTitle>
-            </CardHeader>
-            {deliveries.items.length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconPaperPlaneTopRightFilled'
-                title='No messages yet'
-                description='Everything sent to this subscriber shows up here with its delivery status.'
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Message</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sent</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {messages.map((delivery) => (
-                    <DeliveryRow key={delivery.id} delivery={delivery} params={params} />
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Runs</CardTitle>
-            </CardHeader>
-            {runs.length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconAgentsFilled'
-                title='No runs yet'
-                description='A run appears here when an event from this subscriber matches a workflow.'
-              />
-            ) : (
-              <Table className='table-fixed'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Workflow</TableHead>
-                    <TableHead className='w-24'>Step</TableHead>
-                    <TableHead className='w-28'>Status</TableHead>
-                    <TableHead className='w-[104px]'>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => (
-                    <RunRow key={run.id} run={run} slug={params.slug} />
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Activity</CardTitle>
-              <CardAction>
-                <FilterBar className='mb-0'>
-                  <FilterSelect
-                    label='Event'
-                    value={filters.values.event}
-                    options={eventNames.map((eventName) => ({ value: eventName, label: eventName }))}
-                    onValueChange={(value) => filters.set('event', value)}
-                    className='h-[26px] rounded-[10px] text-xs'
-                  />
-                  <FilterSelect
-                    label='Source'
-                    value={filters.values.source}
-                    options={sourceOptions}
-                    onValueChange={(value) => filters.set('source', value)}
-                    className='h-[26px] rounded-[10px] text-xs'
-                  />
-                  {filters.active && (
-                    <FilterClear className='h-[26px] rounded-[10px] text-xs' onClick={filters.clear} />
-                  )}
-                </FilterBar>
-              </CardAction>
-            </CardHeader>
-            {events.items.length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconBellFilled'
-                title={activityFiltered ? 'No events match' : 'No activity yet'}
-                description={
-                  activityFiltered
-                    ? 'Nothing on this timeline matches the filters.'
-                    : 'Events from the app and your server appear here, newest first.'
-                }
-              />
-            ) : (
-              <Table className='table-fixed'>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Event</TableHead>
-                    <TableHead className='w-28'>Source</TableHead>
-                    <TableHead className='w-16'>Time</TableHead>
-                    <TableHead className='w-10' />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activity.map((event) => (
-                    <ActivityRow
-                      key={event.id}
-                      event={event}
-                      expanded={expandedEventId === event.id}
-                      onToggle={() => setExpandedEventId(expandedEventId === event.id ? null : event.id)}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
-        </div>
-
-        <ScrollFade targetRef={asideRef} />
-        <div
-          ref={asideRef}
-          className='-m-1 flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto p-1 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'
-        >
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Subscriptions</CardTitle>
-            </CardHeader>
-            {subscriber.subscriptions.length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconBellFilled'
-                title='No subscriptions yet'
-                description='Devices and addresses registered from your app appear here.'
-              />
-            ) : (
-              <ul className='flex flex-col divide-y divide-bg-3'>
-                {subscriber.subscriptions.map((subscription) => (
-                  <SubscriptionRow key={subscription.id} subscription={subscription} />
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Preferences</CardTitle>
-            </CardHeader>
-            {preferences.length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconTagFilled'
-                title='No topics yet'
-                description='Create a topic and this subscriber’s choice per channel appears here.'
-              />
-            ) : (
-              <ul className='flex flex-col divide-y divide-bg-3'>
-                {preferences.map((preference) => (
-                  <PreferenceRow key={preference.id} preference={preference} />
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader divider className='py-3'>
-              <CardTitle>Attributes</CardTitle>
-            </CardHeader>
-            {Object.keys(custom).length === 0 ? (
-              <EmptyState
-                size='sm'
-                icon='IconParagraph'
-                title='No attributes yet'
-                description='Attributes your backend sends with identify appear here.'
-              />
-            ) : (
-              <AttributeList attributes={custom} />
-            )}
-          </Card>
-        </div>
-      </div>
+      <Deferred resolve={detail}>
+        {(data) =>
+          data === undefined ? (
+            <SubscriberSkeleton />
+          ) : (
+            <SubscriberContent data={data} params={params} activityFiltered={activityFiltered} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

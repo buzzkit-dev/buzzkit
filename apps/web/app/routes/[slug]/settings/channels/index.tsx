@@ -21,12 +21,14 @@ import {
 } from '@buzzkit/ui/components/dropdown-menu';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Input } from '@buzzkit/ui/components/input';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { CredentialStatusBadge, SandboxBadge } from '@/app/components/badges';
+import { Deferred } from '@/app/components/loading/deferred';
 import {
   type AvailableProvider,
   CHANNELS,
@@ -59,11 +61,15 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const [credentials, tenantDetail] = await Promise.all([
-    listCredentials({ request, env }, token, params.slug, tenant),
-    getTenant({ request, env }, token, params.slug, tenant),
-  ]);
-  return { credentials, sendPolicy: tenantDetail.settings.sendPolicy };
+  return {
+    channels: (async () => {
+      const [credentials, tenantDetail] = await Promise.all([
+        listCredentials({ request, env }, token, params.slug, tenant),
+        getTenant({ request, env }, token, params.slug, tenant),
+      ]);
+      return { credentials, sendPolicy: tenantDetail.settings.sendPolicy };
+    })(),
+  };
 }
 
 export const action = channelsAction;
@@ -325,13 +331,18 @@ function SendPolicyCard({
     </SettingsCard>
   );
 }
-
-export default function ChannelsRoute({ loaderData, params }: Route.ComponentProps) {
-  const { workspace } = useOutletContext<WorkspaceOutletContext>();
+function ChannelsContent({
+  data,
+  canManage,
+  params,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['channels']>;
+  canManage: boolean;
+  params: Route.ComponentProps['params'];
+}) {
   const location = useLocation();
   const { submit, pending } = useActionFetcher(() => setRemoveOpen(false));
-  const { credentials, sendPolicy } = loaderData;
-  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+  const { credentials, sendPolicy } = data;
   const [removing, setRemoving] = useState<{ provider: ProviderEntry; credentials: Credential[] } | null>(
     null
   );
@@ -340,18 +351,7 @@ export default function ChannelsRoute({ loaderData, params }: Route.ComponentPro
   const [connectOpen, setConnectOpen] = useState(false);
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Channels
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Manage the providers this workspace sends through.
-          </p>
-        </div>
-      </header>
-
+    <>
       <SendPolicyCard policy={sendPolicy} canManage={canManage} />
 
       {CHANNELS.filter((channel) => channel.available).map((channel) => (
@@ -419,6 +419,80 @@ export default function ChannelsRoute({ loaderData, params }: Route.ComponentPro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+}
+
+function ProviderRowSkeleton({ provider }: { provider: ProviderEntry }) {
+  return (
+    <SettingsRow
+      dimmed={!provider.available}
+      start={<IconTile icon={provider.icon} size='sm' />}
+      title={provider.name}
+      subtitle={provider.description}
+      end={<Skeleton className='h-7 w-20 rounded-xl' />}
+    />
+  );
+}
+
+function ChannelCardSkeleton({ channel }: { channel: ChannelEntry }) {
+  return (
+    <Card className='shrink-0'>
+      <CardHeader>
+        <CardTitle>{channel.name}</CardTitle>
+        <CardDescription>{channel.description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <SettingsRows>
+          {channel.providers.map((provider) => (
+            <ProviderRowSkeleton key={provider.id} provider={provider} />
+          ))}
+        </SettingsRows>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChannelsSkeleton() {
+  return (
+    <>
+      <SettingsCard title='Send policy' description='Limits that apply to every send on this tenant.'>
+        <Skeleton className='h-9 w-56 rounded-xl' />
+      </SettingsCard>
+      {CHANNELS.filter((channel) => channel.available).map((channel) => (
+        <ChannelCardSkeleton key={channel.id} channel={channel} />
+      ))}
+    </>
+  );
+}
+
+export default function ChannelsRoute({ loaderData, params }: Route.ComponentProps) {
+  const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const { channels } = loaderData;
+  const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <header className='flex shrink-0 items-center justify-between gap-4'>
+        <div className='flex flex-col gap-0.5'>
+          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
+            Channels
+          </h1>
+          <p className='text-pretty text-base text-fg-2 leading-tighter'>
+            Manage the providers this workspace sends through.
+          </p>
+        </div>
+      </header>
+
+      <Deferred resolve={channels}>
+        {(data) =>
+          data === undefined ? (
+            <ChannelsSkeleton />
+          ) : (
+            <ChannelsContent data={data} canManage={canManage} params={params} />
+          )
+        }
+      </Deferred>
     </div>
   );
 }

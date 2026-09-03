@@ -21,10 +21,12 @@ import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
 import { toast } from '@buzzkit/ui/components/sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
+import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/table';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { Deferred } from '@/app/components/loading/deferred';
+import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { secretsAction } from '@/app/lib/actions/secrets.server';
@@ -41,8 +43,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const secrets = await listSecrets({ request, env }, token, params.slug, tenant);
-  return { secrets };
+  return { secrets: listSecrets({ request, env }, token, params.slug, tenant) };
 }
 
 export const action = secretsAction;
@@ -129,6 +130,15 @@ function SecretDialog({
   );
 }
 
+const COLUMNS: TableColumn[] = [
+  { label: 'Name', fill: 'h-4 w-28' },
+  { label: 'Reference', fill: 'h-4 w-40' },
+  { label: 'Version', fill: 'h-4 w-8' },
+  { label: 'Updated', fill: 'h-4 w-20' },
+  { label: 'Created', fill: 'h-4 w-20' },
+  { key: 'actions', label: 'Actions', hidden: true, className: 'w-0' },
+];
+
 export default function SecretsRoute({ loaderData }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const { secrets } = loaderData;
@@ -166,84 +176,86 @@ export default function SecretsRoute({ loaderData }: Route.ComponentProps) {
         )}
       </header>
 
-      <Card className='min-h-0 shrink'>
-        {secrets.length === 0 ? (
-          <EmptyState
-            icon='IconShieldFilled'
-            title='No secrets yet'
-            description='Add a secret and your workflows can read it without the value ever appearing in a definition.'
-            className='py-10'
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Reference</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className='w-0' />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {secrets.map((entry) => (
-                <TableRow key={entry.name}>
-                  <TableCell className='font-medium text-fg-4'>{entry.name}</TableCell>
-                  <TableCell className='text-fg-2'>{`{{ secrets.${entry.name} }}`}</TableCell>
-                  <TableCell className='tabular-nums'>{entry.version}</TableCell>
-                  <TableCell>
-                    <Time at={entry.updatedAt} />
-                  </TableCell>
-                  <TableCell>
-                    <Time at={entry.createdAt} />
-                  </TableCell>
-                  <TableCell className='w-0 py-1.5 text-right'>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant='ghost'
-                            size='icon-xs'
-                            icon='IconDotGrid1x3Horizontal'
-                            aria-label='Secret actions'
-                          />
-                        }
-                      />
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem onClick={() => copyToClipboard(`{{ secrets.${entry.name} }}`)}>
-                          Copy reference
-                        </DropdownMenuItem>
-                        {canManage && (
-                          <>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditing(entry.name);
-                                setAddOpen(true);
-                              }}
-                            >
-                              Update value
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              variant='destructive'
-                              onClick={() => {
-                                setRemoving(entry.name);
-                                setRemoveOpen(true);
-                              }}
-                            >
-                              Remove
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+      <Deferred resolve={secrets}>
+        {(data) => {
+          const rows = data ?? [];
+          return data === undefined ? (
+            <TableSkeleton columns={COLUMNS} rows={5} fixed={false} />
+          ) : (
+            <Card className='min-h-0 shrink'>
+              {rows.length === 0 ? (
+                <EmptyState
+                  icon='IconShieldFilled'
+                  title='No secrets yet'
+                  description='Add a secret and your workflows can read it without the value ever appearing in a definition.'
+                  className='py-10'
+                />
+              ) : (
+                <Table>
+                  <TableColumns columns={COLUMNS} />
+                  <TableBody>
+                    {rows.map((entry) => (
+                      <TableRow key={entry.name}>
+                        <TableCell className='font-medium text-fg-4'>{entry.name}</TableCell>
+                        <TableCell className='text-fg-2'>{`{{ secrets.${entry.name} }}`}</TableCell>
+                        <TableCell className='tabular-nums'>{entry.version}</TableCell>
+                        <TableCell>
+                          <Time at={entry.updatedAt} />
+                        </TableCell>
+                        <TableCell>
+                          <Time at={entry.createdAt} />
+                        </TableCell>
+                        <TableCell className='w-0 py-1.5 text-right'>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  variant='ghost'
+                                  size='icon-xs'
+                                  icon='IconDotGrid1x3Horizontal'
+                                  aria-label='Secret actions'
+                                />
+                              }
+                            />
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                onClick={() => copyToClipboard(`{{ secrets.${entry.name} }}`)}
+                              >
+                                Copy reference
+                              </DropdownMenuItem>
+                              {canManage && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setEditing(entry.name);
+                                      setAddOpen(true);
+                                    }}
+                                  >
+                                    Update value
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant='destructive'
+                                    onClick={() => {
+                                      setRemoving(entry.name);
+                                      setRemoveOpen(true);
+                                    }}
+                                  >
+                                    Remove
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Card>
+          );
+        }}
+      </Deferred>
 
       <SecretDialog key={editing ?? 'new'} open={addOpen} onOpenChange={setAddOpen} existing={editing} />
       <AlertDialog open={removeOpen} onOpenChange={setRemoveOpen}>
