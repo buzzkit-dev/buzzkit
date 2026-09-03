@@ -616,14 +616,18 @@
   }
 }
 
-/* ── No native scrollbars, ever ───────────────────────────────────────────
-   Scrolling everywhere is signalled by scroll-edge fades (ScrollFade), never
-   by a native scrollbar — one rule instead of a scrollbar-hide chase across
-   every overflow container. */
-* {
+/* ── No native scrollbars inside the page ────────────────────────────────
+   Scrolling inside components is signalled by scroll-edge fades (ScrollFade),
+   never by a native scrollbar — one rule instead of a scrollbar-hide chase
+   across every overflow container. The document itself is left alone here:
+   WebKit stops drawing a native scrollbar as soon as any ::-webkit-scrollbar
+   rule matches an element, so an app that wants the page scrollbar gone hides
+   it in its own stylesheet (the dashboard does), and one that wants it native
+   (the marketing site) simply never touches it. */
+*:not(html):not(body) {
   scrollbar-width: none;
 }
-*::-webkit-scrollbar {
+*:not(html):not(body)::-webkit-scrollbar {
   display: none;
 }
 

@@ -72,11 +72,3 @@ body {
   animation-duration: 62s;
   animation-direction: reverse;
 }
-
-html {
-  scrollbar-width: auto;
-}
-
-html::-webkit-scrollbar {
-  display: initial;
-}

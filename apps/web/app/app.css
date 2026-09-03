@@ -9,3 +9,13 @@
     box-shadow: 0 0 0 10px color-mix(in oklab, var(--color-sky-4) 0%, transparent);
   }
 }
+
+html,
+body {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
