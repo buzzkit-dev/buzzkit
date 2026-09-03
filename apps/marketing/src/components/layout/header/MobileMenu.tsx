@@ -1,10 +1,20 @@
 import { Badge } from '@buzzkit/ui/components/badge';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
-import type { Link, Menus } from '../Header';
+import { AccountCta, type Link, type Menus } from '../Header';
 import { spring } from './SlidingHighlight';
 
-export function MobileMenu({ menus, cta, links }: { menus: Menus; cta: Link; links: Link[] }) {
+export function MobileMenu({
+  menus,
+  dashboardUrl,
+  signupUrl,
+  links,
+}: {
+  menus: Menus;
+  dashboardUrl: string;
+  signupUrl: string;
+  links: Link[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className='md:hidden'>
@@ -75,9 +85,11 @@ export function MobileMenu({ menus, cta, links }: { menus: Menus; cta: Link; lin
                   {link.label}
                 </a>
               ))}
-              <a href={cta.href} className='rounded-lg px-2.5 py-1.5 font-medium text-fg-4 text-sm'>
-                {cta.label}
-              </a>
+              <AccountCta
+                dashboardUrl={dashboardUrl}
+                signupUrl={signupUrl}
+                className='rounded-lg px-2.5 py-1.5 font-medium text-fg-4 text-sm'
+              />
             </motion.div>
           </>
         )}

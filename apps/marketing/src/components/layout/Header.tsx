@@ -8,14 +8,13 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@buzzkit/ui/components/navigation-menu';
-import { TextSwap } from '@buzzkit/ui/components/text-swap';
+import { cn } from '@buzzkit/ui/lib/utils';
 import { useMotionValueEvent, useScroll } from 'motion/react';
 import { useState } from 'react';
 import { Logo } from '../ui/Logo';
 import { type MenuGroup, MenuPanel } from './header/MenuPanel';
 import { MobileMenu } from './header/MobileMenu';
 import { SlidingHighlight, useSlidingHighlight } from './header/SlidingHighlight';
-import { useSignedIn } from './header/use-signed-in';
 
 export interface Menus {
   features: MenuGroup[];
@@ -26,8 +25,28 @@ export interface Link {
   href: string;
 }
 
-function accountCta(dashboardUrl: string, signupUrl: string, signedIn: boolean): Link {
-  return signedIn ? { label: 'Dashboard', href: dashboardUrl } : { label: 'Get Started', href: signupUrl };
+const CTA_CLASS =
+  "relative isolate flex h-8 items-center rounded-xl px-3 font-medium text-primary-foreground text-sm before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-primary before:shadow-control before:transition-[background-color,inset] before:duration-150 before:ease-out before:content-[''] corner-superellipse/1.125 hover:before:bg-primary/80 active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y) active:before:bg-primary/80";
+
+export function AccountCta({
+  dashboardUrl,
+  signupUrl,
+  className,
+}: {
+  dashboardUrl: string;
+  signupUrl: string;
+  className?: string;
+}) {
+  return (
+    <>
+      <a href={signupUrl} className={cn('signed-out-only', className ?? CTA_CLASS)}>
+        Get Started
+      </a>
+      <a href={dashboardUrl} className={cn('signed-in-only', className ?? CTA_CLASS)}>
+        Dashboard
+      </a>
+    </>
+  );
 }
 
 function resolvePlainLinks(docsUrl: string): Link[] {
@@ -52,10 +71,8 @@ export function Header({
   menus: Menus;
 }) {
   const { scrollY } = useScroll();
-  const signedIn = useSignedIn();
   const [scrolled, setScrolled] = useState(false);
   const slider = useSlidingHighlight<HTMLUListElement>();
-  const cta = accountCta(dashboardUrl, signupUrl, signedIn);
   const plainLinks = resolvePlainLinks(docsUrl);
 
   const leaveList = () => {
@@ -120,13 +137,8 @@ export function Header({
             >
               <Icon name='IconGithub' className='size-5.5' />
             </a>
-            <a
-              href={cta.href}
-              className="relative isolate flex h-8 items-center rounded-xl px-3 font-medium text-primary-foreground text-sm before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-primary before:shadow-control before:transition-[background-color,inset] before:duration-150 before:ease-out before:content-[''] corner-superellipse/1.125 hover:before:bg-primary/80 active:before:inset-x-(--press-inset-x) active:before:inset-y-(--press-inset-y) active:before:bg-primary/80"
-            >
-              <TextSwap>{cta.label}</TextSwap>
-            </a>
-            <MobileMenu menus={menus} cta={cta} links={plainLinks} />
+            <AccountCta dashboardUrl={dashboardUrl} signupUrl={signupUrl} />
+            <MobileMenu menus={menus} dashboardUrl={dashboardUrl} signupUrl={signupUrl} links={plainLinks} />
           </div>
         </div>
         <div

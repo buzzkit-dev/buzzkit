@@ -72,3 +72,15 @@ body {
   animation-duration: 62s;
   animation-direction: reverse;
 }
+
+@utility signed-out-only {
+  html[data-signed-in] & {
+    display: none;
+  }
+}
+
+@utility signed-in-only {
+  html:not([data-signed-in]) & {
+    display: none;
+  }
+}

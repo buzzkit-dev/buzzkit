@@ -65,7 +65,7 @@ export function connectedSlots({
       </span>
     ),
     content: (
-      <CardContent className='gap-0 pb-2'>
+      <CardContent className='gap-0 p-0'>
         <ul className='-mx-4 flex flex-col divide-y divide-bg-3'>
           <li className='flex min-h-10 items-center gap-3 px-4 py-1.5'>
             <span className='flex-1 font-medium text-fg-4 text-sm'>Status</span>
