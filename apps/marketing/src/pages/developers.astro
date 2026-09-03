@@ -57,11 +57,11 @@ const quickstart = `curl ${site.apiUrl}/v1/messages \\
       <code>success</code>, <code>data</code>, <code>error</code> and <code>metadata</code>, and errors carry a stable
       snake_case code with the field that failed.
     </p>
-    <ul>
+    <ul class='flex list-disc flex-col gap-3 pl-5 marker:text-fg-1'>
       <li><a href={site.docsUrl}>Documentation</a>: guides and the reference for every resource.</li>
       <li><a href='/openapi.json'>OpenAPI document</a>: every operation with its scope, request and response schemas.</li>
       <li><a href='/.well-known/api-catalog'>API catalog</a>: the RFC 9727 linkset that points at both.</li>
-      <li><a href={site.githubUrl}>The repository</a>: the API, the dashboard and the docs, MIT licensed.</li>
+      <li><a href={site.githubUrl}>The repository</a>: the API, the dashboard and the docs under AGPL-3.0, the SDKs under MIT.</li>
     </ul>
   </ProseSection>
   <ProseSection title='SDKs'>

@@ -32,6 +32,7 @@ function accountCta(dashboardUrl: string, signupUrl: string, signedIn: boolean):
 
 function resolvePlainLinks(docsUrl: string): Link[] {
   return [
+    { label: 'Why BuzzKit', href: '/why-buzzkit' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Docs', href: docsUrl },
   ];

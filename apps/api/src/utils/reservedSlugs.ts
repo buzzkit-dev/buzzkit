@@ -380,6 +380,8 @@ export const RESERVED_SLUGS = new Set([
   'webinars',
   'websocket',
   'well-known',
+  'why',
+  'why-buzzkit',
   'widget',
   'wiki',
   'workflow',

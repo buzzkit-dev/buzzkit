@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { comparisons } from '../../../src/lib/compare';
 import { features } from '../../../src/lib/features';
-import { renderFullSite } from '../../../src/lib/llms/full';
+import { HAND_KEPT_TWINS, renderFullSite } from '../../../src/lib/llms/full';
 
 describe('renderFullSite', () => {
   const body = renderFullSite();
   const documents = body.split('\n\n---\n\n');
 
-  it('concatenates every twin: home, features, comparisons, pricing and the five hand-kept pages', () => {
-    expect(documents).toHaveLength(1 + features.length + comparisons.length + 1 + 5);
+  it('concatenates every twin: home, features, comparisons, pricing and the hand-kept pages', () => {
+    expect(documents).toHaveLength(1 + features.length + comparisons.length + 1 + HAND_KEPT_TWINS.length);
     for (const document of documents) expect(document.startsWith('# ')).toBe(true);
   });
 

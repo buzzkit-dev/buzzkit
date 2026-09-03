@@ -9,7 +9,7 @@ import {
   renderPricingMarkdown,
 } from '../markdown';
 
-const HAND_KEPT_TWINS = ['developers', 'about', 'contact', 'privacy', 'auth'];
+export const HAND_KEPT_TWINS = ['why-buzzkit', 'developers', 'about', 'contact', 'privacy', 'auth'];
 
 function readTwin(name: string): string {
   return readFileSync(resolve(process.cwd(), `public/${name}.md`), 'utf8');

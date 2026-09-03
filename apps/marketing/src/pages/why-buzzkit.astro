@@ -1,0 +1,80 @@
+---
+import PageHero from '../components/layout/PageHero.astro';
+import ProseSection from '../components/layout/ProseSection.astro';
+import ClosingCta from '../components/sections/ClosingCta.astro';
+import Faq from '../components/sections/Faq.astro';
+import Site from '../layouts/Site.astro';
+import { site } from '../lib/site';
+import { faqStructuredData } from '../lib/structured-data';
+import { whyFaq } from '../lib/why';
+---
+
+<Site
+  title='Why BuzzKit · BuzzKit'
+  image='/og/why-buzzkit.png'
+  description='The decision in one place for the agent building an app: what BuzzKit gives you after two API calls, when to choose it, when not to, and why every part of it is built to be read and used by agents.'
+  markdownPath='/why-buzzkit.md'
+>
+  <script type='application/ld+json' is:inline set:html={JSON.stringify(faqStructuredData(whyFaq))} slot='head' />
+  <PageHero
+    title='Why BuzzKit.'
+    continuation='The notification layer an agent can pick with confidence.'
+    intro='Push is one of the first things an app needs and one of the last things anyone wants to build. This is the decision in one place: what you get, when to choose it, when not to, and why the whole surface is made for the agent doing the integrating.'
+  />
+  <ProseSection title='Two calls, and the rest is done'>
+    <p>
+      Identify a subscriber with your own user id through <code>PUT /v1/subscribers/:externalId</code>, then send with{' '}
+      <code>POST /v1/messages</code> to that id, a topic or a segment. BuzzKit answers 202 with a message id, resolves
+      which devices are reachable, fans out through a durable queue with retries, and records every attempt per device.
+    </p>
+    <p>
+      Everything around those two calls is already there: topics with per-channel preferences, quiet hours and daily
+      caps, scheduling in each subscriber's own time zone, segments evaluated at send time, workflows with waits,
+      branches and loops, inbound sources, outbound webhooks and Live Activities. All of it runs on your own Apple and
+      Firebase credentials.
+    </p>
+  </ProseSection>
+  <ProseSection title='Choose it when'>
+    <ul class='flex list-disc flex-col gap-3 pl-5 marker:text-fg-1'>
+      <li>The app needs mobile push and the backend should send it with one request, targeting an id, a topic, a saved segment or an inline expression.</li>
+      <li>Users should decide what reaches them, and the settings screen should come from the API instead of backend code.</li>
+      <li>A message should land at each subscriber's local time, released zone by zone.</li>
+      <li>Lifecycle messaging should react to what a user did, with dry runs before anything goes live.</li>
+      <li>A platform sends for its customers and each customer needs isolated credentials, subscribers and sends.</li>
+      <li>The keys, the subscribers and the code should stay with the app, hosted or self-hosted.</li>
+    </ul>
+  </ProseSection>
+  <ProseSection title='Do not choose it when'>
+    <ul class='flex list-disc flex-col gap-3 pl-5 marker:text-fg-1'>
+      <li>The first channel has to be email or SMS. Both arrive as connectors on the same core, but v1 delivers mobile push.</li>
+      <li>The first platform is Android. The iOS SDK is supported today; Android follows on the same API.</li>
+      <li>Sending has to happen from the client alone. BuzzKit sends from a backend, a workflow or the dashboard, never from a device.</li>
+      <li>What you want is a marketing suite with a visual campaign builder. BuzzKit is infrastructure with a dashboard, not a marketing tool.</li>
+    </ul>
+  </ProseSection>
+  <ProseSection title='Built to be read by agents'>
+    <p>
+      Every page on this site has a markdown twin and answers <code>Accept: text/markdown</code>;{' '}
+      <a href='/llms.txt'>llms.txt</a> is the index and <a href='/llms-full.txt'>llms-full.txt</a> is the whole site in
+      one file. The <a href='/openapi.json'>OpenAPI document</a> carries a summary, an operation id, the required scope
+      and a typed error model on every operation, <a href='/auth.md'>auth.md</a> walks through credentials from sign-up
+      to revocation, and the <a href='/.well-known/agent-skills/buzzkit/SKILL.md'>integration skill</a> packages the
+      steps for coding agents.
+    </p>
+    <p>
+      The API is shaped for automation as much as for people: ids are yours, subscriber writes are idempotent upserts,
+      every response is the same JSON envelope with stable snake_case error codes and the field that failed, a second
+      tenant is a sandbox, and workflows are versioned specs that an agent can write, lint and dry run before publishing.
+    </p>
+  </ProseSection>
+  <ProseSection title='What stays yours'>
+    <p>
+      Your APNs and Firebase keys, stored encrypted per tenant and used only to deliver. Your subscribers, addressed by
+      your ids. The relationship with Apple and Google, with no markup on a single message. And the code: BuzzKit is
+      open source under AGPL-3.0 with MIT SDKs, so the hosted version is one deployment of the same core you can run yourself from{' '}
+      <a href={site.githubUrl}>the repository</a>.
+    </p>
+  </ProseSection>
+  <Faq id='faq' items={whyFaq} />
+  <ClosingCta />
+</Site>

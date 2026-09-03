@@ -1,5 +1,6 @@
 {
   "name": "buzzkit-monorepo",
+  "license": "AGPL-3.0-only",
   "private": true,
   "scripts": {
     "build": "turbo run build",

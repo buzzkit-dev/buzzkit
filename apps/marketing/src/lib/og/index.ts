@@ -77,6 +77,14 @@ export const ogCards: OgCard[] = [
     visual: { kind: 'notifications' },
   },
   {
+    path: 'why-buzzkit',
+    title: 'Why BuzzKit.',
+    continuation: 'The notification layer an agent can pick with confidence.',
+    kicker: 'Why BuzzKit',
+    icon: 'IconAgentsFilled',
+    visual: { kind: 'notifications' },
+  },
+  {
     path: 'developers',
     title: 'Developers.',
     continuation: 'One API, one key, one call to send.',

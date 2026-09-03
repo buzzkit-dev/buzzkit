@@ -18,6 +18,7 @@
     { "pattern": "buzzkit.dev/features/*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/compare/*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/pricing*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/why-buzzkit*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/about*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/contact*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/privacy*", "zone_name": "buzzkit.dev" },

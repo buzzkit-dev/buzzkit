@@ -39,7 +39,7 @@ The REST API lives under `/v1` at `https://api.buzzkit.dev`. Every response is a
 - Documentation, guides and the reference for every resource: https://docs.buzzkit.dev
 - OpenAPI document, every operation with its scope, request and response schemas: https://buzzkit.dev/openapi.json
 - API catalog, the RFC 9727 linkset that points at both: https://buzzkit.dev/.well-known/api-catalog
-- The repository, the API, the dashboard and the docs, MIT licensed: https://github.com/buzzkit-dev/buzzkit
+- The repository, the API, the dashboard and the docs under AGPL-3.0, the SDKs under MIT: https://github.com/buzzkit-dev/buzzkit
 
 ## SDKs
 

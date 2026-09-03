@@ -178,7 +178,7 @@ function describe(spec: Document): Document {
       description:
         'The BuzzKit REST API: subscribers, subscriptions, topics, events, segments, messages, workflows, sources and webhooks, all under /v1. Every response is a JSON envelope { success, data, error, metadata }; errors carry a lowercase snake_case code, a message and, when a field is at fault, its param.',
       contact: { name: 'BuzzKit', url: SITE_URL, email: 'hello@buzzkit.dev' },
-      license: { name: 'MIT', url: 'https://github.com/buzzkit-dev/buzzkit/blob/main/LICENSE' },
+      license: { name: 'AGPL-3.0', url: 'https://github.com/buzzkit-dev/buzzkit/blob/main/LICENSE' },
     },
     externalDocs: { description: 'BuzzKit documentation', url: 'https://docs.buzzkit.dev' },
     servers: [

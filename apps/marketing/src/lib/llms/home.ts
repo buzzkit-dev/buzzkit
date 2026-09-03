@@ -58,6 +58,7 @@ ${comparisons.map((comparison) => `- [BuzzKit vs ${comparison.competitor}](${sit
 - Features index: ${site.url}/features/llms.txt
 - Comparisons index: ${site.url}/compare/llms.txt
 - Homepage as markdown: ${site.url}/index.md
+- Why BuzzKit, the decision for agents: ${site.url}/why-buzzkit.md
 - Pricing: ${site.url}/pricing.md
 - About: ${site.url}/about.md
 - Contact: ${site.url}/contact.md

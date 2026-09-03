@@ -53,3 +53,7 @@ bun dev
 ## Docs
 
 Product and architecture documentation lives in [`docs/`](docs/README.md).
+
+## License
+
+The core (the API, the dashboard, the marketing site and the internal packages) is licensed under the [GNU AGPL-3.0](LICENSE). The SDKs customers embed are MIT: the [`buzzkit`](packages/buzzkit/LICENSE) server package and the [iOS SDK](https://github.com/buzzkit-dev/BuzzKit-iOS).
