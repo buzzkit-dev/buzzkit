@@ -174,11 +174,65 @@ function Stack({
   );
 }
 
+const SCATTER = [
+  { id: 'a', className: '-top-4 -left-28 rotate-[-6deg]', pool: 4 },
+  { id: 'b', className: 'top-2 -right-32 rotate-[5deg]', pool: 7 },
+  { id: 'c', className: 'bottom-4 -left-24 rotate-[4deg]', pool: 2 },
+  { id: 'd', className: '-right-28 bottom-0 rotate-[-5deg]', pool: 3 },
+] as const;
+
+function Scatter({ frozen }: { frozen: boolean }) {
+  const [slots, setSlots] = useState<Artifact[]>(() => SCATTER.map((slot) => POOL[slot.pool]!));
+  const stepRef = useRef(0);
+
+  useEffect(() => {
+    if (frozen) return;
+    const interval = setInterval(() => {
+      const index = stepRef.current % SCATTER.length;
+      stepRef.current += 1;
+      setSlots((current) => {
+        const shown = new Set(current.map((entry) => entry.id));
+        const candidates = POOL.filter((entry) => entry.kind === 'banner' && !shown.has(entry.id));
+        const candidate = candidates[Math.floor(Math.random() * candidates.length)];
+        if (!candidate) return current;
+        const next = [...current];
+        next[index] = candidate;
+        return next;
+      });
+    }, SWAP_INTERVAL);
+    return () => clearInterval(interval);
+  }, [frozen]);
+
+  return (
+    <div className='pointer-events-none absolute inset-0 lg:hidden' aria-hidden='true'>
+      {SCATTER.map((slot, index) => {
+        const artifact = slots[index]!;
+        return (
+          <div key={slot.id} className={`absolute scale-75 ${slot.className}`}>
+            <AnimatePresence mode='wait' initial={!frozen}>
+              <motion.div
+                key={artifact.id}
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 0.16, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.5, ease: 'easeOut', delay: index * 0.1 }}
+              >
+                <ArtifactCard artifact={artifact} />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function HeroStacks() {
   const reducedMotion = useReducedMotion();
   const used = useRef(new Set(POOL.slice(0, SLOTS * 2).map((entry) => entry.id)));
   return (
     <>
+      <Scatter frozen={reducedMotion === true} />
       <Stack side='left' used={used} frozen={reducedMotion === true} />
       <Stack side='right' used={used} frozen={reducedMotion === true} />
     </>

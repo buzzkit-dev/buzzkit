@@ -1,4 +1,5 @@
 import type { VignetteKind } from '../../lib/features';
+import { ScrollRow } from '../ui/ScrollRow';
 import { DeliveryLedger } from './DeliveryLedger';
 import { ActivityVignette } from './vignettes/Activity';
 import { IosVignette } from './vignettes/Ios';
@@ -18,24 +19,36 @@ function Centered({ children }: { children: React.ReactNode }) {
 
 const VIGNETTES: Record<VignetteKind, (code?: string) => React.ReactNode> = {
   workflow: () => <WorkflowShowcase />,
-  segment: () => <SegmentVignette />,
-  schedule: () => <ScheduleVignette />,
+  segment: () => (
+    <ScrollRow>
+      <SegmentVignette />
+    </ScrollRow>
+  ),
+  schedule: () => (
+    <ScrollRow>
+      <ScheduleVignette />
+    </ScrollRow>
+  ),
   preferences: () => (
     <Centered>
       <PreferencesVignette />
     </Centered>
   ),
   sources: () => (
-    <Centered>
+    <ScrollRow>
       <SourcesVignette />
-    </Centered>
+    </ScrollRow>
   ),
   activity: () => (
     <Centered>
       <ActivityVignette />
     </Centered>
   ),
-  delivery: () => <DeliveryLedger />,
+  delivery: () => (
+    <ScrollRow>
+      <DeliveryLedger />
+    </ScrollRow>
+  ),
   send: (code) => {
     if (!code) return null;
     return <SendVignette html={code} />;
@@ -44,7 +57,11 @@ const VIGNETTES: Record<VignetteKind, (code?: string) => React.ReactNode> = {
     if (!code) return null;
     return <IosVignette html={code} />;
   },
-  tenants: () => <TenantsVignette />,
+  tenants: () => (
+    <ScrollRow>
+      <TenantsVignette />
+    </ScrollRow>
+  ),
 };
 
 export function FeatureVignette({ kind, code }: { kind: VignetteKind; code?: string }) {

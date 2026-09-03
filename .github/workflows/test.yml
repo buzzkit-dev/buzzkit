@@ -70,6 +70,8 @@ jobs:
       - name: Write test secrets
         run: |
           cat > apps/api/.dev.vars <<VARS
+          ENVIRONMENT=development
+          TINYBIRD_URL=http://localhost:7181
           BETTER_AUTH_URL=http://localhost:8791/v1/auth
           BETTER_AUTH_SECRET=$(openssl rand -base64 32)
           CREDENTIAL_MASTER_KEY_V1=$(openssl rand -base64 32)

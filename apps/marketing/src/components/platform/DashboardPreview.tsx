@@ -57,7 +57,7 @@ function Sidebar({ active }: { active: string }) {
   const indicatorRef = useAnimatedIndicator(navRef, { press: false });
 
   return (
-    <aside className='flex w-56 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
+    <aside className='hidden w-56 shrink-0 flex-col gap-3 px-3 pt-3 pb-2 md:flex'>
       <span className='flex h-8 items-center gap-2 rounded-xl pr-2.5 pl-1.25 font-medium text-fg-4 text-sm'>
         <PastelAvatar seed='gymly' size={24} className='rounded-lg corner-superellipse/1.125' />
         Gymly

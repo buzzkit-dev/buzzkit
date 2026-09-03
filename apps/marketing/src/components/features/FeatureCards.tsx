@@ -1,5 +1,6 @@
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
+import { FitScale } from '../ui/FitScale';
 import { ActivityVignette } from './vignettes/Activity';
 import { PreferencesVignette } from './vignettes/Preferences';
 import { ScheduleVignette } from './vignettes/Schedule';
@@ -37,8 +38,10 @@ function Shell({
         <Icon name='IconArrowRight' className='size-4' />
       </a>
       {crop ? (
-        <div className='relative -mx-7 -mb-7 mt-5 h-72 overflow-hidden'>
-          <div className='absolute top-1 left-7 w-[440px]'>{children}</div>
+        <div className='relative -mx-7 -mb-7 mt-5 h-60 overflow-hidden md:h-72'>
+          <FitScale width={440} allowance={28} className='absolute top-1 right-7 left-7'>
+            {children}
+          </FitScale>
         </div>
       ) : (
         <div className='mt-6 flex flex-1 items-center justify-center'>{children}</div>

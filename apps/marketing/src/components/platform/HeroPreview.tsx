@@ -17,8 +17,8 @@ const items = SCREENS.map((screen) => ({
   value: screen.value,
   label: (
     <>
-      <Icon name={screen.icon} className='size-4' />
-      {screen.label}
+      <Icon name={screen.icon} className='size-4 max-sm:[.selection-inverse_&]:opacity-100' />
+      <span className='max-sm:hidden'>{screen.label}</span>
     </>
   ),
 }));
@@ -62,15 +62,20 @@ export function HeroPreview() {
 
   return (
     <div ref={rootRef} className='absolute inset-0'>
-      <div className='absolute inset-x-6 top-10 bottom-0 overflow-hidden rounded-t-2xl bg-background shadow-4 ring-1 ring-bg-3 lg:inset-x-14 lg:top-14'>
-        <DashboardPreview screen={screen} />
+      <div className='@container absolute inset-x-5 top-8 bottom-0 overflow-hidden rounded-t-2xl bg-background shadow-4 ring-1 ring-bg-3 md:inset-x-6 md:top-10 lg:inset-x-14 lg:top-14'>
+        <div
+          className='w-[var(--natural)] origin-top-left [--natural:640px] md:[--natural:1024px]'
+          style={{ transform: 'scale(min(1, tan(atan2(100cqw, var(--natural)))))' }}
+        >
+          <DashboardPreview screen={screen} />
+        </div>
       </div>
       <div className='absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-bg-1 p-1 shadow-4 ring-1 ring-bg-3'>
         <PillTabs
           items={items}
           value={screen}
           variant='primary'
-          itemClassName='h-8 gap-1.5 px-3.5 text-sm'
+          itemClassName='h-8 gap-1.5 px-3.5 text-sm max-sm:px-3'
           onValueChange={choose}
         />
       </div>
