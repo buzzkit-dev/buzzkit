@@ -98,6 +98,7 @@ function Stack({
   const [slots, setSlots] = useState<Artifact[]>(() => POOL.slice(offset, offset + SLOTS));
   const orderRef = useRef(side === 'left' ? [0, 1] : [1, 0]);
   const stepRef = useRef(0);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
     if (frozen) return;
@@ -130,6 +131,10 @@ function Stack({
     };
   }, [side, used, frozen]);
 
+  useEffect(() => {
+    mountedRef.current = true;
+  }, []);
+
   const anchor = side === 'left' ? 'right' : 'left';
 
   return (
@@ -144,15 +149,20 @@ function Stack({
     >
       {POSITIONS.map((position, index) => {
         const artifact = slots[index]!;
+        const firstPaint = !mountedRef.current;
         return (
           <div key={position.id} className='absolute' style={{ [anchor]: position.x, top: position.y }}>
-            <AnimatePresence mode='wait' initial={false}>
+            <AnimatePresence mode='wait' initial={!frozen}>
               <motion.div
                 key={artifact.id}
-                initial={{ opacity: 0, scale: 0.92, y: 10, rotate: position.rotate }}
+                initial={{ opacity: 0, scale: 0.85, y: 10, rotate: position.rotate }}
                 animate={{ opacity: 1, scale: 1, y: 0, rotate: position.rotate }}
-                exit={{ opacity: 0, scale: 0.92, y: -6 }}
-                transition={{ type: 'spring', duration: 0.5, bounce: 0 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{
+                  duration: firstPaint ? 0.4 : 0.5,
+                  ease: 'easeOut',
+                  delay: firstPaint ? (side === 'right' ? 0.06 : 0) + index * 0.12 : 0,
+                }}
               >
                 <ArtifactCard artifact={artifact} />
               </motion.div>
