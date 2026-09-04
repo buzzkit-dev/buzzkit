@@ -5,15 +5,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev --port 5181",
-    "build": "bun run openapi && astro build && bun scripts/emit-agent-index.ts",
+    "dev": "bun run flags && astro dev --port 5181",
+    "build": "bun run flags && bun run openapi && astro build && bun scripts/emit-agent-index.ts",
     "openapi": "bun run --cwd ../api openapi:emit",
     "preview": "astro preview --port 5181",
     "deploy": "bun run build && wrangler deploy",
     "check-types": "bun run cf-typegen && astro sync && tsc --noEmit",
     "cf-typegen": "wrangler types",
     "test": "bun run build && vitest run",
-    "test:only": "vitest run"
+    "test:only": "vitest run",
+    "flags": "bun scripts/sync-flags.ts"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.5",

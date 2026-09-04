@@ -3,3 +3,4 @@ dist/
 .wrangler/
 .playwright-mcp/
 worker-configuration.d.ts
+public/flags/

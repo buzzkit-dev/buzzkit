@@ -38,7 +38,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "An API key from the dashboard. The scopes listed on each operation are the `resource:action` grants a key needs (`messages:send`, `subscribers:read`, `topics:*`, `*`); `account:*` scopes and key management are session-only. Workspace keys (bk_ws_) reach every tenant and pick one with the buzzkit-tenant header; tenant keys (bk_tn_) are locked to one tenant; client keys (bk_pk_) ship inside an app and only work on /v1/client/*."
+        "description": "An API key from the dashboard. The scopes listed on each operation are the `resource:action` grants a key needs (`messages:send`, `subscribers:read`, `topics:*`, `*`); `account:*` scopes and key management are session-only. Workspace keys (bk_ws_) are what a backend uses: they resolve to the default tenant on their own, so an integration that does not use tenants sends no extra header, and add buzzkit-tenant only to address a different tenant. Tenant keys (bk_tn_) are locked to one tenant and need no header either; client keys (bk_pk_) ship inside an app and only work on /v1/client/*."
       }
     },
     "schemas": {
