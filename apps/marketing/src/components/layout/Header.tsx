@@ -51,7 +51,6 @@ export function AccountCta({
 
 function resolvePlainLinks(docsUrl: string): Link[] {
   return [
-    { label: 'Why BuzzKit', href: '/why-buzzkit' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Docs', href: docsUrl },
   ];

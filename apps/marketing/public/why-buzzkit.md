@@ -1,26 +1,51 @@
 ---
 title: Why BuzzKit
-description: The decision in one place for the agent building an app: what BuzzKit gives you after two API calls, when to choose it, when not to, and why every part of it is built to be read and used by agents.
+description: Everything a notification needs is already built: the SDK goes in once, your app sends events, and workflows do the rest on the platform instead of in your backend.
 canonical: https://buzzkit.dev/why-buzzkit
 last-updated: 2026-09-03
 ---
 
 # Why BuzzKit
 
-Push is one of the first things an app needs and one of the last things anyone wants to build. This is the decision in one place: what you get, when to choose it, when not to, and why the whole surface is made for the agent doing the integrating.
+The promise is that you stop building notification infrastructure. The SDK goes in once, your app and your backend send events, and everything after that happens on the platform: targeting, timing, preferences, retries and receipts.
 
-## Two calls, and the rest is done
+## The SDK goes in once
 
-Identify a subscriber with your own user id through `PUT /v1/subscribers/:externalId`, then send with `POST /v1/messages` to that id, a topic or a segment. BuzzKit answers 202 with a message id, resolves which devices are reachable, fans out through a durable queue with retries, and records every attempt per device.
+Five lines at launch is the whole client integration. Configure with the client key, say who the device belongs to, register for push, and track what people do. There is no token upload endpoint to write, no refresh handling, no permission bookkeeping, no payload parsing.
 
-Everything around those two calls is already there: topics with per-channel preferences, quiet hours and daily caps, scheduling in each subscriber's own time zone, segments evaluated at send time, workflows with waits, branches and loops, inbound sources, outbound webhooks and Live Activities. All of it runs on your own Apple and Firebase credentials.
+```swift
+BuzzKit.configure(apiKey: "bk_pk_live_…")
+BuzzKit.identify("user_42")
+try await BuzzKit.registerForPush()
+BuzzKit.track("workout.completed")
+```
+
+From then on the device is a subscriber you address by your own user id, across every device it owns, and the SDK keeps tokens, locale, time zone and notification permission current on its own.
+
+## Then you only send events
+
+BuzzKit is event based end to end. Your app tracks what a user did, your backend posts the events it owns, and inbound sources bring in what happens in Stripe, RevenueCat or Superwall. That is the entire integration surface: facts about your users, in one stream per subscriber, in order.
+
+Sending a message directly is still one call to `POST /v1/messages`, addressed to an id, a topic, a saved segment or an inline expression. Most notifications should not be a call from your code at all.
+
+## Workflows instead of backend code
+
+A workflow starts on an event and does the waiting, the branching, the looping and the sending. Wait three days, wait for a follow-up event with a timeout, branch on an attribute, exit when the user converted, send, wait again. The trial reminder, the abandoned checkout nudge, the win-back, the streak: all of them are a workflow, not a cron job, a queue and a table in your database.
+
+They are versioned specs with a linter and a dry run, so a change is checked and rehearsed before it can reach anyone, and every run is recorded step by step. Nothing about them lives in your codebase, which means nothing about them needs a deploy.
+
+## Everything notification-related is in the box
+
+The pieces every app ends up building are already there: topics with per-channel preferences and a settings screen you render from the API, quiet hours and daily caps, per-subscriber time zone scheduling, segments evaluated at send time, local notifications scheduled on device from the same rules, action buttons, Live Activities, rich payloads, outbound webhooks, and a delivery ledger with every attempt and provider response per device.
+
+All of it is multi-tenant from the first row, so one workspace or ten thousand is the same code, and all of it runs on your own Apple and Firebase credentials.
 
 ## Choose it when
 
-- The app needs mobile push and the backend should send it with one request, targeting an id, a topic, a saved segment or an inline expression.
+- You want notifications shipped this afternoon and not a service to maintain.
+- Lifecycle messaging should react to what a user did, without a scheduler or a job table in your backend.
 - Users should decide what reaches them, and the settings screen should come from the API instead of backend code.
 - A message should land at each subscriber's local time, released zone by zone.
-- Lifecycle messaging should react to what a user did, with dry runs before anything goes live.
 - A platform sends for its customers and each customer needs isolated credentials, subscribers and sends.
 - The keys, the subscribers and the code should stay with the app, hosted or self-hosted.
 
@@ -42,6 +67,14 @@ The API is shaped for automation as much as for people: ids are yours, subscribe
 Your APNs and Firebase keys, stored encrypted per tenant and used only to deliver. Your subscribers, addressed by your ids. The relationship with Apple and Google, with no markup on a single message. And the code: BuzzKit is open source under AGPL-3.0 with MIT SDKs, so the hosted version is one deployment of the same core you can run yourself from https://github.com/buzzkit-dev/buzzkit.
 
 ## Questions
+
+### How much do I have to build myself?
+
+The SDK at launch and the events you already know about. Configure, identify, register for push and track: after that the token lifecycle, targeting, scheduling, preferences, retries and the delivery record are the platform's job, not code in your app or your backend.
+
+### Do I need server code for lifecycle notifications?
+
+No. A workflow starts on an event and holds the waits, branches, loops and sends, so the trial reminder or the win-back is a versioned spec you publish instead of a cron job, a queue and a table in your database. Your backend only reports what happened.
 
 ### What does an agent need before the first send?
 

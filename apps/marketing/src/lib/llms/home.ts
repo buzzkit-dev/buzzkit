@@ -65,7 +65,7 @@ Every page below also answers as markdown at the same URL with .md appended.
 - Features index: ${site.url}/features/llms.txt
 - Comparisons index: ${site.url}/compare/llms.txt
 - Homepage as markdown: ${site.url}/index.md
-- Why BuzzKit, the decision for agents: ${site.url}/why-buzzkit.md
+- Why BuzzKit, the promise and what is built in: ${site.url}/why-buzzkit.md
 - Pricing: ${site.url}/pricing.md
 - About: ${site.url}/about.md
 - Contact: ${site.url}/contact.md

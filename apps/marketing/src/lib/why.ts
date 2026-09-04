@@ -2,6 +2,16 @@ import type { FaqItem } from './content';
 
 export const whyFaq: FaqItem[] = [
   {
+    question: 'How much do I have to build myself?',
+    answer:
+      'The SDK at launch and the events you already know about. Configure, identify, register for push and track: after that the token lifecycle, targeting, scheduling, preferences, retries and the delivery record are the platform’s job, not code in your app or your backend.',
+  },
+  {
+    question: 'Do I need server code for lifecycle notifications?',
+    answer:
+      'No. A workflow starts on an event and holds the waits, branches, loops and sends, so the trial reminder or the win-back is a versioned spec you publish instead of a cron job, a queue and a table in your database. Your backend only reports what happened.',
+  },
+  {
     question: 'What does an agent need before the first send?',
     answer:
       'An account, the APNs key of the app uploaded to its tenant, and a workspace API key from the dashboard. After that it is one PUT to create the subscriber and one POST to send; the OpenAPI document lists every operation with the scope it needs.',

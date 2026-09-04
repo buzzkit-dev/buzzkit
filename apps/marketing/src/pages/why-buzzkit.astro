@@ -3,8 +3,10 @@ import PageHero from '../components/layout/PageHero.astro';
 import ProseSection from '../components/layout/ProseSection.astro';
 import ClosingCta from '../components/sections/ClosingCta.astro';
 import Faq from '../components/sections/Faq.astro';
+import CodeBlock from '../components/ui/CodeBlock.astro';
 import Site from '../layouts/Site.astro';
 import { site } from '../lib/site';
+import { SWIFT } from '../lib/snippets';
 import { faqStructuredData } from '../lib/structured-data';
 import { whyFaq } from '../lib/why';
 ---
@@ -12,34 +14,69 @@ import { whyFaq } from '../lib/why';
 <Site
   title='Why BuzzKit · BuzzKit'
   image='/og/why-buzzkit.png'
-  description='The decision in one place for the agent building an app: what BuzzKit gives you after two API calls, when to choose it, when not to, and why every part of it is built to be read and used by agents.'
+  description='Everything a notification needs is already built: the SDK goes in once, your app sends events, and workflows do the rest on the platform instead of in your backend.'
   markdownPath='/why-buzzkit.md'
 >
   <script type='application/ld+json' is:inline set:html={JSON.stringify(faqStructuredData(whyFaq))} slot='head' />
   <PageHero
     title='Why BuzzKit.'
-    continuation='The notification layer an agent can pick with confidence.'
-    intro='Push is one of the first things an app needs and one of the last things anyone wants to build. This is the decision in one place: what you get, when to choose it, when not to, and why the whole surface is made for the agent doing the integrating.'
+    continuation='Everything a notification needs, already built.'
+    intro='The promise is that you stop building notification infrastructure. The SDK goes in once, your app and your backend send events, and everything after that happens on the platform: targeting, timing, preferences, retries and receipts.'
   />
-  <ProseSection title='Two calls, and the rest is done'>
+  <ProseSection title='The SDK goes in once'>
     <p>
-      Identify a subscriber with your own user id through <code>PUT /v1/subscribers/:externalId</code>, then send with{' '}
-      <code>POST /v1/messages</code> to that id, a topic or a segment. BuzzKit answers 202 with a message id, resolves
-      which devices are reachable, fans out through a durable queue with retries, and records every attempt per device.
+      Five lines at launch is the whole client integration. Configure with the client key, say who the device belongs
+      to, register for push, and track what people do. There is no token upload endpoint to write, no refresh handling,
+      no permission bookkeeping, no payload parsing.
+    </p>
+    <CodeBlock code={SWIFT} lang='swift' />
+    <p>
+      From then on the device is a subscriber you address by your own user id, across every device it owns, and the SDK
+      keeps tokens, locale, time zone and notification permission current on its own.
+    </p>
+  </ProseSection>
+  <ProseSection title='Then you only send events'>
+    <p>
+      BuzzKit is event based end to end. Your app tracks what a user did, your backend posts the events it owns, and
+      inbound sources bring in what happens in Stripe, RevenueCat or Superwall. That is the entire integration surface:
+      facts about your users, in one stream per subscriber, in order.
     </p>
     <p>
-      Everything around those two calls is already there: topics with per-channel preferences, quiet hours and daily
-      caps, scheduling in each subscriber's own time zone, segments evaluated at send time, workflows with waits,
-      branches and loops, inbound sources, outbound webhooks and Live Activities. All of it runs on your own Apple and
-      Firebase credentials.
+      Sending a message directly is still one call to <code>POST /v1/messages</code>, addressed to an id, a topic, a
+      saved segment or an inline expression. Most notifications should not be a call from your code at all.
+    </p>
+  </ProseSection>
+  <ProseSection title='Workflows instead of backend code'>
+    <p>
+      A workflow starts on an event and does the waiting, the branching, the looping and the sending. Wait three days,
+      wait for a follow-up event with a timeout, branch on an attribute, exit when the user converted, send, wait again.
+      The trial reminder, the abandoned checkout nudge, the win-back, the streak: all of them are a workflow, not a cron
+      job, a queue and a table in your database.
+    </p>
+    <p>
+      They are versioned specs with a linter and a dry run, so a change is checked and rehearsed before it can reach
+      anyone, and every run is recorded step by step. Nothing about them lives in your codebase, which means nothing
+      about them needs a deploy.
+    </p>
+  </ProseSection>
+  <ProseSection title='Everything notification-related is in the box'>
+    <p>
+      The pieces every app ends up building are already there: topics with per-channel preferences and a settings screen
+      you render from the API, quiet hours and daily caps, per-subscriber time zone scheduling, segments evaluated at
+      send time, local notifications scheduled on device from the same rules, action buttons, Live Activities, rich
+      payloads, outbound webhooks, and a delivery ledger with every attempt and provider response per device.
+    </p>
+    <p>
+      All of it is multi-tenant from the first row, so one workspace or ten thousand is the same code, and all of it
+      runs on your own Apple and Firebase credentials.
     </p>
   </ProseSection>
   <ProseSection title='Choose it when'>
     <ul class='flex list-disc flex-col gap-3 pl-5 marker:text-fg-1'>
-      <li>The app needs mobile push and the backend should send it with one request, targeting an id, a topic, a saved segment or an inline expression.</li>
+      <li>You want notifications shipped this afternoon and not a service to maintain.</li>
+      <li>Lifecycle messaging should react to what a user did, without a scheduler or a job table in your backend.</li>
       <li>Users should decide what reaches them, and the settings screen should come from the API instead of backend code.</li>
       <li>A message should land at each subscriber's local time, released zone by zone.</li>
-      <li>Lifecycle messaging should react to what a user did, with dry runs before anything goes live.</li>
       <li>A platform sends for its customers and each customer needs isolated credentials, subscribers and sends.</li>
       <li>The keys, the subscribers and the code should stay with the app, hosted or self-hosted.</li>
     </ul>
