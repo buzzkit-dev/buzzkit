@@ -151,6 +151,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { data } from 'react-router';
+import { cloudflareContext } from '@/app/cloudflare';
 import { OAuthProviders } from '@/app/components/auth/providers';
 import { Sidebar } from '@/app/components/layout/sidebar';
 import { useTheme } from '@/app/components/layout/theme-provider';
@@ -158,6 +160,7 @@ import { ChoiceRow, ChoiceRows } from '@/app/components/onboarding/choice-row';
 import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop';
 import { apnsGuide } from '@/app/components/onboarding/guides/apns';
 import { OnboardingProgress } from '@/app/components/onboarding/progress';
+import type { Route } from './+types/index';
 
 const SECTIONS = [
   { id: 'colors', label: 'Colors' },
@@ -667,6 +670,12 @@ function ModeToggle() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+export function loader({ context }: Route.LoaderArgs) {
+  const { env } = context.get(cloudflareContext);
+  if (env.ENVIRONMENT !== 'development') throw data(null, { status: 404 });
+  return null;
 }
 
 export default function DesignSystem() {

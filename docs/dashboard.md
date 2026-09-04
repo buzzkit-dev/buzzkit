@@ -79,7 +79,7 @@ Workspaces live at the dashboard root, `/:slug`, which is why every top-level da
 | `/:slug/settings/channels` | Channels: the default tenant's providers per channel, connect / validate / replace / remove |
 | `/:slug/settings/members` | Members and pending invites: roles, remove, invite by email, resend, revoke |
 | `/:slug/settings/tenants` | Tenants: create, edit name and slug, delete |
-| `/ui`, `/design.md` | Design-system preview and the design doc (public) |
+| `/ui`, `/design.md` | Design-system preview and the design doc (development only; both 404 when `ENVIRONMENT` is not `development`) |
 
 ### Redirect matrix
 

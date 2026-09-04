@@ -1,6 +1,6 @@
 # @buzzkit/web — the dashboard
 
-Vite + React Router 8 SSR on Cloudflare Workers (`@cloudflare/vite-plugin`), deliberately not Next.js. Dev port **5180**, talks to the API on 8790. `docs/dashboard.md` is the route map, auth architecture, onboarding spec and phase plan; `docs/design.md` is the source of truth for everything visual (served at `/design.md`, previewed at `/ui`).
+Vite + React Router 8 SSR on Cloudflare Workers (`@cloudflare/vite-plugin`), deliberately not Next.js. Dev port **5180**, talks to the API on 8790. `docs/dashboard.md` is the route map, auth architecture, onboarding spec and phase plan; `docs/design.md` is the source of truth for everything visual (served at `/design.md`, previewed at `/ui`; both routes are development only and 404 in every other environment).
 
 ## Structure
 
