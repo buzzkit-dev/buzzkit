@@ -16,7 +16,7 @@ import { describeRunEvent } from '@/app/components/workflows/describe';
 import { type RunPath, WorkflowFlow } from '@/app/components/workflows/flow';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
-import { getRun, getWorkflow, type RunEvent } from '@/app/lib/api.server';
+import { getRun, getWorkflow, type RunEvent, requireFound } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
@@ -31,7 +31,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const ctx = { request, env };
   return {
     detail: (async () => {
-      const run = await getRun(ctx, token, params.slug, tenant, params.runId);
+      const run = await requireFound(getRun(ctx, token, params.slug, tenant, params.runId));
       const workflow = await getWorkflow(ctx, token, params.slug, tenant, run.workflow).catch(() => null);
       const version = workflow?.versions?.find((entry) => entry.id === run.versionId) ?? null;
       const live = workflow?.current ?? null;

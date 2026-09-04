@@ -1,9 +1,19 @@
 import { createVersionedClient, type VersionedApiClient } from '@buzzkit/eden';
 import type { TriggerSource, WorkflowSpec } from '@buzzkit/schema/workflows';
 import type { Expression } from 'buzzkit/expressions';
+import { data } from 'react-router';
 import { signedOutRedirect } from '@/app/lib/session.server';
 
 export type RequestContext = { request: Request; env: Env };
+
+export async function requireFound<T>(work: Promise<T>): Promise<T> {
+  try {
+    return await work;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw data(null, { status: 404 });
+    throw error;
+  }
+}
 
 export class ApiError extends Error {
   readonly status: number;

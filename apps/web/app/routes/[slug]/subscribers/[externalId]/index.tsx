@@ -71,6 +71,7 @@ import {
   listSubscriberDeliveries,
   listSubscriberRuns,
   listSubscriberTimeline,
+  requireFound,
   type SubscriberDelivery,
   type SubscriberPreference,
   type SubscriberRun,
@@ -141,7 +142,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     activityFiltered: Boolean(eventFilter || sourceValue),
     detail: (async () => {
       const [subscriber, preferences, deliveries, events, runs, names] = await Promise.all([
-        getSubscriber(ctx, token, params.slug, tenant, params.externalId),
+        requireFound(getSubscriber(ctx, token, params.slug, tenant, params.externalId)),
         getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
         listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
         listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, {

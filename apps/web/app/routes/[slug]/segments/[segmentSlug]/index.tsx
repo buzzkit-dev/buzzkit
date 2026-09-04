@@ -5,7 +5,7 @@ import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
 import { SegmentEditor } from '@/app/components/segments/editor';
 import { segmentsAction } from '@/app/lib/actions/segments.server';
-import { getSegment, listEventNames, listTopics, previewSegment } from '@/app/lib/api.server';
+import { getSegment, listEventNames, listTopics, previewSegment, requireFound } from '@/app/lib/api.server';
 import type { Channel } from '@/app/lib/channels';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
@@ -22,7 +22,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const ctx = { request, env };
   return {
     detail: (async () => {
-      const segment = await getSegment(ctx, token, params.slug, tenant, params.segmentSlug);
+      const segment = await requireFound(getSegment(ctx, token, params.slug, tenant, params.segmentSlug));
       const [preview, names, topics] = await Promise.all([
         segment.version ? previewSegment(ctx, token, params.slug, tenant, segment.version.expression) : null,
         listEventNames(ctx, token, params.slug, tenant),

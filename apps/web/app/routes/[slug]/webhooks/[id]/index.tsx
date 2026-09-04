@@ -56,6 +56,7 @@ import {
   getWebhookDelivery,
   listTenants,
   listWebhookDeliveries,
+  requireFound,
   type WebhookCatalog,
   type WebhookDelivery,
   type WebhookDeliveryDetail,
@@ -111,7 +112,7 @@ export function loader({ request, context, params }: Route.LoaderArgs) {
     filter: status ?? 'all',
     detail: (async () => {
       const [endpoint, page, tenants, catalog, expanded] = await Promise.all([
-        getWebhook(ctx, token, params.slug, params.id),
+        requireFound(getWebhook(ctx, token, params.slug, params.id)),
         listWebhookDeliveries(ctx, token, params.slug, params.id, {
           ...readPage(request),
           ...(status && status !== 'all' ? { status } : {}),

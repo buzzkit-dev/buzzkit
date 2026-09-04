@@ -53,6 +53,7 @@ import {
   getWorkflowSchedule,
   listWorkflowRuns,
   type RunStatus,
+  requireFound,
   type WorkflowDetail,
   type WorkflowRun,
   type WorkflowSchedule,
@@ -125,7 +126,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   return {
     runStatus,
     detail: (async () => {
-      const workflow = await getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug);
+      const workflow = await requireFound(getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug));
       const scheduled = 'schedule' in workflow.spec.trigger;
       const tab = requested === 'schedule' && !scheduled ? 'steps' : requested;
       const [runs, schedule] = await Promise.all([

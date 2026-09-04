@@ -63,6 +63,7 @@ import {
   listDeliveryAttempts,
   listMessageDeliveries,
   type MessageDelivery,
+  requireFound,
 } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
@@ -115,7 +116,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     deliveryId,
     detail: (async () => {
       const [message, deliveries, attempts] = await Promise.all([
-        getMessage(ctx, token, params.slug, tenant, params.id),
+        requireFound(getMessage(ctx, token, params.slug, tenant, params.id)),
         listMessageDeliveries(ctx, token, params.slug, tenant, params.id, { ...readPage(request), status }),
         deliveryId
           ? listDeliveryAttempts(ctx, token, params.slug, tenant, deliveryId)

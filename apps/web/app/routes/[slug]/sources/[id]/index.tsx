@@ -82,7 +82,13 @@ import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { sourcesAction } from '@/app/lib/actions/sources.server';
-import { getSource, listSourceDeliveries, type Source, type SourceDelivery } from '@/app/lib/api.server';
+import {
+  getSource,
+  listSourceDeliveries,
+  requireFound,
+  type Source,
+  type SourceDelivery,
+} from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { lineOf, parseJson } from '@/app/lib/utils/json';
 import { paginate, readPage } from '@/app/lib/utils/pagination';
@@ -162,7 +168,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     outcomeFilter: outcome ?? 'all',
     detail: (async () => {
       const [source, page] = await Promise.all([
-        getSource(ctx, token, params.slug, tenant, params.id),
+        requireFound(getSource(ctx, token, params.slug, tenant, params.id)),
         listSourceDeliveries(ctx, token, params.slug, tenant, params.id, {
           ...readPage(request),
           ...(outcome ? { outcome } : {}),
