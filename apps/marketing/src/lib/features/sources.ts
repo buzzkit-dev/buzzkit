@@ -6,17 +6,17 @@ export const sources: FeaturePage = {
   icon: 'IconMailboxFilled',
   group: 'Automate',
   summary:
-    'Inbound webhooks from Stripe, Superwall, RevenueCat or anything custom, turned into subscriber events.',
+    'Stripe, Superwall, RevenueCat or any webhook, turned into subscriber events with no code on your side.',
   blurb: 'Webhooks turned into events',
   title: 'Every webhook becomes an event.',
   continuation: 'Verified, mapped, deduplicated.',
   intro:
-    'A source is an inbound webhook endpoint of a tenant. Stripe posts customer.subscription.created, the source verifies the signature, finds the subscriber and records subscription.started on their timeline, with no code on your side.',
+    'A source turns the webhooks you already receive into events on a subscriber’s timeline. Stripe says a subscription started, the source verifies the signature, finds the customer and records it, and a workflow or a segment reacts. No endpoint to write, no code to deploy.',
   vignette: 'sources',
   sections: [
     {
       title: 'A provider is a template',
-      text: 'Stripe, Superwall, RevenueCat and custom each fill in a verification scheme and a default mapping, both editable afterwards. Without a secret the source stays unverified and records deliveries without creating events.',
+      text: 'Pick Stripe, Superwall, RevenueCat or custom, paste the signing secret, and the verification and the default mapping are filled in for you. Everything stays editable, and a source without a secret records what arrives without creating events.',
       code: `POST /v1/sources
 {
   "name": "Stripe billing",
@@ -26,7 +26,7 @@ export const sources: FeaturePage = {
     },
     {
       title: 'The mapping decides what lands on the timeline',
-      text: 'A mapping names the paths to the provider’s event type, id and timestamp, and how to find the subscriber: your external id, or a payload value matched against an attribute. Provider types map to event names, picked paths become event data, and a where clause filters what gets through.',
+      text: 'Choose which provider events become which subscriber events, which values travel along as event data, and how the subscriber is found: by your external id or by any attribute such as a Stripe customer id. A where clause keeps test mode out of production.',
       code: `{
   "type": "type",
   "id": "id",
@@ -45,7 +45,7 @@ export const sources: FeaturePage = {
     },
     {
       title: 'Every delivery has one outcome',
-      text: 'Each request to the ingest URL is recorded as rejected, dropped with a reason, duplicate, or event with the name and subscriber it landed on. Preview a stored payload against a mapping before you change it.',
+      text: 'Nothing that hits the ingest URL goes unexplained. Each delivery is recorded as an event with the subscriber it landed on, a duplicate, dropped with a reason, or rejected, and you can replay a stored payload against a new mapping before you change it.',
       code: `GET /v1/sources/src_2f9/deliveries
 {
   "data": [
@@ -67,12 +67,15 @@ export const sources: FeaturePage = {
   capabilities: [
     {
       title: 'Stripe, Superwall, RevenueCat',
-      text: 'Presets for the billing and paywall tools apps already run on.',
+      text: 'Presets for the billing and paywall tools apps already run on, ready in a minute.',
     },
-    { title: 'Custom sources', text: 'Any service that posts JSON with a shared secret.' },
+    {
+      title: 'Custom sources',
+      text: 'Any service that posts JSON with a shared secret becomes a source.',
+    },
     {
       title: 'Subscriber lookup',
-      text: 'Match by your external id or any stored attribute.',
+      text: 'Match by your external id or by any stored attribute.',
     },
     {
       title: 'Secrets sealed at rest',
@@ -80,11 +83,11 @@ export const sources: FeaturePage = {
     },
     {
       title: 'Pause without losing anything',
-      text: 'A paused source keeps recording and drops every delivery.',
+      text: 'A paused source keeps a record of every delivery and creates no events until you resume.',
     },
     {
       title: 'Audit and webhooks',
-      text: 'Every change to a source is an audit entry and a webhook event.',
+      text: 'Every change to a source is an audit entry and an outbound webhook.',
     },
   ],
   faq: [

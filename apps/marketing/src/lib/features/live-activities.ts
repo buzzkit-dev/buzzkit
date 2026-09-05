@@ -5,17 +5,17 @@ export const liveActivities: FeaturePage = {
   name: 'Live Activities',
   icon: 'IconLiveFullFilled',
   group: 'Send',
-  summary: 'Start, update and end iOS Live Activities through the same API that sends your push.',
+  summary: 'Start, update and end iOS Live Activities from the same API that sends your push.',
   blurb: 'Start, update and end from the API',
   title: 'Live Activities on the lock screen.',
   continuation: 'Start, update, end.',
   intro:
-    'A Live Activity keeps a delivery, a ride or a match score on the lock screen and in the Dynamic Island. The SDK registers the tokens, and your backend drives every state change through one endpoint with the same credentials as your push.',
+    'A Live Activity keeps a delivery, a ride or a match score on the lock screen and in the Dynamic Island. The SDK registers the tokens, and your backend drives every state change through one endpoint, addressed to a subscriber, with the same credentials as your push.',
   vignette: 'activity',
   sections: [
     {
       title: 'One endpoint for the whole lifecycle',
-      text: 'Send a start event with the attributes and the first content state, an update event as it progresses, and an end event when it is over. Each call reports the APNs outcome per token.',
+      text: 'Start it, update it as things move, end it when they are done. Every call names a subscriber and an activity, carries the new state and an optional alert, and reports what Apple answered for each token.',
       code: `POST /v1/live-activities/send
 {
   "to": "user_42",
@@ -30,7 +30,7 @@ export const liveActivities: FeaturePage = {
     },
     {
       title: 'Tokens handled by the SDK',
-      text: 'Activity tokens change, and push-to-start tokens arrive before any activity exists. The SDK registers both against the subscriber and refreshes them on every update, so your backend only addresses a subscriber and an activity id.',
+      text: 'Activity tokens rotate and push-to-start tokens arrive before an activity exists. The SDK registers and refreshes both against the subscriber, so your backend never sees a token, only a person and an activity id.',
       code: `POST /v1/client/live-activities
 {
   "externalId": "user_42",
@@ -42,7 +42,7 @@ export const liveActivities: FeaturePage = {
     },
     {
       title: 'Ended activities and the event stream',
-      text: 'When the app or the user ends an activity, the SDK marks it ended and the timeline records it, alongside started, dismissed and stale events. A segment or workflow reacts to them like any other event.',
+      text: 'Started, ended, dismissed and stale all land on the subscriber’s timeline, so a segment or a workflow can react to a Live Activity the same way it reacts to any other event.',
       code: `POST /v1/live-activities/send
 {
   "to": "user_42",
@@ -59,28 +59,34 @@ export const liveActivities: FeaturePage = {
   capabilities: [
     {
       title: 'Start from the server',
-      text: 'Open an activity on a device with a push-to-start token.',
+      text: 'Open an activity on the lock screen before the app is even opened, with a push-to-start token.',
     },
-    { title: 'Per-token outcomes', text: 'Each send reports what APNs answered per token.' },
+    {
+      title: 'Per-token outcomes',
+      text: 'Each send reports what Apple answered for every token.',
+    },
     {
       title: 'Attributes and content state',
-      text: 'ActivityKit attributes and dynamic state as plain JSON.',
+      text: 'ActivityKit attributes and dynamic state travel as plain JSON.',
     },
-    { title: 'Alerts on update', text: 'Attach an alert so an update also notifies.' },
+    {
+      title: 'Alerts on update',
+      text: 'Attach an alert and an update also notifies.',
+    },
     {
       title: 'Sandbox and production',
-      text: 'The environment picks the APNs credential, like any push.',
+      text: 'The environment picks the right Apple credential, like any push.',
     },
     {
       title: 'Ledger like everything else',
-      text: 'The same delivery span and error taxonomy as push.',
+      text: 'Every attempt is recorded with the same detail as a push.',
     },
   ],
   faq: [
     {
       question: 'How do I update a Live Activity from my backend?',
       answer:
-        'Post to /v1/live-activities/send with the subscriber id, the activity id, event update and the new content state. BuzzKit finds the token and reports what APNs answered.',
+        'Post to /v1/live-activities/send with the subscriber id, the activity id, event update and the new content state. BuzzKit finds the token and reports what Apple answered.',
     },
     {
       question: 'Can I start a Live Activity without the user opening the app?',

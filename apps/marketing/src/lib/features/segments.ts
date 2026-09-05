@@ -5,17 +5,18 @@ export const segments: FeaturePage = {
   name: 'Segments',
   icon: 'IconTargetFilled',
   group: 'Automate',
-  summary: 'Saved expressions over attributes and events, evaluated fresh at send time.',
+  summary:
+    'Audiences described by who a subscriber is and what they did, evaluated live the moment you send.',
   blurb: 'Expressions evaluated at send time',
   title: 'Who they are and what they did.',
   continuation: 'Evaluated the moment you send.',
   intro:
-    'A segment is a saved, versioned expression: attributes, events and how often, last activity on a device, and which channels can reach them. It is never stored as a member list, so every send reads the audience as it is right now.',
+    'A segment describes an audience: attributes, events and how often, last activity, which channels can reach them. It is never a frozen list. Every send reads the audience as it stands right now, so nobody who churned yesterday gets today’s message.',
   vignette: 'segment',
   sections: [
     {
       title: 'One grammar for every condition',
-      text: 'Conditions nest in all, any and not groups. Attributes compare with equals, not equals, greater and less than, in, contains and exists; events count inside a window or never happened; activity and channel cover the rest.',
+      text: 'Combine conditions in all, any and not groups. Compare attributes, count events inside a window or require that one never happened, and filter on last activity and reachable channels. One grammar answers the whole audience question.',
       code: `{
   "all": [
     { "ref": "attributes.plan", "eq": "pro" },
@@ -31,7 +32,7 @@ export const segments: FeaturePage = {
     },
     {
       title: 'Preview before you save',
-      text: 'The preview endpoint answers with how many subscribers match right now and the first twenty of them, without saving anything. The dashboard builder calls it as you type.',
+      text: 'See the audience before you commit to it. The preview answers with how many subscribers match right now and a sample of who they are, and the dashboard builder updates the count as you type.',
       code: `POST /v1/segments/preview
 {
   "expression": {
@@ -45,7 +46,7 @@ export const segments: FeaturePage = {
     },
     {
       title: 'Versioned, and pinned on send',
-      text: 'Changing an expression creates a new version, and a message pins the version it used. An edit never changes who an in-flight message reaches, and every message explains its audience.',
+      text: 'Editing a segment creates a new version, and every message remembers which one it used. An edit never changes who an in-flight message reaches, and you can always explain why someone was in the audience.',
       code: `POST /v1/messages
 {
   "segment": "active-pro",
@@ -67,27 +68,27 @@ export const segments: FeaturePage = {
   capabilities: [
     {
       title: 'Event windows',
-      text: 'Count an event within minutes, hours or days, or its absence.',
+      text: 'Count an event in the last minutes, hours or days, or target the people who never did it.',
     },
     {
       title: 'System attributes',
-      text: 'Country, timezone, language, app version and push permission, set from the device.',
+      text: 'Country, timezone, language, app version and push permission arrive from the device with no work on your side.',
     },
     {
       title: 'Fresh within seconds',
-      text: 'One query over the event stream, as fresh as the last event.',
+      text: 'Membership is one query over the event stream, as current as the last event that came in.',
     },
     {
       title: 'Inline on a send',
-      text: 'Write the expression on the message for a one-off audience.',
+      text: 'Write the expression on the message itself for a one-off audience.',
     },
     {
       title: 'Shared with workflows',
-      text: 'Triggers, branches and schedules read the same grammar.',
+      text: 'Triggers, branches and schedules speak the same grammar, so an audience is defined once.',
     },
     {
       title: 'Typed in the SDK',
-      text: 'Types and lint ship in the buzzkit package, before the request.',
+      text: 'Types and lint ship in the buzzkit package, so a broken expression fails on your machine and not in production.',
     },
   ],
   faq: [

@@ -5,17 +5,18 @@ export const workflows: FeaturePage = {
   name: 'Workflows',
   icon: 'IconAgentsFilled',
   group: 'Automate',
-  summary: 'Event-triggered automation with waits, branches and sends, run per subscriber.',
+  summary:
+    'Lifecycle messaging that reacts to what people do: trigger on an event, wait, branch and send, per subscriber.',
   blurb: 'Event-triggered steps per subscriber',
   title: 'Automation that reads like a spec.',
   continuation: 'Trigger on an event, wait, branch, send.',
   intro:
-    'A workflow is a versioned document: a trigger, optional conditions and steps that run for one subscriber at a time. Write it in the dashboard or send it to the API, dry-run it, then publish.',
+    'A workflow turns an event into a sequence: the trial reminder, the win-back, the streak nudge. Write it once as a versioned document, rehearse it against a real subscriber, publish it, and it runs for every person who trips the trigger, with nothing to deploy in your backend.',
   vignette: 'workflow',
   sections: [
     {
       title: 'A workflow is a document',
-      text: 'A trigger, optional conditions and steps, written as JSON and versioned like code. Publish a version and it keeps running while you draft the next one. The dashboard draws the same document as a flow.',
+      text: 'A trigger, optional conditions and steps, written as JSON and versioned like code. Publish a version and it keeps running while you draft the next one, and the dashboard draws the same document as a flow you can read at a glance.',
       code: `{
   // An event, or a schedule over a segment
   "trigger": { "event": "trial.started" },
@@ -62,7 +63,7 @@ export const workflows: FeaturePage = {
     },
     {
       title: 'Three kinds of waiting',
-      text: 'A step can wait for a duration, for a moment on the subscriber’s clock, or for an event. With a settle window, the app going to the background starts a clock, opening it resets it, and the step completes once it runs out. Time becomes a step, so a workflow follows how people actually use the app.',
+      text: 'Wait a day, wait until nine in the subscriber’s own morning, or wait for the person to do something. A settle window even waits for a quiet moment: the app goes to the background, a clock starts, and the nudge lands when they have actually put the phone down.',
       code: `{ "name": "quiet", "waitFor": {
     "event": "$app.backgrounded",
     "settleFor": "5m",
@@ -72,7 +73,7 @@ export const workflows: FeaturePage = {
     },
     {
       title: 'Branches, loops and fetches',
-      text: 'Branch on the subscriber’s attributes, on what they did, or on a reply from your own API. Loops repeat steps until a condition holds, and a fetch step calls your backend with a secret from the vault.',
+      text: 'Branch on who the subscriber is, on what they did, on whether they opened the last notification, or on a live answer from your own API. Loop a reminder every three days until they come back, and call your backend from a step with a secret from the vault, so a workflow can be as smart as your product.',
       code: `{
   "name": "plan",
   "branch": [
@@ -119,7 +120,7 @@ export const workflows: FeaturePage = {
     },
     {
       title: 'Dry runs before every publish',
-      text: 'Test any version against a real subscriber or a made-up one. Waits resolve instantly, sends render without sending, and assumed replies stand in for your API.',
+      text: 'Rehearse any version against a real subscriber or a made-up one before it can reach anyone. Waits resolve instantly, sends render without sending and assumed replies stand in for your API, so you see exactly what a run would do.',
       code: `POST /v1/workflows/trial-nudge/test
 {
   "externalId": "user_42",
@@ -139,27 +140,27 @@ export const workflows: FeaturePage = {
   capabilities: [
     {
       title: 'Versioned specs',
-      text: 'Every change is a new version, and the published one keeps running.',
+      text: 'Every change is a new version and the published one keeps running, so a draft can never break a live workflow.',
     },
     {
       title: 'One run per subscriber',
-      text: 'Runs live on a Durable Object per subscriber, so ordering is exact.',
+      text: 'Each subscriber’s runs are processed in order on their own isolated actor, so two steps never race each other.',
     },
     {
       title: 'Schedules too',
-      text: 'A trigger can be a cron or a daily time over a segment.',
+      text: 'Trigger on a cron or at a daily local time over a segment, for the weekly recap and the morning nudge.',
     },
     {
       title: 'Cancel rules',
-      text: 'An event such as a purchase cancels the live run.',
+      text: 'Name the events that end a run, such as a purchase, and the reminder stops the moment it is no longer needed.',
     },
     {
       title: 'Local notifications',
-      text: 'A send can fire on the device as a local notification, even offline.',
+      text: 'A send can fire on the device as a local notification at the exact moment, even with no connection.',
     },
     {
       title: 'Full run history',
-      text: 'Every step, wait and send lands on the subscriber’s event stream.',
+      text: 'Every step, wait and send is on the subscriber’s timeline, so you can see why someone got a message.',
     },
   ],
   faq: [

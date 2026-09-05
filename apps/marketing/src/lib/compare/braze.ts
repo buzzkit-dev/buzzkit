@@ -85,12 +85,12 @@ export const braze: ComparePage = {
     {
       question: 'Can BuzzKit handle enterprise scale?',
       answer:
-        'Sends fan out through a durable queue in pages, retries are scheduled with backoff, and each subscriber lives on its own Durable Object. A million-subscriber topic is thousands of small jobs that resume from a cursor if anything dies.',
+        'Yes. Sends fan out through a durable queue in pages that resume where they left off, retries back off for hours, and every subscriber has their own isolated actor. A million-subscriber topic is thousands of small jobs that pick themselves back up if anything fails.',
     },
     {
       question: 'Does BuzzKit have analytics?',
       answer:
-        'The dashboard shows subscribers, deliveries, events and runs over time, and every message carries counts per outcome. Deeper analysis reads the event stream, which is yours to query.',
+        'The dashboard shows subscribers, deliveries, events and runs over time, and every message carries live counts per outcome. Deeper analysis reads the event stream, which is yours to query.',
     },
   ],
 };

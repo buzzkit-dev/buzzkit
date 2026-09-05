@@ -12,7 +12,7 @@ export function ledger(): Node {
       cardHeader([
         label('Delivery to user_42', 14, COLORS.fg4, 500),
         badge(['iOS'], 'blue'),
-        row([badge(['Sent'], 'green')], { marginLeft: 'auto' }),
+        row([badge(['Delivered'], 'green')], { marginLeft: 'auto' }),
       ]),
       tableHead(['Attempt', 'Outcome', 'Provider', 'Latency'], [52, 76, 104, 60]),
       column(
@@ -32,6 +32,7 @@ export function ledger(): Node {
         [
           label('2,418 total', 12, COLORS.fg2),
           label('2,412 sent', 12, COLORS.green4),
+          label('2,380 delivered', 12, COLORS.green4),
           label('3 failed', 12, COLORS.red4),
           label('3 invalid', 12, COLORS.fg1),
         ],

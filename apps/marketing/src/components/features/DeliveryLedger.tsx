@@ -17,7 +17,7 @@ export function DeliveryLedger() {
           iOS
         </Badge>
         <Badge size='sm' variant='green' className='ml-auto'>
-          Sent
+          Delivered
         </Badge>
       </div>
       <Table>
@@ -49,6 +49,7 @@ export function DeliveryLedger() {
       <div className='flex items-center gap-3 border-bg-3 border-t px-4 py-2.5 text-fg-2 text-xs tabular-nums'>
         <span>2,418 total</span>
         <span className='text-green-4'>2,412 sent</span>
+        <span className='text-green-4'>2,380 delivered</span>
         <span className='text-red-4'>3 failed</span>
         <span className='text-fg-1'>3 invalid</span>
       </div>

@@ -5,17 +5,18 @@ export const delivery: FeaturePage = {
   name: 'Delivery',
   icon: 'IconShieldCheckFilled',
   group: 'Send',
-  summary: 'A durable queue, progressive retries, and a ledger of every attempt to every device.',
-  blurb: 'Retries and a ledger of every attempt',
+  summary:
+    'Every send is queued, retried for hours and recorded down to the attempt, so a notification is never quietly lost.',
+  blurb: 'Retries, receipts, nothing dropped',
   title: 'Every attempt, accounted for.',
   continuation: 'Queued, retried, recorded.',
   intro:
-    'One send fans out to every reachable device through a durable queue. Each attempt goes to Apple or Firebase with your credentials, is retried with backoff when that makes sense, and is written to a ledger with the request, the response and the latency.',
+    'A send lands in a durable queue and fans out to every reachable device. When Apple or Firebase stumble, BuzzKit keeps trying for hours, every attempt is written down with the request, the response and the latency, and the device reports back when the push landed and when it was opened, so you always know what happened to a notification.',
   vignette: 'delivery',
   sections: [
     {
-      title: 'Retries that respect the provider',
-      text: 'Transient failures retry at 5 seconds, 30 seconds, 2 minutes, 10 minutes, 30 minutes, 1 hour and 2 hours after the first attempt, each with jitter. Retry-After is honored, rate limits and timeouts carry a 60 second floor, and a lost job is re-driven by the reconciliation cron.',
+      title: 'Retries that never give up too early',
+      text: 'A rate limit, an outage or a timeout is not a lost notification. BuzzKit backs off and retries for hours, honors the provider’s own Retry-After, and re-drives any job that goes missing, so a transient failure ends in a delivery instead of a gap in your numbers.',
       code: `GET /v1/deliveries/dlv_8h2k
 {
   "status": "retrying",
@@ -28,7 +29,7 @@ export const delivery: FeaturePage = {
     },
     {
       title: 'One error language for every provider',
-      text: 'Providers classify their native reasons into a shared taxonomy, and policy lives in the core. A dead token flips the subscription to invalid, rate limits and outages retry, bad credentials fail at once, and a subscription muted mid-flight fails as unsubscribed.',
+      text: 'Apple and Firebase each speak their own dialect of failure. BuzzKit translates every reason into one set of outcomes and acts on it for you: dead tokens are retired on the spot, outages and rate limits retry, bad credentials fail fast, and a subscriber who opted out mid-flight is never reached.',
       code: `GET /v1/deliveries/dlv_8h2k/attempts
 {
   "data": [
@@ -49,14 +50,15 @@ export const delivery: FeaturePage = {
 }`,
     },
     {
-      title: 'Counts you can trust',
-      text: 'While a message is processing, counters advance per batch. Completion is derived, never counted: once nothing is pending or retrying, every counter is recounted from the deliveries and written exactly.',
+      title: 'Live counts, exact totals',
+      text: 'Watch a message go out as it happens: sent, delivered, failed and invalid climb in real time as each batch lands and each receipt comes back. When the last delivery settles, the totals are reconciled against the ledger itself, so the number on the screen is the number that happened.',
       code: `GET /v1/messages/msg_7g2h
 {
   "status": "completed",
   "counts": {
     "total": 2418,
     "sent": 2412,
+    "delivered": 2380,
     "failed": 3,
     "invalid": 3
   },
@@ -66,45 +68,45 @@ export const delivery: FeaturePage = {
   ],
   capabilities: [
     {
-      title: 'Durable fan-out',
-      text: 'Pages of 500 subscriptions chain themselves and resume from a cursor.',
+      title: 'Fan-out at any scale',
+      text: 'A topic or a segment with a million subscribers goes out in pages that resume where they left off, with no send repeated.',
     },
     {
-      title: 'Idempotent sends',
-      text: 'An idempotency key makes identical requests one message.',
+      title: 'Never a double push',
+      text: 'An idempotency key turns a retried request into the same message, not a second one.',
     },
     {
-      title: 'Dead tokens cleaned up',
-      text: 'An APNs 410 or FCM unregistered flips the subscription to invalid.',
+      title: 'Dead tokens retired for you',
+      text: 'When Apple or Firebase reports a token gone, the device is marked invalid and never targeted again.',
     },
     {
       title: 'The attempt ledger',
-      text: 'Request, response, provider reason and latency on every attempt.',
+      text: 'Every attempt keeps its request, response, provider reason and latency, ready to inspect.',
     },
     {
-      title: 'Send policy',
-      text: 'Quiet hours and daily caps per tenant and topic.',
+      title: 'Delivered and opened receipts',
+      text: 'The iOS SDK reports when a push actually lands on the phone and when the person opens it, per message, on the subscriber timeline.',
     },
     {
-      title: 'Dead-letter queue',
-      text: 'Jobs that crash repeatedly land somewhere visible.',
+      title: 'Nothing lost in the dark',
+      text: 'A job that keeps crashing lands in a dead-letter queue where you can see it, instead of vanishing.',
     },
   ],
   faq: [
     {
       question: 'What happens when a push fails?',
       answer:
-        'A temporary failure, such as a rate limit or an outage, retries with backoff for about four hours. A dead token marks the device invalid, and a bad credential fails at once. Every attempt stays in the ledger.',
+        'A temporary failure such as a rate limit or an outage retries with backoff for about four hours. A dead token marks the device invalid so it is never targeted again, and a bad credential fails at once so you hear about it. Every attempt stays in the ledger.',
     },
     {
       question: 'How do I know a push actually reached the device?',
       answer:
-        'Sent means the provider accepted it, which is the most a push provider confirms. The iOS SDK also tracks $notification.delivered and $notification.opened on the subscriber timeline.',
+        'Sent means the provider accepted it, which is as far as any push provider can confirm. The iOS SDK closes the loop: a notification service extension reports a delivered receipt the moment the push lands on the phone, and the app reports opens, taps and typed replies. The delivery flips from sent to delivered when the receipt arrives, both land on the subscriber timeline as $notification.delivered and $notification.opened, and workflows can branch on them.',
     },
     {
       question: 'Can a retry send a notification to someone who unsubscribed in the meantime?',
       answer:
-        'No. Every attempt checks the subscription first and fails as unsubscribed if it was muted, removed or invalidated after fan-out.',
+        'No. Every attempt checks the subscription first, so a subscriber who muted, removed or lost the device after fan-out is never reached.',
     },
   ],
   related: ['sending', 'scheduling', 'ios-sdk'],

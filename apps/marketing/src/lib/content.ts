@@ -36,17 +36,17 @@ export const valueProps: ValueProp[] = [
   {
     icon: 'IconCodeLargeFilled',
     lead: 'Code-first.',
-    text: 'A REST API and a typed SDK. Every object your code creates shows up in the dashboard as it is.',
+    text: 'A REST API and a typed SDK. Everything your code creates shows up in the dashboard exactly as you defined it.',
   },
   {
     icon: 'IconLayersTwoFilled',
     lead: 'Multi-tenant by design.',
-    text: 'One workspace, a tenant per customer, each with its own subscribers, topics and credentials.',
+    text: 'One workspace, a tenant per customer, each with its own subscribers, topics and credentials, sealed off from the rest.',
   },
   {
     icon: 'IconKey1',
     lead: 'Your keys, your data.',
-    text: 'Your own Apple and Firebase credentials. Nothing sits between you and the providers.',
+    text: 'Your own Apple and Firebase credentials, encrypted per tenant. Nothing sits between you and the providers, and no message is marked up.',
   },
 ];
 
@@ -55,42 +55,42 @@ export const features: Feature[] = [
     id: 'workflows',
     icon: 'IconSplitFilled',
     title: 'Workflows',
-    text: 'Waits, branches and sends that respect every subscriber’s clock.',
+    text: 'Lifecycle messaging that reacts to what people do, with waits, branches and sends per subscriber.',
     points: ['Quiet-moment delivery', 'Dry runs before publish', 'Versioned specs'],
   },
   {
     id: 'segments',
     icon: 'IconTargetFilled',
     title: 'Segments',
-    text: 'Who a subscriber is and what they did, evaluated at send time.',
+    text: 'Audiences by who someone is and what they did, evaluated live the moment you send.',
     points: ['Attribute and event conditions', 'Inline expressions on a send', 'Live preview counts'],
   },
   {
     id: 'scheduling',
     icon: 'IconCalendarClockFilled',
     title: 'Scheduling',
-    text: 'One message, delivered in each subscriber’s time zone.',
+    text: 'One message, arriving at nine in the morning in every subscriber’s own time zone.',
     points: ['Subscriber-timezone sends', 'Quiet hours and daily caps', 'Cancel until the last minute'],
   },
   {
     id: 'preferences',
     icon: 'IconToggle',
     title: 'Topics & Preferences',
-    text: 'A notification settings screen with no backend code.',
+    text: 'A notification settings screen straight from the API, with no backend code.',
     points: ['Choices per topic and channel', 'Defaults with overrides', 'One GET, one PATCH'],
   },
   {
     id: 'sources',
     icon: 'IconWebhooksFilled',
     title: 'Sources',
-    text: 'Turn any webhook into subscriber events, presets included.',
+    text: 'Turn the webhooks you already receive into subscriber events, presets included.',
     points: [],
   },
   {
     id: 'live-activities',
     icon: 'IconLiveFullFilled',
     title: 'Live Activities',
-    text: 'Start, update and end iOS Live Activities from the same API.',
+    text: 'Start, update and end iOS Live Activities from the same API that sends your push.',
     points: [],
   },
 ];
@@ -99,18 +99,18 @@ export const deepDives: DeepDive[] = [
   {
     id: 'delivery',
     title: 'Every attempt, accounted for.',
-    text: 'A durable queue fans out to every reachable device and retries for hours. Every attempt keeps its request, response and latency.',
+    text: 'A durable queue fans out to every reachable device and keeps retrying for hours, so a provider hiccup never loses a notification. Every attempt is recorded, and the device reports back when a push landed and when it was opened.',
     points: [
-      'Progressive retries with jitter',
-      'Dead tokens invalidated automatically',
-      'One error language across all channels',
+      'Retries with backoff, for hours',
+      'Delivered and opened receipts per device',
+      'Live counts, reconciled exactly',
       'Idempotent sends, never a double push',
     ],
   },
   {
     id: 'ios',
     title: 'Drop the SDK in. The rest is wired.',
-    text: 'Identify, register and track in four lines. Offline queueing, action buttons, deep links and more come built in.',
+    text: 'Identify, register and track in four lines. Offline queueing, action buttons, deep links and Live Activities come built in.',
     points: [
       'Action buttons and deep links',
       'Offline event queue with replay',
@@ -176,12 +176,12 @@ export const faq: FaqItem[] = [
   {
     question: 'How do I send a notification?',
     answer:
-      'One POST to /v1/messages with a title, a body and a recipient: a subscriber, a topic or a segment. BuzzKit works out who is reachable, delivers to every device, retries and records each attempt.',
+      'One POST with a title, a body and a recipient: a subscriber, a topic or a segment. BuzzKit works out who is reachable, lands it on every device, retries when a provider stumbles and records each attempt.',
   },
   {
     question: 'Do I need my own APNs and FCM keys?',
     answer:
-      'Yes. BuzzKit sends with your credentials, never through a shared account. Each workspace and tenant keeps its own keys, encrypted.',
+      'Yes. BuzzKit sends with your credentials, never through a shared account, so the relationship with Apple and Google stays yours. Each workspace and tenant keeps its own keys, encrypted.',
   },
   {
     question: 'Can users choose what they receive?',

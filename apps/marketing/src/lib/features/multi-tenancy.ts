@@ -5,17 +5,18 @@ export const multiTenancy: FeaturePage = {
   name: 'Multi-tenancy',
   icon: 'IconLayersTwoFilled',
   group: 'Platform',
-  summary: 'One workspace, a tenant per customer, each with isolated subscribers, credentials and sends.',
+  summary:
+    'One workspace, a tenant per customer, each with its own subscribers, credentials and sends, sealed off from the rest.',
   blurb: 'A tenant per customer, one key',
   title: 'Send for your customers.',
   continuation: 'One workspace, a tenant per app, one key.',
   intro:
-    'A tenant is one of your customers: its own subscribers, topics, credentials, segments, workflows and messages, isolated from every other tenant. Your platform stores one workspace key and names the tenant on each request. An app with a single tenant never notices any of this.',
+    'Build a platform that sends push for its customers without building a push platform. A tenant is one customer: its own subscribers, topics, credentials, segments, workflows and messages, sealed off from every other tenant. Your platform keeps one key and names the tenant on each request.',
   vignette: 'tenants',
   sections: [
     {
       title: 'One key, one header',
-      text: 'Create tenants with your workspace key and act on them with the same key. A tenant-scoped call adds a header naming the tenant, the way a Stripe platform names a connected account. Without the header, the default tenant answers.',
+      text: 'Create tenants with your workspace key and act on them with the same key. A tenant-scoped call adds one header naming the tenant, the way a Stripe platform names a connected account, and an app with a single tenant never has to think about any of this.',
       code: `POST /v1/tenants
 {
   "name": "Gymly",
@@ -29,7 +30,7 @@ buzzkit-tenant: gymly
     },
     {
       title: 'Isolated by default',
-      text: 'Each tenant brings its own Apple and Firebase credentials, and its subscribers, topics, segments, workflows, sources and messages never mix. Members, API keys and the audit log belong to the workspace and stay shared.',
+      text: 'Each tenant brings its own Apple and Firebase credentials, and nothing crosses the line: subscribers, topics, segments, workflows, sources and messages stay in their tenant. Members, API keys and the audit log belong to the workspace, so your team sees everything.',
       code: `GET /v1/subscribers
 buzzkit-tenant: gymly
 
@@ -41,7 +42,7 @@ buzzkit-tenant: gymly
     },
     {
       title: 'Keys with a smaller blast radius',
-      text: 'A tenant key is locked to one tenant and can only reach that tenant’s data, for handing a customer or a subsystem direct access. Every tenant also gets a client key that ships in the app and can only identify subscribers and register devices.',
+      text: 'Hand a customer or a subsystem direct access with a tenant key that reaches one tenant and nothing else. Every tenant also gets a client key for the app, which can identify subscribers and register devices and do nothing more.',
       code: `// Workspace key: every tenant, named per request
 Authorization: Bearer bk_ws_…
 buzzkit-tenant: gymly
@@ -64,7 +65,7 @@ Authorization: Bearer bk_pk_…`,
     },
     {
       title: 'Settings per tenant',
-      text: 'Pause a channel or require identity verification for one tenant only.',
+      text: 'Pause a channel or require identity verification for one tenant and leave the rest alone.',
     },
     {
       title: 'Identity secret',

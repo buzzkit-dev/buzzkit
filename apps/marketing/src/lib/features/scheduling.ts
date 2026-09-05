@@ -5,17 +5,18 @@ export const scheduling: FeaturePage = {
   name: 'Scheduling',
   icon: 'IconCalendarClockFilled',
   group: 'Send',
-  summary: 'Hold a message for a moment, in one timezone or in every subscriber’s own.',
+  summary:
+    'Send at nine in the morning and have it arrive at nine in the morning for everyone, wherever they are.',
   blurb: 'Local time for every subscriber',
   title: 'Nine in the morning, everywhere.',
   continuation: 'Released as each clock gets there.',
   intro:
-    'Add a schedule to a send and BuzzKit holds it until the moment arrives. Pick a fixed timezone, or let each subscriber receive it as their own clock reaches the time, released zone by zone.',
+    'Add a schedule to a send and BuzzKit holds it until the moment comes. Pick one timezone for everyone, or let the message follow the sun: each subscriber receives it as their own clock reaches the time, released zone by zone.',
   vignette: 'schedule',
   sections: [
     {
       title: 'A wall-clock time, not an instant',
-      text: 'The schedule takes a time without an offset and a timezone to read it in. With the subscriber timezone, the moment comes from the attribute the SDK stamps on identify, with a default for anyone without one.',
+      text: 'You say nine in the morning, and BuzzKit works out what that means for every subscriber. The timezone comes from the attribute the SDK stamps on identify, with a default for anyone whose zone is unknown, so nobody is left out.',
       code: `POST /v1/messages
 {
   "topic": "weekly-recap",
@@ -29,7 +30,7 @@ export const scheduling: FeaturePage = {
     },
     {
       title: 'Released zone by zone',
-      text: 'A minute cron releases fixed-timezone messages at their instant, and subscriber-timezone messages one zone at a time. A zone is never sent twice, and a batch that dies is retried on the next tick.',
+      text: 'As each timezone reaches the moment, its subscribers go out and the message reports progress as it circles the globe. A zone is never sent twice and a batch that fails is picked up on the next tick, so a scheduled send arrives exactly once.',
       code: `GET /v1/messages/msg_7g2h
 {
   "status": "processing",
@@ -47,7 +48,7 @@ export const scheduling: FeaturePage = {
     },
     {
       title: 'Quiet hours and daily caps',
-      text: 'A tenant-wide send policy applies to every visible push. Quiet hours defer a delivery to the next allowed local time, a daily cap counts sent deliveries per subscriber per local day, and topics carry their own cap on top.',
+      text: 'Set quiet hours and a daily cap once per tenant and every visible push respects them. A message due at midnight waits for the morning, a subscriber never gets more than their daily share, and a topic can carry a tighter cap of its own.',
       code: `PATCH /v1/tenants/gymly
 {
   "settings": {
@@ -66,27 +67,27 @@ export const scheduling: FeaturePage = {
   capabilities: [
     {
       title: 'Cancel until it releases',
-      text: 'Cancel up to the moment a message goes out.',
+      text: 'Change your mind up to the moment a message goes out.',
     },
     {
       title: 'Honest validation',
-      text: 'A moment already past, a date off the calendar or an unknown zone is refused.',
+      text: 'A moment already past, a date off the calendar or an unknown zone is refused before it can misfire.',
     },
     {
       title: 'Expiry from the last release',
-      text: 'The time to live counts from the last possible release.',
+      text: 'Time to live counts from the last zone’s release, so the message stays fresh everywhere.',
     },
     {
       title: 'Timezone from the backend',
-      text: 'Set a subscriber’s timezone on identify from your server.',
+      text: 'Set a subscriber’s timezone from your server when your app knows better than the device.',
     },
     {
       title: 'Recurring through workflows',
-      text: 'A workflow trigger can be a cron or a daily time over a segment.',
+      text: 'The weekly recap is a workflow with a cron or a daily local time over a segment.',
     },
     {
       title: 'Local notifications',
-      text: 'A workflow send can fire on the device at the moment, even offline.',
+      text: 'A workflow send can fire on the device at the exact minute, even offline.',
     },
   ],
   faq: [

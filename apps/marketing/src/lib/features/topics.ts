@@ -5,17 +5,18 @@ export const topics: FeaturePage = {
   name: 'Topics & Preferences',
   icon: 'IconTagFilled',
   group: 'Platform',
-  summary: 'Named notification categories with per-topic, per-channel choices for every subscriber.',
+  summary:
+    'Notification categories with per-topic, per-channel choices, and a settings screen your app gets with no backend code.',
   blurb: 'A settings screen with no backend',
   title: 'A settings screen with no backend code.',
   continuation: 'Per topic, per channel, resolved for you.',
   intro:
-    'Topics are the named categories your notifications belong to: workout reminders, progress updates, tips and offers. Each subscriber chooses per topic and per channel, and every send to a topic filters to the people who said yes.',
+    'Topics are the categories your notifications belong to: workout reminders, progress updates, tips and offers. Subscribers choose per topic and per channel, the settings screen comes straight from the API, and every send to a topic reaches the people who said yes.',
   vignette: 'preferences',
   sections: [
     {
       title: 'Defaults with overrides',
-      text: 'A topic carries a baseline choice, optional per-channel defaults and a category heading. Resolution is explicit choice first, then the channel default, then the topic default.',
+      text: 'Decide what people get before they ever open settings. A topic carries a default choice, per-channel defaults and a category heading, and a subscriber’s own choice always wins over both.',
       code: `POST /v1/topics
 {
   "slug": "running-reminders",
@@ -29,7 +30,7 @@ export const topics: FeaturePage = {
     },
     {
       title: 'The settings screen is two requests',
-      text: 'A GET on the client preferences endpoint returns the topic catalog with the resolved state per channel and its category, and a PATCH saves a choice. The iOS SDK wraps both.',
+      text: 'One GET returns the whole catalog with the resolved state per channel, grouped by category, ready to render as a list of switches. One PATCH saves a choice. The iOS SDK wraps both, so the screen is an afternoon and not a sprint.',
       code: `PATCH /v1/client/preferences
 BuzzKit-Subscriber: user_42
 {
@@ -41,7 +42,7 @@ BuzzKit-Subscriber: user_42
     },
     {
       title: 'Every send respects the choice',
-      text: 'Sending targets a topic and a channel, and BuzzKit filters to subscribers whose preference for that pair is opted in. A muted device, a topic turned off or a channel switched off all stop a delivery before it is queued.',
+      text: 'Send to a topic and BuzzKit filters to the people opted in on that channel. A muted device, a topic turned off or a channel switched off stops a delivery before it is queued, so a preference is a promise and not a suggestion.',
       code: `POST /v1/messages
 {
   "topic": "running-reminders",
@@ -58,24 +59,27 @@ BuzzKit-Subscriber: user_42
   capabilities: [
     {
       title: 'Deviations only',
-      text: 'Only changes are stored, so defaults keep applying to everyone else.',
+      text: 'Only changes are stored, so a new default reaches everyone who never chose.',
     },
-    { title: 'Categories', text: 'Group topics under headings for the settings screen.' },
+    {
+      title: 'Categories',
+      text: 'Group topics under headings and the settings screen organizes itself.',
+    },
     {
       title: 'Server or client',
-      text: 'Read and write preferences from your backend or from the app.',
+      text: 'Read and write preferences from your backend or straight from the app.',
     },
     {
       title: 'Identity verification',
-      text: 'A hash from your backend proves which user a request speaks for.',
+      text: 'A hash from your backend proves which user a request speaks for, so nobody can change someone else’s settings.',
     },
     {
       title: 'Kept through changes',
-      text: 'Narrowing a topic’s channels keeps the stored choices.',
+      text: 'Narrow a topic’s channels and the choices people already made survive.',
     },
     {
       title: 'On the timeline',
-      text: 'Every change writes a preferences event to the subscriber’s stream.',
+      text: 'Every change is an event on the subscriber’s stream, so segments and workflows can react to it.',
     },
   ],
   faq: [
