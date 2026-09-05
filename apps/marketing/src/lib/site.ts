@@ -1,7 +1,7 @@
 export const site = {
   name: 'BuzzKit',
   url: 'https://buzzkit.dev',
-  title: 'BuzzKit · The open source notification orchestration layer',
+  title: 'BuzzKit · The Open Source Notification Orchestration Layer',
   description:
     'BuzzKit is the open source notification orchestration layer: send, segment, schedule and automate mobile push on your own Apple and Firebase keys, self-hosted or hosted.',
   dashboardUrl: 'https://buzzkit.dev/dashboard',

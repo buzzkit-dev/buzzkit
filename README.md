@@ -1,59 +1,121 @@
-# buzzkit
+<!-- Header -->
+<div align="center">
+  <a href="https://buzzkit.dev">
+    <img src="https://buzzkit.dev/icon.png" alt="BuzzKit" height="96" />
+  </a>
 
-Open-source, self-hostable, code-first push notification framework. A developer-first alternative to OneSignal: campaigns, segments, and workflows defined in code, multi-tenant by design, headless at the core.
+  <h3 align="center">BuzzKit</h3>
+  <b>The Open Source Notification Orchestration Layer</b>
+</div>
 
-## Stack
+<!-- TOC -->
+<p align="center">
+    <a href="https://buzzkit.dev"><strong>Learn more »</strong></a>
+    <br />
+    <br />
+    <a href="#introduction">Introduction</a>
+    ·
+    <a href="#self-hosting">Self-Hosting</a>
+    ·
+    <a href="#development">Development</a>
+    ·
+    <a href="#roadmap">Roadmap</a>
+    ·
+    <a href="#contributing">Contributing</a>
+</p>
 
-| Layer | Technology |
-|---|---|
-| Runtime | Cloudflare Workers |
-| API Framework | [Elysia](https://elysiajs.com) with CloudflareAdapter |
-| Database | PostgreSQL via [Drizzle ORM](https://orm.drizzle.team) |
-| Dashboard | Vite + React Router 8 SSR on Cloudflare Workers |
-| Monorepo | [Turborepo](https://turbo.build) + Bun workspaces |
-| Code Quality | [Biome](https://biomejs.dev) (lint + format), Husky, lint-staged, Sherif |
+<p>
+    <a href="https://buzzkit.dev">
+      <img alt="BuzzKit" src="./.github/assets/buzzkit.png" />
+    </a>
+</p>
 
-## Project Structure
+## Introduction
 
-```
-apps/
-├── api/          @buzzkit/api       Cloudflare Worker API (Elysia)
-├── marketing/    @buzzkit/marketing Marketing site at buzzkit.dev (Astro static on Cloudflare Workers)
-└── web/          @buzzkit/web       Platform dashboard (React Router 8 SSR on Cloudflare Workers)
+BuzzKit is an open source orchestration layer for notifications. You bring the keys for your providers, and BuzzKit gives you subscriber management, targeting, preferences, scheduling, workflows, retries and delivery receipts through one API and one dashboard.
 
-packages/
-├── auth/         @buzzkit/auth      BetterAuth configuration (email/password, bearer tokens)
-├── buzzkit/      buzzkit            The framework: channel connectors, workflows, campaigns, segments, send client
-└── database/     @buzzkit/database  Drizzle ORM, PostgreSQL schema, migrations
-```
+It is designed to be integrated once and driven by events from then on. The SDK keeps users and devices in sync, your app and backend report what happened, and workflows decide what to send and when. BuzzKit supports iOS push today, with Android, email and SMS planned as connectors on the same multi-channel core.
 
-## Getting Started
+Use BuzzKit at [buzzkit.dev](https://buzzkit.dev) or self-host the same code. Guides and the complete API reference are available in the [documentation](https://docs.buzzkit.dev).
+
+## Self-Hosting
+
+A complete self-hosting guide is coming soon. For now, deployments require a Cloudflare account for Workers, KV, Queues, Durable Objects and Hyperdrive, together with PostgreSQL and Tinybird. We plan to simplify this setup in future releases.
+
+## Development
+
+You need [Bun](https://bun.sh) and Docker.
 
 ```sh
 bun install
-bun db:up                                  # local Postgres (docker compose, port 5460)
-cp apps/api/.dev.vars.example apps/api/.dev.vars   # then set BETTER_AUTH_SECRET
-cd packages/database && bun db:migrate && cd ../..
+
+bun db:up
+
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+cp apps/web/.dev.vars.example apps/web/.dev.vars
+
+bun run --cwd packages/database db:migrate
+bun run --cwd packages/tinybird push
+
 bun dev
 ```
 
-- API: http://localhost:8790 (`/v1/health`, OpenAPI at `/swagger`)
-- Web: http://localhost:5180
+`bun db:up` starts PostgreSQL and Tinybird Local in Docker. Before the first start, set `BETTER_AUTH_SECRET`, `CREDENTIAL_MASTER_KEY_V1` and `SQIDS_ALPHABET` in the API's `.dev.vars`; the example file explains how to generate each value. Run the Tinybird push once for every fresh container to load its event tables and endpoints.
 
-## Commands
+| App | Address |
+| --- | --- |
+| API | http://localhost:8790, with the OpenAPI reference at `/swagger` |
+| Dashboard | http://localhost:5180 |
+| Marketing | http://localhost:5181 |
+| Docs | http://localhost:5182 |
+
+```
+apps/
+├── api/            The API, a Cloudflare Worker
+├── web/            The dashboard
+├── marketing/      buzzkit.dev
+└── docs/           docs.buzzkit.dev
+
+packages/
+├── buzzkit/        The server SDK
+├── schema/         The grammars the API and the dashboard both validate: workflows, sources, imports
+├── database/       Drizzle schema and migrations
+├── auth/           BetterAuth configuration
+├── eden/           The typed API client the dashboard uses
+├── observability/  Logging and tracing
+├── tinybird/       The event stream as code
+└── ui/             The design system
+```
+
+The iOS SDK lives in its own repository: [buzzkit-dev/buzzkit-ios](https://github.com/buzzkit-dev/buzzkit-ios).
 
 | Command | Description |
-|---|---|
-| `bun dev` | Start all apps |
-| `bun build` | Build all apps and packages |
-| `bun lint` | Biome lint |
-| `bun format:fix` | Biome auto-fix formatting |
-| `bun check-types` | TypeScript type checking across all packages |
+| --- | --- |
+| `bun dev` | Start every app |
+| `bun run test` | Run the unit suites; from `apps/api`, the same command runs the integration suite with its own server |
+| `bun lint` | Biome plus the repository's conventions checker |
+| `bun check-types` | TypeScript across every package |
+| `bun format:fix` | Format |
 
-## Docs
+## Roadmap
 
-Product documentation, the guides and the API reference are at [docs.buzzkit.dev](https://docs.buzzkit.dev). Architecture and internal design notes live in [`docs/`](docs/README.md).
+BuzzKit supports iOS push today. Other channels will arrive as connectors that share the same subscribers, segments, topics and workflows:
+
+- [ ] Android SDK and sending through FCM
+- [ ] Email, through your own sending provider
+- [ ] SMS
+- [ ] Web push
+- [ ] In-app messaging
+- [ ] Experiments: A/B tests on messages and workflow steps
+
+## Contributing
+
+BuzzKit is still in beta, so we're being careful about what goes in. If you'd like to help, open an issue first and wait for us to confirm the approach before putting time into a pull request. Contributions are always welcome, but we can't promise we'll merge everything.
+
+- [Report a bug](https://github.com/buzzkit-dev/buzzkit/issues/new?labels=bug)
+- [Propose a feature](https://github.com/buzzkit-dev/buzzkit/issues/new?labels=enhancement)
+- [Submit a pull request](https://github.com/buzzkit-dev/buzzkit/pulls) after a maintainer confirms the approach
 
 ## License
 
-The core (the API, the dashboard, the marketing site and the internal packages) is licensed under the [GNU AGPL-3.0](LICENSE). The SDKs customers embed are MIT: the [`buzzkit`](packages/buzzkit/LICENSE) server package and the [iOS SDK](https://github.com/buzzkit-dev/BuzzKit-iOS).
+The core is licensed under the [GNU Affero General Public License Version 3 (AGPLv3)](LICENSE).

@@ -4,6 +4,7 @@ import { cn } from '@buzzkit/ui/lib/utils';
 
 export const TONES = {
   sky: { fill: 'var(--sky-4)', dot: 'bg-sky-4' },
+  blue: { fill: 'var(--blue-4)', dot: 'bg-blue-4' },
   green: { fill: 'var(--green-4)', dot: 'bg-green-4' },
   red: { fill: 'var(--red-4)', dot: 'bg-red-4' },
   amber: { fill: 'var(--amber-4)', dot: 'bg-amber-4' },

@@ -25,7 +25,7 @@ export interface FaqItem {
 }
 
 export const hero = {
-  headline: 'The open source notification orchestration layer.',
+  headline: 'The Open Source Notification Orchestration Layer.',
   subheadline:
     'One call sends, retries and lands on every device. Segments, workflows and scheduling are built in, and your users choose what reaches them.',
   primaryCta: 'Get Started',

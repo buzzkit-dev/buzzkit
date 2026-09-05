@@ -199,7 +199,7 @@ export async function renderOgImage(entry: OgCard): Promise<ArrayBuffer> {
   return toArrayBuffer(new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } }).render().asPng());
 }
 
-export function renderIcon(size: number): ArrayBuffer {
-  const svg = readAsset('public/favicon.svg').toString('utf8');
+export function renderIcon(size: number, asset = 'public/favicon.svg'): ArrayBuffer {
+  const svg = readAsset(asset).toString('utf8');
   return toArrayBuffer(new Resvg(svg, { fitTo: { mode: 'width', value: size } }).render().asPng());
 }

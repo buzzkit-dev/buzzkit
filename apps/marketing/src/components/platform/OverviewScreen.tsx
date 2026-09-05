@@ -17,6 +17,7 @@ const DAY = 86_400_000;
 const START = Date.UTC(2026, 7, 19);
 
 const SENT = [1840, 1912, 2210, 2044, 2380, 2492, 2318, 2601, 2744, 2688, 2903, 3012, 2957, 3184];
+const DELIVERED = [1702, 1768, 2041, 1889, 2203, 2310, 2144, 2412, 2545, 2490, 2694, 2796, 2741, 2958];
 const FAILED = [22, 18, 31, 24, 19, 27, 21, 30, 26, 22, 28, 24, 19, 23];
 const SUBSCRIBERS = [
   12_140, 12_230, 12_318, 12_402, 12_540, 12_611, 12_704, 12_838, 12_902, 13_017, 13_141, 13_226, 13_318,
@@ -29,6 +30,7 @@ const EVENTS = [
 const series = SENT.map((sent, index) => ({
   date: new Date(START + index * DAY),
   sent,
+  delivered: DELIVERED[index]!,
   failed: FAILED[index]!,
   subscribers: SUBSCRIBERS[index]!,
   events: EVENTS[index]!,
@@ -47,7 +49,7 @@ function Tile({
   value: number;
   delta: string;
   tone: keyof typeof TONES;
-  dataKey: 'sent' | 'subscribers' | 'events';
+  dataKey: 'delivered' | 'subscribers' | 'events';
 }) {
   return (
     <Card className='gap-0 overflow-hidden'>
@@ -96,7 +98,7 @@ export function OverviewScreen() {
       </ScreenHeader>
       <div className='grid gap-5 lg:grid-cols-3'>
         <Tile label='Subscribers' value={13_460} delta='11%' tone='sky' dataKey='subscribers' />
-        <Tile label='Delivered' value={35_285} delta='24%' tone='green' dataKey='sent' />
+        <Tile label='Delivered' value={35_285} delta='24%' tone='blue' dataKey='delivered' />
         <Tile label='Events' value={143_380} delta='18%' tone='amber' dataKey='events' />
       </div>
       <Card>
@@ -105,6 +107,7 @@ export function OverviewScreen() {
           <CardDescription>Sent and failed deliveries per day.</CardDescription>
           <CardAction className='gap-3'>
             <Key tone='green'>Sent</Key>
+            <Key tone='blue'>Delivered</Key>
             <Key tone='red'>Failed</Key>
           </CardAction>
         </CardHeader>
@@ -132,6 +135,16 @@ export function OverviewScreen() {
               dataKey='sent'
               fill={TONES.green.fill}
               stroke={TONES.green.fill}
+              strokeWidth={2}
+              fillOpacity={0.14}
+              gradientToOpacity={0}
+              fadeEdges
+              showHighlight={false}
+            />
+            <Area
+              dataKey='delivered'
+              fill={TONES.blue.fill}
+              stroke={TONES.blue.fill}
               strokeWidth={2}
               fillOpacity={0.14}
               gradientToOpacity={0}

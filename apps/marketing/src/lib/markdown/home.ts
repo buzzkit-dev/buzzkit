@@ -16,7 +16,7 @@ import { frontmatter } from './frontmatter';
 
 export function renderHomeMarkdown(): string {
   return `${frontmatter({
-    title: `${site.name} · The open source notification orchestration layer`,
+    title: site.title,
     description: site.description,
     canonical: `${site.url}/`,
   })}

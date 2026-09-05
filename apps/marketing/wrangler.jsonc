@@ -31,6 +31,8 @@
     { "pattern": "buzzkit.dev/flags/*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/og/*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/logo.png", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/icon.png", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/icon.svg", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/apple-touch-icon.png", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/openapi.json", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/auth.md", "zone_name": "buzzkit.dev" },
