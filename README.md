@@ -110,11 +110,10 @@ BuzzKit supports iOS push today. Other channels will arrive as connectors that s
 
 ## Contributing
 
-BuzzKit is still in beta, so we're being careful about what goes in. If you'd like to help, open an issue first and wait for us to confirm the approach before putting time into a pull request. Contributions are always welcome, but we can't promise we'll merge everything.
+BuzzKit is still in beta, so we're being careful about what goes in. While that's the case, pull requests are limited to the core contributors, and the best way to help is through issues. Bug reports and feature ideas are always welcome, and we read every one.
 
 - [Report a bug](https://github.com/buzzkit-dev/buzzkit/issues/new?labels=bug)
 - [Propose a feature](https://github.com/buzzkit-dev/buzzkit/issues/new?labels=enhancement)
-- [Submit a pull request](https://github.com/buzzkit-dev/buzzkit/pulls) after a maintainer confirms the approach
 
 ## License
 
