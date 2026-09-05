@@ -1,0 +1,61 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/api/**
+      - packages/**
+      - bun.lock
+      - .github/workflows/device-suite.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: device-suite
+  cancel-in-progress: false
+
+jobs:
+  production:
+    name: Production
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Wait for Cloudflare to finish deploying this commit
+        run: |
+          for _ in $(seq 1 60); do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
+              --jq '.check_runs[] | select(.name == "Workers Builds: buzzkit-api") | "\(.status) \(.conclusion)"' | head -n 1)"
+            case "$state" in
+              "completed success") echo "buzzkit-api is deployed for $GITHUB_SHA"; exit 0 ;;
+              "completed "*) echo "Cloudflare's build for buzzkit-api ended with: $state"; exit 1 ;;
+              *) echo "Waiting for Workers Builds: ${state:-no check yet}"; sleep 20 ;;
+            esac
+          done
+          echo "Cloudflare never reported a finished build for $GITHUB_SHA"; exit 1
+
+      - name: Run the device suite in buzzkit-ios against it
+        env:
+          GH_TOKEN: ${{ secrets.E2E_DISPATCH_TOKEN }}
+          GH_REPO: buzzkit-dev/buzzkit-ios
+        run: |
+          reason="api ${GITHUB_SHA::7}"
+          started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run e2e.yml --ref main -f reason="$reason" -f sdk_ref=main
+
+          run_id=""
+          for _ in $(seq 1 30); do
+            sleep 10
+            run_id="$(gh run list --workflow e2e.yml --json databaseId,displayTitle,createdAt \
+              --jq ".[] | select(.displayTitle | contains(\"$reason\")) | select(.createdAt >= \"$started\") | .databaseId" | head -n 1)"
+            [ -n "$run_id" ] && break
+          done
+          [ -n "$run_id" ] || { echo "The dispatched e2e run never appeared"; exit 1; }
+
+          echo "Watching https://github.com/$GH_REPO/actions/runs/$run_id"
+          gh run watch "$run_id" --exit-status --interval 30
