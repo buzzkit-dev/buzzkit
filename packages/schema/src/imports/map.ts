@@ -209,7 +209,9 @@ export function mapImportRecord(
   const subscription = resolveSubscription(record, mapping, options);
   if ('outcome' in subscription) return subscription;
 
-  const profile = resolveProfile(record, mapping);
+  const { lastSeenAt, ...profileOnly } = resolveProfile(record, mapping);
+  const profile =
+    'profileEmail' in subscription || !lastSeenAt ? profileOnly : { ...profileOnly, lastSeenAt };
   const profileEmail =
     'profileEmail' in subscription
       ? subscription.profileEmail

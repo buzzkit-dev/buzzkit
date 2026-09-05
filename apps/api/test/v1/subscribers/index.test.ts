@@ -546,7 +546,7 @@ describe('cross-tenant and email-only updates', () => {
     expect((await api(`/v1/subscribers/${externalId}`, { headers: keyBearer })).status).toBe(200);
   });
 
-  it('a PUT that only adds an email records subscription.created, and a repeat writes nothing', async () => {
+  it('a PUT that adds an email updates metadata and registers a subscription only once', async () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
     const first = await identify(keyBearer, externalId, { plan: 'free' });
@@ -559,9 +559,10 @@ describe('cross-tenant and email-only updates', () => {
       body: JSON.stringify({ attributes: { plan: 'free' }, email: address }),
     });
     expect(withEmail.status).toBe(200);
-    const names = await timelineNames(keyBearer, externalId, 2);
+    expect(withEmail.body.data?.attributes).toEqual({ plan: 'free', email: address });
+    const names = await timelineNames(keyBearer, externalId, 3);
     expect(names).toContain('$subscription.registered');
-    expect(names).not.toContain('$subscriber.updated');
+    expect(names).toContain('$subscriber.updated');
 
     const [before] = await db
       .select({ updatedAt: tables.subscriber.updatedAt })
@@ -578,8 +579,11 @@ describe('cross-tenant and email-only updates', () => {
       .from(tables.subscriber)
       .where(eq(tables.subscriber.externalId, externalId));
     expect(after?.updatedAt.toISOString()).toBe(before?.updatedAt.toISOString());
-    const namesAfter = await timelineNames(keyBearer, externalId, 2);
-    expect(namesAfter.filter((name) => name.startsWith('$subscriber.'))).toEqual(['$subscriber.created']);
+    const namesAfter = await timelineNames(keyBearer, externalId, 3);
+    expect(namesAfter.filter((name) => name.startsWith('$subscriber.')).sort()).toEqual([
+      '$subscriber.created',
+      '$subscriber.updated',
+    ]);
   });
 });
 

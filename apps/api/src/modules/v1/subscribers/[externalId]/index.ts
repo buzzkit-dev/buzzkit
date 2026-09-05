@@ -58,6 +58,7 @@ export const subscriber = new Elysia()
             ...(body?.timezone ? { systemAttributes: { $timezone: body.timezone } } : {}),
           },
           email: body?.email,
+          subscribeEmail: body?.subscribeEmail,
           events: (outcome) => {
             if (!outcome.created && !outcome.changed) return [];
 
@@ -88,6 +89,7 @@ export const subscriber = new Elysia()
         t.Object({
           attributes: t.Optional(AttributesSchema),
           email: t.Optional(EmailAddressSchema),
+          subscribeEmail: t.Optional(t.Boolean()),
           timezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
         })
       ),

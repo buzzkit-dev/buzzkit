@@ -120,6 +120,7 @@ describe('OneSignal preset', () => {
     expect(pushOnly.rows).toHaveLength(3);
     expect(pushOnly.rows[2]).toEqual({
       externalId: 'user_42',
+      language: 'en',
       attributes: { email: 'maya@acme.com' },
     });
     expect(pushOnly.counts.profileEmails).toBe(1);

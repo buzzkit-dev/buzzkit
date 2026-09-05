@@ -38,6 +38,7 @@ export const clientIdentify = new Elysia()
           },
         },
         email: body.email,
+        subscribeEmail: body.subscribeEmail,
         rebind: verified,
         events: (outcome) => {
           const events: SystemEvent[] = [];
@@ -76,6 +77,7 @@ export const clientIdentify = new Elysia()
         ClientIdentitySchema,
         t.Object({
           email: t.Optional(EmailAddressSchema),
+          subscribeEmail: t.Optional(t.Boolean()),
           attributes: t.Optional(AttributesSchema),
           pushPermission: t.Optional(PushPermissionSchema),
           device: t.Optional(DeviceContextSchema),

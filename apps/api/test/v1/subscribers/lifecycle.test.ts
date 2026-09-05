@@ -294,7 +294,7 @@ describe('$subscriber.updated', () => {
     expect(await timelineOf(keyBearer, externalId, 2)).toHaveLength(2);
   });
 
-  it('a PUT that only adds an email emits $subscription.registered and no $subscriber.updated', async () => {
+  it('an email updates the profile and registers a subscription when email is connected', async () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;
     const address = `${externalId}@acme.test`;
@@ -302,11 +302,15 @@ describe('$subscriber.updated', () => {
     await identify(keyBearer, externalId, { attributes: { plan: 'pro' } });
     const withEmail = await identify(keyBearer, externalId, { email: address });
     expect(withEmail.status).toBe(200);
-    expect(withEmail.body.data?.attributes).toEqual({ plan: 'pro' });
+    expect(withEmail.body.data?.attributes).toEqual({ plan: 'pro', email: address });
 
-    const items = oldestFirst(await timelineOf(keyBearer, externalId, 2));
-    expect(items.map((item) => item.name)).toEqual(['$subscriber.created', '$subscription.registered']);
-    expectSystemEvent(items[1], externalId, '$subscription.registered', {
+    const items = oldestFirst(await timelineOf(keyBearer, externalId, 3));
+    expect(items.map((item) => item.name)).toEqual([
+      '$subscriber.created',
+      '$subscriber.updated',
+      '$subscription.registered',
+    ]);
+    expectSystemEvent(items[2], externalId, '$subscription.registered', {
       externalId,
       channel: 'email',
       platform: null,
@@ -314,7 +318,7 @@ describe('$subscriber.updated', () => {
     });
 
     await identify(keyBearer, externalId, { email: address });
-    expect(await timelineOf(keyBearer, externalId, 2)).toHaveLength(2);
+    expect(await timelineOf(keyBearer, externalId, 3)).toHaveLength(3);
   });
 
   it('a device whose system attributes changed emits $identify with the merged attributes, never $subscriber.updated', async () => {

@@ -42,7 +42,9 @@ export async function subscribersAction(args: ActionFunctionArgs) {
         const target = String(form.get('tenant') ?? '').trim() || tenant;
         const credentials = await listCredentials(ctx, token, slug, target);
         const channels = new Set(connectedChannels(credentials));
-        const importable = rows.filter((row) => !row.channel || channels.has(row.channel));
+        const importable = rows.filter(
+          (row) => !row.channel || row.channel === 'email' || channels.has(row.channel)
+        );
         if (importable.length === 0) {
           return { ok: true, counts: EMPTY_IMPORT_COUNTS, failures: [] };
         }

@@ -189,6 +189,17 @@
   --surface-shadow-4:
     0px 3px 10px oklch(0 0 0 / 0.039), 0px 4px 14px oklch(0 0 0 / 0.039), 0px 0px 0px 1px oklch(0 0 0 / 0.024);
 
+  /* Brand — the logo's violet, the one hue that is not a status. Decorative
+     only: it tints signed-out surfaces (the marketing hero, the auth pages) and
+     never carries state, chrome or an action. The product's action color is the
+     --primary-* alias below, and stays neutral. */
+  --brand-1: oklch(0.962 0.018 273);
+  --brand-2: oklch(0.92 0.049 273);
+  --brand-3: oklch(0.794 0.105 278.36);
+  --brand-4: oklch(0.562 0.234 270.81);
+  --brand-deep: oklch(0.477 0.297 271.88);
+  --brand-text: oklch(0.49 0.222 271);
+
   /* Primary — alias ramp for the brand color. Components reference primary-* only,
      so swapping the brand is contained to this block. Currently NEUTRAL (black):
      solid actions, checked states and focus rings render in fg/bg neutrals.
@@ -377,6 +388,16 @@
   --pink-text: var(--pink-4);
   --yellow-text: var(--yellow-4);
 
+  /* Brand keeps its hue and is rebuilt on the accent ramps' dark recipe: the
+     tints go deep and saturated so a wash reads on a dark page, and -text
+     aliases the fill like every other ramp. */
+  --brand-1: oklch(0.211 0.073 273);
+  --brand-2: oklch(0.263 0.098 273);
+  --brand-3: oklch(0.478 0.207 272);
+  --brand-4: oklch(0.715 0.152 272);
+  --brand-deep: oklch(0.62 0.2 272);
+  --brand-text: var(--brand-4);
+
   /* Elevated chrome inverts: a drop shadow reads as nothing on a dark page, so
      the border becomes an inner hairline of light instead. */
   --control-shadow-elevated: 0 1px 1px oklch(0 0 0 / 0.08), inset 0 0 0 1px oklch(1 0 0 / 0.1);
@@ -503,6 +524,13 @@
   --color-orange-a3: var(--orange-a3);
   --color-orange-a4: var(--orange-a4);
   --color-orange-text: var(--orange-text);
+
+  --color-brand-1: var(--brand-1);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-brand-4: var(--brand-4);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-text: var(--brand-text);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);

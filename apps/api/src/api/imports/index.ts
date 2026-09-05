@@ -1,4 +1,4 @@
-import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
+import { assertChannelsConnected, listConnectedChannels } from '@buzzkit/api/api/credentials/index';
 import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import {
   assertNoSystemAttributes,
@@ -39,6 +39,21 @@ function hasEndpoint(row: ImportRowInput): boolean {
 function resolveChannel(row: ImportRowInput): SubscriptionChannel {
   if (row.channel) return row.channel;
   return row.address && !row.token ? 'email' : 'push';
+}
+
+function prepareEmailRow(row: ImportRowInput, emailConnected: boolean): ImportRowInput {
+  if (!hasEndpoint(row) || resolveChannel(row) !== 'email' || !row.address) return row;
+  const withProfile = { ...row, attributes: { ...(row.attributes ?? {}), email: row.address } };
+  if (emailConnected) return withProfile;
+
+  return {
+    externalId: row.externalId,
+    attributes: withProfile.attributes,
+    ...(row.timezone !== undefined ? { timezone: row.timezone } : {}),
+    ...(row.language !== undefined ? { language: row.language } : {}),
+    ...(row.country !== undefined ? { country: row.country } : {}),
+    ...(row.device !== undefined ? { device: row.device } : {}),
+  };
 }
 
 async function importRow(db: Db, tenantId: number, row: ImportRowInput): Promise<ImportRowOutcome> {
@@ -100,8 +115,11 @@ export async function registerImport(
   rows: ImportRowInput[]
 ): Promise<ImportResult> {
   return await trace('imports.register', { 'import.rows': rows.length }, async (span) => {
-    const channels = new Set(rows.filter(hasEndpoint).map(resolveChannel));
-    for (const channel of channels) await assertChannelConnected(db, tenantId, channel, 'rows');
+    const connected = await listConnectedChannels(db, tenantId);
+    const prepared = rows.map((row) => prepareEmailRow(row, connected.includes('email')));
+    const channels = [...new Set(prepared.filter(hasEndpoint).map(resolveChannel))];
+
+    if (channels.length > 0) assertChannelsConnected(connected, channels, 'rows');
 
     const counts: ImportResult['counts'] = {
       rows: rows.length,
@@ -114,7 +132,7 @@ export async function registerImport(
 
     const failures: ImportFailure[] = [];
 
-    await runConcurrently(groupByExternalId(rows), IMPORT_CONCURRENCY, async (group) => {
+    await runConcurrently(groupByExternalId(prepared), IMPORT_CONCURRENCY, async (group) => {
       for (const { index, row } of group) {
         try {
           const outcome = await importRow(db, tenantId, row);

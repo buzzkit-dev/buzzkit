@@ -91,6 +91,7 @@ describe('POST /v1/imports', () => {
       $appVersion: '3.2.0',
       $osVersion: '17.4',
       $deviceModel: 'iPhone15,2',
+      email: `${first}@acme.com`,
     });
     expect(detail.subscriptions.map((subscription) => subscription.channel).sort()).toEqual([
       'email',
@@ -188,6 +189,30 @@ describe('POST /v1/imports', () => {
 
     expect(status).toBe(400);
     expect(body.error?.code).toBe('channel_not_connected');
+  });
+
+  it('keeps an email as profile metadata when the email channel is not connected', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer, 'Bare email import', { bare: true });
+    const headers = { ...keyBearer, 'buzzkit-tenant': tenant.slug };
+    const externalId = `user_${uniq()}`;
+    const address = `${externalId}@acme.com`;
+
+    const { status, body } = await importRows(headers, [
+      { externalId, channel: 'email', address, attributes: { plan: 'pro' } },
+    ]);
+
+    expect(status).toBe(200);
+    expect(body.data?.counts).toMatchObject({
+      rows: 1,
+      subscribersCreated: 1,
+      subscriptionsCreated: 0,
+      unchanged: 1,
+      failed: 0,
+    });
+    const detail = await subscriberOf(headers, externalId);
+    expect(detail.attributes).toEqual({ plan: 'pro', email: address });
+    expect(detail.subscriptions).toEqual([]);
   });
 
   it('caps a batch at 1000 rows', async () => {

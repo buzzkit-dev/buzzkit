@@ -1,4 +1,4 @@
-import { assertChannelConnected } from '@buzzkit/api/api/credentials/index';
+import { assertChannelConnected, listConnectedChannels } from '@buzzkit/api/api/credentials/index';
 import { recordSystemEvents, type SystemEvent, subscriberAttributes } from '@buzzkit/api/api/events/index';
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -238,16 +238,27 @@ export async function upsertSubscriberProfile(
   input: {
     upsert: Parameters<typeof upsertSubscriber>[3];
     email?: string;
+    subscribeEmail?: boolean;
     rebind?: boolean;
     events: (outcome: { subscriber: Subscriber; created: boolean; changed: boolean }) => SystemEvent[];
   }
 ): Promise<{ subscriber: Subscriber; created: boolean }> {
-  if (input.email) await assertChannelConnected(db, tenantId, 'email', 'email');
+  let emailConnected = false;
+  if (input.email) emailConnected = (await listConnectedChannels(db, tenantId)).includes('email');
 
-  const { subscriber, created, changed } = await upsertSubscriber(db, tenantId, externalId, input.upsert);
+  const source = input.upsert ?? {};
+  const upsert = input.email
+    ? {
+        ...source,
+        attributes: { ...(source.attributes ?? {}), email: input.email },
+        mergeAttributes: source.attributes === undefined || source.mergeAttributes,
+      }
+    : source;
+
+  const { subscriber, created, changed } = await upsertSubscriber(db, tenantId, externalId, upsert);
 
   let registered: SubscriptionRegistration | null = null;
-  if (input.email) {
+  if (input.email && input.subscribeEmail !== false && emailConnected) {
     registered = await registerSubscription(db, tenantId, {
       subscriber,
       externalId: subscriber.externalId,
