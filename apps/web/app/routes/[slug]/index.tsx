@@ -324,6 +324,7 @@ function PeriodChart({
 
 const DELIVERY_LINES: Line[] = [
   { key: 'sent', label: 'Sent', tone: 'green', pick: (day) => day.sent },
+  { key: 'delivered', label: 'Delivered', tone: 'blue', pick: (day) => day.delivered },
   { key: 'failed', label: 'Failed', tone: 'red', pick: (day) => day.failed + day.invalid },
 ];
 
@@ -453,7 +454,8 @@ function OverviewContent({
 }) {
   const { hasChannel, stats, messages, subscribers } = data;
 
-  const delivered = stats.deliveries.sent;
+  const sent = stats.deliveries.sent;
+  const delivered = stats.deliveries.delivered;
   const failed = stats.deliveries.failed + stats.deliveries.invalid;
   const deliveryLines = stats.deliveries.capped > 0 ? [...DELIVERY_LINES, CAPPED_LINE] : DELIVERY_LINES;
   const points = (pick: (day: Stats['series'][number]) => number) =>
@@ -501,11 +503,18 @@ function OverviewContent({
           delta={{ current: stats.messages.total, previous: stats.previous.messages.total, upIsGood: true }}
         />
         <Tile
-          label='Delivered'
-          value={delivered}
+          label='Sent'
+          value={sent}
           tone='green'
           points={points((day) => day.sent)}
-          delta={{ current: delivered, previous: stats.previous.deliveries.sent, upIsGood: true }}
+          delta={{ current: sent, previous: stats.previous.deliveries.sent, upIsGood: true }}
+        />
+        <Tile
+          label='Delivered'
+          value={delivered}
+          tone='blue'
+          points={points((day) => day.delivered)}
+          delta={{ current: delivered, previous: stats.previous.deliveries.delivered, upIsGood: true }}
         />
         <Tile
           label='Failed'

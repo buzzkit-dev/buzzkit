@@ -139,6 +139,21 @@ describe('live activities', () => {
     expect(missingType.status).toBe(400);
     expect(missingType.body.error?.code).toBe('attributes_type_missing');
 
+    const missingAlert = await api('/v1/live-activities/send', {
+      method: 'POST',
+      headers: tenantBearer,
+      body: JSON.stringify({
+        to: externalId,
+        event: 'start',
+        attributesType: 'MatchAttributes',
+        attributes: {},
+        contentState: {},
+      }),
+    });
+
+    expect(missingAlert.status).toBe(400);
+    expect(missingAlert.body.error?.code).toBe('alert_missing');
+
     const missingActivity = await api('/v1/live-activities/send', {
       method: 'POST',
       headers: tenantBearer,

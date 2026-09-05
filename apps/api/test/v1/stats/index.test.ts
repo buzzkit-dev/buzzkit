@@ -26,11 +26,19 @@ describe('GET /v1/stats', () => {
     const data = body.data!;
     expect(data.subscribers).toEqual({ total: 0, added: 0 });
     expect(data.messages).toEqual({ total: 0 });
-    expect(data.deliveries).toEqual({ total: 0, sent: 0, failed: 0, capped: 0, invalid: 0, pending: 0 });
+    expect(data.deliveries).toEqual({
+      total: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      capped: 0,
+      invalid: 0,
+      pending: 0,
+    });
     expect(data.previous).toEqual({
       subscribers: { added: 0 },
       messages: { total: 0 },
-      deliveries: { total: 0, sent: 0, failed: 0, capped: 0, invalid: 0, pending: 0 },
+      deliveries: { total: 0, sent: 0, delivered: 0, failed: 0, capped: 0, invalid: 0, pending: 0 },
       events: { total: 0 },
       runs: { started: 0, live: 0, completed: 0, canceled: 0, failed: 0 },
     });
@@ -40,7 +48,15 @@ describe('GET /v1/stats', () => {
     for (const day of data.series) expect(day.date).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00Z$/);
     expect(new Date(data.range.to).getTime() - new Date(data.range.from).getTime()).toBe(7 * 86_400_000);
     for (const day of data.series)
-      expect(day).toMatchObject({ subscribers: 0, messages: 0, sent: 0, failed: 0, invalid: 0, pending: 0 });
+      expect(day).toMatchObject({
+        subscribers: 0,
+        messages: 0,
+        sent: 0,
+        delivered: 0,
+        failed: 0,
+        invalid: 0,
+        pending: 0,
+      });
     expect(data.series.map((day) => day.date)).toEqual([...data.series.map((day) => day.date)].sort());
   });
 

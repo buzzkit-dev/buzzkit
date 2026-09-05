@@ -129,10 +129,20 @@ async function collectWindow(
     listHourlyRuns(tenantId, range),
   ]);
 
-  const deliveries: DeliveryTotals = { total: 0, sent: 0, failed: 0, capped: 0, invalid: 0, pending: 0 };
+  const deliveries: DeliveryTotals = {
+    total: 0,
+    sent: 0,
+    delivered: 0,
+    failed: 0,
+    capped: 0,
+    invalid: 0,
+    pending: 0,
+  };
+
   for (const row of byStatus) {
     deliveries.total += Number(row.total);
     deliveries[bucket(row.status, row.capped === true)] += Number(row.total);
+    if (row.status === 'delivered') deliveries.delivered += Number(row.total);
   }
 
   return {
@@ -292,6 +302,7 @@ export async function collectStats(
       subscribers: 0,
       messages: 0,
       sent: 0,
+      delivered: 0,
       failed: 0,
       capped: 0,
       invalid: 0,
@@ -307,7 +318,9 @@ export async function collectStats(
   }
   for (const row of byDay) {
     const entry = days.get(row.day);
-    if (entry) entry[bucket(row.status, row.capped === true)] += Number(row.total);
+    if (!entry) continue;
+    entry[bucket(row.status, row.capped === true)] += Number(row.total);
+    if (row.status === 'delivered') entry.delivered += Number(row.total);
   }
   for (const row of subscribersByDay) {
     const entry = days.get(row.day);

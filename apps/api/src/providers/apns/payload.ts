@@ -97,7 +97,7 @@ export function buildApnsPayload(payload: ProviderSendInput['payload']): Record<
   if (payload.targetContentId !== undefined) aps['target-content-id'] = payload.targetContentId;
   const category = resolveCategoryId(payload);
   if (category !== undefined) aps.category = category;
-  if (payload.imageUrl !== undefined || (payload.actions?.length ?? 0) > 0) aps['mutable-content'] = 1;
+  if (aps.alert !== undefined) aps['mutable-content'] = 1;
 
   return {
     aps,

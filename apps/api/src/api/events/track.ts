@@ -1,4 +1,5 @@
 import type { ActorEventInput, ActorIngestOutcome } from '@buzzkit/api/actor/types';
+import { recordDeliveryReceipt } from '@buzzkit/api/api/deliveries/index';
 import { type Subscriber, upsertSubscriber } from '@buzzkit/api/api/subscribers/index';
 import type { Tenant } from '@buzzkit/api/api/tenants/index';
 import { subscriberActor } from '@buzzkit/api/libs/actor';
@@ -87,6 +88,7 @@ export async function trackEvents(
           for (const [index, event] of events.entries()) {
             outcomes.set(event, results[index]!);
           }
+          await promoteReceipts(db, tenant.id, subscriber, events);
         })
       );
       const failure = settled.find((entry) => entry.status === 'rejected');
@@ -123,6 +125,32 @@ export async function recordSystemEvents(
     subscriber,
     events.map((event) => resolveSystemEvent(event, now))
   );
+}
+
+const DELIVERED_EVENT = reservedEventName('notification.delivered');
+
+async function promoteReceipts(
+  db: Db,
+  tenantId: number,
+  subscriber: SubscriberRef,
+  events: ActorEventInput[]
+): Promise<void> {
+  const messageSqids = new Set(
+    events
+      .filter((event) => event.name === DELIVERED_EVENT)
+      .map((event) => event.messageId ?? event.data.messageId)
+      .filter(
+        (messageSqid): messageSqid is string => typeof messageSqid === 'string' && messageSqid.length > 0
+      )
+  );
+
+  for (const messageSqid of messageSqids) {
+    await recordDeliveryReceipt(db, tenantId, {
+      messageSqid,
+      subscriberId: subscriber.id,
+      receivedAt: new Date(),
+    });
+  }
 }
 
 export function subscriberAttributes(subscriber: Pick<Subscriber, 'attributes'>): Record<string, unknown> {

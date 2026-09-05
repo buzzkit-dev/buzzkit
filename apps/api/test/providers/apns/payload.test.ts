@@ -46,10 +46,15 @@ describe('buildApnsPayload', () => {
     expect((payload.aps as Record<string, unknown>)['mutable-content']).toBe(1);
   });
 
-  it('keeps a plain message without bk exactly as before', () => {
+  it('marks every alert mutable so the service extension can report delivery', () => {
     const payload = buildApnsPayload({ title: 'Hey', data: { a: 1 } });
     expect(payload.bk).toBeUndefined();
-    expect(payload.aps).toEqual({ alert: { title: 'Hey' } });
+    expect(payload.aps).toEqual({ alert: { title: 'Hey' }, 'mutable-content': 1 });
+  });
+
+  it('leaves a silent push unmutated, because it has no alert to mutate', () => {
+    const payload = buildApnsPayload({ data: { a: 1 } });
+    expect((payload.aps as Record<string, unknown>)['mutable-content']).toBeUndefined();
   });
 
   it('turns deliver local into a silent push carrying the plan', () => {

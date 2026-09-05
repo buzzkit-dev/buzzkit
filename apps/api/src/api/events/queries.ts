@@ -167,7 +167,9 @@ export async function listSubscriberTimeline(
   const last = page.at(-1);
 
   return {
-    items: page.map((row) => serializeEvent({ ...row, external_id: subscriber.externalId })),
+    items: [...page]
+      .sort(byOccurrence)
+      .map((row) => serializeEvent({ ...row, external_id: subscriber.externalId })),
     hasMore,
     nextCursor: hasMore && last ? String(last.sequence) : null,
   };
@@ -202,7 +204,12 @@ async function listTimelineTail(
   return result.data;
 }
 
+function byOccurrence(left: EventRow, right: EventRow): number {
+  const difference = Date.parse(right.timestamp) - Date.parse(left.timestamp);
+  return difference === 0 ? right.sequence - left.sequence : difference;
+}
+
 function toEventPage(rows: EventRow[], limit: number, cursorOf: (row: EventRow) => string): EventPage {
   const page = toPageBy(rows, limit, cursorOf);
-  return { ...page, items: page.items.map(serializeEvent) };
+  return { ...page, items: [...page.items].sort(byOccurrence).map(serializeEvent) };
 }

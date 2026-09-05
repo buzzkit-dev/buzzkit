@@ -7,6 +7,7 @@ export type StatsInterval = (typeof STATS_INTERVALS)[number];
 export type DeliveryTotals = {
   total: number;
   sent: number;
+  delivered: number;
   failed: number;
   capped: number;
   invalid: number;
@@ -18,6 +19,7 @@ export type StatsDay = {
   subscribers: number;
   messages: number;
   sent: number;
+  delivered: number;
   failed: number;
   capped: number;
   invalid: number;

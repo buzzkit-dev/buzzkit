@@ -10,6 +10,7 @@ import type { Delivery, DeliveryAttempt, DeliveryStatus } from './types';
 export * from './attempts';
 export * from './constants';
 export type { CounterDelta } from './policy';
+export * from './receipts';
 export * from './serialize';
 export type * from './types';
 

@@ -143,6 +143,12 @@ export async function sendLiveActivity(
       param: 'attributesType',
     });
   }
+  if (input.event === 'start' && !input.alert?.title && !input.alert?.body) {
+    throw new BadRequestError('Starting a Live Activity needs an alert, which iOS requires to show it', {
+      code: 'alert_missing',
+      param: 'alert',
+    });
+  }
   if (input.event !== 'start' && !input.activityId) {
     throw new BadRequestError('Updating or ending a Live Activity needs its activityId', {
       code: 'activity_id_missing',

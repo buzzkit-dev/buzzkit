@@ -84,7 +84,8 @@ curl https://api.buzzkit.dev/v1/live-activities/send \
     "event": "start",
     "attributesType": "MatchAttributes",
     "attributes": { "matchId": "m_1" },
-    "contentState": { "score": 0 }
+    "contentState": { "score": 0 },
+    "alert": { "title": "Kick-off", "body": "The match has started." }
   }'
 ```
 
@@ -112,7 +113,7 @@ curl https://api.buzzkit.dev/v1/live-activities/send \
 | `attributesType` | The attributes type name, which `start` targets through the push-to-start token. |
 | `contentState` | The new content state, matching your `ContentState` keys. Required. |
 | `attributes` | The static attributes, for `start` only. |
-| `alert` | `{ title, body, sound }`, shown as a banner alongside the update. |
+| `alert` | `{ title, body, sound }`, shown as a banner alongside the update. Required for `start`: iOS discards a push-to-start without one, so the API answers `alert_missing`. |
 | `staleDate`, `dismissalDate` | ISO timestamps for when the content goes stale and when the ended tile disappears. |
 | `priority` | `high` by default, or `normal`. |
 | `timestamp` | The update's time in epoch seconds, defaulting to now. iOS ignores an update older than one it already applied. |
