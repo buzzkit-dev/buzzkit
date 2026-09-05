@@ -4,10 +4,14 @@ import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
+import { PageHeader } from '@/app/components/layout/page-header';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { WorkflowFlow } from '@/app/components/workflows/flow';
 import { parseSpec, SpecEditor } from '@/app/components/workflows/spec-editor';
 import { describeSlugProblem, slugify } from '@/app/components/workspace/fields';
@@ -53,32 +57,8 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
   };
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Workflows
-      </Button>
-
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            New workflow
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Send a sequence of messages that starts on an event or a schedule and follows what the subscriber
-            does next.
-          </p>
-        </div>
-        <Button disabled={!canCreate} loading={pending} onClick={create}>
-          Create workflow
-        </Button>
-      </header>
+    <NewWorkflowFrame slug={params.slug}>
+      <NewWorkflowHeader canCreate={canCreate} pending={pending} onCreate={create} />
 
       <ScrollFade targetRef={mainRef} />
       <div
@@ -162,6 +142,95 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
           </Card>
         </div>
       </div>
+    </NewWorkflowFrame>
+  );
+}
+
+function NewWorkflowFrame({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${slug}/workflows`} />}
+      >
+        Workflows
+      </Button>
+      {children}
     </div>
   );
 }
+
+function NewWorkflowHeader({
+  canCreate,
+  pending,
+  onCreate,
+}: {
+  canCreate: boolean;
+  pending?: boolean;
+  onCreate?: () => void;
+}) {
+  return (
+    <PageHeader
+      title='New workflow'
+      description='Send a sequence of messages that starts on an event or a schedule and follows what the subscriber does next.'
+      actions={
+        <Button disabled={!canCreate} loading={pending} onClick={onCreate}>
+          Create workflow
+        </Button>
+      }
+    />
+  );
+}
+
+function NewWorkflowPending() {
+  const { slug } = useParams();
+  return (
+    <NewWorkflowFrame slug={slug ?? ''}>
+      <NewWorkflowHeader canCreate={false} />
+      <div className='-m-1 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'>
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
+          <FieldGroup className='p-4'>
+            <Field>
+              <FieldLabel>Name</FieldLabel>
+              <Skeleton className='h-8.5 w-full rounded-xl' />
+            </Field>
+            <Field>
+              <FieldLabel>Slug</FieldLabel>
+              <Skeleton className='h-8.5 w-full rounded-xl' />
+              <FieldDescription>Names the workflow in the API and on its runs.</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>Description</FieldLabel>
+              <Skeleton className='h-[4.75rem] w-full rounded-xl' />
+            </Field>
+          </FieldGroup>
+        </Card>
+        <div className='grid gap-5 lg:grid-cols-2 lg:items-start'>
+          <Card className='min-w-0'>
+            <CardHeader divider className='py-3'>
+              <CardTitle>Definition</CardTitle>
+            </CardHeader>
+            <div className='p-4'>
+              <Skeleton className='h-[30rem] w-full rounded-xl' />
+            </div>
+          </Card>
+          <Card className='min-w-0'>
+            <CardHeader className='py-3'>
+              <CardTitle>Preview</CardTitle>
+            </CardHeader>
+            <BlockSkeleton className='mx-4 mb-4 h-64 rounded-xl' />
+          </Card>
+        </div>
+      </div>
+    </NewWorkflowFrame>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <NewWorkflowPending /> };

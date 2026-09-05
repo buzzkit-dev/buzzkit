@@ -22,6 +22,16 @@ export function resolveRange(value: string | null): { from?: string; to?: string
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+export function resolveInterval(window: { from?: string; to?: string }): 'hour' | 'day' | 'week' | 'month' {
+  const to = window.to ? new Date(window.to).getTime() : Date.now();
+  const from = window.from ? new Date(window.from).getTime() : to - 7 * 24 * 3_600_000;
+  const days = (to - from) / (24 * 3_600_000);
+  if (days <= 2) return 'hour';
+  if (days <= 120) return 'day';
+  if (days <= 200) return 'week';
+  return 'month';
+}
+
 export function useFilters<K extends string>(keys: readonly K[]) {
   const [params] = useSearchParams();
   const navigate = useNavigate();

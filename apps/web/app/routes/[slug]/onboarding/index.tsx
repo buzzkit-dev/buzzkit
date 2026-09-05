@@ -1,7 +1,7 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { useState } from 'react';
-import { data, Link, redirect, type ShouldRevalidateFunctionArgs } from 'react-router';
+import { data, Link, redirect, type ShouldRevalidateFunctionArgs, useNavigate } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
   CHANNELS,
@@ -15,6 +15,7 @@ import { GUIDES } from '@/app/components/onboarding/guides';
 import { OnboardingLayout, type OnboardingSlots } from '@/app/components/onboarding/layout';
 import { useProviderGuide } from '@/app/components/onboarding/provider-guide';
 import type { StepKind } from '@/app/components/onboarding/transition';
+import { ImportForm } from '@/app/components/subscribers/import';
 import { connectProviderAction } from '@/app/lib/actions/connect.server';
 import { ApiError, getProfile, getWorkspace, listCredentials } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
@@ -71,7 +72,32 @@ export const action = connectProviderAction;
 
 const CURRENT_STEP_FILL = 0.08;
 
+const VIEW_POSITIONS = {
+  channels: 0,
+  providers: 100,
+  guide: 200,
+  connected: 900,
+  migrate: 950,
+  import: 1000,
+} as const;
+
+type OnboardingView = keyof typeof VIEW_POSITIONS;
+
+type ConnectedStage = 'connected' | 'migrate' | 'import';
+
+function resolveView(state: {
+  connected: boolean;
+  stage: ConnectedStage;
+  provider: boolean;
+  channel: boolean;
+}): OnboardingView {
+  if (state.connected) return state.stage;
+  if (state.provider) return 'guide';
+  return state.channel ? 'providers' : 'channels';
+}
+
 export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
+  const navigate = useNavigate();
   const { workspace, credentials, channelId, providerId, initialStep } = loaderData;
   const channel = channelId ? findChannel(channelId)! : null;
   const provider = channel && providerId ? findProvider(channel.id, providerId)! : null;
@@ -95,13 +121,18 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
       )
     : null;
 
-  const view = connected ? 'connected' : provider ? 'guide' : channel ? 'providers' : 'channels';
-  const position =
-    { channels: 0, providers: 100, guide: 200, connected: 900 }[view] +
-    (view === 'guide' ? guide.current : 0);
+  const [stage, setStage] = useState<ConnectedStage>('connected');
+  const view = resolveView({
+    connected: connected !== null,
+    stage,
+    provider: !!provider,
+    channel: !!channel,
+  });
+  const position = VIEW_POSITIONS[view] + (view === 'guide' ? guide.current : 0);
   const transitionKey = `${view}:${channel?.id ?? ''}:${provider?.id ?? ''}:${guide.current}`;
 
-  const kind: StepKind = view === 'channels' || view === 'providers' ? 'rows' : 'preview';
+  const kind: StepKind =
+    view === 'channels' || view === 'providers' || view === 'migrate' ? 'rows' : 'preview';
   const [nav, setNav] = useState({ key: transitionKey, position, kind, from: kind, direction: 1 });
   if (nav.key !== transitionKey) {
     setNav({
@@ -113,10 +144,10 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
     });
   }
 
-  const step = view === 'channels' ? 1 : view === 'providers' ? 2 : 3;
+  const step = { channels: 1, providers: 2, guide: 3, connected: 3, migrate: 4, import: 4 }[view];
   const connectProgress =
     view === 'connected' ? 1 : view === 'guide' && guide.total > 0 ? guide.current / guide.total : 0;
-  const progress = [0, 1, 2, 3].map((index) => {
+  const progress = [0, 1, 2, 3, 4].map((index) => {
     if (index < step) return 1;
     if (index > step) return 0;
     return index === 3 ? Math.max(CURRENT_STEP_FILL, connectProgress) : CURRENT_STEP_FILL;
@@ -129,14 +160,61 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
   ).length;
 
   let slots: OnboardingSlots;
-  if (view === 'connected' && connected && provider && channel) {
+  if (view === 'import' && connected) {
+    slots = {
+      title: 'Bring your subscribers',
+      description: 'Upload the export from your previous provider and every device keeps receiving.',
+      content: (
+        <CardContent className='pt-2.5'>
+          <ImportForm
+            target={{ action: `/${workspace.slug}/subscribers`, tenant: 'default' }}
+            sandbox={connected.some((credential) => credential.environment === 'sandbox')}
+            onDone={() => void navigate(`/${workspace.slug}/subscribers`)}
+          />
+        </CardContent>
+      ),
+      footer: (
+        <Button variant='ghost' size='xs' className='-ml-2' onClick={() => setStage('migrate')}>
+          Back
+        </Button>
+      ),
+    };
+  } else if (view === 'migrate') {
+    slots = {
+      title: 'Migrating from another provider?',
+      description: 'Bring your subscribers along, or start with an empty audience.',
+      content: (
+        <CardContent className='pb-2'>
+          <ChoiceRows>
+            <ChoiceRow
+              onClick={() => setStage('import')}
+              icon='IconCloudUploadFilled'
+              title='Import subscribers'
+              description='Upload the export from your previous provider.'
+            />
+            <ChoiceRow
+              to={`/${workspace.slug}`}
+              icon='IconTeamFilled'
+              title='Start fresh'
+              description='Subscribers appear as your app identifies them.'
+            />
+          </ChoiceRows>
+        </CardContent>
+      ),
+      footer: (
+        <Button variant='ghost' size='xs' className='-ml-2' onClick={() => setStage('connected')}>
+          Back
+        </Button>
+      ),
+    };
+  } else if (view === 'connected' && connected && provider && channel) {
     slots = connectedSlots({
       credentials: connected,
       provider,
       channel,
       fetcher: guide.fetcher,
       more: otherChannels > 0 ? `/${workspace.slug}/settings/channels` : null,
-      done: { label: 'Go to the dashboard', to: `/${workspace.slug}` },
+      done: { label: 'Continue', onClick: () => setStage('migrate') },
     });
   } else if (view === 'guide' && guide.slots) {
     slots = guide.slots;

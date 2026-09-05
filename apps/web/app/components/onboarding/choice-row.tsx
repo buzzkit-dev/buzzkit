@@ -39,13 +39,15 @@ export function ChoiceRows({ children }: { children: React.ReactNode }) {
 
 export function ChoiceRow({
   to,
+  onClick,
   icon,
   title,
   badges = [],
   description,
   state = 'available',
 }: {
-  to: string;
+  to?: string;
+  onClick?: () => void;
   icon: IconName;
   title: string;
   badges?: string[];
@@ -54,6 +56,7 @@ export function ChoiceRow({
 }) {
   const { hovered, setHovered } = useContext(HoverContext);
   const disabled = state === 'soon';
+  const key = to ?? title;
   const body = (
     <>
       <IconTile icon={icon} />
@@ -96,16 +99,27 @@ export function ChoiceRow({
         <div aria-disabled className={className}>
           {body}
         </div>
-      ) : (
+      ) : to ? (
         <Link
           to={to}
           className={className}
-          data-highlighted={hovered === to ? '' : undefined}
-          onPointerEnter={() => setHovered(to)}
-          onFocus={() => setHovered(to)}
+          data-highlighted={hovered === key ? '' : undefined}
+          onPointerEnter={() => setHovered(key)}
+          onFocus={() => setHovered(key)}
         >
           {body}
         </Link>
+      ) : (
+        <button
+          type='button'
+          className={className}
+          data-highlighted={hovered === key ? '' : undefined}
+          onPointerEnter={() => setHovered(key)}
+          onFocus={() => setHovered(key)}
+          onClick={onClick}
+        >
+          {body}
+        </button>
       )}
     </li>
   );

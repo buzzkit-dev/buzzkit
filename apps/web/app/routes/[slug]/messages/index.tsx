@@ -16,7 +16,9 @@ import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
@@ -156,19 +158,7 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Messages
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Inspect every message sent from this workspace.
-          </p>
-        </div>
-        <Button icon='IconPaperPlaneTopRightFilled' onClick={() => setOpen(true)}>
-          Send test message
-        </Button>
-      </header>
+      <MessagesHeader onSend={() => setOpen(true)} />
 
       <Deferred resolve={results}>
         {(data) => {
@@ -177,92 +167,44 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
           const topics = data?.topics ?? [];
           const segments = data?.segments ?? [];
           const fresh = data !== undefined && !filtered && messages.length === 0;
+          if (cold) return <MessagesSkeleton connected={connected} />;
           return (
             <>
-              {!fresh && (
-                <FilterBar>
-                  <FilterSelect
-                    label='Status'
-                    value={filters.values.status as (typeof STATUS_OPTIONS)[number]['value'] | null}
-                    options={[...STATUS_OPTIONS]}
-                    onValueChange={(value) => filters.set('status', value)}
-                    disabled={cold}
-                  />
-                  {connected.length > 1 && (
-                    <FilterSelect
-                      label='Channel'
-                      value={filters.values.channel as Channel | null}
-                      options={CHANNEL_OPTIONS.filter((option) => connected.includes(option.value))}
-                      onValueChange={(value) => filters.set('channel', value)}
-                      disabled={cold}
-                    />
-                  )}
-                  {topics.length > 0 && (
-                    <FilterSelect
-                      label='Topic'
-                      value={filters.values.topic}
-                      options={topics.map((topic) => ({ value: topic.slug, label: topic.name }))}
-                      onValueChange={(value) => filters.set('topic', value)}
-                      disabled={cold}
-                    />
-                  )}
-                  <FilterRange
-                    presets={Object.entries(RANGES).map(([value, range]) => ({
-                      value,
-                      label: range.label,
-                    }))}
-                    value={filters.values.range}
-                    onValueChange={(value) => filters.set('range', value)}
-                    disabled={cold}
-                  />
-                  {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
-                  <FilterSearch
-                    value={filters.search}
-                    onChange={(event) => filters.setSearch(event.target.value)}
-                    loading={filters.searching || cold}
-                    placeholder='Search messages'
-                    aria-label='Search messages'
-                  />
-                </FilterBar>
-              )}
+              {!fresh && <MessagesFilters topics={topics} connected={connected} cold={cold} />}
 
-              {data === undefined ? (
-                <TableSkeleton columns={COLUMNS} rows={8} fixed={false} />
-              ) : (
-                <Card className='min-h-0 shrink'>
-                  {fresh ? (
-                    <EmptyState
-                      icon='IconPaperPlaneTopRightFilled'
-                      title='No messages yet'
-                      description='Send one from your backend, or a test message from here, and it appears with every delivery.'
-                      className='py-10'
-                    >
-                      <CodeBlock className='w-full max-w-xl text-left' code={sendSnippet(apiUrl)} />
-                    </EmptyState>
-                  ) : messages.length === 0 ? (
-                    <EmptyState
-                      icon='IconPaperPlaneTopRightFilled'
-                      title='No messages match'
-                      description='Nothing sent from this workspace matches these filters.'
-                      className='py-10'
-                    >
-                      <Button variant='soft' onClick={filters.clear}>
-                        Clear filters
-                      </Button>
-                    </EmptyState>
-                  ) : (
-                    <Table>
-                      <TableColumns columns={COLUMNS} />
-                      <TableBody>
-                        {messages.map((message) => (
-                          <MessageRow key={message.id} message={message} base={base} />
-                        ))}
-                      </TableBody>
-                      <TablePagination {...data.pagination} />
-                    </Table>
-                  )}
-                </Card>
-              )}
+              <Card className='min-h-0 shrink'>
+                {fresh ? (
+                  <EmptyState
+                    icon='IconPaperPlaneTopRightFilled'
+                    title='No messages yet'
+                    description='Send one from your backend, or a test message from here, and it appears with every delivery.'
+                    className='py-10'
+                  >
+                    <CodeBlock className='w-full max-w-xl text-left' code={sendSnippet(apiUrl)} />
+                  </EmptyState>
+                ) : messages.length === 0 ? (
+                  <EmptyState
+                    icon='IconPaperPlaneTopRightFilled'
+                    title='No messages match'
+                    description='Nothing sent from this workspace matches these filters.'
+                    className='py-10'
+                  >
+                    <Button variant='soft' onClick={filters.clear}>
+                      Clear filters
+                    </Button>
+                  </EmptyState>
+                ) : (
+                  <Table>
+                    <TableColumns columns={COLUMNS} />
+                    <TableBody>
+                      {messages.map((message) => (
+                        <MessageRow key={message.id} message={message} base={base} />
+                      ))}
+                    </TableBody>
+                    <TablePagination {...data.pagination} />
+                  </Table>
+                )}
+              </Card>
 
               <SendDialog
                 topics={topics}
@@ -279,3 +221,94 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
     </div>
   );
 }
+
+function MessagesHeader({ onSend }: { onSend?: () => void }) {
+  return (
+    <PageHeader
+      title='Messages'
+      description='Inspect every message sent from this workspace.'
+      actions={
+        <Button icon='IconPaperPlaneTopRightFilled' onClick={onSend}>
+          Send test message
+        </Button>
+      }
+    />
+  );
+}
+
+function MessagesFilters({
+  topics,
+  connected,
+  cold,
+}: {
+  topics: Array<{ slug: string; name: string }>;
+  connected: Channel[] | null;
+  cold: boolean;
+}) {
+  const filters = useFilters(FILTER_KEYS);
+
+  return (
+    <FilterBar>
+      <FilterSelect
+        label='Status'
+        value={filters.values.status as (typeof STATUS_OPTIONS)[number]['value'] | null}
+        options={[...STATUS_OPTIONS]}
+        onValueChange={(value) => filters.set('status', value)}
+        disabled={cold}
+      />
+      {connected && connected.length > 1 && (
+        <FilterSelect
+          label='Channel'
+          value={filters.values.channel as Channel | null}
+          options={CHANNEL_OPTIONS.filter((option) => connected.includes(option.value))}
+          onValueChange={(value) => filters.set('channel', value)}
+          disabled={cold}
+        />
+      )}
+      {topics.length > 0 && (
+        <FilterSelect
+          label='Topic'
+          value={filters.values.topic}
+          options={topics.map((topic) => ({ value: topic.slug, label: topic.name }))}
+          onValueChange={(value) => filters.set('topic', value)}
+          disabled={cold}
+        />
+      )}
+      <FilterRange
+        presets={Object.entries(RANGES).map(([value, range]) => ({
+          value,
+          label: range.label,
+        }))}
+        value={filters.values.range}
+        onValueChange={(value) => filters.set('range', value)}
+        disabled={cold}
+      />
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+      <FilterSearch
+        value={filters.search}
+        onChange={(event) => filters.setSearch(event.target.value)}
+        loading={filters.searching || cold}
+        placeholder='Search messages'
+        aria-label='Search messages'
+      />
+    </FilterBar>
+  );
+}
+
+function MessagesSkeleton({ connected }: { connected: Channel[] | null }) {
+  return (
+    <>
+      <MessagesFilters topics={[]} connected={connected} cold />
+      <TableSkeleton columns={COLUMNS} rows={8} fixed={false} />
+    </>
+  );
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <MessagesHeader />
+      <MessagesSkeleton connected={null} />
+    </div>
+  ),
+};

@@ -7,13 +7,17 @@ import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { Input } from '@buzzkit/ui/components/input';
 import { PastelAvatar } from '@buzzkit/ui/components/pastel-avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useFetcher, useNavigate } from 'react-router';
+import { Link, useFetcher, useNavigate, useParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge, WorkflowStatusBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
+import { BlockSkeleton } from '@/app/components/loading/card';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { describeRunEvent } from '@/app/components/workflows/describe';
 import { type RunPath, WorkflowFlow } from '@/app/components/workflows/flow';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
@@ -602,3 +606,59 @@ export default function WorkflowTestRoute({ loaderData, params }: Route.Componen
     </div>
   );
 }
+
+function WorkflowTestPending() {
+  const { slug, workflowSlug } = useParams();
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${slug}/workflows/${workflowSlug}`} />}
+      >
+        <Skeleton className='h-3.5 w-24' />
+      </Button>
+      <PageHeader
+        title={<Skeleton className='h-7 w-64' />}
+        titleClassName='flex items-center gap-2.5'
+        description='Run a version for a subscriber and see the path it takes and what every step would do. Nothing is sent.'
+      />
+      <div className='grid min-h-0 flex-1 gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]'>
+        <Card className='flex min-h-0 flex-col'>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Input</CardTitle>
+          </CardHeader>
+          <div className='min-h-0 flex-1 overflow-y-auto p-4'>
+            <FieldGroup className='w-full'>
+              <Field>
+                <FieldLabel>Subscriber</FieldLabel>
+                <Skeleton className='h-8.5 w-full rounded-xl' />
+              </Field>
+              <Field>
+                <FieldLabel>Clock</FieldLabel>
+                <Skeleton className='h-8.5 w-full rounded-xl' />
+              </Field>
+            </FieldGroup>
+          </div>
+          <CardFooter>
+            <Button className='w-full' disabled>
+              Run test
+            </Button>
+          </CardFooter>
+        </Card>
+        <Card className='flex min-h-0 flex-1 flex-col'>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Path</CardTitle>
+          </CardHeader>
+          <BlockSkeleton className='m-4 h-72 rounded-xl' />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <WorkflowTestPending /> };

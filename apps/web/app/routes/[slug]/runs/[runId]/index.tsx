@@ -10,8 +10,8 @@ import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
-import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { describeRunEvent } from '@/app/components/workflows/describe';
 import { type RunPath, WorkflowFlow } from '@/app/components/workflows/flow';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
@@ -213,17 +213,66 @@ function RunContent({
   );
 }
 
+const RUN_DETAIL_LABELS = ['Workflow', 'Subscriber', 'Status', 'Version', 'Started', 'Updated', 'Run id'];
+
+const TIMELINE_PLACEHOLDERS = ['a', 'b', 'c', 'd'];
+
 function RunSkeleton() {
   return (
     <>
-      <Skeleton className='-ml-2 h-8 w-32 shrink-0 rounded-xl' />
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2'
+        disabled
+      >
+        <Skeleton className='h-3.5 w-24' />
+      </Button>
+
       <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
-        <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5'>
-          <BlockSkeleton className='h-96 w-full rounded-2xl' />
-          <BlockSkeleton className='h-64 w-full rounded-2xl' />
+        <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5 [&>*]:shrink-0'>
+          <Card className='flex max-h-[36rem] min-h-0 flex-col'>
+            <CardHeader divider className='py-3'>
+              <CardTitle>Flow</CardTitle>
+            </CardHeader>
+            <div className='p-4'>
+              <Skeleton className='h-72 w-full rounded-xl' />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader divider className='py-3'>
+              <CardTitle>Timeline</CardTitle>
+            </CardHeader>
+            <ul className='flex flex-col divide-y divide-bg-3'>
+              {TIMELINE_PLACEHOLDERS.map((row) => (
+                <li key={row} className='flex items-center gap-3 px-4 py-2.5'>
+                  <Skeleton className='size-8 rounded-xl' />
+                  <div className='flex min-w-0 flex-1 flex-col items-start gap-1'>
+                    <Skeleton className='h-3.5 w-36' />
+                    <Skeleton className='h-3 w-52' />
+                  </div>
+                  <Skeleton className='h-3 w-14' />
+                </li>
+              ))}
+            </ul>
+          </Card>
         </div>
-        <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0'>
-          <BlockSkeleton className='h-80 w-full rounded-2xl' />
+
+        <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'>
+          <Card>
+            <CardHeader divider className='py-3'>
+              <CardTitle>Overview</CardTitle>
+            </CardHeader>
+            <dl className='flex flex-col'>
+              {RUN_DETAIL_LABELS.map((label) => (
+                <DetailRow key={label} label={label}>
+                  <Skeleton className='h-4 w-32' />
+                </DetailRow>
+              ))}
+            </dl>
+          </Card>
         </div>
       </div>
     </>
@@ -241,3 +290,11 @@ export default function RunRoute({ loaderData, params }: Route.ComponentProps) {
     </div>
   );
 }
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <RunSkeleton />
+    </div>
+  ),
+};

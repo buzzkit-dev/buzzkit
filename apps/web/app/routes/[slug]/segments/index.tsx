@@ -6,8 +6,11 @@ import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { Conditions } from '@/app/components/conditions/chips';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { segmentsAction } from '@/app/lib/actions/segments.server';
 import { listSegments, type Segment } from '@/app/lib/api.server';
@@ -64,27 +67,13 @@ export default function SegmentsRoute({ loaderData, params }: Route.ComponentPro
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Segments
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Groups of subscribers defined by their attributes, events and activity.
-          </p>
-        </div>
-        {canManage && (
-          <Button icon='IconPlusMedium' nativeButton={false} render={<Link to={`${base}/new`} />}>
-            New segment
-          </Button>
-        )}
-      </header>
+      <SegmentsHeader canManage={canManage} base={base} />
 
       <Deferred resolve={segments}>
         {(data) => {
           const rows = data ?? [];
           return data === undefined ? (
-            <TableSkeleton columns={COLUMNS} />
+            <SegmentsSkeleton />
           ) : (
             <Card className='min-h-0 shrink'>
               {rows.length === 0 ? (
@@ -111,3 +100,39 @@ export default function SegmentsRoute({ loaderData, params }: Route.ComponentPro
     </div>
   );
 }
+
+function SegmentsHeader({ canManage, base }: { canManage: boolean | null; base?: string }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='Segments'
+      description='Groups of subscribers defined by their attributes, events and activity.'
+      actions={
+        manage === false ? null : (
+          <Button
+            icon='IconPlusMedium'
+            disabled={manage === null}
+            nativeButton={false}
+            render={<Link to={`${base}/new`} />}
+          >
+            New segment
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function SegmentsSkeleton() {
+  return <TableSkeleton columns={COLUMNS} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <SegmentsHeader canManage={null} />
+      <SegmentsSkeleton />
+    </div>
+  ),
+};

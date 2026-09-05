@@ -5,11 +5,12 @@ import type { Tenant } from '@buzzkit/api/api/tenants/index';
 import { subscriberActor } from '@buzzkit/api/libs/actor';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { currentTraceparent, trace } from '@buzzkit/api/libs/telemetry';
+import { runConcurrently } from '@buzzkit/api/utils/concurrency';
 import { assertJsonSize } from '@buzzkit/api/utils/json';
 import { uuidv7 } from '@buzzkit/api/utils/uuid';
 import type { Db } from '@buzzkit/database';
 import { assertEventNameAllowed, reservedEventName } from './catalog';
-import { MAX_EVENT_AGE_MS, MAX_EVENT_DATA_BYTES, MAX_EVENT_SKEW_MS } from './constants';
+import { INGEST_CONCURRENCY, MAX_EVENT_AGE_MS, MAX_EVENT_DATA_BYTES, MAX_EVENT_SKEW_MS } from './constants';
 import type { EventInput, EventSource, SystemEvent, TrackedEvent } from './types';
 
 type SubscriberRef = Pick<Subscriber, 'id' | 'externalId'>;
@@ -67,8 +68,9 @@ export async function trackEvents(
       }
 
       const outcomes = new Map<ActorEventInput, ActorIngestOutcome>();
-      const settled = await Promise.allSettled(
-        [...byExternalId].map(async ([externalId, events]) => {
+      const failures: unknown[] = [];
+      await runConcurrently([...byExternalId], INGEST_CONCURRENCY, async ([externalId, events]) => {
+        try {
           const { subscriber, created } = await upsertSubscriber(db, tenant.id, externalId, {
             verifiedNow: input.verifiedNow,
             systemAttributes: input.systemAttributes,
@@ -89,10 +91,11 @@ export async function trackEvents(
             outcomes.set(event, results[index]!);
           }
           await promoteReceipts(db, tenant.id, subscriber, events);
-        })
-      );
-      const failure = settled.find((entry) => entry.status === 'rejected');
-      if (failure) throw failure.reason;
+        } catch (error) {
+          failures.push(error);
+        }
+      });
+      if (failures.length > 0) throw failures[0];
 
       return prepared.map(({ externalId, actor }) => {
         const outcome = outcomes.get(actor)!;

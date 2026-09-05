@@ -1,6 +1,7 @@
 import { SESSION_COOKIE_NAMES, sharedCookieDomain } from '@buzzkit/auth/cookies';
 import { createAuthClient } from 'better-auth/client';
 import { createCookie, redirect } from 'react-router';
+import type { WorkspaceRole } from '@/app/hooks/use-known-role';
 import { requestUrl } from '@/app/lib/utils/request';
 
 const lastWorkspace = createCookie('buzzkit.workspace', {
@@ -15,6 +16,13 @@ const tenantChoices = createCookie('buzzkit.tenants', {
   sameSite: 'lax',
   httpOnly: true,
   maxAge: 60 * 60 * 24 * 365,
+});
+
+const roleHints = createCookie('buzzkit.roles', {
+  path: '/',
+  sameSite: 'lax',
+  httpOnly: true,
+  maxAge: 60 * 60,
 });
 
 const DEFAULT_TENANT = 'default';
@@ -41,6 +49,28 @@ export async function tenantCookie(
   const next = { ...choices, [workspaceSlug]: tenantSlug };
   if (tenantSlug === DEFAULT_TENANT) delete next[workspaceSlug];
   return tenantChoices.serialize(next, { secure: env.ENVIRONMENT !== 'development' });
+}
+
+async function readRoleHints(request: Request): Promise<Record<string, WorkspaceRole>> {
+  const value = await roleHints.parse(request.headers.get('Cookie'));
+  return value && typeof value === 'object' ? (value as Record<string, WorkspaceRole>) : {};
+}
+
+export async function readRoleHint(request: Request, workspaceSlug: string): Promise<WorkspaceRole | null> {
+  return (await readRoleHints(request))[workspaceSlug] ?? null;
+}
+
+export async function roleHintCookie(
+  env: Env,
+  request: Request,
+  workspaceSlug: string,
+  role: WorkspaceRole
+): Promise<string> {
+  const hints = await readRoleHints(request);
+  return roleHints.serialize(
+    { ...hints, [workspaceSlug]: role },
+    { secure: env.ENVIRONMENT !== 'development' }
+  );
 }
 
 function readCookie(request: Request, name: string): string | null {
@@ -121,5 +151,6 @@ export async function signOut(request: Request, env: Env): Promise<Response> {
 
   const headers = new Headers({ location: '/login' });
   for (const cookie of cleared) headers.append('Set-Cookie', cookie);
+  headers.append('Set-Cookie', await roleHints.serialize({}, { maxAge: 0 }));
   return new Response(null, { status: 302, headers });
 }

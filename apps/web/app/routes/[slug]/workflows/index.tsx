@@ -6,10 +6,13 @@ import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { WorkflowStatusBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { LiveRuns } from '@/app/components/workflows/live-runs';
 import { TriggerConditions } from '@/app/components/workflows/trigger';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { workflowsAction } from '@/app/lib/actions/workflows.server';
 import { listWorkflows, type Workflow } from '@/app/lib/api.server';
@@ -77,27 +80,13 @@ export default function WorkflowsRoute({ loaderData, params }: Route.ComponentPr
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Workflows
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Automate messages that follow what subscribers do.
-          </p>
-        </div>
-        {canManage && (
-          <Button icon='IconPlusMedium' nativeButton={false} render={<Link to={`${base}/new`} />}>
-            Create workflow
-          </Button>
-        )}
-      </header>
+      <WorkflowsHeader canManage={canManage} base={base} />
 
       <Deferred resolve={workflows}>
         {(data) => {
           const rows = data ?? [];
           return data === undefined ? (
-            <TableSkeleton columns={COLUMNS} />
+            <WorkflowsSkeleton />
           ) : (
             <Card className='min-h-0 shrink'>
               {rows.length === 0 ? (
@@ -124,3 +113,39 @@ export default function WorkflowsRoute({ loaderData, params }: Route.ComponentPr
     </div>
   );
 }
+
+function WorkflowsHeader({ canManage, base }: { canManage: boolean | null; base?: string }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='Workflows'
+      description='Automate messages that follow what subscribers do.'
+      actions={
+        manage === false ? null : (
+          <Button
+            icon='IconPlusMedium'
+            disabled={manage === null}
+            nativeButton={false}
+            render={<Link to={`${base}/new`} />}
+          >
+            Create workflow
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function WorkflowsSkeleton() {
+  return <TableSkeleton columns={COLUMNS} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <WorkflowsHeader canManage={null} />
+      <WorkflowsSkeleton />
+    </div>
+  ),
+};

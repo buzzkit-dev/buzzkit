@@ -1,0 +1,38 @@
+---
+title: "Firebase or your own backend"
+description: "When you sent push yourself, the tokens live in your database. Export them from there. Expo push tokens are the one kind that cannot move."
+---
+
+If you sent notifications straight through Firebase Cloud Messaging or APNs, there is no provider export. Firebase does not hold a list of your registration tokens; the [token management guidance](https://firebase.google.com/docs/cloud-messaging/manage-tokens) is that your server stores every token when the app registers it. Your database is the export.
+
+## Export from your database
+
+Write a query that yields one row per device:
+
+```sql
+select
+  user_id as external_id,
+  fcm_token as token,
+  platform,
+  last_seen_at,
+  app_version
+from devices
+where fcm_token is not null and disabled_at is null
+```
+
+Save it as CSV. Keep the Apple and Android rows in one file with the platform column, or write one file per platform.
+
+## Map it in BuzzKit
+
+| Pick | Column |
+| --- | --- |
+| External id | `external_id` |
+| Token or address | `token` |
+| Column contents | Apple or Android device tokens, one file per platform |
+| Keep other columns as attributes | On, if the query added columns you want as attributes |
+
+Connect the same Firebase project and the same APNs key as credentials first. A token is only valid for the project or the app it was issued for.
+
+## Expo push tokens
+
+Tokens that look like `ExponentPushToken[...]` are Expo's own, issued by the Expo push service. They are not APNs or FCM tokens and cannot be imported. Switch the app to native device tokens with `getDevicePushTokenAsync`, register those with BuzzKit, and the audience rebuilds as users open the app. Expo's [guide on using other push services](https://docs.expo.dev/guides/using-push-notifications-services/) covers the switch.

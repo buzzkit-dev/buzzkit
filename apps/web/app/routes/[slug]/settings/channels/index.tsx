@@ -28,7 +28,9 @@ import { useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { CredentialStatusBadge, SandboxBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import {
   type AvailableProvider,
   CHANNELS,
@@ -38,9 +40,16 @@ import {
 import { ProviderDialog } from '@/app/components/onboarding/provider-dialog';
 import { SettingsCard, SettingsRow, SettingsRows } from '@/app/components/settings/card';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { channelsAction } from '@/app/lib/actions/channels.server';
-import { type Credential, getTenant, listCredentials } from '@/app/lib/api.server';
+import {
+  ApiError,
+  type Credential,
+  getTenant,
+  getTenantIdentitySecret,
+  listCredentials,
+} from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
@@ -63,11 +72,19 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const tenant = await resolveTenant(request, params.slug);
   return {
     channels: (async () => {
-      const [credentials, tenantDetail] = await Promise.all([
+      const [credentials, tenantDetail, secret] = await Promise.all([
         listCredentials({ request, env }, token, params.slug, tenant),
         getTenant({ request, env }, token, params.slug, tenant),
+        getTenantIdentitySecret({ request, env }, token, params.slug, tenant).catch((error) => {
+          if (error instanceof ApiError && error.status === 403) return null;
+          throw error;
+        }),
       ]);
-      return { credentials, sendPolicy: tenantDetail.settings.sendPolicy };
+      return {
+        credentials,
+        sendPolicy: tenantDetail.settings.sendPolicy,
+        identity: { requireVerification: tenantDetail.settings.identity.requireVerification, secret },
+      };
     })(),
   };
 }
@@ -255,7 +272,7 @@ function SendPolicyCard({
         ) : undefined
       }
     >
-      <SettingsRows>
+      <SettingsRows divided>
         <SettingsRow
           title='Quiet hours'
           subtitle='Sends inside the window wait for the next allowed time.'
@@ -331,6 +348,112 @@ function SendPolicyCard({
     </SettingsCard>
   );
 }
+type Identity = Awaited<Route.ComponentProps['loaderData']['channels']>['identity'];
+
+function IdentityCard({ identity, canManage }: { identity: Identity; canManage: boolean }) {
+  const { submit, pending } = useActionFetcher(() => setRotateOpen(false));
+  const secret = identity.secret?.identitySecret ?? null;
+  const [revealed, setRevealed] = useState(false);
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const copySecret = () => {
+    if (!secret) return;
+    navigator.clipboard.writeText(secret).then(
+      () => toast.success('Copied to clipboard'),
+      () => toast.error('Unable to copy', { description: 'Reveal the secret and copy it manually.' })
+    );
+  };
+
+  return (
+    <SettingsCard
+      title='Identity verification'
+      description='Prove which subscriber a client call belongs to.'
+      footer={
+        canManage
+          ? 'Your backend signs each subscriber id with the secret and the app sends the hash on every call.'
+          : 'Only admins and owners can change identity verification.'
+      }
+    >
+      <SettingsRows divided>
+        <SettingsRow
+          title='Require verification'
+          subtitle='Client calls without a valid identity hash are refused.'
+          end={
+            <Switch
+              checked={identity.requireVerification}
+              disabled={!canManage || pending}
+              onCheckedChange={(checked) => submit('identity', { require: String(checked) })}
+            />
+          }
+        />
+        <SettingsRow
+          title='Identity secret'
+          subtitle={
+            identity.secret === null ? (
+              'Only admins and owners can see the identity secret.'
+            ) : secret === null ? (
+              'No secret yet. Create one to start verifying.'
+            ) : revealed ? (
+              <span className='font-mono'>{secret}</span>
+            ) : (
+              '••••••••••••••••••••••••••••••••'
+            )
+          }
+          end={
+            canManage ? (
+              <>
+                {secret !== null && (
+                  <Button variant='ghost' size='xs' onClick={() => setRevealed((current) => !current)}>
+                    {revealed ? 'Hide' : 'Reveal'}
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant='ghost'
+                        size='icon-xs'
+                        icon='IconDotGrid1x3Horizontal'
+                        aria-label='Identity secret actions'
+                      />
+                    }
+                  />
+                  <DropdownMenuContent align='end'>
+                    {secret !== null && <DropdownMenuItem onClick={copySecret}>Copy secret</DropdownMenuItem>}
+                    <DropdownMenuItem onClick={() => setRotateOpen(true)}>
+                      {secret === null ? 'Create secret' : 'Rotate secret'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : undefined
+          }
+        />
+      </SettingsRows>
+      <AlertDialog open={rotateOpen} onOpenChange={setRotateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {secret === null ? 'Create the identity secret?' : 'Rotate the identity secret?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {secret === null
+                ? 'Your backend can start signing subscriber ids with it right away.'
+                : 'Hashes made with the current secret stop verifying immediately.'}
+              {secret !== null && <span className='block'>This cannot be undone.</span>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={pending} onClick={() => submit('rotate-identity-secret', {})}>
+              {secret === null ? 'Create secret' : 'Rotate secret'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </SettingsCard>
+  );
+}
+
 function ChannelsContent({
   data,
   canManage,
@@ -353,6 +476,7 @@ function ChannelsContent({
   return (
     <>
       <SendPolicyCard policy={sendPolicy} canManage={canManage} />
+      <IdentityCard identity={data.identity} canManage={canManage} />
 
       {CHANNELS.filter((channel) => channel.available).map((channel) => (
         <Card key={channel.id} className='shrink-0'>
@@ -428,9 +552,14 @@ function ProviderRowSkeleton({ provider }: { provider: ProviderEntry }) {
     <SettingsRow
       dimmed={!provider.available}
       start={<IconTile icon={provider.icon} size='sm' />}
-      title={provider.name}
-      subtitle={provider.description}
-      end={<Skeleton className='h-7 w-20 rounded-xl' />}
+      title={
+        <span className='flex items-center gap-1.5'>
+          {provider.name}
+          {!provider.available && <Badge size='sm'>Soon</Badge>}
+        </span>
+      }
+      subtitle={<Skeleton className='inline-block h-3 w-72 align-middle' />}
+      end={<Skeleton className='h-[26px] w-[74px] rounded-[10px]' />}
     />
   );
 }
@@ -454,10 +583,68 @@ function ChannelCardSkeleton({ channel }: { channel: ChannelEntry }) {
 }
 
 function ChannelsSkeleton() {
+  const manage = useCanManage(null);
+
   return (
     <>
-      <SettingsCard title='Send policy' description='Limits that apply to every send on this tenant.'>
-        <Skeleton className='h-9 w-56 rounded-xl' />
+      <SettingsCard
+        title='Send policy'
+        description='Limits that apply to every send on this tenant.'
+        footer={
+          manage === false
+            ? 'Only admins and owners can edit the send policy.'
+            : 'A send with policy set to ignore always passes through.'
+        }
+        action={
+          manage === false ? undefined : (
+            <Button size='xs' disabled>
+              Save
+            </Button>
+          )
+        }
+      >
+        <SettingsRows divided>
+          <SettingsRow
+            title='Quiet hours'
+            subtitle='Sends inside the window wait for the next allowed time.'
+            end={<Switch aria-label='Quiet hours' disabled />}
+          />
+          <SettingsRow
+            title='Daily cap'
+            subtitle='Per subscriber per day in their own timezone; sends past it fail as capped.'
+            end={<Switch aria-label='Daily cap' disabled />}
+          />
+        </SettingsRows>
+      </SettingsCard>
+      <SettingsCard
+        title='Identity verification'
+        description='Prove which subscriber a client call belongs to.'
+        footer={
+          manage === false
+            ? 'Only admins and owners can change identity verification.'
+            : 'Your backend signs each subscriber id with the secret and the app sends the hash on every call.'
+        }
+      >
+        <SettingsRows divided>
+          <SettingsRow
+            title='Require verification'
+            subtitle='Client calls without a valid identity hash are refused.'
+            end={<Switch aria-label='Require verification' disabled />}
+          />
+          <SettingsRow
+            title='Identity secret'
+            subtitle={<Skeleton className='inline-block h-3 w-56 align-middle' />}
+            end={
+              <Button
+                variant='ghost'
+                size='icon-xs'
+                icon='IconDotGrid1x3Horizontal'
+                aria-label='Identity secret actions'
+                disabled
+              />
+            }
+          />
+        </SettingsRows>
       </SettingsCard>
       {CHANNELS.filter((channel) => channel.available).map((channel) => (
         <ChannelCardSkeleton key={channel.id} channel={channel} />
@@ -472,17 +659,8 @@ export default function ChannelsRoute({ loaderData, params }: Route.ComponentPro
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Channels
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Manage the providers this workspace sends through.
-          </p>
-        </div>
-      </header>
+    <div className='flex w-full flex-col gap-5'>
+      <ChannelsHeader />
 
       <Deferred resolve={channels}>
         {(data) =>
@@ -496,3 +674,16 @@ export default function ChannelsRoute({ loaderData, params }: Route.ComponentPro
     </div>
   );
 }
+
+function ChannelsHeader() {
+  return <PageHeader title='Channels' description='Manage the providers this workspace sends through.' />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex w-full flex-col gap-5'>
+      <ChannelsHeader />
+      <ChannelsSkeleton />
+    </div>
+  ),
+};

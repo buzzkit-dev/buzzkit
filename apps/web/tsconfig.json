@@ -25,6 +25,7 @@
   "include": [
     ".react-router/types/**/*",
     "app/**/*",
+    "test/**/*",
     "workers/**/*",
     "vite.config.ts",
     "react-router.config.ts",

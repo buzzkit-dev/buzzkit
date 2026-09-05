@@ -1,8 +1,8 @@
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { CardSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
-import { SegmentEditor } from '@/app/components/segments/editor';
+import type { PageHandle } from '@/app/components/loading/handle';
+import { SegmentEditor, SegmentEditorSkeleton } from '@/app/components/segments/editor';
 import { segmentsAction } from '@/app/lib/actions/segments.server';
 import { listEventNames } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
@@ -34,7 +34,7 @@ export default function NewSegmentRoute({ loaderData, params }: Route.ComponentP
     <Deferred resolve={loaderData.eventNames}>
       {(eventNames) =>
         eventNames === undefined ? (
-          <CardSkeleton title='New segment' lines={6} />
+          <SegmentEditorSkeleton existing={false} canManage={canManage} />
         ) : (
           <SegmentEditor
             segment={null}
@@ -50,3 +50,5 @@ export default function NewSegmentRoute({ loaderData, params }: Route.ComponentP
     </Deferred>
   );
 }
+
+export const handle: PageHandle = { skeleton: <SegmentEditorSkeleton existing={false} canManage={null} /> };

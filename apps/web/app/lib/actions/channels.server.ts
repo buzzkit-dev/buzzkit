@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from 'react-router';
 import { CHANNELS, type ProviderId } from '@/app/components/onboarding/catalog';
 import { connectProvider } from '@/app/lib/actions/connect.server';
 import { beginAction } from '@/app/lib/actions/context.server';
-import { ApiError, deleteCredential, updateTenant } from '@/app/lib/api.server';
+import { ApiError, deleteCredential, rotateTenantIdentitySecret, updateTenant } from '@/app/lib/api.server';
 
 const PROVIDERS = CHANNELS.flatMap((channel) =>
   channel.providers.filter((provider) => provider.available).map((provider) => provider.id as ProviderId)
@@ -56,6 +56,28 @@ export async function channelsAction(args: ActionFunctionArgs) {
         },
       });
       return { ok: 'Send policy saved' };
+    } catch (error) {
+      if (error instanceof ApiError) return { error: error.message };
+      throw error;
+    }
+  }
+
+  if (intent === 'identity') {
+    try {
+      await updateTenant(ctx, token, slug, tenant, {
+        settings: { identity: { requireVerification: form.get('require') === 'true' } },
+      });
+      return { ok: 'Identity verification saved' };
+    } catch (error) {
+      if (error instanceof ApiError) return { error: error.message };
+      throw error;
+    }
+  }
+
+  if (intent === 'rotate-identity-secret') {
+    try {
+      await rotateTenantIdentitySecret(ctx, token, slug, tenant);
+      return { ok: 'Identity secret rotated' };
     } catch (error) {
       if (error instanceof ApiError) return { error: error.message };
       throw error;

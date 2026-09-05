@@ -1,0 +1,43 @@
+---
+title: "Export from Pushwoosh"
+description: "Export a Pushwoosh segment to CSV with push tokens, then map the columns in BuzzKit."
+---
+
+Pushwoosh exports segments as CSV with the push token and the device type on every row, which is everything a migration needs.
+
+## From the dashboard
+
+1. Open **Audience**, then **Segments**.
+2. Open the segment to export. To export everyone, use a segment with no conditions.
+3. Choose **Refresh & Export to CSV**. The file holds one row per device with the tag values, the push token and the device type.
+
+## From the Segmentation API
+
+The [Segmentation API](https://docs.pushwoosh.com/developer/api-reference/segmentation-filters-api/) exports the same data for larger audiences. Ask for `csv` as the format and include the push tokens and the user ids in the exported data:
+
+```json
+{
+  "request": {
+    "auth": "YOUR_API_TOKEN",
+    "application": "YOUR_APP_CODE",
+    "format": "csv",
+    "exportData": ["push_tokens", "users", "hwids", "tags"],
+    "includeWithoutTokens": false
+  }
+}
+```
+
+The response points at a file to download.
+
+## Map it in BuzzKit
+
+The import asks for the columns, since Pushwoosh names them by tag:
+
+| Pick | Column |
+| --- | --- |
+| External id | The user id column (`user_id` or the tag you set user ids with) |
+| Token or address | The push token column |
+| Column contents | Apple or Android device tokens. Export Apple and Android as two segments when the file mixes platforms. |
+| Keep other columns as attributes | On, to carry the tag values over |
+
+Rows without a user id are skipped, since Pushwoosh's hardware id is not something the app can identify a user with later.

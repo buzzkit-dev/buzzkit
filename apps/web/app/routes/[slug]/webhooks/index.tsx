@@ -10,11 +10,14 @@ import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EndpointStatusBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { EndpointFields, useEndpointForm } from '@/app/components/webhooks/endpoint-form';
 import { EventsSummary } from '@/app/components/webhooks/events-summary';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { webhooksAction } from '@/app/lib/actions/webhooks.server';
 import {
@@ -189,26 +192,14 @@ export default function WebhooksRoute({ loaderData, params }: Route.ComponentPro
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Webhooks
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>Receive events on your servers.</p>
-        </div>
-        {canManage && (
-          <Button icon='IconPlusMedium' onClick={openDialog}>
-            Add endpoint
-          </Button>
-        )}
-      </header>
+      <WebhooksHeader canManage={canManage} onCreate={openDialog} />
 
       <Deferred resolve={page}>
         {(data) => {
           const endpoints = data?.endpoints ?? [];
           const tenants = data?.tenants ?? [];
           return data === undefined ? (
-            <TableSkeleton columns={columnsFor(false)} />
+            <WebhooksSkeleton />
           ) : (
             <>
               <Card className='min-h-0 shrink'>
@@ -255,3 +246,34 @@ export default function WebhooksRoute({ loaderData, params }: Route.ComponentPro
     </div>
   );
 }
+
+function WebhooksHeader({ canManage, onCreate }: { canManage: boolean | null; onCreate?: () => void }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='Webhooks'
+      description='Receive events on your servers.'
+      actions={
+        manage === false ? null : (
+          <Button icon='IconPlusMedium' disabled={manage === null} onClick={onCreate}>
+            Add endpoint
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function WebhooksSkeleton() {
+  return <TableSkeleton columns={columnsFor(false)} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <WebhooksHeader canManage={null} />
+      <WebhooksSkeleton />
+    </div>
+  ),
+};

@@ -1,0 +1,44 @@
+---
+title: "Export from OneSignal"
+description: "Get the subscription CSV out of OneSignal, from the dashboard or the export endpoint, and what BuzzKit reads from it."
+---
+
+OneSignal exports one row per subscription with the push token in the file, so a migration keeps every device. BuzzKit recognizes the export from its columns and maps it without any setup.
+
+## From the dashboard
+
+1. Open **Audience**, then **Subscriptions**.
+2. Open the column picker and make sure **External ID** is selected. It is optional in the export, and it is what links each device to your own user id.
+3. Optionally filter by segment first to export only part of the audience.
+4. Download the CSV.
+
+## From the export endpoint
+
+Large apps can request the same file through the [`csv_export` endpoint](https://documentation.onesignal.com/reference/csv-export). The extra fields are the ones the dashboard picker adds; ask for at least the external id.
+
+```bash
+curl "https://api.onesignal.com/players/csv_export?app_id=YOUR_APP_ID" \
+  -X POST \
+  -H "Authorization: Key YOUR_REST_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "extra_fields": ["external_user_id", "country", "timezone_id"] }'
+```
+
+The response holds a link to a gzipped CSV. Unzip it before importing. The link stays available for three days. Add `"include_unsubscribed": true` to the body to include unsubscribed devices, and `"last_active_since"` with a Unix timestamp to leave out devices that have been inactive for a long time.
+
+## What BuzzKit reads
+
+| OneSignal column | Becomes |
+| --- | --- |
+| `external_user_id` | The subscriber's id. Empty means an anonymous row, imported under `onesignal:<id>` or skipped, your choice. |
+| `identifier` | The push token or the email address |
+| `device_type` | `0` Apple, `1` Android, `11` email. Web push and other types are skipped. |
+| `invalid_identifier` | The unsubscribed flag. Skipped or imported muted, your choice. |
+| `tags` | Attributes |
+| `timezone_id`, `language`, `country` | `$timezone`, `$language`, `$country` |
+| `game_version`, `device_os`, `device_model` | `$appVersion`, `$osVersion`, `$deviceModel` |
+| `last_active` | The subscription's last seen time |
+
+<Note>
+  The `timezone` column is a UTC offset in seconds and is ignored. The IANA name lives in `timezone_id`, which is an extra field, so select it in the picker or request it from the endpoint.
+</Note>

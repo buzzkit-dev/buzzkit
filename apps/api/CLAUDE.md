@@ -36,6 +36,8 @@ src/
 │                         and cron.ts (`nextScheduleInstant`, `dueInstants` over the five-field grammar from `@buzzkit/schema/workflows`).
 │                         `messages/schedule.ts` and `workflows/schedules.ts` only add what is specific to a one-shot send or a recurring trigger
 ├── utils/errorCodes.ts   Error code → HTTP status mapping (includes PostgreSQL codes)
+├── utils/concurrency.ts  `runConcurrently(items, limit, work)` — the one bounded fan-out (provider sends, schedule starts, event
+│                         ingest, imports); limits sit at the Postgres pool (5) or below, since a Worker holds six open connections at most
 ├── providers/            Provider registry, aggregated in index.ts. Each provider is a directory of scoped files
 │                         (`classify.ts`, `payload.ts`, `tokens.ts`, `validate.ts`, `send.ts`, apns' `request.ts`, fcm's
 │                         `account.ts`) with an index barrel exporting its `ProviderDefinition`; `shared/` holds the
@@ -135,7 +137,7 @@ Known local limitation: workerd on macOS cannot fetch APNs (HTTP/2) — see `doc
 
 ## Endpoints
 
-`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/secrets` (+ `/:name`) · `/v1/sources` (+ `/:id`, `/:id/ingest` unauthenticated and provider-signed, `/:id/preview`, `/:id/deliveries`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/workflows` (+ `/:slug`, `/:slug/publish`, `/:slug/pause`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
+`GET /v1/health` · `/v1/auth/*` (BetterAuth) · `/v1/profile` · `/v1/workspaces` + `/:slug` + `members`, `invites`, `keys`, `audit`, `webhooks` (+ `catalog`, `events/:id`, `/:id`, `rotate`, `deliveries`, `deliveries/:id`, `replay`) · `/v1/invites/:token` (+ `/accept`) · `/v1/tenants` + `/:tenantSlug` (+ `/identity-secret`, `/identity-secret/rotate`) · `/v1/credentials` (+ `/:id`, `/:id/validate`) · `/v1/secrets` (+ `/:name`) · `/v1/sources` (+ `/:id`, `/:id/ingest` unauthenticated and provider-signed, `/:id/preview`, `/:id/deliveries`) · `/v1/subscribers` (+ `/:externalId`, `subscriptions`, `preferences`, `deliveries`, `timeline`) · `/v1/subscriptions` (+ `/:id`) · `/v1/imports` (bulk rows through the same upsert and registration path; the mapping grammar is `@buzzkit/schema/imports`) · `/v1/topics` (+ `/:topicSlug`) · `/v1/events` (+ `/names`, `/names/:name`, `/volume`, `/token`) · `/v1/messages` (+ `/:id`, `/:id/cancel`, `/:id/deliveries`) · `/v1/workflows` (+ `/:slug`, `/:slug/publish`, `/:slug/pause`) · `/v1/stats` · `/v1/deliveries/:id` (+ `/attempts`) · `/v1/client/*` (identify, subscriptions, preferences, events — client keys only) — see `docs/api/`.
 
 ## Commands
 

@@ -1,0 +1,92 @@
+---
+title: "Importing subscribers"
+description: "Move an existing audience from your previous provider without losing a device, from the export on their side to the import in BuzzKit."
+---
+
+Push tokens belong to your app, not to the provider that stored them. An Apple device token is bound to your bundle id and the device, an Android registration token to your Firebase project. Once the same APNs key and the same Firebase project are [connected as credentials](/quickstart), every token you export from the previous provider keeps delivering through BuzzKit. Nobody has to open the app first.
+
+BuzzKit never talks to the previous provider. You export on their side, you import here.
+
+## Get the export
+
+Every provider stores subscriptions differently, and some make the file harder to get than others. One guide per provider covers where the export is, which columns matter, and what to do when the provider only offers an API:
+
+<CardGroup cols={2}>
+  <Card title="OneSignal" href="/audience/importing/onesignal">
+    Dashboard CSV or the export endpoint. Recognized automatically.
+  </Card>
+  <Card title="Pushwoosh" href="/audience/importing/pushwoosh">
+    Segment export to CSV with push tokens included.
+  </Card>
+  <Card title="Braze" href="/audience/importing/braze">
+    API export of user profiles, flattened to one row per device.
+  </Card>
+  <Card title="Airship" href="/audience/importing/airship">
+    The channel listing API, one row per channel.
+  </Card>
+  <Card title="Customer.io" href="/audience/importing/customerio">
+    The devices export from the People section.
+  </Card>
+  <Card title="Firebase or your own backend" href="/audience/importing/firebase">
+    Tokens you stored yourself, and why Expo tokens cannot move.
+  </Card>
+</CardGroup>
+
+Any other provider works the same way: a CSV with one row per subscription, holding your user id and the device token or email address, is enough. The import asks which column is which.
+
+## What the file needs
+
+| Column | Required | Notes |
+| --- | --- | --- |
+| Your user id | Yes | The id your app identifies users with. Rows without it are skipped, or imported under the provider's own id when the provider export carries one. |
+| Token or address | For a subscription | The APNs token, the FCM registration token, or the email address. Leave the column out to import profiles only. |
+| Platform | For push | Apple or Android, as a column when the file mixes them or as a fixed choice when it does not. |
+| Anything else | No | Kept as attributes when you ask for it, so segments can use them from day one. |
+
+Tokens the previous provider had already marked invalid stay invalid. Import them and BuzzKit flips them to `invalid` on the first delivery attempt, or leave those rows out.
+
+## Import in the dashboard
+
+The import lives where a migration happens:
+
+- Right after you connect your first provider, the setup asks whether you are migrating. **Import subscribers** opens the import as the last setup step, **Start fresh** goes to the dashboard.
+- On a tenant with no subscribers yet, the **Subscribers** page shows **Import subscribers** in its header.
+- Under **Settings**, then **Tenants**, every tenant's row menu has **Import subscribers**, for a second tenant or a later re-import.
+
+Drop the file in. A OneSignal export is recognized from its columns. Any other file asks for the column holding your user id, the column holding the token or address, what that column contains, and whether the remaining columns should be kept as attributes.
+
+Before anything is written, the dialog shows how many rows will be imported, how many devices of each kind that is, and every row it will skip with the reason. Three choices shape the import:
+
+| Choice | What it does |
+| --- | --- |
+| Apple environment | Which APNs credential the imported tokens belong to. Production for App Store and TestFlight builds, sandbox for debug builds. Only shown when the tenant holds a sandbox credential. |
+| Rows without an external id | Skip them, or import them under the provider's own id. Such a subscriber moves to your id the first time the app identifies the user, because registering a token under a new id moves the token. |
+| Unsubscribed rows | Skip them, or keep them as muted subscriptions that receive nothing until they are unmuted. |
+
+The import runs in batches with a progress bar and finishes with a summary: how many subscribers are new, how many subscriptions were written, and how many rows the API refused.
+
+## Import through the API
+
+The dialog uses `POST /v1/imports`, which you can call yourself with rows you normalized on your side, up to 1,000 per request:
+
+```bash
+curl https://api.buzzkit.dev/v1/imports \
+  -X POST \
+  -H "Authorization: Bearer bk_ws_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rows": [
+      {
+        "externalId": "user_42",
+        "platform": "ios",
+        "token": "...",
+        "attributes": { "plan": "pro" },
+        "timezone": "Europe/Berlin",
+        "lastSeenAt": "2026-08-01T10:00:00Z"
+      },
+      { "externalId": "user_42", "channel": "email", "address": "maya@acme.com" }
+    ]
+  }'
+```
+
+Every row goes through the same path as [identifying a subscriber](/audience/subscribers#identify-a-subscriber) and registering a subscription, so a second import of the same file changes nothing. Attributes merge into what is already there, `lastSeenAt` never moves an existing subscription backwards, and `enabled: false` imports a subscription muted. The response counts what was created, updated, unchanged and refused, and lists refused rows by index with the same error codes the single-row endpoints use. A channel with no credential fails the whole request with `channel_not_connected` before any row is written.

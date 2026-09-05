@@ -10957,6 +10957,401 @@
         ]
       }
     },
+    "/v1/imports": {
+      "post": {
+        "tags": ["Subscribers"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["rows"],
+                "properties": {
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["externalId"],
+                      "properties": {
+                        "externalId": {
+                          "minLength": 1,
+                          "maxLength": 256,
+                          "type": "string"
+                        },
+                        "channel": {
+                          "type": "string",
+                          "enum": ["push", "email"]
+                        },
+                        "platform": {
+                          "type": "string",
+                          "enum": ["ios", "android"]
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": ["production", "sandbox"]
+                        },
+                        "token": {
+                          "minLength": 8,
+                          "maxLength": 1024,
+                          "type": "string"
+                        },
+                        "address": {
+                          "format": "email",
+                          "maxLength": 254,
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "timezone": {
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "type": "string"
+                        },
+                        "language": {
+                          "minLength": 1,
+                          "maxLength": 20,
+                          "type": "string"
+                        },
+                        "country": {
+                          "pattern": "^[A-Z]{2}$",
+                          "type": "string"
+                        },
+                        "device": {
+                          "type": "object",
+                          "properties": {
+                            "appVersion": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "osVersion": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "model": {
+                              "maxLength": 60,
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "lastSeenAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["rows"],
+                "properties": {
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["externalId"],
+                      "properties": {
+                        "externalId": {
+                          "minLength": 1,
+                          "maxLength": 256,
+                          "type": "string"
+                        },
+                        "channel": {
+                          "type": "string",
+                          "enum": ["push", "email"]
+                        },
+                        "platform": {
+                          "type": "string",
+                          "enum": ["ios", "android"]
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": ["production", "sandbox"]
+                        },
+                        "token": {
+                          "minLength": 8,
+                          "maxLength": 1024,
+                          "type": "string"
+                        },
+                        "address": {
+                          "format": "email",
+                          "maxLength": 254,
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "timezone": {
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "type": "string"
+                        },
+                        "language": {
+                          "minLength": 1,
+                          "maxLength": 20,
+                          "type": "string"
+                        },
+                        "country": {
+                          "pattern": "^[A-Z]{2}$",
+                          "type": "string"
+                        },
+                        "device": {
+                          "type": "object",
+                          "properties": {
+                            "appVersion": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "osVersion": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "model": {
+                              "maxLength": 60,
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "lastSeenAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["rows"],
+                "properties": {
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["externalId"],
+                      "properties": {
+                        "externalId": {
+                          "minLength": 1,
+                          "maxLength": 256,
+                          "type": "string"
+                        },
+                        "channel": {
+                          "type": "string",
+                          "enum": ["push", "email"]
+                        },
+                        "platform": {
+                          "type": "string",
+                          "enum": ["ios", "android"]
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": ["production", "sandbox"]
+                        },
+                        "token": {
+                          "minLength": 8,
+                          "maxLength": 1024,
+                          "type": "string"
+                        },
+                        "address": {
+                          "format": "email",
+                          "maxLength": 254,
+                          "type": "string"
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "timezone": {
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "type": "string"
+                        },
+                        "language": {
+                          "minLength": 1,
+                          "maxLength": 20,
+                          "type": "string"
+                        },
+                        "country": {
+                          "pattern": "^[A-Z]{2}$",
+                          "type": "string"
+                        },
+                        "device": {
+                          "type": "object",
+                          "properties": {
+                            "appVersion": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "osVersion": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "model": {
+                              "maxLength": 60,
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "lastSeenAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response for status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data", "error", "metadata"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "nullable": true,
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "error": {
+                      "nullable": true,
+                      "type": "object",
+                      "required": ["code", "message"],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      }
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "required": ["timestamp"],
+                      "properties": {
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed or fails validation; `error.code` is `validation`, `bad_request` or `parse` and `error.details` lists every failing field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or an invalid, expired or revoked one: `missing_authorization`, `invalid_api_key`, `api_key_expired`, `invalid_session`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential cannot do this: `missing_permission` for a missing scope, `forbidden` for another workspace, tenant or key kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The addressed resource does not exist for this credential, including malformed ids.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The write conflicts with existing state: `conflict`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "createImport",
+        "summary": "Create an import",
+        "security": [
+          {
+            "bearerAuth": ["subscribers:write"]
+          }
+        ]
+      }
+    },
     "/v1/topics": {
       "get": {
         "tags": ["Topics"],

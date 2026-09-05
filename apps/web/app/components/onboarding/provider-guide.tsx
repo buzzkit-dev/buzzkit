@@ -273,7 +273,8 @@ export function useProviderGuide({
               onBlur={() => patch({ touched: { ...touched, [field.name]: true } })}
               onSubmit={() => {
                 patch({ touched: { ...touched, [field.name]: true } });
-                next();
+                if (last) submit();
+                else next();
               }}
             />
           ))}

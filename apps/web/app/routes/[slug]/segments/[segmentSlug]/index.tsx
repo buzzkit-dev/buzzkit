@@ -1,9 +1,8 @@
-import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
-import { SegmentEditor } from '@/app/components/segments/editor';
+import type { PageHandle } from '@/app/components/loading/handle';
+import { SegmentEditor, SegmentEditorSkeleton } from '@/app/components/segments/editor';
 import { segmentsAction } from '@/app/lib/actions/segments.server';
 import { getSegment, listEventNames, listTopics, previewSegment, requireFound } from '@/app/lib/api.server';
 import type { Channel } from '@/app/lib/channels';
@@ -62,20 +61,6 @@ function SegmentContent({
   );
 }
 
-function SegmentSkeleton() {
-  return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Skeleton className='-ml-2 h-8 w-28 shrink-0 rounded-xl' />
-      <div className='flex shrink-0 flex-col gap-2'>
-        <Skeleton className='h-7 w-56' />
-        <Skeleton className='h-4 w-80' />
-      </div>
-      <BlockSkeleton className='h-56 w-full rounded-2xl' />
-      <BlockSkeleton className='h-96 w-full rounded-2xl' />
-    </div>
-  );
-}
-
 export default function SegmentRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace, connected } = useOutletContext<WorkspaceOutletContext>();
   const { detail } = loaderData;
@@ -85,7 +70,7 @@ export default function SegmentRoute({ loaderData, params }: Route.ComponentProp
     <Deferred resolve={detail}>
       {(data) =>
         data === undefined ? (
-          <SegmentSkeleton />
+          <SegmentEditorSkeleton existing canManage={canManage} />
         ) : (
           <SegmentContent data={data} slug={params.slug} channels={connected} canManage={canManage} />
         )
@@ -93,3 +78,5 @@ export default function SegmentRoute({ loaderData, params }: Route.ComponentProp
     </Deferred>
   );
 }
+
+export const handle: PageHandle = { skeleton: <SegmentEditorSkeleton existing canManage={null} /> };

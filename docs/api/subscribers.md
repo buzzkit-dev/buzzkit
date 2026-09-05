@@ -33,3 +33,5 @@ A subscription's channel must be connected to the tenant (a live credential), ot
 `status: active | invalid` — Phase 4's delivery feedback (APNs 410 / FCM UNREGISTERED) flips push subscriptions to `invalid` automatically.
 
 Push subscriptions carry `environment` (`production` default, `sandbox` for debug builds — the app knows its own build via `aps-environment`); it selects the APNs credential slot at delivery time. Re-registering with a different environment is a change and is written.
+
+A registration's `lastSeenAt` only ever moves forward (`greatest(existing, seen)`), so a [bulk import](imports.md) carrying a provider's older last-activity time never makes a live device look stale. Bulk migrations from another provider go through `POST /v1/imports`, which runs every row through this same upsert and registration path.

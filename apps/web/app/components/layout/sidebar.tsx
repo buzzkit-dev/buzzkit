@@ -1,33 +1,56 @@
 import { Badge } from '@buzzkit/ui/components/badge';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { Icon } from '@buzzkit/ui/components/icon';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { AccountMenu } from '@/app/components/layout/account-menu';
 import { NAVIGATION, type NavigationPage } from '@/app/components/layout/navigation';
-import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
+import { WorkspaceAvatar, WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { Profile, Tenant, Workspace } from '@/app/lib/api.server';
 
 const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
 const fold = { type: 'spring', duration: 0.2, bounce: 0 } as const;
 
+function SwitcherPlaceholder({ slug }: { slug: string }) {
+  return (
+    <div aria-hidden className='flex h-8 w-full items-center gap-2 rounded-xl pr-2.5 pl-1.25 text-sm'>
+      <WorkspaceAvatar slug={slug} />
+      <Skeleton className='h-3.5 w-24' />
+      <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
+    </div>
+  );
+}
+
+function AccountPlaceholder() {
+  return (
+    <div aria-hidden className='flex h-8 w-full items-center gap-2 rounded-xl pr-2.5 pl-1.25 text-sm'>
+      <Skeleton className='size-6 rounded-full' />
+      <Skeleton className='h-3.5 w-20' />
+      <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
+    </div>
+  );
+}
+
 export function Sidebar({
+  slug,
   workspace,
   workspaces,
   profile,
   tenant,
   tenants,
 }: {
-  workspace: Workspace;
+  slug: string;
+  workspace: Workspace | null;
   workspaces: Workspace[];
-  profile: Profile;
-  tenant: Tenant;
+  profile: Profile | null;
+  tenant: Tenant | null;
   tenants: Tenant[];
 }) {
   const { pathname } = useLocation();
-  const base = `/${workspace.slug}`;
+  const base = `/${slug}`;
   const [hovered, setHovered] = useState<string | null>(null);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const rootRef = useRef<HTMLElement>(null);
@@ -46,7 +69,11 @@ export function Sidebar({
 
   return (
     <aside className='flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
-      <WorkspaceSwitcher workspaces={workspaces} current={workspace} tenant={tenant} tenants={tenants} />
+      {workspace ? (
+        <WorkspaceSwitcher workspaces={workspaces} current={workspace} tenant={tenant} tenants={tenants} />
+      ) : (
+        <SwitcherPlaceholder slug={slug} />
+      )}
 
       <nav
         ref={rootRef}
@@ -170,7 +197,7 @@ export function Sidebar({
         ))}
       </nav>
 
-      <AccountMenu profile={profile} variant='row' />
+      {profile ? <AccountMenu profile={profile} variant='row' /> : <AccountPlaceholder />}
     </aside>
   );
 }

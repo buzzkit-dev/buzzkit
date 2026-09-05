@@ -16,6 +16,7 @@ import { eventName } from './events/names/[name]';
 import { eventsToken } from './events/token';
 import { eventVolume } from './events/volume';
 import { health } from './health';
+import { imports } from './imports';
 import { invitePreview } from './invites/[token]';
 import { inviteAccept } from './invites/[token]/accept';
 import { liveActivities } from './live-activities';
@@ -172,6 +173,8 @@ export const v1 = new Elysia({ prefix: '/v1' })
   .use(subscriptions)
   /* /v1/subscriptions/:id */
   .use(subscription)
+  /* /v1/imports */
+  .use(imports)
   /* /v1/topics */
   .use(topics)
   /* /v1/topic-categories */

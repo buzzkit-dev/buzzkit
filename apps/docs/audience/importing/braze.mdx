@@ -1,0 +1,56 @@
+---
+title: "Export from Braze"
+description: "Braze hands out push tokens through its user export API as JSON. Flatten it to one row per device and import."
+---
+
+Braze's dashboard CSV export carries profile fields, but the push tokens live in the [user export API](https://www.braze.com/docs/api/endpoints/export/user_data/post_users_segment), which answers in JSON. The migration is an API export followed by a small flattening step.
+
+## Export the profiles
+
+1. Create a segment that holds everyone to migrate. Braze exports by segment, and a segment can be "all users".
+2. Call the segment export with the fields a migration needs. The key must have the `users.export.segment` permission.
+
+```bash
+curl https://rest.iad-01.braze.com/users/export/segment \
+  -X POST \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "segment_id": "YOUR_SEGMENT_ID",
+    "fields_to_export": ["external_id", "push_tokens", "email", "custom_attributes", "country", "time_zone", "language"]
+  }'
+```
+
+Braze writes the export to an automatically generated URL, or to your S3 bucket when that is connected, as files of one JSON object per line. Each user's `push_tokens` is an array with the app, the platform and the token per device.
+
+## Flatten to CSV
+
+Turn each token into its own row. This script reads the exported lines and writes a CSV with the columns the import asks for:
+
+```javascript
+import { createReadStream, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
+
+const rows = [['external_id', 'token', 'platform', 'time_zone', 'language', 'country']];
+for await (const line of createInterface({ input: createReadStream('users.txt') })) {
+  const user = JSON.parse(line);
+  for (const device of user.push_tokens ?? []) {
+    if (!device.notifications_enabled) continue;
+    rows.push([user.external_id ?? '', device.token, device.platform, user.time_zone ?? '', user.language ?? '', user.country ?? '']);
+  }
+}
+writeFileSync('braze-devices.csv', rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n'));
+```
+
+Split the result per platform, or keep one file and let the platform column decide.
+
+## Map it in BuzzKit
+
+| Pick | Column |
+| --- | --- |
+| External id | `external_id` |
+| Token or address | `token` |
+| Column contents | Apple or Android device tokens, one file per platform |
+| Keep other columns as attributes | On, if you added custom attributes as columns |
+
+Braze exports property names with their original capitalization. Rename columns in the script when your attributes follow a different convention.

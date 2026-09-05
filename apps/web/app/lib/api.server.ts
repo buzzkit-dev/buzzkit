@@ -1,4 +1,5 @@
 import { createVersionedClient, type VersionedApiClient } from '@buzzkit/eden';
+import type { ImportRow } from '@buzzkit/schema/imports';
 import type { TriggerSource, WorkflowSpec } from '@buzzkit/schema/workflows';
 import type { Expression } from 'buzzkit/expressions';
 import { data } from 'react-router';
@@ -212,6 +213,32 @@ export function updateTenant(
   return unwrap(
     ctx,
     client(ctx.env, token, { workspace: workspaceSlug }).tenants({ tenantSlug }).patch(patch)
+  );
+}
+
+export function getTenantIdentitySecret(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug }).tenants({ tenantSlug })['identity-secret'].get()
+  );
+}
+
+export function rotateTenantIdentitySecret(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug })
+      .tenants({ tenantSlug })
+      ['identity-secret'].rotate.post()
   );
 }
 
@@ -563,6 +590,19 @@ export function listSubscribers(
   return unwrap(
     ctx,
     client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).subscribers.get({ query })
+  );
+}
+
+export function importSubscribers(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  body: { rows: ImportRow[] }
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug }).imports.post(body)
   );
 }
 
@@ -1294,6 +1334,7 @@ export type Profile = Awaited<ReturnType<typeof getProfile>>;
 export type Member = Awaited<ReturnType<typeof listMembers>>[number];
 export type Invite = Awaited<ReturnType<typeof listInvites>>[number];
 export type Subscriber = Awaited<ReturnType<typeof listSubscribers>>['items'][number];
+export type ImportOutcome = Awaited<ReturnType<typeof importSubscribers>>;
 type SubscriberDetail = Awaited<ReturnType<typeof getSubscriber>>;
 export type Subscription = SubscriberDetail['subscriptions'][number];
 export type Topic = Awaited<ReturnType<typeof listTopics>>['items'][number];

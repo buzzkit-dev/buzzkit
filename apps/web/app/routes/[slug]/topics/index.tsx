@@ -29,7 +29,9 @@ import { Fragment, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { OptInBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { slugify } from '@/app/components/workspace/fields';
@@ -448,17 +450,7 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Topics
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage notification topics.</p>
-        </div>
-        <Button icon='IconPlusMedium' onClick={() => openDialog(null)}>
-          Create topic
-        </Button>
-      </header>
+      <TopicsHeader onCreate={() => openDialog(null)} />
 
       <Deferred resolve={page}>
         {(data) => {
@@ -466,7 +458,7 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
           const categories = data?.categories ?? [];
           const categoryFor = (name: string) => categories.find((option) => option.name === name) ?? null;
           return data === undefined ? (
-            <TableSkeleton columns={tableColumns} fixed={false} />
+            <TopicsSkeleton channels={columns} />
           ) : (
             <>
               <Card className='min-h-0 shrink'>
@@ -639,3 +631,30 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+function TopicsHeader({ onCreate }: { onCreate?: () => void }) {
+  return (
+    <PageHeader
+      title='Topics'
+      description='Manage notification topics.'
+      actions={
+        <Button icon='IconPlusMedium' onClick={onCreate}>
+          Create topic
+        </Button>
+      }
+    />
+  );
+}
+
+function TopicsSkeleton({ channels }: { channels: typeof AVAILABLE_CHANNELS }) {
+  return <TableSkeleton columns={columnsFor(channels)} fixed={false} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <TopicsHeader />
+      <TopicsSkeleton channels={AVAILABLE_CHANNELS} />
+    </div>
+  ),
+};

@@ -27,6 +27,7 @@ import { Flag } from '@buzzkit/ui/components/flag';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { Table, TableBody, TableCell, TableDetail, TableRow } from '@buzzkit/ui/components/table';
 import {
@@ -39,7 +40,7 @@ import {
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
   ChannelBadge,
@@ -53,9 +54,9 @@ import {
 } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
 import { describeStreamEvent, SOURCE_LABELS, type StreamSource } from '@/app/components/events/stream';
-import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
-import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
+import type { PageHandle } from '@/app/components/loading/handle';
+import { type TableColumn, TableColumns } from '@/app/components/loading/table';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { providerLabel } from '@/app/components/sources/describe';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
@@ -106,7 +107,18 @@ const RUN_COLUMNS: TableColumn[] = [
 ];
 
 const ACTIVITY_COLUMNS: TableColumn[] = [
-  { label: 'Event', fill: 'h-8 w-56' },
+  {
+    label: 'Event',
+    content: (
+      <span className='flex items-center gap-3'>
+        <Skeleton className='size-8 rounded-xl' />
+        <span className='flex flex-col gap-1'>
+          <Skeleton className='h-3.5 w-36' />
+          <Skeleton className='h-3 w-48' />
+        </span>
+      </span>
+    ),
+  },
   { label: 'Source', className: 'w-28', fill: 'h-5 w-16 rounded-full' },
   { label: 'Time', className: 'w-16', fill: 'h-4 w-12' },
   { key: 'actions', label: 'Actions', hidden: true, className: 'w-10', fill: 'h-4 w-4' },
@@ -929,19 +941,160 @@ function SubscriberContent({
   );
 }
 
+const OVERVIEW_LABELS = ['External id', 'Subscribed', 'Last seen', 'Verified'];
+
+const ROW_PLACEHOLDERS = ['a', 'b', 'c'];
+
 function SubscriberSkeleton() {
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
-      <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5'>
-        <BlockSkeleton className='h-96 w-full rounded-2xl' />
-        <TableSkeleton columns={MESSAGE_COLUMNS} rows={3} />
-        <TableSkeleton columns={RUN_COLUMNS} rows={3} />
-        <TableSkeleton columns={ACTIVITY_COLUMNS} rows={5} />
+      <div className='flex min-h-0 min-w-0 flex-1 flex-col gap-5 [&>*]:shrink-0'>
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Overview</CardTitle>
+          </CardHeader>
+          <dl className='flex flex-col'>
+            {OVERVIEW_LABELS.map((label) => (
+              <DetailRow key={label} label={label}>
+                <Skeleton className='h-4 w-40' />
+              </DetailRow>
+            ))}
+          </dl>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Messages</CardTitle>
+          </CardHeader>
+          <Table>
+            <TableColumns columns={MESSAGE_COLUMNS} />
+            <TableBody>
+              {ROW_PLACEHOLDERS.map((row) => (
+                <TableRow key={row}>
+                  {MESSAGE_COLUMNS.map((column) => (
+                    <TableCell key={column.label} className={column.className}>
+                      <Skeleton className={column.fill ?? 'h-4 w-24'} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Runs</CardTitle>
+          </CardHeader>
+          <Table className='table-fixed'>
+            <TableColumns columns={RUN_COLUMNS} />
+            <TableBody>
+              {ROW_PLACEHOLDERS.map((row) => (
+                <TableRow key={row}>
+                  {RUN_COLUMNS.map((column) => (
+                    <TableCell key={column.label} className={column.className}>
+                      <Skeleton className={column.fill ?? 'h-4 w-24'} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Activity</CardTitle>
+            <CardAction>
+              <FilterBar className='mb-0'>
+                <FilterSelect
+                  label='Event'
+                  value={null}
+                  options={[]}
+                  onValueChange={() => undefined}
+                  className='h-[26px] rounded-[10px] text-xs'
+                  disabled
+                />
+                <FilterSelect
+                  label='Source'
+                  value={null}
+                  options={[]}
+                  onValueChange={() => undefined}
+                  className='h-[26px] rounded-[10px] text-xs'
+                  disabled
+                />
+              </FilterBar>
+            </CardAction>
+          </CardHeader>
+          <Table className='table-fixed'>
+            <TableColumns columns={ACTIVITY_COLUMNS} />
+            <TableBody>
+              {ROW_PLACEHOLDERS.map((row) => (
+                <TableRow key={row}>
+                  {ACTIVITY_COLUMNS.map((column) => (
+                    <TableCell key={column.label} className={column.className}>
+                      {column.content ?? <Skeleton className={column.fill ?? 'h-4 w-24'} />}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       </div>
-      <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0'>
-        <BlockSkeleton className='h-48 w-full rounded-2xl' />
-        <BlockSkeleton className='h-48 w-full rounded-2xl' />
-        <BlockSkeleton className='h-56 w-full rounded-2xl' />
+
+      <div className='flex min-h-0 min-w-0 flex-col gap-5 lg:w-[calc(22rem+0.5rem)] lg:shrink-0 [&>*]:shrink-0'>
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Subscriptions</CardTitle>
+          </CardHeader>
+          <ul className='flex flex-col divide-y divide-bg-3'>
+            {ROW_PLACEHOLDERS.slice(0, 2).map((row) => (
+              <li key={row} className='flex items-center gap-3 px-4 py-2.5'>
+                <Skeleton className='size-8 rounded-xl' />
+                <span className='flex min-w-0 flex-1 flex-col gap-1'>
+                  <Skeleton className='h-3.5 w-32' />
+                  <Skeleton className='h-3 w-24' />
+                </span>
+                <Skeleton className='h-5 w-9 rounded-full' />
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Preferences</CardTitle>
+          </CardHeader>
+          <ul className='flex flex-col divide-y divide-bg-3'>
+            {ROW_PLACEHOLDERS.slice(0, 2).map((row) => (
+              <li key={row} className='flex items-center gap-1.5 px-4 py-2.5'>
+                <span className='flex min-w-0 flex-1 flex-col gap-1'>
+                  <Skeleton className='h-3.5 w-28' />
+                  <Skeleton className='h-3 w-40' />
+                </span>
+                <Skeleton className='h-5 w-12 rounded-full' />
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Attributes</CardTitle>
+          </CardHeader>
+          <dl className='flex flex-col'>
+            {ROW_PLACEHOLDERS.map((row) => (
+              <div
+                key={row}
+                className='flex min-h-10 items-center justify-between gap-3 border-bg-3 border-b px-4 last:border-b-0'
+              >
+                <Skeleton className='h-4 w-20' />
+                <Skeleton className='h-4 w-28' />
+              </div>
+            ))}
+          </dl>
+        </Card>
       </div>
     </div>
   );
@@ -949,21 +1102,9 @@ function SubscriberSkeleton() {
 
 export default function SubscriberRoute({ loaderData, params }: Route.ComponentProps) {
   const { activityFiltered, detail } = loaderData;
-  const base = `/${params.slug}/subscribers`;
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 shrink-0 self-start'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Subscribers
-      </Button>
-
+    <SubscriberFrame slug={params.slug}>
       <Deferred resolve={detail}>
         {(data) =>
           data === undefined ? (
@@ -973,6 +1114,35 @@ export default function SubscriberRoute({ loaderData, params }: Route.ComponentP
           )
         }
       </Deferred>
+    </SubscriberFrame>
+  );
+}
+
+function SubscriberFrame({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 shrink-0 self-start'
+        nativeButton={false}
+        render={<Link to={`/${slug}/subscribers`} />}
+      >
+        Subscribers
+      </Button>
+      {children}
     </div>
   );
 }
+
+function SubscriberPending() {
+  const { slug } = useParams();
+  return (
+    <SubscriberFrame slug={slug!}>
+      <SubscriberSkeleton />
+    </SubscriberFrame>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <SubscriberPending /> };

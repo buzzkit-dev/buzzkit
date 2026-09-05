@@ -35,7 +35,7 @@ import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import type { Expression } from 'buzzkit/expressions';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
   AttemptOutcomeBadge,
@@ -48,6 +48,7 @@ import { Conditions } from '@/app/components/conditions/chips';
 import { DetailRow } from '@/app/components/detail/row';
 import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
@@ -696,18 +697,7 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
   const { status, deliveryId, detail } = loaderData;
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={`/${params.slug}/messages`} />}
-      >
-        Messages
-      </Button>
-
+    <MessageFrame slug={params.slug}>
       <Deferred resolve={detail}>
         {(data) =>
           data === undefined ? (
@@ -717,6 +707,35 @@ export default function MessageRoute({ loaderData, params }: Route.ComponentProp
           )
         }
       </Deferred>
+    </MessageFrame>
+  );
+}
+
+function MessageFrame({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${slug}/messages`} />}
+      >
+        Messages
+      </Button>
+      {children}
     </div>
   );
 }
+
+function MessagePending() {
+  const { slug } = useParams();
+  return (
+    <MessageFrame slug={slug!}>
+      <MessageSkeleton />
+    </MessageFrame>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <MessagePending /> };

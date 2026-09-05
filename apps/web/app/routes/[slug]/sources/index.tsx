@@ -13,11 +13,14 @@ import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { SourceStatusBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { mappedEventCount, providerLabel } from '@/app/components/sources/describe';
 import { ProviderLogo } from '@/app/components/sources/logo';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { sourcesAction } from '@/app/lib/actions/sources.server';
 import { listSources, type Source } from '@/app/lib/api.server';
@@ -180,27 +183,13 @@ export default function SourcesRoute({ loaderData, params }: Route.ComponentProp
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Sources
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Turn webhooks from other services into subscriber events.
-          </p>
-        </div>
-        {canManage && (
-          <Button icon='IconPlusMedium' onClick={openDialog}>
-            Add source
-          </Button>
-        )}
-      </header>
+      <SourcesHeader canManage={canManage} onCreate={openDialog} />
 
       <Deferred resolve={sources}>
         {(data) => {
           const rows = data ?? [];
           return data === undefined ? (
-            <TableSkeleton columns={COLUMNS} />
+            <SourcesSkeleton />
           ) : (
             <Card className='min-h-0 shrink'>
               {rows.length === 0 ? (
@@ -233,3 +222,34 @@ export default function SourcesRoute({ loaderData, params }: Route.ComponentProp
     </div>
   );
 }
+
+function SourcesHeader({ canManage, onCreate }: { canManage: boolean | null; onCreate?: () => void }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='Sources'
+      description='Turn webhooks from other services into subscriber events.'
+      actions={
+        manage === false ? null : (
+          <Button icon='IconPlusMedium' disabled={manage === null} onClick={onCreate}>
+            Add source
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function SourcesSkeleton() {
+  return <TableSkeleton columns={COLUMNS} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <SourcesHeader canManage={null} />
+      <SourcesSkeleton />
+    </div>
+  ),
+};

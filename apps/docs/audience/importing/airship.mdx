@@ -1,0 +1,42 @@
+---
+title: "Export from Airship"
+description: "List Airship channels through the API to get the push address of every device, then import them as one row per channel."
+---
+
+Airship stores each device as a channel. The dashboard exports lists of channel ids, but the push token itself, the `push_address`, comes from the channel listing API. The migration is a paginated API call written out as CSV.
+
+## List the channels
+
+The [channel listing](https://docs.airship.com/api/ua/#tag-channels) returns every channel in pages, with the device type, the push address, the opt-in state and the named user the channel belongs to:
+
+```bash
+curl https://go.urbanairship.com/api/channels/ \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/vnd.urbanairship+json; version=3"
+```
+
+Follow `next_page` until it is absent. Keep, per channel:
+
+| Field | Use |
+| --- | --- |
+| `named_user_id` | Your user id. Channels without one are anonymous in Airship too. |
+| `push_address` | The APNs token or the FCM registration token |
+| `device_type` | `ios` or `android`. Skip `web` and other types. |
+| `opt_in` | `false` means the device is opted out. Skip those, or import them muted. |
+| `last_registration` | The last time the device registered, for the last seen time |
+| `tags` and `attributes` | Attributes, if you want them along |
+
+Airship's [audience migration notes](https://support.airship.com/hc/en-us/articles/213491603-How-Do-I-Migrate-My-Existing-App-Audience-to-Airship) describe the same data in the other direction.
+
+## Write the CSV
+
+One row per channel with the columns above. A short script over the paginated response is enough; the Braze guide shows the shape of such a script.
+
+## Map it in BuzzKit
+
+| Pick | Column |
+| --- | --- |
+| External id | `named_user_id` |
+| Token or address | `push_address` |
+| Column contents | Apple or Android device tokens, one file per `device_type` |
+| Keep other columns as attributes | On, to carry tags and attributes over |

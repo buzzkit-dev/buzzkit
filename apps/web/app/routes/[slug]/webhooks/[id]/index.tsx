@@ -35,12 +35,20 @@ import {
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useOutletContext, useRevalidator, useSearchParams } from 'react-router';
+import {
+  Link,
+  useNavigate,
+  useOutletContext,
+  useParams,
+  useRevalidator,
+  useSearchParams,
+} from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EndpointStatusBadge, WebhookAttemptBadge, WebhookStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
 import { CardSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { describeEvents } from '@/app/components/webhooks/describe';
 import { ALL_TENANTS, EndpointFields, useEndpointForm } from '@/app/components/webhooks/endpoint-form';
@@ -708,18 +716,7 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
   const base = `/${params.slug}/webhooks`;
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Webhooks
-      </Button>
-
+    <WebhookFrame slug={params.slug}>
       <Deferred resolve={detail}>
         {(data) =>
           data === undefined ? (
@@ -729,6 +726,35 @@ export default function WebhookRoute({ loaderData, params }: Route.ComponentProp
           )
         }
       </Deferred>
+    </WebhookFrame>
+  );
+}
+
+function WebhookFrame({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${slug}/webhooks`} />}
+      >
+        Webhooks
+      </Button>
+      {children}
     </div>
   );
 }
+
+function WebhookPending() {
+  const { slug } = useParams();
+  return (
+    <WebhookFrame slug={slug!}>
+      <EndpointFallback />
+    </WebhookFrame>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <WebhookPending /> };

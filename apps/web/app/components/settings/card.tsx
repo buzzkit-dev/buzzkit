@@ -28,7 +28,7 @@ export function SettingsCard({
   className?: string;
 }) {
   return (
-    <Card>
+    <Card className='shrink-0'>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -45,8 +45,18 @@ export function SettingsCard({
   );
 }
 
-export function SettingsRows({ children }: { children: React.ReactNode }) {
-  return <ul className='-mx-4 -mb-2 flex flex-col divide-y divide-bg-3'>{children}</ul>;
+export function SettingsRows({
+  children,
+  divided = false,
+}: {
+  children: React.ReactNode;
+  divided?: boolean;
+}) {
+  return (
+    <ul className={cn('-mx-4 -mb-3.5 flex flex-col divide-y divide-bg-3', divided && 'border-bg-3 border-t')}>
+      {children}
+    </ul>
+  );
 }
 
 export function SettingsRow({

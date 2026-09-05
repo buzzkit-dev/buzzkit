@@ -43,3 +43,5 @@ yarn-error.log*
 
 # Playwright MCP artifacts
 .playwright-mcp
+
+.kanna

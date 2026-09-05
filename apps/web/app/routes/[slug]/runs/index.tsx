@@ -7,7 +7,9 @@ import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Link } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useFilters } from '@/app/hooks/use-filters';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
@@ -98,14 +100,7 @@ export default function RunsRoute({ loaderData, params }: Route.ComponentProps) 
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>Runs</h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Every workflow run in this workspace, newest first.
-          </p>
-        </div>
-      </header>
+      <RunsHeader />
 
       <Deferred resolve={page}>
         {(data) => {
@@ -113,63 +108,42 @@ export default function RunsRoute({ loaderData, params }: Route.ComponentProps) 
           const runs = data?.items ?? [];
           const workflows = data?.workflows ?? [];
           const fresh = data !== undefined && !filtered && runs.length === 0;
+          if (cold) return <RunsSkeleton />;
           return (
             <>
-              {!fresh && (
-                <FilterBar>
-                  <FilterSelect
-                    label='Status'
-                    value={filters.values.status as RunStatus | null}
-                    options={STATUS_OPTIONS}
-                    onValueChange={(value) => filters.set('status', value)}
-                    disabled={cold}
-                  />
-                  <FilterSelect
-                    label='Workflow'
-                    value={filters.values.workflow}
-                    options={workflows.map((workflow) => ({ value: workflow.slug, label: workflow.name }))}
-                    onValueChange={(value) => filters.set('workflow', value)}
-                    disabled={cold}
-                  />
-                  {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
-                </FilterBar>
-              )}
+              {!fresh && <RunsFilters workflows={workflows} cold={cold} />}
 
-              {data === undefined ? (
-                <TableSkeleton columns={COLUMNS} fixed={false} />
-              ) : (
-                <Card className='min-h-0 shrink'>
-                  {fresh ? (
-                    <EmptyState
-                      icon='IconAgentsFilled'
-                      title='No runs yet'
-                      description='A run starts when an event matches the trigger of an active workflow.'
-                      className='py-10'
-                    />
-                  ) : runs.length === 0 ? (
-                    <EmptyState
-                      icon='IconAgentsFilled'
-                      title='No runs match'
-                      description='No run in this workspace matches these filters.'
-                      className='py-10'
-                    >
-                      <Button variant='soft' onClick={filters.clear}>
-                        Clear filters
-                      </Button>
-                    </EmptyState>
-                  ) : (
-                    <Table>
-                      <TableColumns columns={COLUMNS} />
-                      <TableBody>
-                        {runs.map((run) => (
-                          <RunRow key={run.id} run={run} slug={params.slug} />
-                        ))}
-                      </TableBody>
-                      <TablePagination {...data.pagination} />
-                    </Table>
-                  )}
-                </Card>
-              )}
+              <Card className='min-h-0 shrink'>
+                {fresh ? (
+                  <EmptyState
+                    icon='IconAgentsFilled'
+                    title='No runs yet'
+                    description='A run starts when an event matches the trigger of an active workflow.'
+                    className='py-10'
+                  />
+                ) : runs.length === 0 ? (
+                  <EmptyState
+                    icon='IconAgentsFilled'
+                    title='No runs match'
+                    description='No run in this workspace matches these filters.'
+                    className='py-10'
+                  >
+                    <Button variant='soft' onClick={filters.clear}>
+                      Clear filters
+                    </Button>
+                  </EmptyState>
+                ) : (
+                  <Table>
+                    <TableColumns columns={COLUMNS} />
+                    <TableBody>
+                      {runs.map((run) => (
+                        <RunRow key={run.id} run={run} slug={params.slug} />
+                      ))}
+                    </TableBody>
+                    <TablePagination {...data.pagination} />
+                  </Table>
+                )}
+              </Card>
             </>
           );
         }}
@@ -177,3 +151,55 @@ export default function RunsRoute({ loaderData, params }: Route.ComponentProps) 
     </div>
   );
 }
+
+function RunsHeader() {
+  return <PageHeader title='Runs' description='Every workflow run in this workspace, newest first.' />;
+}
+
+function RunsFilters({
+  workflows,
+  cold,
+}: {
+  workflows: Array<{ slug: string; name: string }>;
+  cold: boolean;
+}) {
+  const filters = useFilters(FILTER_KEYS);
+
+  return (
+    <FilterBar>
+      <FilterSelect
+        label='Status'
+        value={filters.values.status as RunStatus | null}
+        options={STATUS_OPTIONS}
+        onValueChange={(value) => filters.set('status', value)}
+        disabled={cold}
+      />
+      <FilterSelect
+        label='Workflow'
+        value={filters.values.workflow}
+        options={workflows.map((workflow) => ({ value: workflow.slug, label: workflow.name }))}
+        onValueChange={(value) => filters.set('workflow', value)}
+        disabled={cold}
+      />
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+    </FilterBar>
+  );
+}
+
+function RunsSkeleton() {
+  return (
+    <>
+      <RunsFilters workflows={[]} cold />
+      <TableSkeleton columns={COLUMNS} fixed={false} />
+    </>
+  );
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <RunsHeader />
+      <RunsSkeleton />
+    </div>
+  ),
+};

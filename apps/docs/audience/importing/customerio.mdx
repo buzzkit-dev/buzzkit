@@ -1,0 +1,29 @@
+---
+title: "Export from Customer.io"
+description: "Export the devices from Customer.io's People section and import them with the person id as the subscriber."
+---
+
+Customer.io keeps devices on people. The People section can export the devices of a workspace as a file, which is what a migration needs. Their own [migration page](https://docs.customer.io/journeys/push-migration/) advises against carrying tokens over because their SDK re-registers them, but for a move away from Customer.io, the tokens are exactly what keeps your audience reachable.
+
+## Export the devices
+
+1. Open **People**.
+2. Choose **Export**, then **Export other**, and pick the devices export. It is the same export Customer.io offers for cleaning up bounced devices and duplicate tokens.
+3. Download the file when the export finishes.
+
+The [export documentation](https://docs.customer.io/journeys/exporting-users/) describes the options and the columns. For a single person, the device data is also in the `devices.json` of a [person export](https://docs.customer.io/journeys/single-user-export/).
+
+## Export the people
+
+Attributes live on people, not on devices. To bring them along, export people from the same section with the attributes you want, and merge the two files on the person id, or import the people file a second time with no token column so the attributes land as profiles.
+
+## Map it in BuzzKit
+
+| Pick | Column |
+| --- | --- |
+| External id | The person id column, the identifier your app calls identify with |
+| Token or address | The device token column |
+| Column contents | Apple or Android device tokens, by the platform column |
+| Keep other columns as attributes | On for the people file, off for the devices file |
+
+Devices Customer.io marked as bounced are dead tokens. Leave them out, or import them and let the first delivery mark them invalid.

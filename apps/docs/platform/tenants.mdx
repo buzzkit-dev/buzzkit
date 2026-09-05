@@ -78,6 +78,8 @@ The tenant object never contains the secret. It lives behind two session-only en
 - `GET /v1/tenants/:tenantSlug/identity-secret` reveals it once for your backend's configuration.
 - `POST /v1/tenants/:tenantSlug/identity-secret/rotate` replaces it. Every hash minted with the old secret stops verifying immediately.
 
+In the dashboard both live under **Settings → Channels → Identity verification** for the selected tenant: the switch enforces it, and the secret can be revealed, copied and rotated there.
+
 <Warning>
   API keys get a 403 on both, and the `tenants:secrets` scope cannot be granted to a key at all. Read the secret from the dashboard, keep it on your server, and never ship it in the app.
 </Warning>

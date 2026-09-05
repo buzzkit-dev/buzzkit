@@ -27,10 +27,14 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { DefaultTenantBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
+import { ImportDialog } from '@/app/components/subscribers/import';
 import { slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { tenantsAction } from '@/app/lib/actions/tenants.server';
 import { listTenants, type Tenant } from '@/app/lib/api.server';
@@ -156,11 +160,13 @@ function TenantRow({
   tenant,
   canManage,
   onEdit,
+  onImport,
   onDelete,
 }: {
   tenant: Tenant;
   canManage: boolean;
   onEdit: (tenant: Tenant) => void;
+  onImport: (tenant: Tenant) => void;
   onDelete: (tenant: Tenant) => void;
 }) {
   return (
@@ -181,31 +187,30 @@ function TenantRow({
         <Time at={tenant.createdAt} />
       </TableCell>
       <TableCell className='w-0 py-1.5 text-right'>
-        {canManage && (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant='ghost'
-                  size='icon-xs'
-                  icon='IconDotGrid1x3Horizontal'
-                  aria-label='Tenant actions'
-                />
-              }
-            />
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
-              {!tenant.isDefault && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant='destructive' onClick={() => onDelete(tenant)}>
-                    Delete
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon-xs'
+                icon='IconDotGrid1x3Horizontal'
+                aria-label='Tenant actions'
+              />
+            }
+          />
+          <DropdownMenuContent align='end'>
+            {canManage && <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>}
+            <DropdownMenuItem onClick={() => onImport(tenant)}>Import subscribers</DropdownMenuItem>
+            {canManage && !tenant.isDefault && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant='destructive' onClick={() => onDelete(tenant)}>
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </TableCell>
     </TableRow>
   );
@@ -220,35 +225,23 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<Tenant | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [importing, setImporting] = useState<Tenant | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Tenants
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Manage the tenants in this workspace.
-          </p>
-        </div>
-        {canManage && (
-          <Button
-            icon='IconPlusMedium'
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
-            Create tenant
-          </Button>
-        )}
-      </header>
+      <TenantsHeader
+        canManage={canManage}
+        onCreate={() => {
+          setEditing(null);
+          setDialogOpen(true);
+        }}
+      />
 
       <Deferred resolve={tenants}>
         {(data) => {
           const rows = data ?? [];
-          if (data === undefined) return <TableSkeleton columns={COLUMNS} fixed={false} />;
+          if (data === undefined) return <TenantsSkeleton />;
           return (
             <Card className='min-h-0 shrink'>
               <Table>
@@ -262,6 +255,10 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
                       onEdit={(target) => {
                         setEditing(target);
                         setDialogOpen(true);
+                      }}
+                      onImport={(target) => {
+                        setImporting(target);
+                        setImportOpen(true);
                       }}
                       onDelete={(target) => {
                         setDeleting(target);
@@ -277,6 +274,14 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
       </Deferred>
 
       <TenantDialog tenant={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      {importing && (
+        <ImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          target={{ action: `/${workspace.slug}/subscribers`, tenant: importing.slug }}
+        />
+      )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
@@ -301,3 +306,34 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+function TenantsHeader({ canManage, onCreate }: { canManage: boolean | null; onCreate?: () => void }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='Tenants'
+      description='Manage the tenants in this workspace.'
+      actions={
+        manage === false ? null : (
+          <Button icon='IconPlusMedium' disabled={manage === null} onClick={onCreate}>
+            Create tenant
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function TenantsSkeleton() {
+  return <TableSkeleton columns={COLUMNS} fixed={false} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <TenantsHeader canManage={null} />
+      <TenantsSkeleton />
+    </div>
+  ),
+};

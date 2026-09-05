@@ -154,8 +154,10 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { data } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { OAuthProviders } from '@/app/components/auth/providers';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Sidebar } from '@/app/components/layout/sidebar';
 import { useTheme } from '@/app/components/layout/theme-provider';
+import { TableSkeleton } from '@/app/components/loading/table';
 import { ChoiceRow, ChoiceRows } from '@/app/components/onboarding/choice-row';
 import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop';
 import { apnsGuide } from '@/app/components/onboarding/guides/apns';
@@ -1849,6 +1851,7 @@ export default function DesignSystem() {
           <Specimen label='sidebar · mock workspace'>
             <div className='corner-superellipse/1.125 flex h-[640px] w-[560px] overflow-hidden rounded-2xl bg-background-subtle'>
               <Sidebar
+                slug={MOCK_WORKSPACE.slug}
                 workspace={MOCK_WORKSPACE}
                 workspaces={[
                   MOCK_WORKSPACE,
@@ -1857,6 +1860,19 @@ export default function DesignSystem() {
                 profile={MOCK_PROFILE}
                 tenant={MOCK_TENANTS[0]!}
                 tenants={MOCK_TENANTS}
+              />
+              <div className='corner-superellipse/1.125 m-2 ml-0 flex-1 rounded-2xl bg-card shadow-sm' />
+            </div>
+          </Specimen>
+          <Specimen label='sidebar · chrome still loading'>
+            <div className='corner-superellipse/1.125 flex h-[640px] w-[560px] overflow-hidden rounded-2xl bg-background-subtle'>
+              <Sidebar
+                slug={MOCK_WORKSPACE.slug}
+                workspace={null}
+                workspaces={[]}
+                profile={null}
+                tenant={null}
+                tenants={[]}
               />
               <div className='corner-superellipse/1.125 m-2 ml-0 flex-1 rounded-2xl bg-card shadow-sm' />
             </div>
@@ -1960,7 +1976,8 @@ export default function DesignSystem() {
         <Section
           id='loading'
           title='Loading & waiting'
-          description='A spinner means the app is working. The live ping means the app is ready and listening for something external, so it sits beside the thing it waits for.'
+          description='A spinner means the app is working. The live ping means the app is ready and listening for something external, so it sits beside the thing it waits for. A page never spins: its title, description, filters and static buttons paint on the first frame, and only what is actually loading is a skeleton of the exact size it will have.'
+          className='flex-col items-stretch'
         >
           <Specimen label='spinner'>
             <Spinner />
@@ -1987,6 +2004,26 @@ export default function DesignSystem() {
                 <Skeleton className='h-3.5 w-32' />
                 <Skeleton className='h-3.5 w-20' />
               </div>
+            </div>
+          </Specimen>
+          <Specimen label='page skeleton · the route handle: the real header, its button disabled until the role is known, the table with its real columns'>
+            <div className='flex w-full max-w-3xl flex-col gap-5 rounded-2xl bg-card p-6'>
+              <PageHeader
+                title='Topics'
+                description='Manage notification topics.'
+                actions={
+                  <Button icon='IconPlusMedium' disabled>
+                    Create topic
+                  </Button>
+                }
+              />
+              <TableSkeleton
+                columns={[
+                  { label: 'Topic', fill: 'h-4 w-40' },
+                  { label: 'Slug', fill: 'h-4 w-24' },
+                  { label: 'Created', fill: 'h-4 w-20' },
+                ]}
+              />
             </div>
           </Specimen>
         </Section>

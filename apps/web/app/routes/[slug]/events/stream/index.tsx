@@ -27,7 +27,9 @@ import {
   type StreamSource,
   summarizeData,
 } from '@/app/components/events/stream';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { providerLabel } from '@/app/components/sources/describe';
 import { useFilters } from '@/app/hooks/use-filters';
@@ -379,32 +381,50 @@ export default function StreamRoute({ loaderData, params }: Route.ComponentProps
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='flex items-center gap-2.5 text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Stream
-            <Suspense fallback={null}>
-              <Await resolve={results}>{({ live }) => live && <LivePing />}</Await>
-            </Suspense>
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Every event as it arrives, newest first.
-          </p>
-        </div>
-      </header>
+      <StreamHeader live={results} />
 
       <Deferred resolve={results}>
         {(data) =>
-          data === undefined ? (
-            <>
-              <StreamFilters names={[]} sourceOptions={[]} cold />
-              <TableSkeleton columns={COLUMNS} rows={8} />
-            </>
-          ) : (
-            <Stream data={data} filter={filter} slug={params.slug} />
-          )
+          data === undefined ? <StreamSkeleton /> : <Stream data={data} filter={filter} slug={params.slug} />
         }
       </Deferred>
     </div>
   );
 }
+
+function StreamHeader({ live }: { live: Promise<{ live: unknown }> | null }) {
+  return (
+    <PageHeader
+      title={
+        <>
+          Stream
+          {live && (
+            <Suspense fallback={null}>
+              <Await resolve={live}>{(data) => (data.live ? <LivePing /> : null)}</Await>
+            </Suspense>
+          )}
+        </>
+      }
+      titleClassName='flex items-center gap-2.5'
+      description='Every event as it arrives, newest first.'
+    />
+  );
+}
+
+function StreamSkeleton() {
+  return (
+    <>
+      <StreamFilters names={[]} sourceOptions={[]} cold />
+      <TableSkeleton columns={COLUMNS} rows={8} />
+    </>
+  );
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <StreamHeader live={null} />
+      <StreamSkeleton />
+    </div>
+  ),
+};

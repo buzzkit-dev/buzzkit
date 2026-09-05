@@ -1,6 +1,8 @@
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
-import { data } from 'react-router';
-import { findNavigationPage } from '@/app/components/layout/navigation';
+import { data, useParams } from 'react-router';
+import { findNavigationPage, type NavigationPage } from '@/app/components/layout/navigation';
+import { PageHeader } from '@/app/components/layout/page-header';
+import type { PageHandle } from '@/app/components/loading/handle';
 import type { Route } from './+types/index';
 
 export function loader({ params }: Route.LoaderArgs) {
@@ -13,18 +15,13 @@ export function meta({ loaderData }: Route.MetaArgs) {
   return [{ title: loaderData ? `${loaderData.page.label} · BuzzKit` : 'BuzzKit' }];
 }
 
-export default function PlannedRoute({ loaderData }: Route.ComponentProps) {
-  const { page } = loaderData;
+function PlannedPage({ page }: { page: NavigationPage }) {
   return (
     <div className='flex w-full flex-col gap-5'>
-      <header className='flex flex-col gap-0.5'>
-        <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-          {page.label}
-        </h1>
-        <p className='text-pretty text-base text-fg-2 leading-tighter'>
-          Planned for {page.planned ?? 'a later phase'} of the dashboard.
-        </p>
-      </header>
+      <PageHeader
+        title={page.label}
+        description={`Planned for ${page.planned ?? 'a later phase'} of the dashboard.`}
+      />
       <EmptyState
         icon={page.icon ?? 'IconSettingsGear4Filled'}
         title={`${page.label} is on the way`}
@@ -33,3 +30,15 @@ export default function PlannedRoute({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+function PlannedPending() {
+  const params = useParams();
+  const page = findNavigationPage(`/${params['*'] ?? ''}`);
+  return page ? <PlannedPage page={page} /> : null;
+}
+
+export default function PlannedRoute({ loaderData }: Route.ComponentProps) {
+  return <PlannedPage page={loaderData.page} />;
+}
+
+export const handle: PageHandle = { skeleton: <PlannedPending /> };

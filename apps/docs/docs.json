@@ -42,7 +42,23 @@
           },
           {
             "group": "Audience",
-            "pages": ["audience/subscribers", "audience/segments", "audience/topics"]
+            "pages": [
+              "audience/subscribers",
+              {
+                "group": "Importing",
+                "pages": [
+                  "audience/importing",
+                  "audience/importing/onesignal",
+                  "audience/importing/pushwoosh",
+                  "audience/importing/braze",
+                  "audience/importing/airship",
+                  "audience/importing/customerio",
+                  "audience/importing/firebase"
+                ]
+              },
+              "audience/segments",
+              "audience/topics"
+            ]
           },
           {
             "group": "Automation",

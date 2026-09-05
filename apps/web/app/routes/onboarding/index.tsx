@@ -27,7 +27,7 @@ export default function CreateWorkspaceRoute({ actionData }: Route.ComponentProp
   const pending = navigation.state !== 'idle' && navigation.formMethod != null;
   return (
     <OnboardingLayout
-      progress={[0.08, 0, 0, 0]}
+      progress={[0.08, 0, 0, 0, 0]}
       transitionKey='workspace'
       motion={{ direction: 1, from: 'rows', to: 'rows' }}
       slots={{

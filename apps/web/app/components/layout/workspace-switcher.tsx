@@ -52,7 +52,7 @@ export function WorkspaceSwitcher({
 }: {
   workspaces: Workspace[];
   current: Workspace;
-  tenant: Tenant;
+  tenant: Tenant | null;
   tenants: Tenant[];
 }) {
   const { pathname } = useLocation();
@@ -68,7 +68,7 @@ export function WorkspaceSwitcher({
           <WorkspaceAvatar slug={current.slug} avatarUrl={current.avatarUrl} />
           <Truncate>
             {current.name}
-            {switchable && !tenant.isDefault && <span className='text-fg-2'> · {tenant.name}</span>}
+            {switchable && tenant && !tenant.isDefault && <span className='text-fg-2'> · {tenant.name}</span>}
           </Truncate>
           <Icon name='IconChevronGrabberVertical' className='ml-auto size-4 text-fg-2' />
         </DropdownMenuTrigger>
@@ -98,10 +98,14 @@ export function WorkspaceSwitcher({
                   <DropdownMenuItem
                     key={entry.id}
                     icon='IconBuildingsFilled'
-                    render={<Link to={`${pathname}?tenant=${entry.slug}`} />}
+                    render={
+                      <Link
+                        to={entry.slug === tenant?.slug ? pathname : `${pathname}?tenant=${entry.slug}`}
+                      />
+                    }
                   >
                     <Truncate>{entry.name}</Truncate>
-                    {entry.slug === tenant.slug && (
+                    {entry.slug === tenant?.slug && (
                       <Icon name='IconCheckmark1' className='ml-auto size-4 rotate-[4deg]' />
                     )}
                   </DropdownMenuItem>

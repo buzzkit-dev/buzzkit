@@ -27,6 +27,7 @@ import {
   type ProviderSendResult,
 } from '@buzzkit/api/providers/index';
 import type { TokenMemo } from '@buzzkit/api/providers/shared/cache';
+import { runConcurrently } from '@buzzkit/api/utils/concurrency';
 import { and, count, type Db, eq, gte, inArray, isNull, ne, tables } from '@buzzkit/database';
 import type { CredentialMemo, ProcessableRow, ProcessedDelivery, ResolvedCredential } from './types';
 
@@ -305,7 +306,7 @@ export async function processDeliveryBatch(
     }
 
     const outcomes: AttemptOutcome[] = [];
-    await runWithConcurrency(sending, SEND_CONCURRENCY, async ({ job, row }) => {
+    await runConcurrently(sending, SEND_CONCURRENCY, async ({ job, row }) => {
       const provider = row.delivery.provider;
       const stored = row.message.payload as MessagePayload;
       const payload: MessagePayload = {
@@ -414,19 +415,4 @@ export async function processDeliveryBatch(
 
     return processed;
   });
-}
-
-async function runWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  task: (item: T) => Promise<void>
-): Promise<void> {
-  let index = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (index < items.length) {
-      const item = items[index++];
-      if (item) await task(item);
-    }
-  });
-  await Promise.all(workers);
 }

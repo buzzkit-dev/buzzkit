@@ -17,13 +17,15 @@ import { Table, TableBody, TableCell, TableDetail, TableRow } from '@buzzkit/ui/
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { Suspense, useRef, useState } from 'react';
-import { Await, Link, useNavigate } from 'react-router';
+import { Await, Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EventSourceBadge } from '@/app/components/badges';
 import { describeStreamEvent, summarizeData } from '@/app/components/events/stream';
 import { VolumeChart } from '@/app/components/events/volume-chart';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { type EventNameDetail, type EventRange, getEventName } from '@/app/lib/api.server';
@@ -246,10 +248,11 @@ function EventDetail({ detail, slug }: { detail: EventNameDetail; slug: string }
   );
 }
 
-export default function EventNameRoute({ loaderData, params }: Route.ComponentProps) {
+function EventNamePage({ detail, range }: { detail: Promise<EventNameDetail> | null; range: EventRange }) {
   const navigate = useNavigate();
-  const { detail, range } = loaderData;
-  const { label } = describeStreamEvent({ name: params.name, data: {} });
+  const params = useParams();
+  const slug = params.slug ?? '';
+  const { label } = describeStreamEvent({ name: params.name ?? '', data: {} });
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -260,59 +263,85 @@ export default function EventNameRoute({ loaderData, params }: Route.ComponentPr
         icon='IconChevronLeftMedium'
         className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
         nativeButton={false}
-        render={<Link to={`/${params.slug}/events`} />}
+        render={<Link to={`/${slug}/events`} />}
       >
         Events
       </Button>
 
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            {label}
-          </h1>
-          <Suspense fallback={<BlockSkeleton className='h-5 w-72 rounded-md' />}>
-            <Await resolve={detail}>
-              {(data) => (
-                <p className='text-pretty text-base text-fg-2 leading-tighter'>
-                  {label !== data.name && <span>{data.name} · </span>}
-                  First seen <Time at={data.firstAt} />, last <TimeAgo at={data.lastAt} />.
-                </p>
-              )}
-            </Await>
-          </Suspense>
-        </div>
-        <PillTabs
-          items={RANGES}
-          value={range}
-          itemClassName='h-6.5 px-2.5 text-xs'
-          onValueChange={(value) =>
-            navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
-              replace: true,
-              preventScrollReset: true,
-            })
-          }
-        />
-      </header>
+      <PageHeader
+        title={label}
+        description={
+          detail !== null ? (
+            <Suspense fallback={<EventNameDescriptionSkeleton />}>
+              <Await resolve={detail}>
+                {(data) => (
+                  <>
+                    {label !== data.name && <span>{data.name} · </span>}
+                    First seen <Time at={data.firstAt} />, last <TimeAgo at={data.lastAt} />.
+                  </>
+                )}
+              </Await>
+            </Suspense>
+          ) : (
+            <EventNameDescriptionSkeleton />
+          )
+        }
+        actions={
+          <PillTabs
+            items={RANGES}
+            value={range}
+            itemClassName='h-6.5 px-2.5 text-xs'
+            onValueChange={(value) =>
+              navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
+                replace: true,
+                preventScrollReset: true,
+              })
+            }
+          />
+        }
+      />
 
       <ScrollFade targetRef={scrollerRef} />
       <div
         ref={scrollerRef}
         className='-m-1 flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'
       >
-        <Deferred resolve={detail}>
-          {(data) =>
-            data === undefined ? (
-              <>
-                <BlockSkeleton className='h-[4.75rem] w-full rounded-2xl' />
-                <BlockSkeleton className='h-56 w-full rounded-2xl' />
-                <TableSkeleton columns={COLUMNS} rows={6} />
-              </>
-            ) : (
-              <EventDetail detail={data} slug={params.slug} />
-            )
-          }
-        </Deferred>
+        {detail !== null ? (
+          <Deferred resolve={detail}>
+            {(data) =>
+              data === undefined ? <EventNameSkeleton /> : <EventDetail detail={data} slug={slug} />
+            }
+          </Deferred>
+        ) : (
+          <EventNameSkeleton />
+        )}
       </div>
     </div>
   );
 }
+
+function EventNameDescriptionSkeleton() {
+  return <span className='inline-block h-5 w-72 animate-pulse rounded-md bg-bg-3 align-middle' />;
+}
+
+function EventNameSkeleton() {
+  return (
+    <>
+      <BlockSkeleton className='h-[4.75rem] w-full rounded-2xl' />
+      <BlockSkeleton className='h-56 w-full rounded-2xl' />
+      <TableSkeleton columns={COLUMNS} rows={6} />
+    </>
+  );
+}
+
+function EventNamePending() {
+  const [search] = useSearchParams();
+  const range = RANGES.find((entry) => entry.value === search.get('range'))?.value ?? DEFAULT_RANGE;
+  return <EventNamePage detail={null} range={range} />;
+}
+
+export default function EventNameRoute({ loaderData }: Route.ComponentProps) {
+  return <EventNamePage detail={loaderData.detail} range={loaderData.range} />;
+}
+
+export const handle: PageHandle = { skeleton: <EventNamePending /> };

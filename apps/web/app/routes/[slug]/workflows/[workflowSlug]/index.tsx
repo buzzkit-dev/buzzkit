@@ -31,12 +31,13 @@ import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router';
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge, WorkflowStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
 import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns } from '@/app/components/loading/table';
 import {
   describeSchedule,
@@ -813,22 +814,10 @@ function WorkflowSkeleton() {
 export default function WorkflowRoute({ loaderData, params }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const { runStatus, detail } = loaderData;
-  const base = `/${params.slug}/workflows`;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <Button
-        variant='ghost'
-        size='sm'
-        icon='IconChevronLeftMedium'
-        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
-        nativeButton={false}
-        render={<Link to={base} />}
-      >
-        Workflows
-      </Button>
-
+    <WorkflowFrame slug={params.slug}>
       <Deferred resolve={detail}>
         {(data) =>
           data === undefined ? (
@@ -838,6 +827,35 @@ export default function WorkflowRoute({ loaderData, params }: Route.ComponentPro
           )
         }
       </Deferred>
+    </WorkflowFrame>
+  );
+}
+
+function WorkflowFrame({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${slug}/workflows`} />}
+      >
+        Workflows
+      </Button>
+      {children}
     </div>
   );
 }
+
+function WorkflowPending() {
+  const { slug } = useParams();
+  return (
+    <WorkflowFrame slug={slug!}>
+      <WorkflowSkeleton />
+    </WorkflowFrame>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <WorkflowPending /> };

@@ -10,6 +10,8 @@ export const RESERVED_EVENT_PREFIX = '$';
 
 export const MAX_EVENTS_PER_REQUEST = 100;
 
+export const INGEST_CONCURRENCY = 5;
+
 export const MAX_EVENT_DATA_BYTES = 8 * 1024;
 
 export const MAX_EVENT_AGE_MS = 7 * DAY_MS;

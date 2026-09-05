@@ -42,14 +42,14 @@ function isSubscriptionCurrent(
   subscriberId: number,
   platform: Subscription['platform'],
   environment: Subscription['environment'],
-  now: Date
+  seenAt: Date
 ): boolean {
   return (
     existing.subscriberId === subscriberId &&
     existing.platform === platform &&
     existing.environment === environment &&
     existing.status === 'active' &&
-    now.getTime() - existing.lastSeenAt.getTime() < SUBSCRIPTION_TOUCH_THROTTLE_MS
+    seenAt.getTime() - existing.lastSeenAt.getTime() < SUBSCRIPTION_TOUCH_THROTTLE_MS
   );
 }
 
@@ -86,6 +86,8 @@ export async function registerSubscription(
     systemAttributes?: Record<string, unknown>;
     subscriber?: Subscriber;
     rebind?: boolean;
+    lastSeenAt?: Date;
+    enabled?: boolean;
   }
 ): Promise<SubscriptionRegistration> {
   await assertChannelConnected(db, tenantId, input.channel, 'channel');
@@ -124,10 +126,17 @@ export async function registerSubscription(
     }
 
     const now = new Date();
+    const seenAt = input.lastSeenAt ?? now;
 
     if (
       existing &&
-      isSubscriptionCurrent(existing, subscriber.id, input.platform, input.environment ?? 'production', now)
+      isSubscriptionCurrent(
+        existing,
+        subscriber.id,
+        input.platform,
+        input.environment ?? 'production',
+        seenAt
+      )
     ) {
       span.set('subscription.written', false);
 
@@ -150,7 +159,8 @@ export async function registerSubscription(
         platform: input.platform,
         environment: input.environment ?? 'production',
         endpoint: input.endpoint,
-        lastSeenAt: now,
+        enabled: input.enabled ?? true,
+        lastSeenAt: seenAt,
       })
       .onConflictDoUpdate({
         target: [tables.subscription.tenantId, tables.subscription.channel, tables.subscription.endpoint],
@@ -162,7 +172,7 @@ export async function registerSubscription(
           status: 'active',
           invalidatedAt: null,
           invalidationReason: null,
-          lastSeenAt: now,
+          lastSeenAt: sql`greatest(${tables.subscription.lastSeenAt}, ${seenAt.toISOString()}::timestamptz)`,
           updatedAt: now,
         },
       })

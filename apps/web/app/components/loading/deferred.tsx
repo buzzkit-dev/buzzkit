@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { Await, useLocation } from 'react-router';
+import { Await, useLocation, useOutletContext } from 'react-router';
 import { recallPage, rememberPage } from '@/app/lib/utils/stale';
 
 function Resolved({
@@ -26,13 +26,15 @@ export function Deferred<T>({
   children: (data: T | undefined, pending: boolean) => React.ReactNode;
 }) {
   const { pathname } = useLocation();
-  const cached = recallPage<T>(pathname);
+  const context = useOutletContext<{ tenantSlug?: string } | undefined>();
+  const cacheKey = `${context?.tenantSlug ?? ''}:${pathname}`;
+  const cached = recallPage<T>(cacheKey);
 
   return (
-    <Suspense fallback={children(cached, true)}>
+    <Suspense key={cacheKey} fallback={children(cached, true)}>
       <Await resolve={resolve}>
         {(data: T) => (
-          <Resolved cacheKey={pathname} data={data}>
+          <Resolved cacheKey={cacheKey} data={data}>
             {children(data, false)}
           </Resolved>
         )}

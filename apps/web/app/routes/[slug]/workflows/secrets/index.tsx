@@ -25,9 +25,12 @@ import { Table, TableBody, TableCell, TableRow } from '@buzzkit/ui/components/ta
 import { useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { secretsAction } from '@/app/lib/actions/secrets.server';
 import { listSecrets } from '@/app/lib/api.server';
@@ -154,33 +157,19 @@ export default function SecretsRoute({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Secrets
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Manage the secrets your workflows can access.
-          </p>
-        </div>
-        {canManage && (
-          <Button
-            icon='IconPlusMedium'
-            onClick={() => {
-              setEditing(null);
-              setAddOpen(true);
-            }}
-          >
-            Add secret
-          </Button>
-        )}
-      </header>
+      <SecretsHeader
+        canManage={canManage}
+        onCreate={() => {
+          setEditing(null);
+          setAddOpen(true);
+        }}
+      />
 
       <Deferred resolve={secrets}>
         {(data) => {
           const rows = data ?? [];
           return data === undefined ? (
-            <TableSkeleton columns={COLUMNS} rows={5} fixed={false} />
+            <SecretsSkeleton />
           ) : (
             <Card className='min-h-0 shrink'>
               {rows.length === 0 ? (
@@ -282,3 +271,34 @@ export default function SecretsRoute({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+function SecretsHeader({ canManage, onCreate }: { canManage: boolean | null; onCreate?: () => void }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='Secrets'
+      description='Manage the secrets your workflows can access.'
+      actions={
+        manage === false ? null : (
+          <Button icon='IconPlusMedium' disabled={manage === null} onClick={onCreate}>
+            Add secret
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function SecretsSkeleton() {
+  return <TableSkeleton columns={COLUMNS} rows={5} fixed={false} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <SecretsHeader canManage={null} />
+      <SecretsSkeleton />
+    </div>
+  ),
+};

@@ -11,10 +11,14 @@ import {
 import { Button } from '@buzzkit/ui/components/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { useState } from 'react';
 import { useFetcher, useOutletContext } from 'react-router';
+import { PageHeader } from '@/app/components/layout/page-header';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { SettingsCard } from '@/app/components/settings/card';
 import { type SettingsActionData, useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useKnownRole } from '@/app/hooks/use-known-role';
 import { workspaceSettingsAction } from '@/app/lib/actions/workspace.server';
 import type { Workspace } from '@/app/lib/api.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
@@ -193,15 +197,79 @@ export default function SettingsGeneralRoute() {
 
   return (
     <>
-      <header className='flex flex-col gap-0.5'>
-        <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-          General
-        </h1>
-        <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage the workspace name and slug.</p>
-      </header>
+      <GeneralHeader />
       <WorkspaceCard key={`name:${workspace.name}`} workspace={workspace} canEdit={canEdit} />
       <SlugCard key={`slug:${workspace.slug}`} workspace={workspace} canEdit={canEdit} />
       {workspace.role === 'owner' && <DeleteCard workspace={workspace} />}
     </>
   );
 }
+
+function GeneralHeader() {
+  return <PageHeader title='General' description='Manage the workspace name and slug.' />;
+}
+
+function GeneralSkeleton() {
+  const role = useKnownRole();
+  const canEdit = role === null ? null : role !== 'member';
+  const owner = role === null ? null : role === 'owner';
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <GeneralHeader />
+      <SettingsCard
+        title='Workspace'
+        description='The name your team sees across BuzzKit.'
+        footer={
+          canEdit === false
+            ? 'Only admins and owners can edit the workspace.'
+            : 'Shown in the workspace switcher and on invites.'
+        }
+        action={
+          canEdit === false ? undefined : (
+            <Button size='xs' disabled>
+              Save
+            </Button>
+          )
+        }
+      >
+        <Skeleton className='h-8.5 max-w-xs rounded-xl' />
+      </SettingsCard>
+      <SettingsCard
+        title='Slug'
+        description='Your workspace URL on the dashboard and in the API.'
+        footer={
+          canEdit === false
+            ? 'Only admins and owners can edit the workspace.'
+            : 'Changing it moves every link.'
+        }
+        action={
+          canEdit === false ? undefined : (
+            <Button size='xs' disabled>
+              Save
+            </Button>
+          )
+        }
+      >
+        <Field className='max-w-xs'>
+          <Skeleton className='h-8.5 rounded-xl' />
+          <FieldDescription>Lowercase letters, numbers and hyphens.</FieldDescription>
+        </Field>
+      </SettingsCard>
+      {owner !== false && (
+        <SettingsCard
+          title='Delete workspace'
+          description='Delete this workspace and everything in it.'
+          footer='Every tenant, subscriber, key and message goes with it.'
+          action={
+            <Button size='xs' variant='destructive' disabled>
+              Delete workspace
+            </Button>
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+export const handle: PageHandle = { skeleton: <GeneralSkeleton /> };

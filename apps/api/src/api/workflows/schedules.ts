@@ -9,6 +9,7 @@ import { subscriberActor } from '@buzzkit/api/libs/actor';
 import { BadRequestError, NotFoundError } from '@buzzkit/api/libs/error';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { currentTraceparent, trace } from '@buzzkit/api/libs/telemetry';
+import { runConcurrently } from '@buzzkit/api/utils/concurrency';
 import { and, asc, type Db, desc, eq, gt, isNull, sql, tables } from '@buzzkit/database';
 import {
   DEFAULT_TIMEZONE,
@@ -207,11 +208,10 @@ async function drainFire(
       cursor,
       Math.min(SCHEDULE_MEMBER_PAGE, budget - started)
     );
-    for (let index = 0; index < page.items.length; index += SCHEDULE_START_CONCURRENCY) {
-      const chunk = page.items.slice(index, index + SCHEDULE_START_CONCURRENCY);
-      const outcomes = await Promise.all(chunk.map((member) => startRun(fire, definition, member)));
-      started += outcomes.filter((outcome) => outcome === 'started').length;
-    }
+    await runConcurrently(page.items, SCHEDULE_START_CONCURRENCY, async (member) => {
+      const outcome = await startRun(fire, definition, member);
+      if (outcome === 'started') started += 1;
+    });
     const nextCursor = page.nextCursor ?? page.items.at(-1)?.subscriberId ?? cursor;
     finished = !page.hasMore;
     const claimed = await db

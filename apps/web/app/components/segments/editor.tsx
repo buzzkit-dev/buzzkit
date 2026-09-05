@@ -21,13 +21,15 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@bu
 import { Input } from '@buzzkit/ui/components/input';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { type Expression, formatExpressionPath, lintExpression } from 'buzzkit/expressions';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useFetcher, useNavigate } from 'react-router';
+import { Link, useFetcher, useNavigate, useParams } from 'react-router';
 import { describeExpression } from '@/app/components/conditions/describe';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { SendDialog } from '@/app/components/messages/send-dialog';
 import { SegmentBuilder } from '@/app/components/segments/builder';
 import {
@@ -42,6 +44,7 @@ import {
 import { SegmentPreviewPanel } from '@/app/components/segments/preview';
 import { describeSlugProblem, slugify } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import type { Segment, SegmentMember, SegmentPreview, Topic } from '@/app/lib/api.server';
 import type { Channel } from '@/app/lib/channels';
 import { lineOf, parseJson } from '@/app/lib/utils/json';
@@ -515,6 +518,79 @@ export function SegmentEditor({
           </AlertDialogContent>
         </AlertDialog>
       )}
+    </div>
+  );
+}
+
+export function SegmentEditorSkeleton({
+  existing,
+  canManage,
+}: {
+  existing: boolean;
+  canManage: boolean | null;
+}) {
+  const { slug } = useParams();
+  const manage = useCanManage(canManage);
+
+  return (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        icon='IconChevronLeftMedium'
+        className='-ml-2 w-fit shrink-0 text-fg-2 hover:text-fg-4'
+        nativeButton={false}
+        render={<Link to={`/${slug}/segments`} />}
+      >
+        Segments
+      </Button>
+
+      <PageHeader
+        title={existing ? <Skeleton className='h-7 w-56' /> : 'New segment'}
+        titleClassName='flex min-w-0 items-center gap-2.5'
+        description={
+          existing ? (
+            <span className='inline-block h-5 w-80 animate-pulse rounded-sm bg-bg-4 align-middle' />
+          ) : (
+            'Who this segment includes, checked against your subscribers as you go.'
+          )
+        }
+        actions={manage === false ? null : <Button disabled>{existing ? 'Save' : 'Create segment'}</Button>}
+      />
+
+      <div className='-m-1 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-1 [&>*]:shrink-0'>
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
+          <FieldGroup className='p-4'>
+            <Field>
+              <FieldLabel>Name</FieldLabel>
+              <Skeleton className='h-8.5 w-full rounded-xl' />
+            </Field>
+            <Field>
+              <FieldLabel>Slug</FieldLabel>
+              <Skeleton className='h-8.5 w-full rounded-xl' />
+            </Field>
+            <Field>
+              <FieldLabel>Description</FieldLabel>
+              <Skeleton className='h-8.5 w-full rounded-xl' />
+            </Field>
+          </FieldGroup>
+        </Card>
+
+        <Card>
+          <CardHeader divider className='py-3'>
+            <CardTitle>Conditions</CardTitle>
+            <CardAction>
+              <PillTabs items={MODES} value='builder' itemClassName='h-6.5 px-2.5 text-xs' />
+            </CardAction>
+          </CardHeader>
+          <div className='p-4'>
+            <Skeleton className='h-8.5 w-full rounded-xl' />
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

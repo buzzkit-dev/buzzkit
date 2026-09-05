@@ -18,20 +18,23 @@ import { Flag } from '@buzzkit/ui/components/flag';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
+import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useMemo } from 'react';
-import { Link, useOutletContext } from 'react-router';
+import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge, PlatformBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
-import { BlockSkeleton } from '@/app/components/loading/card';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
+import { type TableColumn, TableColumns } from '@/app/components/loading/table';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { LiveRuns } from '@/app/components/workflows/live-runs';
-import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
+import { RANGES, resolveInterval, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import {
   getStats,
@@ -781,18 +784,125 @@ function OverviewContent({
   );
 }
 
+const TILE_LABELS = ['Subscribers', 'Messages', 'Sent', 'Delivered', 'Failed', 'Events', 'Runs'];
+
+function TileSkeleton({ label }: { label: string }) {
+  return (
+    <Card className='gap-0 overflow-hidden'>
+      <div className='flex flex-col px-4 pt-3.5'>
+        <span className='text-fg-2 text-sm'>{label}</span>
+        <span className='flex h-9 items-center gap-2'>
+          <Skeleton className='h-6 w-14' />
+        </span>
+      </div>
+      <div className='h-14' />
+    </Card>
+  );
+}
+
+function ChartCardSkeleton({
+  title,
+  description,
+  height,
+}: {
+  title: string;
+  description: string;
+  height: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className='pt-1 pb-3'>
+        <Skeleton className={cn('w-full rounded-xl', height)} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ListCardSkeleton({ title, columns }: { title: string; columns: TableColumn[] }) {
+  return (
+    <Card>
+      <CardHeader className='py-3'>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <Table>
+        <TableColumns columns={columns} />
+        <TableBody>
+          {TILE_PLACEHOLDERS.slice(0, 3).map((row) => (
+            <TableRow key={row}>
+              {columns.map((column) => (
+                <TableCell key={column.label} className={column.className}>
+                  <Skeleton className={column.fill ?? 'h-4 w-24'} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Card>
+  );
+}
+
 function OverviewSkeleton() {
+  const [params] = useSearchParams();
+  const requested = resolveRange(params.get('range'));
+  const interval = resolveInterval(requested.from ? requested : resolveRange(DEFAULT_RANGE));
+
   return (
     <>
       <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-3'>
-        {TILE_PLACEHOLDERS.map((tile) => (
-          <BlockSkeleton key={tile} className='h-28 w-full rounded-2xl' />
+        {TILE_LABELS.map((label) => (
+          <TileSkeleton key={label} label={label} />
         ))}
       </div>
-      <BlockSkeleton className='h-80 w-full rounded-2xl' />
+      <ChartCardSkeleton
+        title='Deliveries'
+        description={`Sent and failed deliveries per ${interval}.`}
+        height='h-56'
+      />
       <div className='grid gap-5 lg:grid-cols-2'>
-        <BlockSkeleton className='h-64 w-full rounded-2xl' />
-        <BlockSkeleton className='h-64 w-full rounded-2xl' />
+        <ChartCardSkeleton title='Events' description={`Events tracked per ${interval}.`} height='h-40' />
+        <ChartCardSkeleton
+          title='Runs'
+          description={`Workflow runs started per ${interval}.`}
+          height='h-40'
+        />
+      </div>
+      <div className='grid gap-5 lg:grid-cols-2'>
+        <ListCardSkeleton
+          title='Recent messages'
+          columns={[
+            { label: 'Message', fill: 'h-4 w-40' },
+            { label: 'Status', fill: 'h-5 w-16 rounded-full' },
+            { label: 'Sent', fill: 'h-4 w-20' },
+          ]}
+        />
+        <ListCardSkeleton
+          title='New subscribers'
+          columns={[
+            { label: 'Subscriber', fill: 'h-4 w-36' },
+            { label: 'Channels', fill: 'h-5 w-16 rounded-full' },
+            { label: 'Subscribed', fill: 'h-4 w-20' },
+          ]}
+        />
+        <ListCardSkeleton
+          title='Top events'
+          columns={[
+            { label: 'Event', fill: 'h-4 w-40' },
+            { label: 'Count', className: 'text-right', fill: 'ml-auto h-4 w-10' },
+          ]}
+        />
+        <ListCardSkeleton
+          title='Active workflows'
+          columns={[
+            { label: 'Workflow', fill: 'h-4 w-36' },
+            { label: 'Live runs', fill: 'h-4 w-10' },
+            { label: 'Last run', fill: 'h-4 w-20' },
+          ]}
+        />
       </div>
     </>
   );
@@ -802,26 +912,10 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const { overview } = loaderData;
   const base = `/${workspace.slug}`;
-  const filters = useFilters(['range'] as const);
 
   return (
     <div className='flex w-full flex-col gap-6'>
-      <header className='flex items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Overview
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Track subscribers, messages, deliveries, events and workflows over time.
-          </p>
-        </div>
-        <FilterRange
-          presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
-          value={filters.values.range ?? DEFAULT_RANGE}
-          onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
-          allowAny={false}
-        />
-      </header>
+      <OverviewHeader />
 
       <Deferred resolve={overview}>
         {(data) => (data === undefined ? <OverviewSkeleton /> : <OverviewContent data={data} base={base} />)}
@@ -829,3 +923,31 @@ export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+function OverviewHeader() {
+  const filters = useFilters(['range'] as const);
+
+  return (
+    <PageHeader
+      title='Overview'
+      description='Track subscribers, messages, deliveries, events and workflows over time.'
+      actions={
+        <FilterRange
+          presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
+          value={filters.values.range ?? DEFAULT_RANGE}
+          onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
+          allowAny={false}
+        />
+      }
+    />
+  );
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex w-full flex-col gap-6'>
+      <OverviewHeader />
+      <OverviewSkeleton />
+    </div>
+  ),
+};

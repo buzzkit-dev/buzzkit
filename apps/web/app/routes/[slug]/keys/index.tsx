@@ -30,9 +30,12 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { KeyKindBadge, RevokedBadge } from '@/app/components/badges';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
 import { type ApiKey, listKeys, listTenants } from '@/app/lib/api.server';
@@ -428,26 +431,14 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            API keys
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>Manage your workspace API keys.</p>
-        </div>
-        {canManage && (
-          <Button icon='IconPlusMedium' onClick={() => setOpen(true)}>
-            Create key
-          </Button>
-        )}
-      </header>
+      <KeysHeader canManage={canManage} onCreate={() => setOpen(true)} />
 
       <Deferred resolve={page}>
         {(data) => {
           const keys = data?.items ?? [];
           const tenants = data?.tenants ?? [];
           return data === undefined ? (
-            <TableSkeleton columns={COLUMNS} fixed={false} />
+            <KeysSkeleton />
           ) : (
             <>
               <Card className='min-h-0 shrink'>
@@ -506,3 +497,34 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+function KeysHeader({ canManage, onCreate }: { canManage: boolean | null; onCreate?: () => void }) {
+  const manage = useCanManage(canManage);
+
+  return (
+    <PageHeader
+      title='API keys'
+      description='Manage your workspace API keys.'
+      actions={
+        manage === false ? null : (
+          <Button icon='IconPlusMedium' disabled={manage === null} onClick={onCreate}>
+            Create key
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+function KeysSkeleton() {
+  return <TableSkeleton columns={COLUMNS} fixed={false} />;
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <KeysHeader canManage={null} />
+      <KeysSkeleton />
+    </div>
+  ),
+};

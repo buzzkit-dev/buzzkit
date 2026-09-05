@@ -18,8 +18,10 @@ import { cloudflareContext } from '@/app/cloudflare';
 import { EventSourceBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
 import { VolumeChart } from '@/app/components/events/volume-chart';
+import { PageHeader } from '@/app/components/layout/page-header';
 import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
+import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { TIME_TOOLTIP_DELAY, TimeAgo } from '@/app/hooks/use-time-ago';
 import { type EventRange, getEventVolume, listEventNames } from '@/app/lib/api.server';
@@ -107,16 +109,7 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
-        <div className='flex flex-col gap-0.5'>
-          <h1 className='text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
-            Events
-          </h1>
-          <p className='text-pretty text-base text-fg-2 leading-tighter'>
-            Every event your app and server track, and how often.
-          </p>
-        </div>
-      </header>
+      <EventsHeader />
 
       <Deferred resolve={results}>
         {(data) => {
@@ -135,81 +128,74 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
               </Card>
             );
           }
+          if (data === undefined) return <EventsSkeleton />;
           return (
             <>
-              {data === undefined ? (
-                <BlockSkeleton className='h-56 w-full shrink-0 rounded-2xl' />
-              ) : (
-                <Card className='shrink-0'>
-                  <CardHeader>
-                    <CardTitle>Volume</CardTitle>
-                    <CardDescription>
-                      Events per{' '}
-                      {data.volume.bucketSeconds === 3600
-                        ? 'hour'
-                        : data.volume.bucketSeconds === 86400
-                          ? 'day'
-                          : 'six hours'}
-                      .
-                    </CardDescription>
-                    <CardAction>
-                      <PillTabs
-                        items={RANGES}
-                        value={range}
-                        itemClassName='h-6.5 px-2.5 text-xs'
-                        onValueChange={(value) =>
-                          navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
-                            replace: true,
-                            preventScrollReset: true,
-                          })
-                        }
-                      />
-                    </CardAction>
-                  </CardHeader>
-                  <CardContent className='pt-1 pb-3'>
-                    <VolumeChart volume={data.volume} />
-                  </CardContent>
-                </Card>
-              )}
+              <Card className='shrink-0'>
+                <CardHeader>
+                  <CardTitle>Volume</CardTitle>
+                  <CardDescription>
+                    Events per{' '}
+                    {data.volume.bucketSeconds === 3600
+                      ? 'hour'
+                      : data.volume.bucketSeconds === 86400
+                        ? 'day'
+                        : 'six hours'}
+                    .
+                  </CardDescription>
+                  <CardAction>
+                    <PillTabs
+                      items={RANGES}
+                      value={range}
+                      itemClassName='h-6.5 px-2.5 text-xs'
+                      onValueChange={(value) =>
+                        navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
+                          replace: true,
+                          preventScrollReset: true,
+                        })
+                      }
+                    />
+                  </CardAction>
+                </CardHeader>
+                <CardContent className='pt-1 pb-3'>
+                  <VolumeChart volume={data.volume} />
+                </CardContent>
+              </Card>
 
-              {data === undefined ? (
-                <TableSkeleton columns={COLUMNS} rows={8} />
-              ) : (
-                <Card className='min-h-0 shrink'>
-                  <Table className='table-fixed'>
-                    <TableColumns columns={COLUMNS} />
-                    <TableBody>
-                      {names.map((entry) => (
-                        <TableRow key={entry.name}>
-                          <TableCell>
-                            <Link
-                              to={`/${params.slug}/events/${encodeURIComponent(entry.name)}`}
-                              className='flex min-w-0 outline-none focus-visible:underline'
-                            >
-                              <EventName name={entry.name} />
-                            </Link>
-                          </TableCell>
-                          <TableCell className='tabular-nums'>
-                            <NumberFlow value={entry.counts.last24h} className='leading-none' />
-                          </TableCell>
-                          <TableCell className='tabular-nums'>
-                            <NumberFlow value={entry.counts.last7d} className='leading-none' />
-                          </TableCell>
-                          <TableCell className='tabular-nums'>
-                            <NumberFlow value={entry.subscribers7d} className='leading-none' />
-                          </TableCell>
-                          <TableCell className='py-2'>
-                            <SourcesCell sources={entry.sources} providers={entry.providers} />
-                          </TableCell>
-                          <TableCell>
-                            <TimeAgo at={entry.lastAt} />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              )}
+              <Card className='min-h-0 shrink'>
+                <Table className='table-fixed'>
+                  <TableColumns columns={COLUMNS} />
+                  <TableBody>
+                    {names.map((entry) => (
+                      <TableRow key={entry.name}>
+                        <TableCell>
+                          <Link
+                            to={`/${params.slug}/events/${encodeURIComponent(entry.name)}`}
+                            className='flex min-w-0 outline-none focus-visible:underline'
+                          >
+                            <EventName name={entry.name} />
+                          </Link>
+                        </TableCell>
+                        <TableCell className='tabular-nums'>
+                          <NumberFlow value={entry.counts.last24h} className='leading-none' />
+                        </TableCell>
+                        <TableCell className='tabular-nums'>
+                          <NumberFlow value={entry.counts.last7d} className='leading-none' />
+                        </TableCell>
+                        <TableCell className='tabular-nums'>
+                          <NumberFlow value={entry.subscribers7d} className='leading-none' />
+                        </TableCell>
+                        <TableCell className='py-2'>
+                          <SourcesCell sources={entry.sources} providers={entry.providers} />
+                        </TableCell>
+                        <TableCell>
+                          <TimeAgo at={entry.lastAt} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
             </>
           );
         }}
@@ -217,3 +203,25 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
     </div>
   );
 }
+
+function EventsHeader() {
+  return <PageHeader title='Events' description='Every event your app and server track, and how often.' />;
+}
+
+function EventsSkeleton() {
+  return (
+    <>
+      <BlockSkeleton className='h-56 w-full shrink-0 rounded-2xl' />
+      <TableSkeleton columns={COLUMNS} rows={8} />
+    </>
+  );
+}
+
+export const handle: PageHandle = {
+  skeleton: (
+    <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+      <EventsHeader />
+      <EventsSkeleton />
+    </div>
+  ),
+};
