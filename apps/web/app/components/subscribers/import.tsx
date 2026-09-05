@@ -7,9 +7,7 @@ import {
   type ImportEnvironment,
   type ImportMapping,
   type ImportPlan,
-  type ImportRow,
   type ImportTarget,
-  MAX_IMPORT_ROWS,
   parseCsv,
   planImport,
   type SkipReason,
@@ -20,10 +18,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/co
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
-import { toast } from '@buzzkit/ui/components/sonner';
 import { Switch } from '@buzzkit/ui/components/switch';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFetcher } from 'react-router';
+import { useMemo, useState } from 'react';
+import { useBackgroundJobs } from '@/app/components/jobs/provider';
 import { FileDrop, type LoadedFile } from '@/app/components/onboarding/file-drop';
 import type { SettingsActionData } from '@/app/hooks/use-action-fetcher';
 import type { ImportOutcome } from '@/app/lib/api.server';
@@ -69,6 +66,7 @@ const EMPTY_COUNTS: ImportOutcome['counts'] = {
 };
 
 const EMPTY_CUSTOM: CustomMapping = { externalId: '', endpoint: '', target: 'ios', keepColumns: true };
+const IMPORT_BATCH_SIZE = 100;
 
 type CustomMapping = { externalId: string; endpoint: string; target: ImportTarget; keepColumns: boolean };
 
@@ -198,7 +196,11 @@ function PlanSummary({ plan }: { plan: ImportPlan }) {
   const subscriptions = AVAILABLE_TARGETS.reduce((sum, target) => sum + plan.counts.byTarget[target.id], 0);
   const lines = [
     ...AVAILABLE_TARGETS.map((target) => ({ label: target.summary, count: plan.counts.byTarget[target.id] })),
-    { label: 'Profiles without a subscription', count: plan.counts.rows - subscriptions },
+    { label: 'Email addresses saved to profiles', count: plan.counts.profileEmails },
+    {
+      label: 'Profiles without a subscription',
+      count: plan.counts.rows - subscriptions - plan.counts.profileEmails,
+    },
     { label: 'Imported with the provider id', count: plan.counts.anonymous },
     { label: 'Imported as muted', count: plan.counts.muted },
   ].filter((line) => line.count > 0);
@@ -233,14 +235,12 @@ export function ImportForm({
   sandbox?: boolean;
   onDone: () => void;
 }) {
-  const fetcher = useFetcher<ImportActionData>();
+  const backgroundJobs = useBackgroundJobs();
   const [file, setFile] = useState<LoadedFile | null>(null);
   const [custom, setCustom] = useState<CustomMapping>(EMPTY_CUSTOM);
   const [environment, setEnvironment] = useState<ImportEnvironment>('production');
   const [anonymous, setAnonymous] = useState<AnonymousPolicy>('provider_id');
   const [unsubscribed, setUnsubscribed] = useState<UnsubscribedPolicy>('skip');
-  const [progress, setProgress] = useState<{ batch: number; counts: ImportOutcome['counts'] } | null>(null);
-  const handled = useRef<ImportActionData | null>(null);
   const parsed = useMemo(() => (file ? parseCsv(file.text) : null), [file]);
   const provider = parsed ? detectPreset(parsed.headers) : null;
   const preset = provider ? IMPORT_PRESETS[provider] : null;
@@ -256,48 +256,35 @@ export function ImportForm({
       connectedChannels: target.connectedChannels,
     });
   }, [parsed, preset, custom, environment, anonymous, unsubscribed, target.connectedChannels]);
-  const batches = useMemo(() => chunk<ImportRow>(plan?.rows ?? [], MAX_IMPORT_ROWS), [plan]);
   const hasApple = (plan?.counts.byTarget.ios ?? 0) > 0;
-  const importing = progress !== null;
-  const imported = progress ? progress.counts.rows : 0;
-
-  const submitBatch = (index: number) => {
-    void fetcher.submit(
-      { intent: 'import', tenant: target.tenant, rows: JSON.stringify(batches[index]) },
-      { method: 'post', action: target.action }
-    );
-  };
   const start = () => {
-    if (batches.length === 0) return;
-    handled.current = null;
-    setProgress({ batch: 0, counts: EMPTY_COUNTS });
-    submitBatch(0);
-  };
-
-  useEffect(() => {
-    if (!progress || fetcher.state !== 'idle' || !fetcher.data || handled.current === fetcher.data) return;
-    handled.current = fetcher.data;
-    if (fetcher.data.error || !fetcher.data.counts) {
-      toast.error(fetcher.data.error ?? 'Failed to import subscribers', {
-        description: fetcher.data.description,
-      });
-      setProgress(null);
-      return;
-    }
-    const counts = addCounts(progress.counts, fetcher.data.counts);
-    const next = progress.batch + 1;
-    if (next < batches.length) {
-      setProgress({ batch: next, counts });
-      void fetcher.submit(
-        { intent: 'import', tenant: target.tenant, rows: JSON.stringify(batches[next]) },
-        { method: 'post', action: target.action }
-      );
-      return;
-    }
-    setProgress(null);
+    if (!plan) return;
+    const batches = chunk(plan.rows, IMPORT_BATCH_SIZE);
+    const started = backgroundJobs.start<ImportOutcome['counts']>({
+      id: 'subscriber-import',
+      title: 'Importing subscribers',
+      failureTitle: 'Failed to import subscribers',
+      unit: 'rows',
+      total: plan.rows.length,
+      steps: batches.map((rows) => ({
+        action: target.action,
+        data: { intent: 'import', tenant: target.tenant, rows: JSON.stringify(rows) },
+        units: rows.length,
+      })),
+      initialState: EMPTY_COUNTS,
+      reduce: (counts, response) => {
+        const result = response as ImportActionData;
+        if (!result.counts) throw new Error(result.description ?? 'The import returned no counts.');
+        return addCounts(counts, result.counts);
+      },
+      success: (counts) => ({
+        title: `Imported ${counts.rows.toLocaleString('en-US')} rows`,
+        description: summarize(counts),
+      }),
+    });
+    if (!started) return;
     onDone();
-    toast.success(`Imported ${counts.rows} rows`, { description: summarize(counts) });
-  }, [fetcher, progress, batches, target, onDone]);
+  };
 
   return (
     <FieldGroup className='w-full'>
@@ -416,30 +403,12 @@ export function ImportForm({
 
       {plan && <PlanSummary plan={plan} />}
 
-      {importing && (
-        <div className='flex w-full flex-col gap-1.5'>
-          <div className='flex items-center justify-between text-fg-2 text-sm'>
-            <span>Importing</span>
-            <span className='tabular-nums'>
-              <NumberFlow value={imported} className='leading-none' /> of {plan?.counts.rows ?? 0}
-            </span>
-          </div>
-          <div className='h-1.5 w-full overflow-hidden rounded-full bg-bg-3'>
-            <div
-              className='h-full rounded-full bg-primary-4 transition-[width] duration-300 ease-out'
-              style={{ width: `${plan && plan.counts.rows > 0 ? (imported / plan.counts.rows) * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-      )}
-
       <Button
         className='w-full'
-        disabled={!plan || plan.counts.rows === 0 || importing}
-        loading={importing}
+        disabled={!plan || plan.counts.rows === 0 || backgroundJobs.activeJobId !== null}
         onClick={start}
       >
-        Import subscribers
+        {backgroundJobs.activeJobId ? 'Background job in progress' : 'Import subscribers'}
       </Button>
     </FieldGroup>
   );

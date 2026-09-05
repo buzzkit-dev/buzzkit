@@ -63,7 +63,7 @@ Before anything is written, the dialog shows how many rows will be imported, how
 | Rows without an external id | Skip them, or import them under the provider's own id. Such a subscriber moves to your id the first time the app identifies the user, because registering a token under a new id moves the token. |
 | Unsubscribed rows | Skip them, or keep them as muted subscriptions that receive nothing until they are unmuted. |
 
-The import runs in batches with a progress bar and finishes with a summary: how many subscribers are new, how many subscriptions were written, and how many rows the API refused.
+The dialog closes when the import starts, so you can keep using the dashboard. A persistent toast follows you across pages, updates after every confirmed batch, and finishes with a summary of how many subscribers are new, how many subscriptions were written, and how many rows the API refused.
 
 ## Import through the API
 

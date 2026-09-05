@@ -6,6 +6,7 @@ import { isRouteErrorResponse, Link, Links, Meta, Outlet, Scripts, ScrollRestora
 import { NoAccessPage } from '@/app/components/errors/no-access';
 import { NotFoundPage } from '@/app/components/errors/not-found';
 import { ErrorPage } from '@/app/components/errors/unexpected';
+import { BackgroundJobProvider } from '@/app/components/jobs/provider';
 import { ThemeProvider } from '@/app/components/layout/theme-provider';
 import type { Route } from './+types/root';
 import './app.css';
@@ -61,7 +62,9 @@ export default function App() {
       <LinkProvider link={Link}>
         <MotionConfig reducedMotion='user'>
           <TooltipProvider>
-            <Outlet />
+            <BackgroundJobProvider>
+              <Outlet />
+            </BackgroundJobProvider>
             <Toaster />
           </TooltipProvider>
         </MotionConfig>

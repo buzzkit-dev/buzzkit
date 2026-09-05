@@ -84,7 +84,12 @@ describe('OneSignal preset', () => {
   });
 
   it('maps email subscriptions and skips unsubscribed, not-yet-available and unknown device types', () => {
-    expect(plan.rows[2]).toMatchObject({ externalId: 'user_42', channel: 'email', address: 'maya@acme.com' });
+    expect(plan.rows[2]).toMatchObject({
+      externalId: 'user_42',
+      channel: 'email',
+      address: 'maya@acme.com',
+      attributes: { email: 'maya@acme.com' },
+    });
     expect(plan.rows).toHaveLength(3);
     expect(plan.skipped).toEqual([
       { index: 2, reason: 'unsubscribed', detail: 'The provider marked this subscription as unsubscribed' },
@@ -100,24 +105,26 @@ describe('OneSignal preset', () => {
       records: 7,
       rows: 3,
       muted: 0,
+      profileEmails: 0,
       byTarget: { ios: 1, android: 1, email: 1, sms: 0, web: 0 },
       byChannel: { push: 2, email: 1, sms: 0, web: 0 },
       byReason: { unsubscribed: 1, unsupported_target: 3, no_external_id: 0 },
     });
   });
 
-  it('skips rows for channels that are not connected before import', () => {
+  it('keeps an email as profile data when the email channel is not connected', () => {
     const pushOnly = planImport(parseCsv(onesignalCsv).records, IMPORT_PRESETS.onesignal.mapping, {
       ...options,
       connectedChannels: ['push'],
     });
-    expect(pushOnly.rows).toHaveLength(2);
-    expect(pushOnly.skipped).toContainEqual({
-      index: 3,
-      reason: 'channel_not_connected',
-      detail: 'The email channel is not connected to this tenant',
+    expect(pushOnly.rows).toHaveLength(3);
+    expect(pushOnly.rows[2]).toEqual({
+      externalId: 'user_42',
+      attributes: { email: 'maya@acme.com' },
     });
-    expect(pushOnly.counts.byReason.channel_not_connected).toBe(1);
+    expect(pushOnly.counts.profileEmails).toBe(1);
+    expect(pushOnly.counts.byTarget.email).toBe(0);
+    expect(pushOnly.counts.byReason.channel_not_connected).toBe(0);
   });
 
   it('imports unsubscribed rows as muted and skips anonymous rows when asked', () => {

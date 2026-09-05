@@ -26,6 +26,8 @@ type Skipped = Extract<MappedRow, { outcome: 'skipped' }>;
 
 type Subscription = Pick<ImportRow, 'channel' | 'platform' | 'environment' | 'token' | 'address' | 'enabled'>;
 
+type ResolvedSubscription = Subscription | Skipped | { profileEmail: string };
+
 function cell(record: ImportRecord, column: string | undefined): string {
   if (!column) return '';
   return record[column]?.trim() ?? '';
@@ -104,7 +106,7 @@ function resolveSubscription(
   record: ImportRecord,
   mapping: ImportMapping,
   options: ImportOptions
-): Subscription | Skipped {
+): ResolvedSubscription {
   const endpoint = cell(record, mapping.endpoint);
   if (!endpoint) {
     if (mapping.endpoint) return skipped('no_endpoint', 'No token or address on the row');
@@ -122,14 +124,19 @@ function resolveSubscription(
     );
   }
   if (!target.available) return skipped('unsupported_target', `${target.label} cannot be imported yet`);
-  if (!options.connectedChannels.includes(target.channel as AvailableChannel)) {
-    return skipped('channel_not_connected', `The ${target.channel} channel is not connected to this tenant`);
-  }
 
   const subscription = resolveEndpoint(target, endpoint);
   if ('outcome' in subscription) return subscription;
+  const connected = options.connectedChannels.includes(target.channel as AvailableChannel);
+  const unsubscribed = mapping.unsubscribed && isTrue(cell(record, mapping.unsubscribed.column));
+  if (target.channel === 'email' && (!connected || (unsubscribed && options.unsubscribed === 'skip'))) {
+    return { profileEmail: endpoint };
+  }
+  if (!connected) {
+    return skipped('channel_not_connected', `The ${target.channel} channel is not connected to this tenant`);
+  }
   if (target.platform === 'ios') subscription.environment = options.environment;
-  if (mapping.unsubscribed && isTrue(cell(record, mapping.unsubscribed.column))) {
+  if (unsubscribed) {
     if (options.unsubscribed === 'skip') {
       return skipped('unsubscribed', 'The provider marked this subscription as unsubscribed');
     }
@@ -202,12 +209,26 @@ export function mapImportRecord(
   const subscription = resolveSubscription(record, mapping, options);
   if ('outcome' in subscription) return subscription;
 
+  const profile = resolveProfile(record, mapping);
+  const profileEmail =
+    'profileEmail' in subscription
+      ? subscription.profileEmail
+      : subscription.channel === 'email'
+        ? subscription.address
+        : undefined;
+
   const row: ImportRow = {
     externalId: identity.externalId,
-    ...subscription,
-    ...resolveProfile(record, mapping),
+    ...('profileEmail' in subscription ? {} : subscription),
+    ...profile,
+    ...(profileEmail ? { attributes: { ...(profile.attributes ?? {}), email: profileEmail } } : {}),
   };
-  return { outcome: 'row', row, anonymous: identity.anonymous };
+  return {
+    outcome: 'row',
+    row,
+    anonymous: identity.anonymous,
+    ...('profileEmail' in subscription ? { profileEmail: true as const } : {}),
+  };
 }
 
 function emptyCounts(): ImportPlan['counts'] {
@@ -216,6 +237,7 @@ function emptyCounts(): ImportPlan['counts'] {
     rows: 0,
     anonymous: 0,
     muted: 0,
+    profileEmails: 0,
     byTarget: Object.fromEntries(IMPORT_TARGETS.map((target) => [target.id, 0])) as Record<
       ImportTarget,
       number
@@ -256,6 +278,7 @@ export function planImport(
     plan.counts.rows += 1;
     if (mapped.anonymous) plan.counts.anonymous += 1;
     if (mapped.row.enabled === false) plan.counts.muted += 1;
+    if (mapped.profileEmail) plan.counts.profileEmails += 1;
     const target = targetOf(mapped.row);
     if (target) {
       plan.counts.byTarget[target.id] += 1;

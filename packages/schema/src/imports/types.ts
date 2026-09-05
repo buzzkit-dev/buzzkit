@@ -90,7 +90,7 @@ export type ImportRecord = Record<string, string>;
 export type ParsedCsv = { headers: string[]; records: ImportRecord[] };
 
 export type MappedRow =
-  | { outcome: 'row'; row: ImportRow; anonymous: boolean }
+  | { outcome: 'row'; row: ImportRow; anonymous: boolean; profileEmail?: true }
   | { outcome: 'skipped'; reason: SkipReason; detail: string };
 
 export type ImportPlan = {
@@ -101,6 +101,7 @@ export type ImportPlan = {
     rows: number;
     anonymous: number;
     muted: number;
+    profileEmails: number;
     byTarget: Record<ImportTarget, number>;
     byChannel: Record<ImportChannel, number>;
     byReason: Record<SkipReason, number>;
