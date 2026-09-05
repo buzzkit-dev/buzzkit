@@ -21,7 +21,7 @@ curl https://api.buzzkit.dev/v1/subscribers/user_42 \
   }'
 ```
 
-`email` is sugar that upserts an email subscription. `timezone` takes an IANA name and sets `$timezone` from your backend, which is what [scheduling in each subscriber's local time](/sending/scheduling) reads. Anything else is a 400 `invalid_timezone`.
+`email` belongs to the subscriber: it is saved as the `email` attribute, and when the tenant has an email provider connected it also registers an email subscription for that address. Without an email provider the address is kept as profile data and nothing fails, so you can set it from day one. Pass `subscribeEmail: false` to keep an address as profile data only. `timezone` takes an IANA name and sets `$timezone` from your backend, which is what [scheduling in each subscriber's local time](/sending/scheduling) reads. Anything else is a 400 `invalid_timezone`.
 
 <Note>
   `externalId` must be URL-encoded in the path. Emails, slashes and spaces all work as ids.
