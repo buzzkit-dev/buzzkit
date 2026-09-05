@@ -248,8 +248,8 @@ describe('/v1/sources', () => {
 
     const timelineAfter = await api<Listed>(`/v1/subscribers/${externalId}/timeline`, { headers: keyBearer });
     expect(timelineAfter.body.data?.items.map((item) => item.name)).toEqual([
-      'payment.succeeded',
       '$subscriber.created',
+      'payment.succeeded',
     ]);
   });
 

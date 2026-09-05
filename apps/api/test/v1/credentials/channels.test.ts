@@ -43,14 +43,6 @@ describe('channels must be connected before anything uses them', () => {
     );
     expectNotConnected(await registerPush(keyBearer, externalId), 'channel');
     expectNotConnected(
-      await api(`/v1/subscribers/${externalId}`, {
-        method: 'PUT',
-        headers: keyBearer,
-        body: JSON.stringify({ email: `${externalId}@acme.com` }),
-      }),
-      'email'
-    );
-    expectNotConnected(
       await api('/v1/messages', {
         method: 'POST',
         headers: keyBearer,
@@ -65,6 +57,18 @@ describe('channels must be connected before anything uses them', () => {
       body: '{}',
     });
     expect(plain.status).toBe(201);
+
+    const withEmail = await api<{ attributes: Record<string, unknown> }>(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: JSON.stringify({ email: `${externalId}@acme.com` }),
+    });
+    expect(withEmail.status).toBe(200);
+    expect(withEmail.body.data?.attributes).toEqual({ email: `${externalId}@acme.com` });
+    const detail = await api<{ subscriptions: unknown[] }>(`/v1/subscribers/${externalId}`, {
+      headers: keyBearer,
+    });
+    expect(detail.body.data?.subscriptions).toEqual([]);
   });
 
   it('a new topic defaults to the connected channels only', async () => {
@@ -125,14 +129,17 @@ describe('channels must be connected before anything uses them', () => {
       }),
       'channel'
     );
-    expectNotConnected(
-      await api('/v1/client/identify', {
-        method: 'POST',
-        headers: clientBearer,
-        body: JSON.stringify({ externalId, email: `${externalId}@acme.com` }),
-      }),
-      'email'
-    );
+    const withEmail = await api<{ attributes: Record<string, unknown> }>('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId, email: `${externalId}@acme.com` }),
+    });
+    expect(withEmail.status).toBe(200);
+    expect(withEmail.body.data?.attributes.email).toBe(`${externalId}@acme.com`);
+    const detail = await api<{ subscriptions: unknown[] }>(`/v1/subscribers/${externalId}`, {
+      headers: keyBearer,
+    });
+    expect(detail.body.data?.subscriptions).toEqual([]);
 
     await uploadSandboxApns(keyBearer);
     const registered = await api('/v1/client/subscriptions', {
