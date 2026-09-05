@@ -21,14 +21,14 @@ const attempts = [
     continuation='This one never got delivered.'
     intro='We retried, honestly. Nothing could be delivered to this address, so start again from the homepage or go straight to the docs.'
   >
-    <div class='mt-2 flex items-center gap-3'>
+    <div class='mt-2 flex flex-wrap items-center gap-3'>
       <Button href='/'>Back to the Homepage</Button>
       <Button href={site.docsUrl} variant='elevated' external>Read the API Reference</Button>
     </div>
   </PageHero>
   <section class='px-6 py-10'>
     <div
-      class='relative mx-auto flex max-w-5xl justify-center overflow-hidden rounded-3xl bg-linear-to-b from-brand-1 via-bg-2 to-bg-3 px-6 py-14 lg:px-14 lg:py-20'
+      class='relative mx-auto flex max-w-5xl justify-center overflow-hidden rounded-3xl bg-linear-to-b from-brand-1 via-bg-2 to-bg-3 px-4 py-14 sm:px-6 lg:px-14 lg:py-20'
     >
       <div class='pointer-events-none absolute inset-x-0 top-0 h-64 bg-radial-[at_50%_0%] from-brand-2/70 to-transparent to-70%'></div>
       <div class='relative flex w-full max-w-3xl flex-col items-center gap-5 md:flex-row md:items-center md:gap-8'>
@@ -57,7 +57,7 @@ const attempts = [
                 <TableHead>Attempt</TableHead>
                 <TableHead>Outcome</TableHead>
                 <TableHead>Error</TableHead>
-                <TableHead>Latency</TableHead>
+                <TableHead className='hidden sm:table-cell'>Latency</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -71,7 +71,7 @@ const attempts = [
                       </Badge>
                     </TableCell>
                     <TableCell className='text-fg-2'>{row.code}</TableCell>
-                    <TableCell className='tabular-nums'>{row.latency}</TableCell>
+                    <TableCell className='hidden tabular-nums sm:table-cell'>{row.latency}</TableCell>
                   </TableRow>
                 ))
               }

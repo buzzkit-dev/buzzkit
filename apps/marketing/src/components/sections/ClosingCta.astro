@@ -13,7 +13,7 @@ import Icon from '../ui/Icon.astro';
     <h2 class='max-w-xl font-medium text-2xl tracking-tight text-balance lg:text-3xl'>
       <span class='text-fg-4'>{closing.title}</span>{' '}<span class='text-fg-2'>{closing.text}</span>
     </h2>
-    <div class='flex items-center gap-3'>
+    <div class='flex flex-wrap items-center gap-3'>
       <Button href={site.signupUrl}>Get Started</Button>
       <Button href={site.githubUrl} variant='elevated' external>
         <Icon name='IconGithub' class='size-4.5' />

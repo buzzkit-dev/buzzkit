@@ -104,10 +104,10 @@ const matrixPlans = [...cloudPlans, community];
       <p class='max-w-2xl text-fg-2 text-pretty'>{providers.text}</p>
     </div>
     <Card className='mt-8'>
-      <Table className='table-fixed'>
+      <Table className='min-w-[680px] table-fixed md:min-w-0'>
         <TableHeader>
           <TableRow>
-            <TableHead className='w-[34%]'>
+            <TableHead className='sticky left-0 z-20 w-40 border-bg-3 border-r bg-card md:static md:w-[34%] md:border-r-0'>
               <span class='sr-only'>Feature</span>
             </TableHead>
             {matrixPlans.map((plan) => <TableHead>{plan.name}</TableHead>)}
@@ -119,19 +119,19 @@ const matrixPlans = [...cloudPlans, community];
               <>
                 <TableRow className='bg-bg-a1/40 hover:bg-bg-a1/40'>
                   <TableCell colSpan={6} className='py-2 font-medium text-fg-2 text-xs'>
-                    {group.group}
+                    <span class='sticky left-4 md:static'>{group.group}</span>
                   </TableCell>
                 </TableRow>
                 {group.rows.map((row) => (
                   <TableRow>
-                    <TableCell className='text-fg-4'>
+                    <TableCell className='sticky left-0 z-10 whitespace-normal border-bg-3 border-r bg-card text-fg-4 md:static md:border-r-0'>
                       <span class='flex items-center gap-2'>
                         {row.feature}
                         {row.planned && <Badge>Planned</Badge>}
                       </span>
                     </TableCell>
                     {row.cells.map((cell) => (
-                      <TableCell className='text-fg-3'>
+                      <TableCell className='whitespace-normal text-fg-3'>
                         {cell === true ? (
                           <Icon name='IconCheckmark1' class='size-4 rotate-[4deg] text-brand-4' label='Included' />
                         ) : cell === false ? (

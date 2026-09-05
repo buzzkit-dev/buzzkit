@@ -49,7 +49,7 @@ if (vignetteSnippet) vignetteCode = await highlight(vignetteSnippet[0], vignette
     <script type='application/ld+json' is:inline set:html={JSON.stringify(faqStructuredData(feature.faq))} slot='head' />
   )}
   <PageHero title={feature.title} continuation={feature.continuation} intro={feature.intro}>
-    <div class='mt-2 flex items-center gap-3'>
+    <div class='mt-2 flex flex-wrap items-center gap-3'>
       <Button href={site.signupUrl}>Get Started</Button>
       <Button href={site.docsUrl} variant='elevated' external>Read the API Reference</Button>
     </div>

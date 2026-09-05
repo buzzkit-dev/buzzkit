@@ -14,7 +14,7 @@ import Icon from '../ui/Icon.astro';
       <h1 class='font-medium text-4xl text-fg-4 leading-[1.1] tracking-tight text-balance lg:text-[2.5rem]'>
         {hero.headline}
       </h1>
-      <div class='flex items-center gap-3'>
+      <div class='flex flex-wrap items-center gap-3'>
         <Button href={site.signupUrl}>{hero.primaryCta}</Button>
         <Button href={site.githubUrl} variant='elevated' external>
           <Icon name='IconGithub' class='size-4.5' />
