@@ -5,9 +5,20 @@ import {
   ApiError,
   deleteSubscription,
   importSubscribers,
+  listCredentials,
   updateSubscriberPreferences,
   updateSubscription,
 } from '@/app/lib/api.server';
+import { connectedChannels } from '@/app/lib/channels';
+
+const EMPTY_IMPORT_COUNTS = {
+  rows: 0,
+  subscribersCreated: 0,
+  subscriptionsCreated: 0,
+  subscriptionsUpdated: 0,
+  unchanged: 0,
+  failed: 0,
+};
 
 function parseRows(raw: FormDataEntryValue | null): ImportRow[] | null {
   try {
@@ -29,7 +40,13 @@ export async function subscribersAction(args: ActionFunctionArgs) {
         const rows = parseRows(form.get('rows'));
         if (!rows) return { error: 'Nothing to import.' };
         const target = String(form.get('tenant') ?? '').trim() || tenant;
-        const outcome = await importSubscribers(ctx, token, slug, target, { rows });
+        const credentials = await listCredentials(ctx, token, slug, target);
+        const channels = new Set(connectedChannels(credentials));
+        const importable = rows.filter((row) => !row.channel || channels.has(row.channel));
+        if (importable.length === 0) {
+          return { ok: true, counts: EMPTY_IMPORT_COUNTS, failures: [] };
+        }
+        const outcome = await importSubscribers(ctx, token, slug, target, { rows: importable });
         return { ok: true, counts: outcome.counts, failures: outcome.failures };
       }
       default:

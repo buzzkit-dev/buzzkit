@@ -54,6 +54,7 @@ export const SKIP_REASONS = [
   'no_endpoint',
   'invalid_endpoint',
   'unsupported_target',
+  'channel_not_connected',
   'unsubscribed',
 ] as const;
 

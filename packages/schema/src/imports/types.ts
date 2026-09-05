@@ -82,6 +82,7 @@ export type ImportOptions = {
   anonymous: AnonymousPolicy;
   unsubscribed: UnsubscribedPolicy;
   idPrefix: string;
+  connectedChannels: AvailableChannel[];
 };
 
 export type ImportRecord = Record<string, string>;

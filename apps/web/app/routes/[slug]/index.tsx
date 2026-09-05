@@ -579,6 +579,7 @@ function OverviewContent({
           {stats.deliveries.total > 0 && (
             <CardAction className='gap-3'>
               <Key tone='green'>Sent</Key>
+              <Key tone='blue'>Delivered</Key>
               <Key tone='red'>Failed</Key>
               {stats.deliveries.capped > 0 && <Key tone='amber'>Capped</Key>}
             </CardAction>

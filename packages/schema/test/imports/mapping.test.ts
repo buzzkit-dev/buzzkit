@@ -16,6 +16,7 @@ const options: ImportOptions = {
   anonymous: 'provider_id',
   unsubscribed: 'skip',
   idPrefix: 'onesignal',
+  connectedChannels: ['push', 'email'],
 };
 
 const onesignalCsv = [
@@ -103,6 +104,20 @@ describe('OneSignal preset', () => {
       byChannel: { push: 2, email: 1, sms: 0, web: 0 },
       byReason: { unsubscribed: 1, unsupported_target: 3, no_external_id: 0 },
     });
+  });
+
+  it('skips rows for channels that are not connected before import', () => {
+    const pushOnly = planImport(parseCsv(onesignalCsv).records, IMPORT_PRESETS.onesignal.mapping, {
+      ...options,
+      connectedChannels: ['push'],
+    });
+    expect(pushOnly.rows).toHaveLength(2);
+    expect(pushOnly.skipped).toContainEqual({
+      index: 3,
+      reason: 'channel_not_connected',
+      detail: 'The email channel is not connected to this tenant',
+    });
+    expect(pushOnly.counts.byReason.channel_not_connected).toBe(1);
   });
 
   it('imports unsubscribed rows as muted and skips anonymous rows when asked', () => {

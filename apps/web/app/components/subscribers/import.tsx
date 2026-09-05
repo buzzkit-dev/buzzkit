@@ -1,5 +1,6 @@
 import {
   type AnonymousPolicy,
+  type AvailableChannel,
   detectPreset,
   IMPORT_PRESETS,
   IMPORT_TARGETS,
@@ -54,6 +55,7 @@ const SKIP_LABELS: Record<SkipReason, string> = {
   no_endpoint: 'Without a token or address',
   invalid_endpoint: 'With an invalid token or address',
   unsupported_target: 'On a channel that cannot be imported yet',
+  channel_not_connected: 'On a channel that is not connected',
   unsubscribed: 'Unsubscribed',
 };
 
@@ -72,7 +74,11 @@ type CustomMapping = { externalId: string; endpoint: string; target: ImportTarge
 
 type ImportActionData = SettingsActionData & { counts?: ImportOutcome['counts'] };
 
-export type ImportDestination = { action: string; tenant: string };
+export type ImportDestination = {
+  action: string;
+  tenant: string;
+  connectedChannels: AvailableChannel[];
+};
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -247,8 +253,9 @@ export function ImportForm({
       anonymous,
       unsubscribed,
       idPrefix: preset?.idPrefix ?? 'import',
+      connectedChannels: target.connectedChannels,
     });
-  }, [parsed, preset, custom, environment, anonymous, unsubscribed]);
+  }, [parsed, preset, custom, environment, anonymous, unsubscribed, target.connectedChannels]);
   const batches = useMemo(() => chunk<ImportRow>(plan?.rows ?? [], MAX_IMPORT_ROWS), [plan]);
   const hasApple = (plan?.counts.byTarget.ios ?? 0) > 0;
   const importing = progress !== null;

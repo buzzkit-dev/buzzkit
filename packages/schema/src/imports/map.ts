@@ -113,6 +113,7 @@ function resolveSubscription(
 
   const targetId = resolveTargetId(record, mapping);
   const target = targetId ? findImportTarget(targetId) : null;
+
   if (!target) {
     const raw = 'column' in mapping.target ? cell(record, mapping.target.column) : '';
     return skipped(
@@ -121,6 +122,9 @@ function resolveSubscription(
     );
   }
   if (!target.available) return skipped('unsupported_target', `${target.label} cannot be imported yet`);
+  if (!options.connectedChannels.includes(target.channel as AvailableChannel)) {
+    return skipped('channel_not_connected', `The ${target.channel} channel is not connected to this tenant`);
+  }
 
   const subscription = resolveEndpoint(target, endpoint);
   if ('outcome' in subscription) return subscription;

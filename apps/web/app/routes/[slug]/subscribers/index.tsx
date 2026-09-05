@@ -139,7 +139,7 @@ function LookupField({ query, base, cold }: { query: string; base: string; cold:
 }
 
 export default function SubscribersRoute({ loaderData, params }: Route.ComponentProps) {
-  const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
+  const { apiUrl, connected } = useOutletContext<WorkspaceOutletContext>();
   const { query, tenant, results } = loaderData;
   const [importing, setImporting] = useState(false);
   const base = `/${params.slug}/subscribers`;
@@ -184,7 +184,7 @@ export default function SubscribersRoute({ loaderData, params }: Route.Component
                   <ImportDialog
                     open={importing}
                     onOpenChange={setImporting}
-                    target={{ action: base, tenant }}
+                    target={{ action: base, tenant, connectedChannels: connected }}
                     sandbox={data.sandbox}
                   />
                 </Card>

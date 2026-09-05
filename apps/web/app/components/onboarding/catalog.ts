@@ -59,7 +59,7 @@ export const CHANNELS: ChannelEntry[] = [
     noun: 'email',
     description: 'Transactional email through your own sending provider.',
     icon: 'IconEmail2Filled',
-    available: true,
+    available: false,
     providers: [
       {
         id: 'resend',

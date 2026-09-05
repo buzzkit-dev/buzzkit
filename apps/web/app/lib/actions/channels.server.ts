@@ -4,7 +4,7 @@ import { connectProvider } from '@/app/lib/actions/connect.server';
 import { beginAction } from '@/app/lib/actions/context.server';
 import { ApiError, deleteCredential, rotateTenantIdentitySecret, updateTenant } from '@/app/lib/api.server';
 
-const PROVIDERS = CHANNELS.flatMap((channel) =>
+const PROVIDERS = CHANNELS.filter((channel) => channel.available).flatMap((channel) =>
   channel.providers.filter((provider) => provider.available).map((provider) => provider.id as ProviderId)
 );
 

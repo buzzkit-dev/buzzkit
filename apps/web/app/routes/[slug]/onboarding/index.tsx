@@ -18,6 +18,7 @@ import type { StepKind } from '@/app/components/onboarding/transition';
 import { ImportForm } from '@/app/components/subscribers/import';
 import { connectProviderAction } from '@/app/lib/actions/connect.server';
 import { ApiError, getProfile, getWorkspace, listCredentials } from '@/app/lib/api.server';
+import { connectedChannels as resolveConnectedChannels } from '@/app/lib/channels';
 import { requireSession } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
@@ -167,7 +168,11 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
       content: (
         <CardContent className='pt-2.5'>
           <ImportForm
-            target={{ action: `/${workspace.slug}/subscribers`, tenant: 'default' }}
+            target={{
+              action: `/${workspace.slug}/subscribers`,
+              tenant: 'default',
+              connectedChannels: resolveConnectedChannels(connected),
+            }}
             sandbox={connected.some((credential) => credential.environment === 'sandbox')}
             onDone={() => void navigate(`/${workspace.slug}/subscribers`)}
           />

@@ -37,7 +37,8 @@ import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { tenantsAction } from '@/app/lib/actions/tenants.server';
-import { listTenants, type Tenant } from '@/app/lib/api.server';
+import { listCredentials, listTenants, type Tenant } from '@/app/lib/api.server';
+import { type Channel, connectedChannels } from '@/app/lib/channels';
 import { requireSession } from '@/app/lib/session.server';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
@@ -62,10 +63,27 @@ const COLUMNS: TableColumn[] = [
   { key: 'actions', label: 'Actions', hidden: true, className: 'w-0', fill: 'h-6 w-6 rounded-lg' },
 ];
 
+type ImportableTenant = Tenant & { importChannels: Channel[]; sandbox: boolean };
+
 export function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
-  return { tenants: listTenants({ request, env }, token, params.slug) };
+  const ctx = { request, env };
+  return {
+    tenants: (async (): Promise<ImportableTenant[]> => {
+      const tenants = await listTenants(ctx, token, params.slug);
+      return Promise.all(
+        tenants.map(async (tenant) => {
+          const credentials = await listCredentials(ctx, token, params.slug, tenant.slug);
+          return {
+            ...tenant,
+            importChannels: connectedChannels(credentials),
+            sandbox: credentials.some((credential) => credential.environment === 'sandbox'),
+          };
+        })
+      );
+    })(),
+  };
 }
 
 export const action = tenantsAction;
@@ -163,10 +181,10 @@ function TenantRow({
   onImport,
   onDelete,
 }: {
-  tenant: Tenant;
+  tenant: ImportableTenant;
   canManage: boolean;
   onEdit: (tenant: Tenant) => void;
-  onImport: (tenant: Tenant) => void;
+  onImport: (tenant: ImportableTenant) => void;
   onDelete: (tenant: Tenant) => void;
 }) {
   return (
@@ -225,7 +243,7 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<Tenant | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [importing, setImporting] = useState<Tenant | null>(null);
+  const [importing, setImporting] = useState<ImportableTenant | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
   return (
@@ -279,7 +297,12 @@ export default function TenantsRoute({ loaderData }: Route.ComponentProps) {
         <ImportDialog
           open={importOpen}
           onOpenChange={setImportOpen}
-          target={{ action: `/${workspace.slug}/subscribers`, tenant: importing.slug }}
+          target={{
+            action: `/${workspace.slug}/subscribers`,
+            tenant: importing.slug,
+            connectedChannels: importing.importChannels,
+          }}
+          sandbox={importing.sandbox}
         />
       )}
 
