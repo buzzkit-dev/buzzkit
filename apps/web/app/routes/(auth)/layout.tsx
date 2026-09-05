@@ -2,6 +2,7 @@ import { Button } from '@buzzkit/ui/components/button';
 import { Card, CardDescription, CardFooter, CardTitle } from '@buzzkit/ui/components/card';
 import { Link, Outlet, useLocation, useMatches } from 'react-router';
 import { AuthForm, type AuthMode, type LoginProviders } from '@/app/components/auth/form';
+import { AuthPage } from '@/app/components/auth/page';
 import { OnboardingCardHeader } from '@/app/components/onboarding/layout';
 
 export type AuthHandle = {
@@ -28,8 +29,8 @@ export default function AuthLayout() {
   if (!auth || !data) return <Outlet />;
 
   return (
-    <main className='flex min-h-svh items-center justify-center p-6'>
-      <Card className='max-w-md'>
+    <AuthPage>
+      <Card>
         <OnboardingCardHeader>
           <CardTitle>
             <h1>{auth.title}</h1>
@@ -56,6 +57,6 @@ export default function AuthLayout() {
           </CardFooter>
         )}
       </Card>
-    </main>
+    </AuthPage>
   );
 }

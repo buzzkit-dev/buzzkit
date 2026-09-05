@@ -10181,6 +10181,9 @@
                     "maxLength": 254,
                     "type": "string"
                   },
+                  "subscribeEmail": {
+                    "type": "boolean"
+                  },
                   "timezone": {
                     "minLength": 1,
                     "maxLength": 64,
@@ -10205,6 +10208,9 @@
                     "maxLength": 254,
                     "type": "string"
                   },
+                  "subscribeEmail": {
+                    "type": "boolean"
+                  },
                   "timezone": {
                     "minLength": 1,
                     "maxLength": 64,
@@ -10228,6 +10234,9 @@
                     "format": "email",
                     "maxLength": 254,
                     "type": "string"
+                  },
+                  "subscribeEmail": {
+                    "type": "boolean"
                   },
                   "timezone": {
                     "minLength": 1,
@@ -23722,6 +23731,9 @@
                     "maxLength": 254,
                     "type": "string"
                   },
+                  "subscribeEmail": {
+                    "type": "boolean"
+                  },
                   "attributes": {
                     "type": "object",
                     "additionalProperties": {
@@ -23796,6 +23808,9 @@
                     "maxLength": 254,
                     "type": "string"
                   },
+                  "subscribeEmail": {
+                    "type": "boolean"
+                  },
                   "attributes": {
                     "type": "object",
                     "additionalProperties": {
@@ -23869,6 +23884,9 @@
                     "format": "email",
                     "maxLength": 254,
                     "type": "string"
+                  },
+                  "subscribeEmail": {
+                    "type": "boolean"
                   },
                   "attributes": {
                     "type": "object",

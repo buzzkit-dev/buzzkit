@@ -4,6 +4,7 @@ import { FieldError } from '@buzzkit/ui/components/field';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Form, Link, useNavigation } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { AuthPage } from '@/app/components/auth/page';
 import { WorkspaceAvatar } from '@/app/components/layout/workspace-switcher';
 import { inviteAction } from '@/app/lib/actions/invite.server';
 import { ApiError, getInvitePreview, getProfile } from '@/app/lib/api.server';
@@ -56,8 +57,8 @@ function InviteCard({
   children?: React.ReactNode;
 }) {
   return (
-    <main className='flex min-h-svh items-center justify-center p-6'>
-      <Card className='max-w-md'>
+    <AuthPage>
+      <Card>
         <CardHeader>
           <CardTitle>
             <h1>{title}</h1>
@@ -72,7 +73,7 @@ function InviteCard({
           )}
         </CardContent>
       </Card>
-    </main>
+    </AuthPage>
   );
 }
 
