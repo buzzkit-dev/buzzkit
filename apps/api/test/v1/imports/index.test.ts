@@ -215,6 +215,44 @@ describe('POST /v1/imports', () => {
     expect(detail.subscriptions).toEqual([]);
   });
 
+  it('treats attributes.email as the email: a profile row subscribes it, subscribe.email false keeps it as data', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const subscribed = `user_${uniq()}`;
+    const dataOnly = `user_${uniq()}`;
+    const withDevice = `user_${uniq()}`;
+    const token = fakeToken();
+
+    const { status, body } = await importRows(keyBearer, [
+      { externalId: subscribed, attributes: { email: `${subscribed}@acme.com` } },
+      { externalId: dataOnly, attributes: { email: `${dataOnly}@acme.com` }, subscribe: { email: false } },
+      { externalId: withDevice, platform: 'ios', token, attributes: { email: `${withDevice}@acme.com` } },
+      { externalId: `user_${uniq()}`, attributes: { email: 'not an address' } },
+    ]);
+
+    expect(status).toBe(200);
+    expect(body.data?.counts).toMatchObject({
+      rows: 4,
+      subscribersCreated: 3,
+      subscriptionsCreated: 3,
+      unchanged: 2,
+      failed: 1,
+    });
+    expect(body.data?.failures).toEqual([
+      { index: 3, code: 'invalid_email', message: expect.any(String), param: 'attributes.email' },
+    ]);
+
+    const first = await subscriberOf(keyBearer, subscribed);
+    expect(first.subscriptions.map((subscription) => subscription.channel)).toEqual(['email']);
+    expect(first.subscriptions[0]?.endpoint).toBe(`${subscribed}@acme.com`);
+
+    const second = await subscriberOf(keyBearer, dataOnly);
+    expect(second.attributes).toEqual({ email: `${dataOnly}@acme.com` });
+    expect(second.subscriptions).toEqual([]);
+
+    const third = await subscriberOf(keyBearer, withDevice);
+    expect(third.subscriptions.map((subscription) => subscription.channel).sort()).toEqual(['email', 'push']);
+  });
+
   it('caps a batch at 1000 rows', async () => {
     const { keyBearer } = await setupWorkspace();
     const rows = Array.from({ length: 1001 }, (_, index) => ({ externalId: `user_${index}` }));

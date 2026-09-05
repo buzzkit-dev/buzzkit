@@ -8,6 +8,7 @@ import {
   EmailAddressSchema,
   PushPermissionSchema,
   resolveSystemAttributes,
+  SubscribeOptionsSchema,
   serializeSubscriber,
   upsertSubscriberProfile,
 } from '@buzzkit/api/api/subscribers/index';
@@ -38,7 +39,7 @@ export const clientIdentify = new Elysia()
           },
         },
         email: body.email,
-        subscribeEmail: body.subscribeEmail,
+        subscribe: body.subscribe,
         rebind: verified,
         events: (outcome) => {
           const events: SystemEvent[] = [];
@@ -77,7 +78,7 @@ export const clientIdentify = new Elysia()
         ClientIdentitySchema,
         t.Object({
           email: t.Optional(EmailAddressSchema),
-          subscribeEmail: t.Optional(t.Boolean()),
+          subscribe: t.Optional(SubscribeOptionsSchema),
           attributes: t.Optional(AttributesSchema),
           pushPermission: t.Optional(PushPermissionSchema),
           device: t.Optional(DeviceContextSchema),

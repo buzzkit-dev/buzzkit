@@ -49,6 +49,7 @@ export type ImportRow = {
   device?: ImportDevice;
   lastSeenAt?: string;
   enabled?: boolean;
+  subscribe?: { email?: boolean };
 };
 
 export type TargetRule = { column: string; values: Record<string, ImportTarget> } | { value: ImportTarget };

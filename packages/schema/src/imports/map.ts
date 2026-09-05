@@ -26,7 +26,7 @@ type Skipped = Extract<MappedRow, { outcome: 'skipped' }>;
 
 type Subscription = Pick<ImportRow, 'channel' | 'platform' | 'environment' | 'token' | 'address' | 'enabled'>;
 
-type ResolvedSubscription = Subscription | Skipped | { profileEmail: string };
+type ResolvedSubscription = Subscription | Skipped | { profileEmail: string; subscribe: boolean };
 
 function cell(record: ImportRecord, column: string | undefined): string {
   if (!column) return '';
@@ -129,9 +129,10 @@ function resolveSubscription(
   if ('outcome' in subscription) return subscription;
   const connected = options.connectedChannels.includes(target.channel as AvailableChannel);
   const unsubscribed = mapping.unsubscribed && isTrue(cell(record, mapping.unsubscribed.column));
-  if (target.channel === 'email' && (!connected || (unsubscribed && options.unsubscribed === 'skip'))) {
-    return { profileEmail: endpoint };
+  if (target.channel === 'email' && unsubscribed && options.unsubscribed === 'skip') {
+    return { profileEmail: endpoint, subscribe: false };
   }
+  if (target.channel === 'email' && !connected) return { profileEmail: endpoint, subscribe: true };
   if (!connected) {
     return skipped('channel_not_connected', `The ${target.channel} channel is not connected to this tenant`);
   }
@@ -224,6 +225,7 @@ export function mapImportRecord(
     ...('profileEmail' in subscription ? {} : subscription),
     ...profile,
     ...(profileEmail ? { attributes: { ...(profile.attributes ?? {}), email: profileEmail } } : {}),
+    ...('profileEmail' in subscription && !subscription.subscribe ? { subscribe: { email: false } } : {}),
   };
   return {
     outcome: 'row',

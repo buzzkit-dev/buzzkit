@@ -1,78 +1,10 @@
-import { PastelAvatar } from '@buzzkit/ui/components/pastel-avatar';
+import {
+  type Notification,
+  NotificationCard,
+  SAMPLE_NOTIFICATIONS,
+} from '@buzzkit/ui/components/notification';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-
-type Notification =
-  | { id: string; kind: 'banner'; app: string; title: string; body: string; when: string }
-  | { id: string; kind: 'actions'; app: string; title: string; body: string; actions: [string, string] }
-  | { id: string; kind: 'activity'; app: string; title: string; detail: string; progress: number };
-
-const POOL: Notification[] = [
-  {
-    id: 'gymly',
-    kind: 'banner',
-    app: 'Gymly',
-    title: 'Leg day',
-    body: 'Let’s go. 6:00 with Maya.',
-    when: 'now',
-  },
-  {
-    id: 'nook',
-    kind: 'banner',
-    app: 'Nook',
-    title: 'Your order shipped',
-    body: 'Arrives Thursday by 6 pm.',
-    when: '2m ago',
-  },
-  {
-    id: 'ledger',
-    kind: 'banner',
-    app: 'Ledger',
-    title: 'Invoice paid',
-    body: 'Acme Studio paid $1,240.00.',
-    when: '9m ago',
-  },
-  {
-    id: 'trail',
-    kind: 'banner',
-    app: 'Trail',
-    title: 'Storm near your route',
-    body: 'Heavy rain expected after 3 pm.',
-    when: 'now',
-  },
-  {
-    id: 'dune',
-    kind: 'banner',
-    app: 'Dune',
-    title: '3 highlights to review',
-    body: 'Keep your streak at 41 days.',
-    when: '1h ago',
-  },
-  {
-    id: 'harbor',
-    kind: 'banner',
-    app: 'Harbor',
-    title: 'Table ready',
-    body: 'Head to the host stand.',
-    when: 'now',
-  },
-  {
-    id: 'pace',
-    kind: 'activity',
-    app: 'Pace',
-    title: 'DL 214 boarding',
-    detail: 'Gate B12 · departs 18:40',
-    progress: 0.72,
-  },
-  {
-    id: 'gymly-actions',
-    kind: 'actions',
-    app: 'Gymly',
-    title: 'Rest day is over',
-    body: 'Your next workout is ready.',
-    actions: ['Snooze', 'Start workout'],
-  },
-];
 
 const SLOTS = [
   { id: 'left-top', side: 'left', x: 0, y: 0, rotate: -3 },
@@ -82,76 +14,17 @@ const SLOTS = [
 ] as const;
 
 const SCATTER = [
-  { id: 'a', className: '-top-6 -left-24 rotate-[-6deg]', pool: 3 },
-  { id: 'b', className: 'top-10 -right-28 rotate-[5deg]', pool: 4 },
-  { id: 'c', className: '-bottom-4 -left-20 rotate-[4deg]', pool: 1 },
-  { id: 'd', className: '-right-24 bottom-12 rotate-[-5deg]', pool: 2 },
+  { id: 'a', className: '-top-6 -left-24 rotate-[-6deg]', sample: 3 },
+  { id: 'b', className: 'top-10 -right-28 rotate-[5deg]', sample: 4 },
+  { id: 'c', className: '-bottom-4 -left-20 rotate-[4deg]', sample: 1 },
+  { id: 'd', className: '-right-24 bottom-12 rotate-[-5deg]', sample: 2 },
 ] as const;
 
 const SWAP_INTERVAL_MS = 4000;
 const STACK_GAP = 'clamp(1.5rem, 6vw - 2.5rem, 10rem)';
 
-function NotificationCard({ notification }: { notification: Notification }) {
-  if (notification.kind === 'activity') {
-    return (
-      <div className='selection-inverse flex w-72 flex-col gap-3 rounded-[22px] bg-fg-4 p-3.5 text-background shadow-3'>
-        <div className='flex items-center gap-3'>
-          <PastelAvatar
-            seed={notification.app}
-            size={36}
-            className='corner-superellipse/1.125 rounded-[10px]'
-          />
-          <span className='flex min-w-0 flex-col'>
-            <span className='truncate font-medium text-sm'>{notification.title}</span>
-            <span className='truncate text-background/60 text-xs'>{notification.detail}</span>
-          </span>
-          <span className='ml-auto text-background/60 text-xs'>{notification.app}</span>
-        </div>
-        <div className='h-1.5 w-full overflow-hidden rounded-full bg-background/15'>
-          <div
-            className='h-full rounded-full bg-background/90'
-            style={{ width: `${notification.progress * 100}%` }}
-          />
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className='flex w-72 flex-col gap-2.5 rounded-[22px] bg-bg-1 p-3 shadow-3'>
-      <div className='flex items-start gap-3'>
-        <PastelAvatar
-          seed={notification.app}
-          size={38}
-          className='corner-superellipse/1.125 rounded-[11px]'
-        />
-        <span className='flex min-w-0 flex-1 flex-col gap-px'>
-          <span className='flex items-baseline justify-between gap-2'>
-            <span className='truncate font-medium text-fg-4 text-sm'>{notification.title}</span>
-            {notification.kind === 'banner' && (
-              <span className='shrink-0 text-fg-1 text-xs'>{notification.when}</span>
-            )}
-          </span>
-          <span className='truncate text-fg-2 text-sm'>{notification.body}</span>
-        </span>
-      </div>
-      {notification.kind === 'actions' && (
-        <div className='flex gap-2'>
-          {notification.actions.map((action) => (
-            <span
-              key={action}
-              className='flex h-7 flex-1 items-center justify-center rounded-[10px] bg-bg-2 font-medium text-fg-3 text-xs'
-            >
-              {action}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Stacks({ frozen }: { frozen: boolean }) {
-  const [shown, setShown] = useState<Notification[]>(() => POOL.slice(0, SLOTS.length));
+  const [shown, setShown] = useState<Notification[]>(() => SAMPLE_NOTIFICATIONS.slice(0, SLOTS.length));
   const stepRef = useRef(0);
 
   useEffect(() => {
@@ -161,7 +34,7 @@ function Stacks({ frozen }: { frozen: boolean }) {
       stepRef.current += 1;
       setShown((current) => {
         const visible = new Set(current.map((entry) => entry.id));
-        const candidates = POOL.filter((entry) => !visible.has(entry.id));
+        const candidates = SAMPLE_NOTIFICATIONS.filter((entry) => !visible.has(entry.id));
         const candidate = candidates[Math.floor(Math.random() * candidates.length)];
         if (!candidate) return current;
         const next = [...current];
@@ -218,7 +91,7 @@ function Scatter() {
     <div className='absolute inset-0 lg:hidden'>
       {SCATTER.map((slot) => (
         <div key={slot.id} className={`absolute scale-75 opacity-16 ${slot.className}`}>
-          <NotificationCard notification={POOL[slot.pool]!} />
+          <NotificationCard notification={SAMPLE_NOTIFICATIONS[slot.sample]!} />
         </div>
       ))}
     </div>

@@ -1,8 +1,11 @@
 export type ImportFailure = { index: number; code: string; message: string; param: string | null };
 
+export type ImportSubscriptionOutcome = 'created' | 'updated' | 'unchanged';
+
 export type ImportRowOutcome = {
   subscriberCreated: boolean;
-  subscription: 'created' | 'updated' | 'unchanged' | 'none';
+  subscription: ImportSubscriptionOutcome | 'none';
+  emailSubscription?: ImportSubscriptionOutcome;
 };
 
 export type ImportResult = {

@@ -1,8 +1,8 @@
 ---
 import { Badge } from '@buzzkit/ui/components/badge';
 import { Card } from '@buzzkit/ui/components/card';
+import { NotificationCard } from '@buzzkit/ui/components/notification';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
-import { ArtifactCard } from '../components/hero/Artifact';
 import PageHero from '../components/layout/PageHero.astro';
 import Button from '../components/ui/Button.astro';
 import Site from '../layouts/Site.astro';
@@ -32,8 +32,8 @@ const attempts = [
     >
       <div class='pointer-events-none absolute inset-x-0 top-0 h-64 bg-radial-[at_50%_0%] from-brand-2/70 to-transparent to-70%'></div>
       <div class='relative flex w-full max-w-3xl flex-col items-center gap-5 md:flex-row md:items-center md:gap-8'>
-        <ArtifactCard
-          artifact={{
+        <NotificationCard
+          notification={{
             id: 'not-found',
             kind: 'banner',
             app: 'BuzzKit',

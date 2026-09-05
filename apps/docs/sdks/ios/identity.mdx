@@ -20,9 +20,11 @@ BuzzKit.identify(
 )
 ```
 
-The signature is `identify(_ externalId: String, email: String? = nil, identityHash: String? = nil, attributes: [String: JSONValue]? = nil)`. It returns immediately and does its work on a serial queue, so identity calls never race each other.
+The signature is `identify(_ externalId: String, email: String? = nil, identityHash: String? = nil, attributes: [String: JSONValue]? = nil, subscribe: [Channel: Bool] = [:])`. It returns immediately and does its work on a serial queue, so identity calls never race each other.
 
 Three things happen. The subscriber is created or updated with the id, email and attributes you passed, along with the device context. If the identity actually changed, the queued events are flushed and the push subscription is re-registered under the new id.
+
+The email is saved on the subscriber as the `email` attribute whether you pass it as `email:` or inside `attributes`, and it is saved even before an email provider is connected to the tenant. Once one is, identify also subscribes the address, so the user can be emailed without another call. Pass `subscribe: [.email: false]` to keep an address on file without subscribing it, for example while it is still unverified.
 
 Call it at login, and on every launch where the user is already signed in. It is an idempotent upsert on your own id, so calling it repeatedly costs nothing.
 

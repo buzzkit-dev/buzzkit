@@ -1,81 +1,10 @@
+import {
+  type Notification,
+  NotificationCard,
+  SAMPLE_NOTIFICATIONS,
+} from '@buzzkit/ui/components/notification';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { type Artifact, ArtifactCard } from './Artifact';
-
-const POOL: Artifact[] = [
-  {
-    id: 'gymly',
-    kind: 'banner',
-    app: 'Gymly',
-    title: 'Leg day',
-    body: 'Let’s go. 6:00 with Maya.',
-    when: 'now',
-  },
-  {
-    id: 'nook',
-    kind: 'banner',
-    app: 'Nook',
-    title: 'Your order shipped',
-    body: 'Arrives Thursday by 6 pm.',
-    when: '2m ago',
-  },
-  {
-    id: 'ledger',
-    kind: 'banner',
-    app: 'Ledger',
-    title: 'Invoice paid',
-    body: 'Acme Studio paid $1,240.00.',
-    when: '9m ago',
-  },
-  {
-    id: 'trail',
-    kind: 'banner',
-    app: 'Trail',
-    title: 'Storm near your route',
-    body: 'Heavy rain expected after 3 pm.',
-    when: 'now',
-  },
-  {
-    id: 'readwise',
-    kind: 'banner',
-    app: 'Dune',
-    title: '3 highlights to review',
-    body: 'Keep your streak at 41 days.',
-    when: '1h ago',
-  },
-  {
-    id: 'pace',
-    kind: 'activity',
-    app: 'Pace',
-    title: 'DL 214 boarding',
-    detail: 'Gate B12 · departs 18:40',
-    progress: 0.72,
-  },
-  {
-    id: 'gymly-actions',
-    kind: 'actions',
-    app: 'Gymly',
-    title: 'Rest day is over',
-    body: 'Your next workout is ready.',
-    actions: ['Snooze', 'Start workout'],
-  },
-  {
-    id: 'harbor',
-    kind: 'banner',
-    app: 'Harbor',
-    title: 'Table ready',
-    body: 'Head to the host stand.',
-    when: 'now',
-  },
-  {
-    id: 'nook-activity',
-    kind: 'activity',
-    app: 'Nook',
-    title: 'Out for delivery',
-    detail: '4 stops away',
-    progress: 0.85,
-  },
-];
 
 const POSITIONS = [
   { id: 'top', x: 0, y: 0, rotate: -3 },
@@ -95,7 +24,9 @@ function Stack({
   frozen: boolean;
 }) {
   const offset = side === 'left' ? 0 : SLOTS;
-  const [slots, setSlots] = useState<Artifact[]>(() => POOL.slice(offset, offset + SLOTS));
+  const [slots, setSlots] = useState<Notification[]>(() =>
+    SAMPLE_NOTIFICATIONS.slice(offset, offset + SLOTS)
+  );
   const orderRef = useRef(side === 'left' ? [0, 1] : [1, 0]);
   const stepRef = useRef(0);
   const mountedRef = useRef(false);
@@ -107,7 +38,7 @@ function Stack({
       stepRef.current += 1;
       setSlots((current) => {
         const roomForRich = current.every((entry, slot) => slot === index || entry.kind === 'banner');
-        const candidates = POOL.filter(
+        const candidates = SAMPLE_NOTIFICATIONS.filter(
           (entry) => !used.current.has(entry.id) && (roomForRich || entry.kind === 'banner')
         );
         const candidate = candidates[Math.floor(Math.random() * candidates.length)];
@@ -148,13 +79,13 @@ function Stack({
       aria-hidden='true'
     >
       {POSITIONS.map((position, index) => {
-        const artifact = slots[index]!;
+        const notification = slots[index]!;
         const firstPaint = !mountedRef.current;
         return (
           <div key={position.id} className='absolute' style={{ [anchor]: position.x, top: position.y }}>
             <AnimatePresence mode='wait' initial={!frozen}>
               <motion.div
-                key={artifact.id}
+                key={notification.id}
                 initial={{ opacity: 0, scale: 0.85, y: 10, rotate: position.rotate }}
                 animate={{ opacity: 1, scale: 1, y: 0, rotate: position.rotate }}
                 exit={{ opacity: 0, scale: 0.85 }}
@@ -164,7 +95,7 @@ function Stack({
                   delay: firstPaint ? (side === 'right' ? 0.06 : 0) + index * 0.12 : 0,
                 }}
               >
-                <ArtifactCard artifact={artifact} />
+                <NotificationCard notification={notification} />
               </motion.div>
             </AnimatePresence>
           </div>
@@ -182,7 +113,9 @@ const SCATTER = [
 ] as const;
 
 function Scatter({ frozen }: { frozen: boolean }) {
-  const [slots, setSlots] = useState<Artifact[]>(() => SCATTER.map((slot) => POOL[slot.pool]!));
+  const [slots, setSlots] = useState<Notification[]>(() =>
+    SCATTER.map((slot) => SAMPLE_NOTIFICATIONS[slot.pool]!)
+  );
   const stepRef = useRef(0);
 
   useEffect(() => {
@@ -192,7 +125,9 @@ function Scatter({ frozen }: { frozen: boolean }) {
       stepRef.current += 1;
       setSlots((current) => {
         const shown = new Set(current.map((entry) => entry.id));
-        const candidates = POOL.filter((entry) => entry.kind === 'banner' && !shown.has(entry.id));
+        const candidates = SAMPLE_NOTIFICATIONS.filter(
+          (entry) => entry.kind === 'banner' && !shown.has(entry.id)
+        );
         const candidate = candidates[Math.floor(Math.random() * candidates.length)];
         if (!candidate) return current;
         const next = [...current];
@@ -206,18 +141,18 @@ function Scatter({ frozen }: { frozen: boolean }) {
   return (
     <div className='pointer-events-none absolute inset-0 lg:hidden' aria-hidden='true'>
       {SCATTER.map((slot, index) => {
-        const artifact = slots[index]!;
+        const notification = slots[index]!;
         return (
           <div key={slot.id} className={`absolute scale-75 ${slot.className}`}>
             <AnimatePresence mode='wait' initial={!frozen}>
               <motion.div
-                key={artifact.id}
+                key={notification.id}
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 0.16, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.85 }}
                 transition={{ duration: 0.5, ease: 'easeOut', delay: index * 0.1 }}
               >
-                <ArtifactCard artifact={artifact} />
+                <NotificationCard notification={notification} />
               </motion.div>
             </AnimatePresence>
           </div>
@@ -229,7 +164,7 @@ function Scatter({ frozen }: { frozen: boolean }) {
 
 export function HeroStacks() {
   const reducedMotion = useReducedMotion();
-  const used = useRef(new Set(POOL.slice(0, SLOTS * 2).map((entry) => entry.id)));
+  const used = useRef(new Set(SAMPLE_NOTIFICATIONS.slice(0, SLOTS * 2).map((entry) => entry.id)));
   return (
     <>
       <Scatter frozen={reducedMotion === true} />

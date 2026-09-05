@@ -8,6 +8,7 @@ import {
   findSubscriberByExternalId,
   listSubscriptions,
   resolveSubscriptionEventData,
+  SubscribeOptionsSchema,
   serializeSubscriber,
   serializeSubscription,
   softDeleteSubscriber,
@@ -58,7 +59,7 @@ export const subscriber = new Elysia()
             ...(body?.timezone ? { systemAttributes: { $timezone: body.timezone } } : {}),
           },
           email: body?.email,
-          subscribeEmail: body?.subscribeEmail,
+          subscribe: body?.subscribe,
           events: (outcome) => {
             if (!outcome.created && !outcome.changed) return [];
 
@@ -89,7 +90,7 @@ export const subscriber = new Elysia()
         t.Object({
           attributes: t.Optional(AttributesSchema),
           email: t.Optional(EmailAddressSchema),
-          subscribeEmail: t.Optional(t.Boolean()),
+          subscribe: t.Optional(SubscribeOptionsSchema),
           timezone: t.Optional(t.String({ minLength: 1, maxLength: 64 })),
         })
       ),

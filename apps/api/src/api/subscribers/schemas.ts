@@ -17,6 +17,10 @@ export const EmailAddressSchema = EmailSchema;
 
 export const AttributesSchema = t.Record(t.String(), t.Any());
 
+export const SubscribeOptionsSchema = t.Object({ email: t.Optional(t.Boolean()) });
+
+export type SubscribeOptions = typeof SubscribeOptionsSchema.static;
+
 export const PushPermissionSchema = t.Union([
   t.Literal('notDetermined'),
   t.Literal('denied'),

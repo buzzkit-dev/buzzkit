@@ -57,4 +57,43 @@ describe('POST /v1/client/identify', () => {
     });
     expect([401, 403]).toContain(serverKey.status);
   });
+
+  it('subscribes an email from the app by default, and keeps it as profile data with subscribe.email false', async () => {
+    const { clientBearer, keyBearer } = await setupClient();
+    type Detail = {
+      attributes: Record<string, unknown>;
+      subscriptions: Array<{ channel: string; endpoint: string }>;
+    };
+    const detailOf = async (externalId: string) => {
+      const { body } = await api<Detail>(`/v1/subscribers/${externalId}`, { headers: keyBearer });
+      return body.data!;
+    };
+
+    const subscribed = `user_${uniq()}`;
+    const identified = await api<SubscriberBody>('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({ externalId: subscribed, email: `${subscribed}@acme.com` }),
+    });
+    expect(identified.status).toBe(201);
+    expect(identified.body.data?.attributes.email).toBe(`${subscribed}@acme.com`);
+    expect((await detailOf(subscribed)).subscriptions).toEqual([
+      expect.objectContaining({ channel: 'email', endpoint: `${subscribed}@acme.com` }),
+    ]);
+
+    const dataOnly = `user_${uniq()}`;
+    const kept = await api<SubscriberBody>('/v1/client/identify', {
+      method: 'POST',
+      headers: clientBearer,
+      body: JSON.stringify({
+        externalId: dataOnly,
+        attributes: { email: `${dataOnly}@acme.com` },
+        subscribe: { email: false },
+      }),
+    });
+    expect(kept.status).toBe(201);
+    const detail = await detailOf(dataOnly);
+    expect(detail.attributes.email).toBe(`${dataOnly}@acme.com`);
+    expect(detail.subscriptions).toEqual([]);
+  });
 });

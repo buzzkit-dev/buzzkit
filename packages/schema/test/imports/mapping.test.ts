@@ -128,6 +128,34 @@ describe('OneSignal preset', () => {
     expect(pushOnly.counts.byReason.channel_not_connected).toBe(0);
   });
 
+  it('keeps an unsubscribed email as profile data that must not be subscribed when skipping unsubscribed rows', () => {
+    const unsubscribed = onesignalCsv.replace(
+      'a4,maya@acme.com,0,en,0,,,11,,,"",1756500000,0,0,1700000000,f',
+      'a4,maya@acme.com,0,en,0,,,11,,,"",1756500000,0,0,1700000000,t'
+    );
+    const skipping = planImport(parseCsv(unsubscribed).records, IMPORT_PRESETS.onesignal.mapping, {
+      ...options,
+      unsubscribed: 'skip',
+    });
+    expect(skipping.rows[2]).toEqual({
+      externalId: 'user_42',
+      language: 'en',
+      attributes: { email: 'maya@acme.com' },
+      subscribe: { email: false },
+    });
+    expect(skipping.counts.profileEmails).toBe(1);
+
+    const muting = planImport(parseCsv(unsubscribed).records, IMPORT_PRESETS.onesignal.mapping, {
+      ...options,
+      unsubscribed: 'muted',
+    });
+    expect(muting.rows.find((row) => row.address === 'maya@acme.com')).toMatchObject({
+      channel: 'email',
+      enabled: false,
+      attributes: { email: 'maya@acme.com' },
+    });
+  });
+
   it('imports unsubscribed rows as muted and skips anonymous rows when asked', () => {
     const strict = planImport(parseCsv(onesignalCsv).records, IMPORT_PRESETS.onesignal.mapping, {
       ...options,

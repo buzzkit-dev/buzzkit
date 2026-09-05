@@ -41,7 +41,9 @@ src/
   components/ui/                Button, Badge, CodeBlock (Shiki-highlighted, Astro), Snippet (the same block for islands, takes
                                 pre-highlighted HTML), FitScale (scales a fixed-width demo to its container), ScrollRow (horizontal
                                 scroller with edge fades), Icon, Logo (Astro and React, both reading `lib/logo.ts`)
-  components/hero/              HeroStacks (the notification columns flanking the hero title) and Artifact (a notification card)
+  components/hero/              HeroStacks (the notification columns flanking the hero title, drawn with `NotificationCard` and
+                                `SAMPLE_NOTIFICATIONS` from `@buzzkit/ui/components/notification`, the same card and sample apps the
+                                dashboard's auth pages show)
   components/features/          vignettes/ (every product demo, one file each, built from `@buzzkit/ui`; index.ts re-exports them),
                                 FeatureCards, FeatureVignette (the kind → vignette registry), DeliveryLedger, ValueCards
   components/platform/          HeroPreview (the hero island: the frame, the floating pill, the auto-advancing carousel), DashboardPreview

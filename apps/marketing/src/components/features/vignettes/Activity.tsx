@@ -1,10 +1,10 @@
-import { type Artifact, ArtifactCard } from '../../hero/Artifact';
+import { type Notification, NotificationCard } from '@buzzkit/ui/components/notification';
 
-const LIFECYCLE: { state: string; at: string; artifact: Artifact }[] = [
+const LIFECYCLE: { state: string; at: string; notification: Notification }[] = [
   {
     state: 'Started',
     at: '12:04',
-    artifact: {
+    notification: {
       id: 'nook-start',
       kind: 'activity',
       app: 'Nook',
@@ -16,7 +16,7 @@ const LIFECYCLE: { state: string; at: string; artifact: Artifact }[] = [
   {
     state: 'Updated',
     at: '12:18',
-    artifact: {
+    notification: {
       id: 'nook-update',
       kind: 'activity',
       app: 'Nook',
@@ -28,7 +28,7 @@ const LIFECYCLE: { state: string; at: string; artifact: Artifact }[] = [
   {
     state: 'Ended',
     at: '12:31',
-    artifact: {
+    notification: {
       id: 'nook-end',
       kind: 'activity',
       app: 'Nook',
@@ -43,12 +43,12 @@ export function ActivityVignette() {
   return (
     <div className='flex w-72 flex-col gap-3'>
       {LIFECYCLE.map((step) => (
-        <div key={step.artifact.id} className='flex flex-col gap-1.5'>
+        <div key={step.notification.id} className='flex flex-col gap-1.5'>
           <span className='flex items-center gap-2 px-1 text-xs'>
             <span className='font-medium text-fg-3'>{step.state}</span>
             <span className='text-fg-1'>{step.at}</span>
           </span>
-          <ArtifactCard artifact={step.artifact} />
+          <NotificationCard notification={step.notification} />
         </div>
       ))}
     </div>

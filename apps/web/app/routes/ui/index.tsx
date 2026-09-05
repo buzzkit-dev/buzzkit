@@ -93,6 +93,7 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@buzzkit/ui/components/navigation-menu';
+import { NotificationCard, SAMPLE_NOTIFICATIONS } from '@buzzkit/ui/components/notification';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PastelAvatar } from '@buzzkit/ui/components/pastel-avatar';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
@@ -172,6 +173,7 @@ const SECTIONS = [
   { id: 'button', label: 'Button' },
   { id: 'badge', label: 'Badge' },
   { id: 'pastel-avatar', label: 'PastelAvatar' },
+  { id: 'notification', label: 'NotificationCard' },
   { id: 'truncate', label: 'Truncate' },
   { id: 'filter-bar', label: 'FilterBar' },
   { id: 'charts', label: 'Charts' },
@@ -943,6 +945,18 @@ export default function DesignSystem() {
           <Specimen label='orb · people (subscribers, members without a picture) · other hash, other pairs'>
             {['user_42', 'jane.doe7', 'usr_c055e203c655', 'acme', 'globex', 'initech'].map((seed) => (
               <PastelAvatar key={seed} seed={seed} variant='orb' size={30} />
+            ))}
+          </Specimen>
+        </Section>
+        <Section
+          id='notification'
+          title='NotificationCard'
+          description='What a delivered push looks like on the device, as an illustration. Three kinds over one type: a banner, an actions card and a Live Activity. SAMPLE_NOTIFICATIONS is the one pool of sample apps the marketing hero, the feature vignettes and the auth pages all draw from. Sample data only, never a real message.'
+          className='flex-col items-start gap-6'
+        >
+          <Specimen label='banner · actions · activity'>
+            {[0, 6, 5].map((index) => (
+              <NotificationCard key={index} notification={SAMPLE_NOTIFICATIONS[index]!} />
             ))}
           </Specimen>
         </Section>

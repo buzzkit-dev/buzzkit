@@ -5,7 +5,7 @@ import { trace } from '@buzzkit/api/libs/telemetry';
 import { and, type Db, eq, getTableColumns, isNull, sql, tables } from '@buzzkit/database';
 import { SUBSCRIPTION_TOUCH_THROTTLE_MS } from './constants';
 import { selectSubscriberById, upsertSubscriber } from './profile';
-import type { SubscriptionInput } from './schemas';
+import type { SubscribeOptions, SubscriptionInput } from './schemas';
 import { resolveSubscriptionEventData } from './serialize';
 import type { Subscriber, Subscription, SubscriptionChannel, SubscriptionRegistration } from './types';
 
@@ -231,6 +231,45 @@ export async function recordRegistration(
   }
 }
 
+export function resolveProfileEmail(
+  email: string | undefined,
+  attributes: Record<string, unknown> | undefined
+): string | undefined {
+  if (email) return email;
+  const own = attributes?.email;
+  if (own === undefined || own === null) return undefined;
+  if (typeof own !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(own) || own.length > 254) {
+    throw new BadRequestError('attributes.email must be an email address', {
+      code: 'invalid_email',
+      param: 'attributes.email',
+    });
+  }
+  return own;
+}
+
+export async function registerProfileEmail(
+  db: Db,
+  tenantId: number,
+  input: {
+    subscriber: Subscriber;
+    email: string | undefined;
+    subscribe: boolean | undefined;
+    connected: boolean;
+    rebind?: boolean;
+  }
+): Promise<SubscriptionRegistration | null> {
+  if (!input.email || input.subscribe === false || !input.connected) return null;
+
+  return await registerSubscription(db, tenantId, {
+    subscriber: input.subscriber,
+    externalId: input.subscriber.externalId,
+    channel: 'email',
+    platform: null,
+    endpoint: input.email,
+    ...(input.rebind !== undefined ? { rebind: input.rebind } : {}),
+  });
+}
+
 export async function upsertSubscriberProfile(
   db: Db,
   tenantId: number,
@@ -238,15 +277,17 @@ export async function upsertSubscriberProfile(
   input: {
     upsert: Parameters<typeof upsertSubscriber>[3];
     email?: string;
-    subscribeEmail?: boolean;
+    subscribe?: SubscribeOptions;
     rebind?: boolean;
     events: (outcome: { subscriber: Subscriber; created: boolean; changed: boolean }) => SystemEvent[];
   }
 ): Promise<{ subscriber: Subscriber; created: boolean }> {
-  let emailConnected = false;
-  if (input.email) emailConnected = (await listConnectedChannels(db, tenantId)).includes('email');
-
   const source = input.upsert ?? {};
+  const email = resolveProfileEmail(input.email, source.attributes);
+
+  let connected = false;
+  if (email) connected = (await listConnectedChannels(db, tenantId)).includes('email');
+
   const upsert = input.email
     ? {
         ...source,
@@ -257,17 +298,13 @@ export async function upsertSubscriberProfile(
 
   const { subscriber, created, changed } = await upsertSubscriber(db, tenantId, externalId, upsert);
 
-  let registered: SubscriptionRegistration | null = null;
-  if (input.email && input.subscribeEmail !== false && emailConnected) {
-    registered = await registerSubscription(db, tenantId, {
-      subscriber,
-      externalId: subscriber.externalId,
-      channel: 'email',
-      platform: null,
-      endpoint: input.email,
-      ...(input.rebind !== undefined ? { rebind: input.rebind } : {}),
-    });
-  }
+  const registered = await registerProfileEmail(db, tenantId, {
+    subscriber,
+    email,
+    subscribe: input.subscribe?.email,
+    connected,
+    ...(input.rebind !== undefined ? { rebind: input.rebind } : {}),
+  });
 
   const events = input.events({ subscriber, created, changed });
 

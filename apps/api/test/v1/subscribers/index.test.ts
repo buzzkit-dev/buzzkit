@@ -553,7 +553,7 @@ describe('cross-tenant and email-only updates', () => {
     const _sqid = first.body.data!.id.replace(/^sub_/, '');
     const address = `${externalId}@acme.com`;
 
-    const withEmail = await api(`/v1/subscribers/${externalId}`, {
+    const withEmail = await api<{ attributes: Record<string, unknown> }>(`/v1/subscribers/${externalId}`, {
       method: 'PUT',
       headers: keyBearer,
       body: JSON.stringify({ attributes: { plan: 'free' }, email: address }),
@@ -584,6 +584,78 @@ describe('cross-tenant and email-only updates', () => {
       '$subscriber.created',
       '$subscriber.updated',
     ]);
+  });
+});
+
+describe('PUT /v1/subscribers/:externalId email', () => {
+  type Detail = {
+    attributes: Record<string, unknown>;
+    subscriptions: Array<{ channel: string; endpoint: string }>;
+  };
+  const detailOf = async (headers: Record<string, string>, externalId: string) => {
+    const { body } = await api<Detail>(`/v1/subscribers/${externalId}`, { headers });
+    return body.data!;
+  };
+
+  it('attributes.email and email are the same field: both subscribe when email is connected', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `user_${uniq()}`;
+    const address = `${externalId}@acme.com`;
+
+    const created = await api<Detail>(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: JSON.stringify({ attributes: { plan: 'pro', email: address } }),
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data?.attributes).toEqual({ plan: 'pro', email: address });
+
+    const detail = await detailOf(keyBearer, externalId);
+    expect(detail.subscriptions).toEqual([expect.objectContaining({ channel: 'email', endpoint: address })]);
+  });
+
+  it('subscribe.email false keeps the address as profile data only', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const externalId = `user_${uniq()}`;
+    const address = `${externalId}@acme.com`;
+
+    const created = await api(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers: keyBearer,
+      body: JSON.stringify({ email: address, subscribe: { email: false } }),
+    });
+    expect(created.status).toBe(201);
+
+    const detail = await detailOf(keyBearer, externalId);
+    expect(detail.attributes).toEqual({ email: address });
+    expect(detail.subscriptions).toEqual([]);
+  });
+
+  it('keeps the address as profile data when email is not connected, and refuses junk in attributes.email', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const tenant = await createTenant(keyBearer, 'Bare', { bare: true });
+    const headers = { ...keyBearer, 'buzzkit-tenant': tenant.slug };
+    const externalId = `user_${uniq()}`;
+    const address = `${externalId}@acme.com`;
+
+    const created = await api(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ email: address }),
+    });
+    expect(created.status).toBe(201);
+    const detail = await detailOf(headers, externalId);
+    expect(detail.attributes).toEqual({ email: address });
+    expect(detail.subscriptions).toEqual([]);
+
+    const junk = await api(`/v1/subscribers/${externalId}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ attributes: { email: 'nope' } }),
+    });
+    expect(junk.status).toBe(400);
+    expect(junk.body.error?.code).toBe('invalid_email');
+    expect(junk.body.error?.param).toBe('attributes.email');
   });
 });
 

@@ -2,6 +2,7 @@ import {
   AttributesSchema,
   DeviceContextSchema,
   ExternalIdSchema,
+  SubscribeOptionsSchema,
   SubscriptionInputSchema,
 } from '@buzzkit/api/api/subscribers/index';
 import { MAX_IMPORT_ROWS } from '@buzzkit/schema/imports';
@@ -18,6 +19,7 @@ export const ImportRowSchema = t.Composite([
     device: t.Optional(t.Pick(DeviceContextSchema, ['appVersion', 'osVersion', 'model'])),
     lastSeenAt: t.Optional(t.String({ format: 'date-time' })),
     enabled: t.Optional(t.Boolean()),
+    subscribe: t.Optional(SubscribeOptionsSchema),
   }),
 ]);
 
