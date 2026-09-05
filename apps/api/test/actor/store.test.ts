@@ -579,4 +579,23 @@ describe('ActorStore', () => {
       expect(store.readFlushedSequence()).toBe(5);
     });
   });
+
+  describe('listNamedSince', () => {
+    it('lists the occurrences of a name at or after an instant, newest first', () => {
+      const { store } = createActorStore();
+      store.insertEvent(event({ id: 'evt_1', name: '$app.opened', timestamp: '2026-08-27T00:00:00.000Z' }));
+      store.insertEvent(event({ id: 'evt_2', name: '$app.opened', timestamp: '2026-08-27T00:05:00.000Z' }));
+      store.insertEvent(
+        event({ id: 'evt_3', name: '$session.ended', timestamp: '2026-08-27T00:06:00.000Z' })
+      );
+      store.insertEvent(event({ id: 'evt_4', name: '$app.opened', timestamp: '2026-08-27T00:07:00.000Z' }));
+
+      expect(store.listNamedSince('$app.opened', '2026-08-27T00:05:00.000Z').map((row) => row.id)).toEqual([
+        'evt_4',
+        'evt_2',
+      ]);
+      expect(store.listNamedSince('$app.opened', '2026-08-27T00:08:00.000Z')).toEqual([]);
+      expect(store.listNamedSince('$app.closed', '2026-08-27T00:00:00.000Z')).toEqual([]);
+    });
+  });
 });

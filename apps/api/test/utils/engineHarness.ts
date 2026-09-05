@@ -2,7 +2,7 @@ import { NonRetryableError } from 'cloudflare:workflows';
 import type { ActorRunFinish, ActorStepRecord } from '@buzzkit/api/actor/types';
 import { RunContext } from '@buzzkit/api/engine/context';
 import type { RunParams, WaitPayload } from '@buzzkit/api/engine/types';
-import type { WorkflowExpression, WorkflowSpec } from '@buzzkit/schema/workflows';
+import type { EventMatcher, WorkflowExpression, WorkflowSpec } from '@buzzkit/schema/workflows';
 
 export type RegisteredWait = {
   runId: string;
@@ -21,6 +21,7 @@ export class FakeActor {
   evaluations: boolean[] = [];
   evaluated: WorkflowExpression[] = [];
   quietAnchorAnswers: Array<WaitPayload | null> = [];
+  quietAnchorAsked: Array<{ after: string; unless: EventMatcher[]; timezone: string }> = [];
 
   evaluate(
     _runId: string,
@@ -45,7 +46,8 @@ export class FakeActor {
     return this.localScheduled.has(localId);
   }
 
-  quietAnchor(_after: string, _unless: string[]): WaitPayload | null {
+  quietAnchor(after: string, unless: EventMatcher[], timezone: string): WaitPayload | null {
+    this.quietAnchorAsked.push({ after, unless, timezone });
     return this.quietAnchorAnswers.shift() ?? null;
   }
 

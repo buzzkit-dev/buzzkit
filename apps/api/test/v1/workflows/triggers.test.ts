@@ -30,7 +30,7 @@ describe('workflow triggers', () => {
     await subscribe(keyBearer, user);
     await publish(keyBearer, `sources-${uniq()}`, {
       trigger: { event: 'app.rated', sources: ['ios', 'android'] },
-      steps: [{ name: 'thanks', set: { var: 'thanked', value: true } }],
+      steps: [{ name: 'thanks', set: { var: 'thanked', value: 'rated {{ trigger.data.stars }}' } }],
     });
 
     await track(keyBearer, user, 'app.rated', { stars: 5 });
@@ -54,11 +54,13 @@ describe('workflow triggers', () => {
       },
       { label: 'run started from the device', timeoutMs: 30_000, intervalMs: 300 }
     );
-    expect(run?.data.trigger).toMatchObject({ name: 'app.rated', data: { stars: 5 } });
+    expect(run?.data.trigger).toMatchObject({ name: 'app.rated', id: expect.any(String) });
     await eventually(
       async () => (await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed'),
       { label: 'run completed', timeoutMs: 30_000, intervalMs: 300 }
     );
+    const thanks = (await runEvents(keyBearer, user)).find((item) => item.data.step === 'thanks');
+    expect(thanks?.data.summary).toBe('Set thanked to “rated 5”');
   }, 60_000);
 
   it('reads the subscriber history and attributes in the trigger condition', async () => {

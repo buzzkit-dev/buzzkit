@@ -92,6 +92,12 @@ export class ActorStore {
     return row ?? null;
   }
 
+  listNamedSince(name: string, from: string): ActorEventRow[] {
+    return this.sql<ActorEventRow>`
+      SELECT * FROM events WHERE name = ${name} AND timestamp >= ${from} ORDER BY sequence DESC
+    `;
+  }
+
   listProjections(): ActorProjection[] {
     return this.sql<ActorProjection>`SELECT * FROM projections ORDER BY name ASC`;
   }

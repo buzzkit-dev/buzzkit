@@ -29,8 +29,12 @@ function endMatchers(waitFor: WaitForStep['waitFor']): EventMatcher[] {
   return waitFor.endOn ?? [];
 }
 
+function resetMatchers(waitFor: WaitForStep['waitFor']): EventMatcher[] {
+  return (waitFor.resetOn ?? []).map((entry) => (typeof entry === 'string' ? { event: entry } : entry));
+}
+
 function resetEventNames(waitFor: WaitForStep['waitFor']): string[] {
-  return (waitFor.resetOn ?? []).map((entry) => (typeof entry === 'string' ? entry : entry.event));
+  return resetMatchers(waitFor).map((matcher) => matcher.event);
 }
 
 function describeWaited(matchers: EventMatcher[]): string {
@@ -51,7 +55,7 @@ async function settle(
 ): Promise<WaitPayload | null | false> {
   const { name, waitFor } = current;
   const settleMs = durationMs(waitFor.settleFor as Duration);
-  const resetOn = resetEventNames(waitFor);
+  const resetOn = resetMatchers(waitFor);
   const waitedEvent = (waitFor.event ?? waitedMatchers(waitFor)[0]?.event) as string;
   let latest = first;
   for (let round = 0; round < MAX_SETTLE_ROUNDS; round += 1) {
@@ -59,7 +63,7 @@ async function settle(
     if (!latest) {
       latest = (await context.do(`${name}:since${suffix}`, async () => {
         const actor = await context.actor();
-        const anchor = await actor.quietAnchor(waitedEvent, resetOn);
+        const anchor = await actor.quietAnchor(waitedEvent, resetOn, context.timezone());
         if (!anchor) return null;
         return { name: anchor.name, dataJson: anchor.dataJson, timestamp: anchor.timestamp, id: anchor.id };
       })) as WaitPayload | null;
@@ -89,8 +93,8 @@ async function settle(
     await context.do(`${name}:watch${suffix}`, async () => {
       const actor = await context.actor();
       const expiresAt = new Date(context.now() + remaining).toISOString();
-      for (const event of resetOn) {
-        await actor.registerWait(context.params.runId, name, event, null, expiresAt);
+      for (const matcher of resetOn) {
+        await actor.registerWait(context.params.runId, name, matcher.event, matcher.where ?? null, expiresAt);
       }
       return {};
     });

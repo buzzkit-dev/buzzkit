@@ -19,6 +19,7 @@ type Message = {
 const PORT = 8880;
 const received: Received[] = [];
 const replies = new Map<string, { status: number; body: string }>();
+const sequences = new Map<string, Array<{ status: number; body: string }>>();
 let server: Server;
 
 function readBody(request: IncomingMessage): Promise<string> {
@@ -43,7 +44,8 @@ beforeAll(async () => {
       ),
       body,
     });
-    const reply = replies.get(path) ?? { status: 404, body: '{"error":"missing"}' };
+    const reply = sequences.get(path)?.shift() ??
+      replies.get(path) ?? { status: 404, body: '{"error":"missing"}' };
     response.writeHead(reply.status, { 'content-type': 'application/json' });
     response.end(reply.body);
   });
@@ -287,4 +289,71 @@ describe('workflow sends', () => {
     });
     expect(message.body.data?.payload.body).toBe('none / true / missing');
   }, 90_000);
+
+  it('retries a fetch through 5xx answers until it succeeds', async () => {
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
+    sequences.set('/flaky', [
+      { status: 503, body: '{"retry":true}' },
+      { status: 502, body: '{"retry":true}' },
+      { status: 200, body: JSON.stringify({ ok: true }) },
+    ]);
+    const user = `flaky_${uniq()}`;
+    await subscribe(keyBearer, user);
+    await publish(keyBearer, `flaky-${uniq()}`, {
+      trigger: { event: 'sync.requested' },
+      steps: [
+        { name: 'sync', fetch: { url: `http://localhost:${PORT}/flaky`, as: 'sync' } },
+        { name: 'report', send: { title: 'Synced {{ vars.sync.ok }}' } },
+      ],
+    });
+
+    await track(keyBearer, user, 'sync.requested');
+    const events = await completed(keyBearer, user);
+    expect(summaries(events, 'sync')).toEqual([`Fetched GET localhost:${PORT} (200)`]);
+    expect(summaries(events, 'report')).toEqual(['Sent “Synced true”']);
+    expect(received.filter((entry) => entry.path === '/flaky')).toHaveLength(3);
+    expect(
+      new Set(received.filter((entry) => entry.path === '/flaky').map((entry) => entry.headers['webhook-id']))
+        .size
+    ).toBe(1);
+  }, 90_000);
+
+  it('shifts a local delivery window out of the tenant quiet hours', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const headers = { ...keyBearer, 'buzzkit-tenant': 'default' };
+    const policy = await api('/v1/tenants/default', {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        settings: { sendPolicy: { quietHours: { from: '00:00', to: '23:59', timezone: 'UTC' } } },
+      }),
+    });
+    expect(policy.status).toBe(200);
+    const user = `shifted_${uniq()}`;
+    await subscribe(headers, user);
+    await publish(headers, `shift-${uniq()}`, {
+      trigger: { event: 'workout.missed' },
+      steps: [
+        { name: 'window', waitUntil: { delay: '1h' } },
+        { name: 'remind', send: { title: 'Stretch break', deliver: 'local' } },
+      ],
+    });
+
+    await track(headers, user, 'workout.missed');
+    const window = await eventually(
+      async () =>
+        (await runEvents(headers, user)).find(
+          (item) => item.data.step === 'window' && item.data.status === 'sleeping'
+        ),
+      { label: 'local window resolved', timeoutMs: 30_000, intervalMs: 300 }
+    );
+    expect(window.data.timezone).toBe('UTC');
+    expect(wallClock(window.data.until, 'UTC')).toBe('23:59');
+    const events = await runEvents(headers, user);
+    expect(summaries(events, 'remind')).toEqual(['Scheduled “Stretch break” on the device']);
+    const message = await api<Message>(`/v1/messages/${messageIdOf(events, 'remind')}`, { headers });
+    expect(message.body.data?.payload.deliver).toBe('local');
+    const local = message.body.data?.payload.local as { at: string } | undefined;
+    expect(local?.at).toMatch(/T23:59:00$/);
+  }, 60_000);
 });

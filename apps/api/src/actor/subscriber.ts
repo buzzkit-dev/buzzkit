@@ -13,7 +13,7 @@ import {
 } from '@buzzkit/api/libs/telemetry';
 import { resolveTimeScale } from '@buzzkit/api/libs/timezone';
 import type { EventsQueueMessage } from '@buzzkit/api/queue/events';
-import type { WorkflowExpression } from '@buzzkit/schema/workflows';
+import type { EventMatcher, WorkflowExpression } from '@buzzkit/schema/workflows';
 import { Agent } from 'agents';
 import {
   ACTOR_DEFINITIONS_CHECK_MS,
@@ -28,6 +28,7 @@ import { evaluateExpression, resolvePath } from './evaluate';
 import { flushEvents } from './flush';
 import { historyOptions } from './history';
 import { acceptEvent, acceptEvents, systemEvent } from './ingest';
+import { selectQuietAnchor } from './quiet';
 import { advanceRuns, runEventData, scheduleRun } from './runs';
 import { ActorStore } from './store';
 import type {
@@ -180,19 +181,8 @@ export class SubscriberActor extends Agent<Env> {
     this.ctx.waitUntil(this.flush());
   }
 
-  quietAnchor(after: string, unless: string[]): ActorOccurrence | null {
-    const started = this.store.lastEventAt(after);
-    if (started === null) return null;
-    const reset = unless
-      .map((event) => this.store.lastEventAt(event))
-      .filter((at): at is string => at !== null)
-      .sort()
-      .at(-1);
-    if (reset !== undefined && reset >= started) return null;
-
-    const row = this.store.lastEvent(after);
-    if (row) return { name: row.name, dataJson: row.data, timestamp: row.timestamp, id: row.id };
-    return { name: after, dataJson: '{}', timestamp: started, id: `${after}@${started}` };
+  quietAnchor(after: string, unless: EventMatcher[], timezone: string): ActorOccurrence | null {
+    return selectQuietAnchor(this.store, this.store.readIdentity(), after, unless, timezone);
   }
 
   evaluate(

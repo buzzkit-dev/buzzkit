@@ -44,8 +44,9 @@ src/
 │                         cross-provider fetch/JWT/token-cache/encoding plumbing. `resend/` stays one lean index (58 lines)
 ├── actor/                The subscriber actor (Durable Object on the Agents SDK): subscriber.ts (the class: ingest, flush, the run RPCs),
 │                         ingest.ts (accepting events, system events), runs.ts (`advanceRuns`: trigger matching, cancel rules, wait delivery,
-│                         the `$run.*` events; pure over the store and a `RunPorts` object so it unit-tests without Workers), store.ts (typed
-│                         SQLite access), schema.ts (DDL), types.ts, constants.ts. Exported instrumented from index.ts (`instrumentActor`)
+│                         the `$run.*` events; pure over the store and a `RunPorts` object so it unit-tests without Workers), quiet.ts
+│                         (`selectQuietAnchor`: the settled occurrence behind a quiet wait, honoring the `where` of each reset entry), store.ts
+│                         (typed SQLite access), schema.ts (DDL), types.ts, constants.ts. Exported instrumented from index.ts (`instrumentActor`)
 ├── queue/                Queue consumers, each on the `consume(name, batch, handler)` wrapper (consume.ts: the `queue.<name>` span +
 │                         `batchDb()` preamble + `CRASH_RETRY_DELAY_SECONDS`). deliveries: fan-out pages + batched delivery pipeline:
 │                         select → claim → send → settle; events: actor flushes → gzipped Events API batches, `buzzkit-events-dlq`

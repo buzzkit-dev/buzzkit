@@ -426,4 +426,150 @@ describe('workflow control flow', () => {
       (body.data?.items ?? []).filter((item) => item.name === '$subscriber.updated').length
     ).toBeGreaterThanOrEqual(3);
   }, 60_000);
+
+  it('wins a multi-event wait only through the entry whose condition holds', async () => {
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
+    const user = `picky_${uniq()}`;
+    await subscribe(keyBearer, user);
+    await publish(keyBearer, `picky-${uniq()}`, {
+      trigger: { event: 'offer.sent' },
+      steps: [
+        {
+          name: 'decision',
+          waitFor: {
+            events: [
+              { event: 'reply.yes', where: { ref: 'event.data.confirmed', eq: true } },
+              { event: 'reply.no' },
+            ],
+            timeout: '2d',
+          },
+        },
+        { name: 'winner', set: { var: 'winner', value: '{{ steps.decision.event }}' } },
+        { name: 'detail', set: { var: 'detail', value: '{{ steps.decision.data.confirmed }}' } },
+      ],
+    });
+
+    await track(keyBearer, user, 'offer.sent');
+    await waiting(keyBearer, user, 'decision');
+    await track(keyBearer, user, 'reply.yes', { confirmed: false });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect((await runEvents(keyBearer, user)).some((item) => item.name === '$run.completed')).toBe(false);
+
+    await track(keyBearer, user, 'reply.yes', { confirmed: true });
+    const events = await completed(keyBearer, user);
+    expect(summaries(events, 'decision')).toEqual([
+      'Waiting for reply.yes or reply.no',
+      'Received reply.yes',
+    ]);
+    expect(summaries(events, 'winner')).toEqual(['Set winner to “reply.yes”']);
+    expect(summaries(events, 'detail')).toEqual(['Set detail to true']);
+  }, 60_000);
+
+  it('completes a quiet wait at once when the event already settled before the run', async () => {
+    const base = await setupWorkspace({ push: 'unusable' });
+    const { keyBearer } = base;
+    const clientBearer = await clientBearerFor(base);
+    const user = `settled_${uniq()}`;
+    await subscribe(keyBearer, user);
+    await publish(keyBearer, `settled-${uniq()}`, {
+      trigger: { event: 'trial.started' },
+      steps: [
+        {
+          name: 'quiet',
+          waitFor: { event: '$app.backgrounded', settleFor: '1m', resetOn: ['$app.opened'], timeout: '5d' },
+        },
+        { name: 'ping', set: { var: 'pinged', value: true } },
+      ],
+    });
+    await deviceEvent(clientBearer, user, '$app.backgrounded');
+    await new Promise((resolve) => setTimeout(resolve, 62_000));
+
+    const triggeredAt = Date.now();
+    await track(keyBearer, user, 'trial.started');
+    const events = await completed(keyBearer, user);
+    expect(Date.now() - triggeredAt).toBeLessThan(6_000);
+    expect(summaries(events, 'quiet')).toEqual([
+      'Waiting for $app.backgrounded and 1 minute of quiet',
+      'Received $app.backgrounded',
+    ]);
+    expect(summaries(events, 'ping')).toEqual(['Set pinged to true']);
+  }, 120_000);
+
+  it('nests a repeat inside a forEach with branches inside, four levels deep', async () => {
+    const { keyBearer } = await setupWorkspace({ push: 'unusable' });
+    const user = `nested_${uniq()}`;
+    await subscribe(keyBearer, user);
+    await publish(keyBearer, `nested-${uniq()}`, {
+      trigger: { event: 'plan.made' },
+      steps: [
+        {
+          name: 'each',
+          forEach: {
+            items: 'trigger.data.items',
+            as: 'item',
+            max: 5,
+            steps: [
+              {
+                name: 'twice',
+                repeat: {
+                  every: '1h',
+                  max: 2,
+                  steps: [
+                    {
+                      name: 'kind',
+                      branch: [
+                        {
+                          name: 'letters',
+                          when: { ref: 'vars.item.kind', eq: 'letter' },
+                          steps: [
+                            {
+                              name: 'vowel',
+                              branch: [
+                                {
+                                  name: 'yes',
+                                  when: { ref: 'vars.item.vowel', eq: true },
+                                  steps: [
+                                    {
+                                      name: 'deep',
+                                      set: { var: 'deep', value: '{{ vars.item.value }}' },
+                                    },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    await track(keyBearer, user, 'plan.made', {
+      items: [
+        { kind: 'letter', vowel: true, value: 'A' },
+        { kind: 'letter', vowel: false, value: 'B' },
+        { kind: 'digit', value: '7' },
+      ],
+    });
+    const events = await completed(keyBearer, user);
+    expect(summaries(events, 'deep')).toEqual(['Set deep to “A”', 'Set deep to “A”']);
+    expect(summaries(events, 'twice').filter((entry) => entry === 'Stopped at the 2-pass cap')).toHaveLength(
+      3
+    );
+    expect(events.filter((item) => item.data.step === 'kind').map((item) => item.data.taken)).toEqual([
+      'letters',
+      'letters',
+      'letters',
+      'letters',
+      'else',
+      'else',
+    ]);
+    expect(summaries(events, 'each')).toEqual(['Ran for 3 items']);
+  }, 120_000);
 });

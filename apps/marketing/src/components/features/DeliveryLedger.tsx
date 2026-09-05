@@ -5,7 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 const ATTEMPTS = [
   { attempt: 1, outcome: 'Retrying', tone: 'amber', code: 'rate_limited', latency: '412 ms', at: '09:00:04' },
   { attempt: 2, outcome: 'Retrying', tone: 'amber', code: 'timeout', latency: '5,000 ms', at: '09:00:36' },
-  { attempt: 3, outcome: 'Sent', tone: 'green', code: '200 from APNs', latency: '142 ms', at: '09:01:40' },
+  {
+    attempt: 3,
+    outcome: 'Sent',
+    tone: 'green',
+    code: '200 from APNs',
+    latency: '142 ms',
+    at: '09:01:40',
+  },
 ] as const;
 
 export function DeliveryLedger() {

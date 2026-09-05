@@ -133,6 +133,44 @@ describe('runWaitFor', () => {
     expect(context.state.steps.confirm).toMatchObject({ matched: false });
   });
 
+  it('hands the reset conditions to the actor and registers them on the reset watch', async () => {
+    const settling: WaitForStep = {
+      name: 'confirm',
+      waitFor: {
+        event: '$app.backgrounded',
+        timeout: '1d',
+        settleFor: '30m',
+        resetOn: [
+          '$session.ended',
+          { event: '$app.opened', where: { ref: 'event.data.screen', neq: 'widget' } },
+        ],
+      },
+    };
+    const { context, actor, workflowStep } = createHarness({ ...spec, steps: [settling] });
+    const earlier = waitPayload('$app.backgrounded', {}, new Date(Date.now() - 5 * 60 * 1000).toISOString());
+    actor.quietAnchorAnswers = [earlier];
+    workflowStep.scriptEvent('evt:confirm', 'timeout');
+
+    await runWaitFor(context, settling);
+
+    expect(actor.quietAnchorAsked).toEqual([
+      {
+        after: '$app.backgrounded',
+        unless: [
+          { event: '$session.ended' },
+          { event: '$app.opened', where: { ref: 'event.data.screen', neq: 'widget' } },
+        ],
+        timezone: context.timezone(),
+      },
+    ]);
+    expect(actor.waits.map((wait) => [wait.event, wait.condition])).toEqual([
+      ['$app.backgrounded', null],
+      ['$session.ended', null],
+      ['$app.opened', { ref: 'event.data.screen', neq: 'widget' }],
+    ]);
+    expect(context.state.steps.confirm).toMatchObject({ matched: true, event: '$app.backgrounded' });
+  });
+
   it('assumes the outcome in a dry run', async () => {
     const context = createDryRunContext(spec, {
       assume: { confirm: { matched: true, data: { total: 7 } } },
