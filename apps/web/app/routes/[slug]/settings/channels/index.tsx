@@ -447,8 +447,7 @@ function IdentityCard({ identity, canManage }: { identity: Identity; canManage: 
             <AlertDialogDescription>
               {secret === null
                 ? 'Your backend can start signing subscriber ids with it right away.'
-                : 'Hashes made with the current secret stop verifying immediately.'}
-              {secret !== null && <span className='block'>This cannot be undone.</span>}
+                : 'Hashes made with the current secret stop verifying immediately. This cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
