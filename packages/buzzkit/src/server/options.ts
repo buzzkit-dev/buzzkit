@@ -17,6 +17,7 @@ export type ClientOptions = {
   workspace?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  maxRetryAfterMs?: number;
   headers?: Record<string, string>;
   fetch?: typeof globalThis.fetch;
 };
@@ -28,6 +29,7 @@ export type ResolvedOptions = {
   workspace: string | null;
   timeoutMs: number;
   maxRetries: number;
+  maxRetryAfterMs?: number;
   headers: Record<string, string>;
   fetch: typeof globalThis.fetch;
 };
@@ -49,6 +51,7 @@ export function resolveOptions(options: ClientOptions): ResolvedOptions {
     workspace: options.workspace ?? null,
     timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    maxRetryAfterMs: options.maxRetryAfterMs,
     headers: options.headers ?? {},
     fetch: resolveFetch(options.fetch),
   };
@@ -59,6 +62,7 @@ export function serverTransport(options: ResolvedOptions): Transport {
     baseUrl: options.baseUrl,
     timeoutMs: options.timeoutMs,
     maxRetries: options.maxRetries,
+    maxRetryAfterMs: options.maxRetryAfterMs,
     fetch: options.fetch,
     headers: {
       ...options.headers,

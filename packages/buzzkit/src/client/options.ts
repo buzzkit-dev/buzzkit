@@ -14,6 +14,7 @@ export type BrowserOptions = {
   baseUrl?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  maxRetryAfterMs?: number;
   headers?: Record<string, string>;
   fetch?: typeof globalThis.fetch;
 };
@@ -24,6 +25,7 @@ export type ResolvedBrowserOptions = {
   baseUrl: string;
   timeoutMs: number;
   maxRetries: number;
+  maxRetryAfterMs?: number;
   headers: Record<string, string>;
   fetch: typeof globalThis.fetch;
 };
@@ -41,6 +43,7 @@ export function resolveBrowserOptions(options: BrowserOptions): ResolvedBrowserO
     baseUrl: resolveBaseUrl(options.baseUrl),
     timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    maxRetryAfterMs: options.maxRetryAfterMs,
     headers: options.headers ?? {},
     fetch: resolveFetch(options.fetch),
   };
@@ -60,6 +63,7 @@ export function browserTransport(options: ResolvedBrowserOptions): Transport {
     baseUrl: options.baseUrl,
     timeoutMs: options.timeoutMs,
     maxRetries: options.maxRetries,
+    maxRetryAfterMs: options.maxRetryAfterMs,
     fetch: options.fetch,
     headers: {
       ...options.headers,

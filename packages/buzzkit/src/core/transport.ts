@@ -1,7 +1,14 @@
 import { BuzzKitError, ConnectionError, type ErrorBody, resolveError, TimeoutError } from './errors';
 import type { Page, PageParams, PagePromise } from './pagination';
 import { paginate } from './pagination';
-import { isRetryableStatus, nextRetryDelayMs, parseRetryAfter, RETRY_POLICY, sleep } from './retry';
+import {
+  DEFAULT_MAX_RETRY_AFTER_MS,
+  isRetryableStatus,
+  nextRetryDelayMs,
+  parseRetryAfter,
+  RETRY_POLICY,
+  sleep,
+} from './retry';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -69,6 +76,7 @@ export type TransportOptions = {
   baseUrl: string;
   timeoutMs: number;
   maxRetries: number;
+  maxRetryAfterMs?: number;
   headers: Record<string, string>;
   fetch: typeof globalThis.fetch;
 };
@@ -91,7 +99,11 @@ export class Transport {
   }
 
   async request<T>(options: RequestOptions): Promise<T> {
-    const policy = { ...RETRY_POLICY, maxRetries: this.options.maxRetries };
+    const policy = {
+      ...RETRY_POLICY,
+      maxRetries: this.options.maxRetries,
+      maxRetryAfterMs: this.options.maxRetryAfterMs ?? DEFAULT_MAX_RETRY_AFTER_MS,
+    };
     const retryable = IDEMPOTENT_METHODS.has(options.method) || options.idempotencyKey !== undefined;
 
     let attemptsMade = 0;

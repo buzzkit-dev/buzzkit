@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isRetryableStatus, nextRetryDelayMs, parseRetryAfter, RETRY_POLICY } from '../../src/core/retry';
+import {
+  DEFAULT_MAX_RETRY_AFTER_MS,
+  isRetryableStatus,
+  nextRetryDelayMs,
+  parseRetryAfter,
+  RETRY_POLICY,
+} from '../../src/core/retry';
 
-const policy = { ...RETRY_POLICY, maxRetries: 2 };
+const policy = { ...RETRY_POLICY, maxRetries: 2, maxRetryAfterMs: DEFAULT_MAX_RETRY_AFTER_MS };
 
 describe('isRetryableStatus', () => {
   it('retries the transient statuses', () => {
@@ -84,5 +90,12 @@ describe('nextRetryDelayMs', () => {
   it('refuses to retry when the server asks for longer than a request should wait', () => {
     expect(nextRetryDelayMs(policy, 1, 61)).toBeNull();
     expect(nextRetryDelayMs(policy, 1, 3_600)).toBeNull();
+  });
+
+  it('lets a caller that can afford to wait honor a longer directive', () => {
+    const patient = { ...policy, maxRetryAfterMs: 10 * 60_000 };
+
+    expect(nextRetryDelayMs(patient, 1, 300)).toBe(300_000);
+    expect(nextRetryDelayMs(patient, 1, 601)).toBeNull();
   });
 });

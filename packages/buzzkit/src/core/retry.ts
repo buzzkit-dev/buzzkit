@@ -2,14 +2,15 @@ export type RetryPolicy = {
   maxRetries: number;
   initialDelayMs: number;
   maxDelayMs: number;
+  maxRetryAfterMs: number;
 };
 
-export const RETRY_POLICY: Omit<RetryPolicy, 'maxRetries'> = {
+export const RETRY_POLICY: Omit<RetryPolicy, 'maxRetries' | 'maxRetryAfterMs'> = {
   initialDelayMs: 500,
   maxDelayMs: 8_000,
 };
 
-const MAX_RETRY_AFTER_MS = 60_000;
+export const DEFAULT_MAX_RETRY_AFTER_MS = 60_000;
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -39,7 +40,7 @@ export function nextRetryDelayMs(
 ): number | null {
   if (retryAfterSeconds !== undefined) {
     const asked = retryAfterSeconds * 1000;
-    return asked > MAX_RETRY_AFTER_MS ? null : asked;
+    return asked > policy.maxRetryAfterMs ? null : asked;
   }
 
   const exponential = policy.initialDelayMs * 2 ** attemptsMade;

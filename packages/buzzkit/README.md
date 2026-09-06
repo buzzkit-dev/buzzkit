@@ -151,7 +151,7 @@ const event = await verifyWebhook(rawBody, request.headers, process.env.BUZZKIT_
 
 Retries cover connection failures, timeouts, 429 and 5xx, and only for requests that are safe to repeat: GET, PUT, DELETE, or a POST carrying an idempotency key, which `messages.send` generates for you.
 
-A `Retry-After` header is honored exactly rather than shortened to the backoff ceiling. When a server asks for longer than a minute, the SDK stops instead of retrying early and throws, with `retryAfterSeconds` on the error so you can decide whether to queue the work rather than block a request on it.
+A `Retry-After` header is honored exactly rather than shortened to the backoff ceiling. When a server asks for longer than `maxRetryAfterMs`, one minute by default, the SDK stops instead of retrying early and throws, with `retryAfterSeconds` on the error so you can queue the work rather than block a request on it. Raise `maxRetryAfterMs` where waiting is cheap, such as a background job.
 
 ```ts
 try {
