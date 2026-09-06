@@ -1,3 +1,4 @@
+import { CREDENTIAL_STATUSES } from 'buzzkit';
 import { sql } from 'drizzle-orm';
 import { check, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import {
@@ -13,7 +14,7 @@ import {
 } from './shared';
 import { tenant } from './tenant';
 
-export const credentialStatus = pgEnum('credential_status', ['unvalidated', 'active', 'invalid']);
+export const credentialStatus = pgEnum('credential_status', CREDENTIAL_STATUSES);
 
 export const credential = pgTable(
   'credential',
@@ -30,7 +31,7 @@ export const credential = pgTable(
     dekCiphertext: text('dek_ciphertext').notNull(),
     dekIv: text('dek_iv').notNull(),
     keyVersion: integer('key_version').notNull(),
-    details: jsonb('details').notNull().default({}),
+    details: jsonb('details').$type<Record<string, string>>().notNull().default({}),
     status: credentialStatus('status').notNull().default('unvalidated'),
     lastError: text('last_error'),
     validatedAt: timestamptz('validated_at'),

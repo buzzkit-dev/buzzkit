@@ -1,3 +1,4 @@
+import { MEMBER_ROLES } from 'buzzkit';
 import type { ActionFunctionArgs } from 'react-router';
 import { beginAction } from '@/app/lib/actions/context.server';
 import {
@@ -9,7 +10,6 @@ import {
   updateMemberRole,
 } from '@/app/lib/api.server';
 
-const ROLES = ['member', 'admin', 'owner'] as const;
 const INVITE_ROLES = ['member', 'admin'] as const;
 
 export async function membersAction(args: ActionFunctionArgs) {
@@ -20,7 +20,7 @@ export async function membersAction(args: ActionFunctionArgs) {
   try {
     switch (intent) {
       case 'role': {
-        const role = ROLES.find((entry) => entry === form.get('role'));
+        const role = MEMBER_ROLES.find((entry) => entry === form.get('role'));
         if (!id || !role) return { error: 'Pick a role.' };
         await updateMemberRole(ctx, token, slug, id, role);
         return { ok: true };

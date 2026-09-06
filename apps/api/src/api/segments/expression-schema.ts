@@ -1,6 +1,6 @@
 import { type Static, type TSchema, Type } from '@sinclair/typebox';
+import { CHANNELS } from 'buzzkit';
 import {
-  CHANNELS,
   DURATION_PATTERN,
   EVENT_NAME_PATTERN,
   MAX_EXPRESSION_DEPTH,

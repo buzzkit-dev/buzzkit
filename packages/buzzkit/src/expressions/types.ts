@@ -1,4 +1,4 @@
-import type { CHANNELS } from './constants';
+import type { CHANNELS } from '../resources/common';
 
 export type Duration = `${number}${'m' | 'h' | 'd'}`;
 

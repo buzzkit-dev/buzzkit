@@ -1,13 +1,13 @@
 import { EVENT_NAME_PATTERN, lintExpression } from 'buzzkit/expressions';
+import type { SourceMapping, Verification } from 'buzzkit/sources';
 import {
   HEADER_NAME_PATTERN,
   MAX_MAPPED_EVENTS,
   MAX_PICKED_PATHS,
   PASSTHROUGH,
   VERIFICATION_SCHEMES,
-} from './constants';
+} from 'buzzkit/sources';
 import { isPayloadPath } from './paths';
-import type { SourceMapping, Verification } from './types';
 
 export type MappingProblem = { path: (string | number)[]; message: string };
 

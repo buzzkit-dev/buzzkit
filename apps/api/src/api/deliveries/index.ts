@@ -11,6 +11,7 @@ export * from './attempts';
 export * from './constants';
 export type { CounterDelta } from './policy';
 export * from './receipts';
+export * from './schemas';
 export * from './serialize';
 export type * from './types';
 

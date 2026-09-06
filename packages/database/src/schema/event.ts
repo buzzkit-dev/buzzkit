@@ -1,7 +1,8 @@
+import { ACTOR_TYPES } from 'buzzkit';
 import { index, jsonb, pgEnum, pgTable, text } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, createdAt } from './shared';
 
-export const eventActorType = pgEnum('event_actor_type', ['member', 'user', 'key', 'system']);
+export const eventActorType = pgEnum('event_actor_type', ACTOR_TYPES);
 
 export const event = pgTable(
   'event',
@@ -17,7 +18,7 @@ export const event = pgTable(
     actorDisplay: text('actor_display').notNull(),
     targetType: text('target_type'),
     targetId: text('target_id'),
-    data: jsonb('data'),
+    data: jsonb('data').$type<Record<string, unknown>>(),
     requestId: text('request_id'),
     ip: text('ip'),
     userAgent: text('user_agent'),

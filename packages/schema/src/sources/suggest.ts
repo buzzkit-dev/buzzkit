@@ -1,6 +1,6 @@
+import type { MappingSuggestions, Suggestion } from 'buzzkit/sources';
 import { listPaths, readPath } from './paths';
 import { detectProvider, SOURCE_PRESETS } from './presets';
-import type { MappingSuggestions, Suggestion } from './types';
 
 const TYPE_KEYS = ['type', 'event', 'event_type', 'eventType', 'name', 'action'];
 

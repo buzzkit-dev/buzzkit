@@ -216,8 +216,8 @@ describe('compileSegment groups', () => {
       `(${where({ channel: 'push' })} OR ${where({ channel: 'email' })})`
     );
     expect(where({ not: { channel: 'push' } })).toBe(`(NOT ${where({ channel: 'push' })})`);
-    expect(where({ all: [{ any: [{ channel: 'push' }, { not: { channel: 'sms' } }] }] })).toBe(
-      `((${where({ channel: 'push' })} OR (NOT ${where({ channel: 'sms' })})))`
+    expect(where({ all: [{ any: [{ channel: 'push' }, { not: { channel: 'email' } }] }] })).toBe(
+      `((${where({ channel: 'push' })} OR (NOT ${where({ channel: 'email' })})))`
     );
   });
 
@@ -263,8 +263,8 @@ describe('memberQuery and countQuery', () => {
 });
 
 describe('compileSegment edge cases', () => {
-  it('reads every channel the grammar allows, including sms', () => {
-    expect(where({ channel: 'sms' })).toContain("channel = 'sms'");
+  it('reads every connected channel', () => {
+    expect(where({ channel: 'push' })).toContain("channel = 'push'");
     expect(where({ channel: 'email' })).toContain("channel = 'email'");
   });
 

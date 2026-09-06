@@ -1,13 +1,12 @@
 import {
   findEndpoint,
+  ListWebhookDeliveriesQuerySchema,
   listWebhookDeliveries,
   serializeWebhookDelivery,
-  WebhookDeliveryStatusSchema,
 } from '@buzzkit/api/api/webhooks/index';
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const webhookDeliveries = new Elysia()
   .use(auth)
@@ -23,9 +22,6 @@ export const webhookDeliveries = new Elysia()
     },
     {
       scope: 'webhooks:read',
-      query: t.Object({
-        ...PaginationQuerySchema.properties,
-        status: t.Optional(WebhookDeliveryStatusSchema),
-      }),
+      query: ListWebhookDeliveriesQuerySchema,
     }
   );

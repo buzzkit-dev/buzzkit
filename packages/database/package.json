@@ -30,6 +30,8 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@buzzkit/schema": "workspace:*",
+    "buzzkit": "workspace:*",
     "postgres": "^3.4.9"
   }
 }

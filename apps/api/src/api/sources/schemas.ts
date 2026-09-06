@@ -1,4 +1,6 @@
 import { BadRequestError } from '@buzzkit/api/libs/error';
+import { literalUnion } from '@buzzkit/api/libs/schemas';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import {
   lintSourceMapping,
   lintVerification,
@@ -6,6 +8,7 @@ import {
   type SourceMapping,
   type Verification,
 } from '@buzzkit/schema/sources';
+import { SOURCE_DELIVERY_OUTCOMES } from 'buzzkit';
 import { t } from 'elysia';
 
 export const SourceProviderSchema = t.String({ minLength: 1, maxLength: 40 });
@@ -54,3 +57,8 @@ export function assertVerification(value: unknown): asserts value is Verificatio
     });
   }
 }
+
+export const ListSourceDeliveriesQuerySchema = t.Object({
+  ...PaginationQuerySchema.properties,
+  outcome: t.Optional(literalUnion(SOURCE_DELIVERY_OUTCOMES)),
+});

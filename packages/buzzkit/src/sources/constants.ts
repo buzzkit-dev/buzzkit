@@ -2,8 +2,6 @@ export const SOURCE_PROVIDERS = ['stripe', 'superwall', 'revenuecat', 'custom'] 
 
 export const SOURCE_STATUSES = ['unverified', 'active', 'paused'] as const;
 
-export const DELIVERY_OUTCOMES = ['event', 'duplicate', 'dropped', 'rejected', 'unverified'] as const;
-
 export const DROP_REASONS = [
   'no_type',
   'unlisted_type',

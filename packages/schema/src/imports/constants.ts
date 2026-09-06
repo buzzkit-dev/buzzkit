@@ -2,7 +2,7 @@ export const IMPORT_PROVIDERS = ['onesignal', 'custom'] as const;
 
 export const IMPORT_CHANNELS = ['push', 'email', 'sms', 'web'] as const;
 
-export const AVAILABLE_CHANNELS = ['push', 'email'] as const;
+export { CHANNELS as AVAILABLE_CHANNELS } from 'buzzkit';
 
 export const IMPORT_TARGETS = [
   {

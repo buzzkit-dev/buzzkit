@@ -91,7 +91,7 @@ describe('assertExpressionShape', () => {
   it('counts leaves across nested groups', () => {
     const half = Array.from({ length: MAX_EXPRESSION_LEAVES / 2 }, () => ({ channel: 'push' as const }));
     expect(() => assertExpressionShape({ all: [{ any: half }, { any: half }] })).not.toThrow();
-    expect(failure({ all: [{ any: half }, { any: [...half, { channel: 'sms' }] }] }).path).toBe(
+    expect(failure({ all: [{ any: half }, { any: [...half, { channel: 'email' }] }] }).path).toBe(
       `$.all[1].any[${MAX_EXPRESSION_LEAVES / 2}]`
     );
   });

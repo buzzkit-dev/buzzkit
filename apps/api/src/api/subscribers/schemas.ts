@@ -5,6 +5,7 @@ import {
   IdentityHashSchema,
   PlatformSchema,
 } from '@buzzkit/api/libs/schemas';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import { t } from 'elysia';
 
 export const ExternalIdSchema = t.String({ minLength: 1, maxLength: 256 });
@@ -56,3 +57,8 @@ export const SubscriptionInputSchema = t.Object({
 export type DeviceContext = typeof DeviceContextSchema.static;
 
 export type SubscriptionInput = typeof SubscriptionInputSchema.static;
+
+export const ListSubscribersQuerySchema = t.Object({
+  ...PaginationQuerySchema.properties,
+  search: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
+});

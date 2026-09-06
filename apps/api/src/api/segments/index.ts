@@ -138,7 +138,11 @@ export async function updateSegment(
       insertVersion: async (tx, nextVersion) => {
         const [created] = await tx
           .insert(tables.segmentVersion)
-          .values({ segmentId: existing.id, version: nextVersion, expression: input.expression })
+          .values({
+            segmentId: existing.id,
+            version: nextVersion,
+            expression: input.expression ?? existing.version.expression,
+          })
           .returning();
         return created!;
       },

@@ -1,5 +1,5 @@
+import type { Schedule } from 'buzzkit/workflows';
 import { WALL_TIME_PATTERN } from '../constants';
-import type { Schedule } from '../types';
 
 export type CronFields = {
   minutes: number[];

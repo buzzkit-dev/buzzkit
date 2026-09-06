@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "private": true,
+  "sideEffects": false,
   "files": [
     "src"
   ],
@@ -12,6 +13,14 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./src/client/index.ts"
+    },
+    "./react": {
+      "types": "./src/react/index.ts",
+      "default": "./src/react/index.ts"
+    },
     "./webhooks": {
       "types": "./src/webhooks/index.ts",
       "default": "./src/webhooks/index.ts"
@@ -19,15 +28,39 @@
     "./expressions": {
       "types": "./src/expressions/index.ts",
       "default": "./src/expressions/index.ts"
+    },
+    "./workflows": {
+      "types": "./src/workflows/index.ts",
+      "default": "./src/workflows/index.ts"
+    },
+    "./sources": {
+      "types": "./src/sources/index.ts",
+      "default": "./src/sources/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
     }
   },
   "scripts": {
     "check-types": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "publint"
   },
   "devDependencies": {
+    "@testing-library/react": "^16",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.11",
+    "jsdom": "^27",
     "publint": "^0.3.24",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^7.0.2",
     "vitest": "~4.1.10"
   }

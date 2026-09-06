@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Table, TableBody, TableCell, TablePagination, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
+import type { BuzzKit } from 'buzzkit';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
@@ -44,7 +45,6 @@ import { paginate, readPage } from '@/app/lib/utils/pagination';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
-type KeyKind = 'workspace' | 'tenant' | 'client';
 type Preset = 'full' | 'read' | 'custom';
 type KeyScopeGroup = ScopeGroup & { wildcard: string; tenant: boolean };
 
@@ -80,7 +80,7 @@ const SCOPE_GROUPS: KeyScopeGroup[] = [
   { label: 'messages', wildcard: 'messages:*', options: ['messages:read', 'messages:send'], tenant: true },
 ];
 
-const KINDS: { value: KeyKind; label: string }[] = [
+const KINDS: { value: BuzzKit.KeyKind; label: string }[] = [
   { value: 'workspace', label: 'Workspace' },
   { value: 'tenant', label: 'Tenant' },
   { value: 'client', label: 'Client' },
@@ -124,11 +124,11 @@ export function loader({ request, context, params }: Route.LoaderArgs) {
 
 export const action = keysAction;
 
-function groupsFor(kind: KeyKind): KeyScopeGroup[] {
+function groupsFor(kind: BuzzKit.KeyKind): KeyScopeGroup[] {
   return kind === 'tenant' ? SCOPE_GROUPS.filter((group) => group.tenant) : SCOPE_GROUPS;
 }
 
-function firstUseSnippet(apiUrl: string, kind: KeyKind, secret: string) {
+function firstUseSnippet(apiUrl: string, kind: BuzzKit.KeyKind, secret: string) {
   if (kind === 'client') {
     return [
       `curl -X POST ${apiUrl}/v1/client/identify \\`,
@@ -158,14 +158,14 @@ function KeyDialog({
 }) {
   const defaultTenant = tenants.find((entry) => entry.isDefault)?.slug ?? tenants[0]?.slug ?? '';
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<KeyKind>('workspace');
+  const [kind, setKind] = useState<BuzzKit.KeyKind>('workspace');
   const [tenant, setTenant] = useState(defaultTenant);
   const [preset, setPreset] = useState<Preset>('full');
   const [scopes, setScopes] = useState<string[]>([]);
-  const [created, setCreated] = useState<{ secret: string; kind: KeyKind } | null>(null);
+  const [created, setCreated] = useState<{ secret: string; kind: BuzzKit.KeyKind } | null>(null);
   const { submit, pending } = useActionFetcher((data) => {
     if (typeof data.secret === 'string')
-      setCreated({ secret: data.secret, kind: (data.kind as KeyKind) ?? 'workspace' });
+      setCreated({ secret: data.secret, kind: (data.kind as BuzzKit.KeyKind) ?? 'workspace' });
     else onOpenChange(false);
   });
 
@@ -230,7 +230,11 @@ function KeyDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor='key-kind'>Type</FieldLabel>
-                <Select items={KINDS} value={kind} onValueChange={(value) => setKind(value as KeyKind)}>
+                <Select
+                  items={KINDS}
+                  value={kind}
+                  onValueChange={(value) => setKind(value as BuzzKit.KeyKind)}
+                >
                   <SelectTrigger id='key-kind' className='w-full'>
                     <SelectValue />
                   </SelectTrigger>

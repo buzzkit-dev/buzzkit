@@ -3,6 +3,7 @@ import { SegmentExpressionSchema } from '@buzzkit/api/api/segments/index';
 import { ExternalIdSchema } from '@buzzkit/api/api/subscribers/index';
 import { TopicSlugSchema } from '@buzzkit/api/api/topics/index';
 import { ChannelSchema, SlugSchema, UrlSchema } from '@buzzkit/api/libs/schemas';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import { t } from 'elysia';
 import { MAX_DIRECT_TARGETS, MAX_TTL_SECONDS, MESSAGE_STATUSES } from './constants';
 
@@ -86,4 +87,9 @@ export const MessageFiltersSchema = t.Object({
   topic: t.Optional(TopicSlugSchema),
   from: t.Optional(t.String({ format: 'date-time' })),
   to: t.Optional(t.String({ format: 'date-time' })),
+});
+
+export const ListMessagesQuerySchema = t.Object({
+  ...PaginationQuerySchema.properties,
+  ...MessageFiltersSchema.properties,
 });

@@ -1,6 +1,6 @@
+import { CHANNELS } from '../resources/common';
 import {
   ATTRIBUTE_KEY_PATTERN,
-  CHANNELS,
   DURATION_PATTERN,
   EVENT_NAME_PATTERN,
   MAX_EXPRESSION_DEPTH,

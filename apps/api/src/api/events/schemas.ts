@@ -1,5 +1,7 @@
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { IdentityHashSchema, literalUnion } from '@buzzkit/api/libs/schemas';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
+import { EVENT_FILTER_SOURCES, EVENT_VOLUME_RANGES } from 'buzzkit';
 import { t } from 'elysia';
 import { CLIENT_SOURCES, EVENT_SOURCES, MAX_EVENTS_PER_REQUEST } from './constants';
 
@@ -15,7 +17,7 @@ export const EventSourceSchema = literalUnion(EVENT_SOURCES);
 
 export const ClientSourceSchema = literalUnion(CLIENT_SOURCES);
 
-export const EventVolumeRangeSchema = t.Union([t.Literal('24h'), t.Literal('7d'), t.Literal('30d')]);
+export const EventVolumeRangeSchema = literalUnion(EVENT_VOLUME_RANGES);
 
 export const TrackEventSchema = t.Object({
   id: t.Optional(EventIdSchema),
@@ -67,3 +69,12 @@ export function assertEventDataObjects(body: unknown): void {
     }
   });
 }
+
+export const ListEventsQuerySchema = t.Object({
+  ...PaginationQuerySchema.properties,
+  name: t.Optional(EventNameSchema),
+  source: t.Optional(literalUnion(EVENT_FILTER_SOURCES)),
+  provider: t.Optional(t.String()),
+  after: t.Optional(t.String({ format: 'date-time' })),
+  afterId: t.Optional(EventIdSchema),
+});

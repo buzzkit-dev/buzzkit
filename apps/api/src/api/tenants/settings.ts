@@ -124,7 +124,7 @@ export function resolveTenantSettings(raw: unknown): TenantSettings {
   };
 }
 
-export function mergeTenantSettings(current: unknown, patch: TenantSettingsPatch): unknown {
+export function mergeTenantSettings(current: unknown, patch: TenantSettingsPatch): Record<string, unknown> {
   const stored = (current ?? {}) as {
     identity?: TenantSettingsPatch['identity'];
     channels?: TenantSettingsPatch['channels'];

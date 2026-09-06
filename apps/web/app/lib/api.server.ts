@@ -1,6 +1,7 @@
 import { createVersionedClient, type VersionedApiClient } from '@buzzkit/eden';
 import type { ImportRow } from '@buzzkit/schema/imports';
 import type { TriggerSource, WorkflowSpec } from '@buzzkit/schema/workflows';
+import type { BuzzKit } from 'buzzkit';
 import type { Expression } from 'buzzkit/expressions';
 import { data } from 'react-router';
 import { signedOutRedirect } from '@/app/lib/session.server';
@@ -431,7 +432,7 @@ export function listSourceDeliveries(
   workspaceSlug: string,
   tenantSlug: string,
   id: string,
-  query: { limit?: number; cursor?: string; outcome?: string } = {}
+  query: BuzzKit.ListSourceDeliveriesParams = {}
 ) {
   return unwrap(
     ctx,

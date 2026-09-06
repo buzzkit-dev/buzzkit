@@ -4,7 +4,8 @@ import {
   type ExpressionPath,
   type LintTools,
 } from 'buzzkit/expressions';
-import { SINCE_ANCHORS, STEP_NAME_MAX_LENGTH, STEP_NAME_PATTERN } from '../constants';
+import { SINCE_ANCHORS } from 'buzzkit/workflows';
+import { STEP_NAME_MAX_LENGTH, STEP_NAME_PATTERN } from '../constants';
 
 function checkWindow(path: ExpressionPath, node: Record<string, unknown>, label: string, tools: LintTools) {
   if (node.within !== undefined) tools.checkDuration([...path, 'within'], node.within);

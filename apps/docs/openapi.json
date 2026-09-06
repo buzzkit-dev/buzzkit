@@ -8717,7 +8717,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["event", "duplicate", "dropped", "rejected", "unverified"]
             }
           }
         ],
@@ -13470,10 +13471,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -13741,10 +13738,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -14012,10 +14005,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -14390,10 +14379,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -14646,10 +14631,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -14902,10 +14883,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -15420,10 +15397,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -15685,10 +15658,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -15950,10 +15919,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -18804,10 +18769,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -19297,10 +19258,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }
@@ -19790,10 +19747,6 @@
                                   {
                                     "type": "string",
                                     "enum": ["email"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["sms"]
                                   }
                                 ]
                               }

@@ -77,7 +77,7 @@ async function findCredentialForProvider(
     id: credential.id,
     updatedAt: credential.updatedAt,
     environment: credential.environment,
-    details: credential.details as Record<string, string>,
+    details: credential.details,
     secret: await decryptCredentialSecret(credential),
   };
 }

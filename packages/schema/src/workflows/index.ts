@@ -1,4 +1,5 @@
 export type { Duration } from 'buzzkit/expressions';
+export * from 'buzzkit/workflows';
 export * from './constants';
 export { WORKFLOW_CHECKERS } from './lint/conditions';
 export { formatWorkflowPath, isWorkflowSpec, lintWorkflow, workflowProblem } from './lint/index';
@@ -25,4 +26,3 @@ export {
   templatePaths,
 } from './parse/template';
 export { isTimezone } from './parse/timezone';
-export type * from './types';

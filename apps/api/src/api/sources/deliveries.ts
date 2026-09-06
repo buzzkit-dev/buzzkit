@@ -3,7 +3,7 @@ import { decodeEntityId, encodeId } from '@buzzkit/api/libs/sqids';
 import { DAY_MS } from '@buzzkit/api/libs/timezone';
 import { clampLimit, type Page, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import { and, type Db, desc, eq, lt, tables } from '@buzzkit/database';
-import { DELIVERY_OUTCOMES, type DeliveryOutcome } from '@buzzkit/schema/sources';
+import { type DeliveryOutcome, SOURCE_DELIVERY_OUTCOMES } from '@buzzkit/schema/sources';
 import { DELIVERY_RETENTION_DAYS } from './constants';
 import { serializeSourceDelivery } from './serialize';
 
@@ -29,7 +29,7 @@ export async function listSourceDeliveries(
 ): Promise<Page<ReturnType<typeof serializeSourceDelivery>> & { total: number }> {
   const limit = clampLimit(options.limit);
   const beforeId = resolveCursor(options.cursor, (id) => decodeEntityId('sourceDelivery', id));
-  const outcome = (DELIVERY_OUTCOMES as readonly string[]).includes(options.outcome ?? '')
+  const outcome = (SOURCE_DELIVERY_OUTCOMES as readonly string[]).includes(options.outcome ?? '')
     ? (options.outcome as DeliveryOutcome)
     : undefined;
 

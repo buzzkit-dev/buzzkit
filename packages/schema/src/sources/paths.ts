@@ -1,4 +1,4 @@
-import { PAYLOAD_PATH_PATTERN } from './constants';
+import { PAYLOAD_PATH_PATTERN } from 'buzzkit/sources';
 
 export function isPayloadPath(path: unknown): path is string {
   return typeof path === 'string' && PAYLOAD_PATH_PATTERN.test(path);

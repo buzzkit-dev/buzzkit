@@ -36,7 +36,10 @@ export const topic = pgTable(
     categoryId: bigRef('category_id').references(() => topicCategory.id, { onDelete: 'set null' }),
     dailyCap: integer('daily_cap'),
     defaultOptedIn: boolean('default_opted_in').notNull().default(true),
-    channelDefaults: jsonb('channel_defaults').notNull().default({}),
+    channelDefaults: jsonb('channel_defaults')
+      .$type<Partial<Record<(typeof channel.enumValues)[number], boolean>>>()
+      .notNull()
+      .default({}),
     channels: channel('channels').array().notNull().default(sql`'{push,email}'::channel[]`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

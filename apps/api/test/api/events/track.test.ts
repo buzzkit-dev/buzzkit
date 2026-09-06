@@ -130,9 +130,9 @@ describe('resolveTimestamp', () => {
 });
 
 describe('subscriberAttributes', () => {
-  it('returns the attributes and falls back to an empty object', () => {
+  it('returns the stored attributes', () => {
     expect(subscriberAttributes({ attributes: { plan: 'pro' } })).toEqual({ plan: 'pro' });
-    expect(subscriberAttributes({ attributes: null })).toEqual({});
+    expect(subscriberAttributes({ attributes: {} })).toEqual({});
   });
 });
 

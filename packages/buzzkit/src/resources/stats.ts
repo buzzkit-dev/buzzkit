@@ -1,0 +1,86 @@
+import type { Transport } from '../core/transport';
+import type { STATS_INTERVALS } from './common';
+
+export type StatsInterval = (typeof STATS_INTERVALS)[number];
+
+export type DeliveryTotals = {
+  total: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  capped: number;
+  invalid: number;
+  pending: number;
+};
+
+export type RunTotals = {
+  started: number;
+  live: number;
+  completed: number;
+  canceled: number;
+  failed: number;
+};
+
+export type StatsDay = {
+  date: string;
+  subscribers: number;
+  messages: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  capped: number;
+  invalid: number;
+  pending: number;
+  events: number;
+  runsStarted: number;
+  runsCompleted: number;
+  runsFailed: number;
+};
+
+export type StatsWindow = {
+  subscribers: { added: number };
+  messages: { total: number };
+  deliveries: DeliveryTotals;
+  events: { total: number };
+  runs: RunTotals;
+};
+
+export type StatsWorkflow = {
+  slug: string;
+  name: string;
+  running: number;
+  sleeping: number;
+  waiting: number;
+  lastRunAt: string | null;
+};
+
+export type Stats = {
+  range: { from: string; to: string };
+  interval: StatsInterval;
+  subscribers: { total: number; added: number };
+  messages: { total: number };
+  deliveries: DeliveryTotals;
+  events: { total: number };
+  runs: RunTotals;
+  topEvents: Array<{ name: string; count: number }>;
+  workflows: StatsWorkflow[];
+  scheduled: { count: number; nextAt: string | null };
+  previous: StatsWindow;
+  series: StatsDay[];
+};
+
+export type StatsParams = {
+  from?: string;
+  to?: string;
+  interval?: StatsInterval;
+};
+
+export function statsResource(transport: Transport) {
+  return {
+    retrieve(params: StatsParams = {}): Promise<Stats> {
+      return transport.request({ method: 'GET', path: '/v1/stats', query: params });
+    },
+  };
+}
+
+export type StatsResource = ReturnType<typeof statsResource>;

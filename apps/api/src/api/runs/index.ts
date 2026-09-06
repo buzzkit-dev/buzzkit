@@ -20,6 +20,7 @@ import type {
 } from './types';
 
 export * from './constants';
+export * from './schemas';
 export * from './serialize';
 export * from './types';
 

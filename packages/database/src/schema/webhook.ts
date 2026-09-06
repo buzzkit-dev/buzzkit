@@ -1,17 +1,13 @@
+import { WEBHOOK_DELIVERY_STATUSES, WEBHOOK_EVENT_SOURCES } from 'buzzkit';
 import { index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import { bigId, bigRef, createdAt, deletedAt, timestamptz, updatedAt } from './shared';
 import { tenant } from './tenant';
 import { workspace } from './workspace';
 
-export const webhookEventSource = pgEnum('webhook_event_source', ['audit', 'stream']);
+export const webhookEventSource = pgEnum('webhook_event_source', WEBHOOK_EVENT_SOURCES);
 
-export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', [
-  'pending',
-  'success',
-  'failed',
-  'exhausted',
-]);
+export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', WEBHOOK_DELIVERY_STATUSES);
 
 export const webhookEndpoint = pgTable(
   'webhook_endpoint',
@@ -50,7 +46,7 @@ export const webhookEvent = pgTable(
     source: webhookEventSource('source').notNull(),
     sourceId: text('source_id').notNull(),
     type: text('type').notNull(),
-    payload: jsonb('payload').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
     createdAt: createdAt(),
   },
   (table) => [
