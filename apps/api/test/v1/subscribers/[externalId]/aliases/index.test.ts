@@ -156,6 +156,32 @@ describe('/v1/subscribers/:externalId/aliases', () => {
     expect((await detailOf(neighbourBearer, legacy)).data?.externalId).toBe(sameName);
   });
 
+  it('merges the whole subscriber when the id given is only one of its aliases', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const keeper = `user_${uniq()}`;
+    const other = `user_${uniq()}`;
+    const legacy = `legacy_${uniq()}`;
+    await putSubscriber(keyBearer, keeper);
+    await putSubscriber(keyBearer, other, { seat: 'other' });
+    expect((await addAlias(keyBearer, other, legacy)).status).toBe(201);
+
+    expect((await addAlias(keyBearer, keeper, legacy)).status).toBe(201);
+
+    expect((await detailOf(keyBearer, other)).data?.externalId).toBe(keeper);
+    expect((await detailOf(keyBearer, legacy)).data?.externalId).toBe(keeper);
+    const aliases = (await listAliases(keyBearer, keeper)).items.map((alias) => alias.externalId);
+    expect(aliases).toContain(legacy);
+    expect(aliases).toContain(other);
+  });
+
+  it('answers 404 for an alias that was never linked', async () => {
+    const { keyBearer } = await setupWorkspace();
+    const missing = `never_${uniq()}`;
+
+    expect((await detailOf(keyBearer, missing)).status).toBe(404);
+    expect((await listAliases(keyBearer, missing)).status).toBe(404);
+  });
+
   it('keeps a second alias alongside the first', async () => {
     const { keyBearer } = await setupWorkspace();
     const externalId = `user_${uniq()}`;

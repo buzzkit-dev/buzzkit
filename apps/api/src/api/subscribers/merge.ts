@@ -151,7 +151,7 @@ async function absorbSubscriber(
   source: Subscriber,
   target: Subscriber,
   aliasSource: SubscriberAliasSource
-): Promise<Subscriber> {
+): Promise<Subscriber | null> {
   span.set('merge.runs.canceled', await cancelSourceRuns(source.tenantId, source));
 
   await moveHistory(source.tenantId, source, target, span);
@@ -160,6 +160,17 @@ async function absorbSubscriber(
   const sourceAttributes = JSON.stringify(source.attributes as Record<string, unknown>);
 
   return await db.transaction(async (tx) => {
+    const [live] = await tx
+      .select({ id: tables.subscriber.id })
+      .from(tables.subscriber)
+      .where(and(eq(tables.subscriber.id, source.id), isNull(tables.subscriber.deletedAt)))
+      .for('update');
+
+    if (!live) {
+      span.set('merge.outcome', 'already');
+      return null;
+    }
+
     const subscriptions = await tx
       .update(tables.subscription)
       .set({ subscriberId: target.id, updatedAt: now })
@@ -226,11 +237,11 @@ export async function mergeAnonymousSubscriber(
       return { subscriber: await renameSubscriber(db, source, options.externalId), from: source.externalId };
     }
 
+    const absorbed = await absorbSubscriber(db, span, source, target, 'system');
+    if (!absorbed) return null;
+
     span.set('merge.outcome', 'absorbed');
-    return {
-      subscriber: await absorbSubscriber(db, span, source, target, 'system'),
-      from: source.externalId,
-    };
+    return { subscriber: absorbed, from: source.externalId };
   });
 }
 
@@ -252,11 +263,12 @@ export async function linkSubscriberAlias(
 
     const owner = await selectSubscriberByExternalId(db, tenantId, input.alias);
     if (owner && owner.id !== input.subscriber.id) {
-      span.set('link.outcome', 'merged');
+      const absorbed = await absorbSubscriber(db, span, owner, input.subscriber, 'manual');
+      span.set('link.outcome', absorbed ? 'merged' : 'unchanged');
       return {
-        subscriber: await absorbSubscriber(db, span, owner, input.subscriber, 'manual'),
+        subscriber: absorbed ?? input.subscriber,
         alias: input.alias,
-        merged: true,
+        merged: absorbed !== null,
       };
     }
 

@@ -14,4 +14,5 @@ export const site = {
   iosDocsUrl: 'https://docs.buzzkit.dev/sdks/ios/overview',
   selfHostingUrl: 'https://docs.buzzkit.dev/platform/self-hosting',
   contactEmail: 'hello@buzzkit.dev',
+  securityEmail: 'security@buzzkit.dev',
 };

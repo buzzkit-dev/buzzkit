@@ -506,6 +506,85 @@ describe('POST /v1/client/identify — anonymous merge', () => {
     });
   });
 
+  it('folds the anonymous subscriber once when two identifies race', async () => {
+    const { clientBearer, keyBearer } = await setupClient();
+    const anon = anonymousId();
+    const user = `user_${uniq()}`;
+    expect((await identify(clientBearer, { externalId: user })).status).toBe(201);
+    expect(await registerPush(clientBearer, anon, `tok_${uniq()}`)).toBe(201);
+
+    const [first, second] = await Promise.all([
+      identify(clientBearer, { externalId: user, anonymousId: anon }),
+      identify(clientBearer, { externalId: user, anonymousId: anon }),
+    ]);
+    expect([first.status, second.status]).toEqual([200, 200]);
+
+    const timeline = await timelineOf(keyBearer, user);
+    expect(timeline.filter((event) => event.name === '$subscriber.merged')).toHaveLength(1);
+
+    const detail = await detailOf(keyBearer, user);
+    expect(detail.data?.subscriptions).toHaveLength(1);
+    expect((await detailOf(keyBearer, anon)).data?.externalId).toBe(user);
+  });
+
+  it('does nothing when the same merge is replayed after it already happened', async () => {
+    const { clientBearer, keyBearer } = await setupClient();
+    const anon = anonymousId();
+    const user = `user_${uniq()}`;
+    expect((await identify(clientBearer, { externalId: user })).status).toBe(201);
+    expect(await registerPush(clientBearer, anon, `tok_${uniq()}`)).toBe(201);
+    expect((await identify(clientBearer, { externalId: user, anonymousId: anon })).status).toBe(200);
+
+    expect((await identify(clientBearer, { externalId: user, anonymousId: anon })).status).toBe(200);
+
+    const timeline = await timelineOf(keyBearer, user);
+    expect(timeline.filter((event) => event.name === '$subscriber.merged')).toHaveLength(1);
+  });
+
+  it('keeps the identified attributes and adds only what the anonymous one knew', async () => {
+    const { clientBearer, keyBearer } = await setupClient();
+    const anon = anonymousId();
+    const user = `user_${uniq()}`;
+    expect(
+      (await identify(clientBearer, { externalId: anon, attributes: { plan: 'trial', device: 'ipad' } }))
+        .status
+    ).toBe(201);
+    expect((await identify(clientBearer, { externalId: user, attributes: { plan: 'pro' } })).status).toBe(
+      201
+    );
+
+    expect((await identify(clientBearer, { externalId: user, anonymousId: anon })).status).toBe(200);
+
+    const detail = await detailOf(keyBearer, user);
+    expect(detail.data?.attributes).toMatchObject({ plan: 'pro', device: 'ipad' });
+  });
+
+  it('carries every delivery of the anonymous subscriber, not just the newest', async () => {
+    const { clientBearer, keyBearer } = await setupClient();
+    const anon = anonymousId();
+    const user = `user_${uniq()}`;
+    expect((await identify(clientBearer, { externalId: user })).status).toBe(201);
+    expect(await registerPush(clientBearer, anon, `tok_${uniq()}`)).toBe(201);
+
+    for (const title of ['One', 'Two', 'Three']) {
+      const sent = await api('/v1/messages', {
+        method: 'POST',
+        headers: keyBearer,
+        body: JSON.stringify({ title, body: 'before the merge', to: anon }),
+      });
+      expect(sent.status).toBe(202);
+    }
+    await eventually(async () => (await deliveriesOf(keyBearer, anon)) === 3, {
+      label: 'all three anonymous deliveries landed',
+      timeoutMs: 30_000,
+      intervalMs: 300,
+    });
+
+    expect((await identify(clientBearer, { externalId: user, anonymousId: anon })).status).toBe(200);
+
+    expect(await deliveriesOf(keyBearer, user)).toBe(3);
+  });
+
   it('ignores an anonymous id equal to the identified id', async () => {
     const { clientBearer, keyBearer } = await setupClient();
     const anon = anonymousId();

@@ -28,7 +28,8 @@ import {
 import { evaluateExpression, resolvePath } from './evaluate';
 import { flushEvents } from './flush';
 import { historyOptions } from './history';
-import { acceptEvent, acceptEvents, systemEvent, toHistoryEvent } from './ingest';
+import { acceptEvent, acceptEvents, systemEvent } from './ingest';
+import { exportActorHistory, ingestActorHistory } from './merge';
 import { selectQuietAnchor } from './quiet';
 import { advanceRuns, cancelLiveRuns, runEventData, scheduleRun } from './runs';
 import { ActorStore } from './store';
@@ -137,42 +138,13 @@ export class SubscriberActor extends Agent<Env> {
   }
 
   exportHistory(limit = ACTOR_HISTORY_ROWS): ActorHistory {
-    const rows = this.store.listHistory(limit + 1);
-    const truncated = rows.length > limit;
-    return {
-      events: truncated ? rows.slice(1) : rows,
-      projections: this.store.listProjections(),
-      truncated,
-    };
+    return exportActorHistory(this.store, limit);
   }
 
   async ingestHistory(input: ActorHistoryInput): Promise<ActorHistoryOutcome> {
     this.store.writeIdentity(input);
-    if (this.store.hasMergedFrom(input.from)) {
-      return { events: 0, projections: 0, applied: false, pending: false };
-    }
-
     const flushed = await this.flush();
-    if (flushed.retryScheduled || this.store.countUnflushed() > 0) {
-      return { events: 0, projections: 0, applied: false, pending: true };
-    }
-
-    let events = 0;
-    let lastSequence = 0;
-    for (const row of input.events) {
-      if (this.store.hasEvent(row.id)) continue;
-      lastSequence = this.store.insertEvent(toHistoryEvent(row));
-      events += 1;
-    }
-    const settled = lastSequence > 0 && this.store.countUnflushed() === events;
-    if (settled) this.store.advanceFlushedSequence(lastSequence);
-
-    for (const projection of input.projections) {
-      this.store.mergeProjection(projection);
-    }
-    this.store.recordMergedFrom(input.from);
-
-    return { events, projections: input.projections.length, applied: true, pending: false };
+    return ingestActorHistory(this.store, input, !flushed.retryScheduled);
   }
 
   async cancelLiveRuns(reason: string): Promise<string[]> {
