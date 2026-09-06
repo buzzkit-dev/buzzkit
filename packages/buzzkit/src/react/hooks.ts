@@ -80,11 +80,20 @@ export function usePreferences(): PreferencesResult {
   const update = useCallback(
     async (changes: PreferenceChanges) => {
       const token = request.open();
-      const preferences = await client.updatePreferences(changes);
-      if (mounted.current && request.isLatest(token)) {
-        setState({ data: preferences, error: null, isLoading: false });
+      setState((current) => ({ ...current, isLoading: true }));
+
+      try {
+        const preferences = await client.updatePreferences(changes);
+        if (mounted.current && request.isLatest(token)) {
+          setState({ data: preferences, error: null, isLoading: false });
+        }
+        return preferences;
+      } catch (caught) {
+        if (mounted.current && request.isLatest(token)) {
+          setState((current) => ({ ...current, error: toError(caught), isLoading: false }));
+        }
+        throw caught;
       }
-      return preferences;
     },
     [client, mounted, request]
   );

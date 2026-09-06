@@ -53,8 +53,8 @@ describe('nextRetryDelayMs', () => {
     expect(nextRetryDelayMs(policy, 0, 3)).toBe(3000);
   });
 
-  it('caps Retry-After at the ceiling', () => {
-    expect(nextRetryDelayMs(policy, 0, 600)).toBe(policy.maxDelayMs);
+  it('never shortens Retry-After to the backoff ceiling', () => {
+    expect(nextRetryDelayMs(policy, 0, 30)).toBeGreaterThan(policy.maxDelayMs);
   });
 
   it('grows exponentially and stays inside the jitter band', () => {
@@ -74,5 +74,15 @@ describe('nextRetryDelayMs', () => {
   it('applies jitter rather than a fixed delay', () => {
     const delays = new Set(Array.from({ length: 50 }, () => nextRetryDelayMs(policy, 3)));
     expect(delays.size).toBeGreaterThan(1);
+  });
+
+  it('waits exactly as long as the server asked, not the backoff ceiling', () => {
+    expect(nextRetryDelayMs(policy, 1, 30)).toBe(30_000);
+    expect(nextRetryDelayMs(policy, 1, 60)).toBe(60_000);
+  });
+
+  it('refuses to retry when the server asks for longer than a request should wait', () => {
+    expect(nextRetryDelayMs(policy, 1, 61)).toBeNull();
+    expect(nextRetryDelayMs(policy, 1, 3_600)).toBeNull();
   });
 });

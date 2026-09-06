@@ -102,7 +102,10 @@ export class Transport {
       const exhausted = attemptsMade >= policy.maxRetries;
       if (exhausted || !retryable || !outcome.retryable) throw outcome.error;
 
-      await sleep(nextRetryDelayMs(policy, attemptsMade, outcome.retryAfterSeconds));
+      const delayMs = nextRetryDelayMs(policy, attemptsMade, outcome.retryAfterSeconds);
+      if (delayMs === null) throw outcome.error;
+
+      await sleep(delayMs);
       attemptsMade += 1;
     }
   }

@@ -6,6 +6,7 @@
   "account_id": "e8563b02f2bf2b6a136f2781445a486f",
   "main": "worker/index.ts",
   "compatibility_date": "2026-08-01",
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

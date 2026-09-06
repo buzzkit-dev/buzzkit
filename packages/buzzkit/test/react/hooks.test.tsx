@@ -252,4 +252,17 @@ describe('BuzzKitProvider', () => {
 
     expect(result.current.data?.[0]?.slug).toBe('fast');
   });
+
+  it('settles with an error when an update fails after superseding a refresh', async () => {
+    const source = stub([page([preference]), failure(500, { code: 'internal', message: 'boom' })]);
+    const { result } = renderHook(() => usePreferences(), { wrapper: wrapperFor(source) });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.update({ 'product-updates': { push: false } }).catch(() => undefined);
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeInstanceOf(Error);
+  });
 });

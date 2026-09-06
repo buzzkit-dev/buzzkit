@@ -9,6 +9,8 @@ export const RETRY_POLICY: Omit<RetryPolicy, 'maxRetries'> = {
   maxDelayMs: 8_000,
 };
 
+const MAX_RETRY_AFTER_MS = 60_000;
+
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
 export function isRetryableStatus(status: number): boolean {
@@ -34,9 +36,10 @@ export function nextRetryDelayMs(
   policy: RetryPolicy,
   attemptsMade: number,
   retryAfterSeconds?: number
-): number {
+): number | null {
   if (retryAfterSeconds !== undefined) {
-    return Math.min(retryAfterSeconds * 1000, policy.maxDelayMs);
+    const asked = retryAfterSeconds * 1000;
+    return asked > MAX_RETRY_AFTER_MS ? null : asked;
   }
 
   const exponential = policy.initialDelayMs * 2 ** attemptsMade;
