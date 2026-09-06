@@ -1,10 +1,11 @@
+import { PLATFORMS, SUBSCRIPTION_STATUSES } from 'buzzkit';
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, channel, createdAt, deletedAt, environment, timestamptz, updatedAt } from './shared';
 import { tenant } from './tenant';
 
-export const subscriptionPlatform = pgEnum('subscription_platform', ['ios', 'android']);
-export const subscriptionStatus = pgEnum('subscription_status', ['active', 'invalid']);
+export const subscriptionPlatform = pgEnum('subscription_platform', PLATFORMS);
+export const subscriptionStatus = pgEnum('subscription_status', SUBSCRIPTION_STATUSES);
 
 export const subscriber = pgTable(
   'subscriber',
@@ -14,7 +15,7 @@ export const subscriber = pgTable(
       .notNull()
       .references(() => tenant.id, { onDelete: 'cascade' }),
     externalId: text('external_id').notNull(),
-    attributes: jsonb('attributes').notNull().default({}),
+    attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
     identityVerifiedAt: timestamptz('identity_verified_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

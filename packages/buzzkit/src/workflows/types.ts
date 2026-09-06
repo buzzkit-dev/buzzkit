@@ -1,4 +1,4 @@
-import type { CountCondition, Duration, NeverCondition, RefCondition, Scalar } from 'buzzkit/expressions';
+import type { CountCondition, Duration, NeverCondition, RefCondition, Scalar } from '../expressions/index';
 import type {
   CONCURRENCY_MODES,
   DELIVERY_MODES,

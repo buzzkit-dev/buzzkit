@@ -1,9 +1,10 @@
+import { MEMBER_ROLES } from 'buzzkit';
 import { sql } from 'drizzle-orm';
 import { index, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { user } from './auth';
 import { bigId, bigRef, createdAt, deletedAt, updatedAt } from './shared';
 
-export const workspaceMemberRole = pgEnum('workspace_member_role', ['member', 'admin', 'owner']);
+export const workspaceMemberRole = pgEnum('workspace_member_role', MEMBER_ROLES);
 
 export const workspace = pgTable(
   'workspace',

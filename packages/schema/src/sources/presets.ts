@@ -1,6 +1,6 @@
-import { GENERIC_SECRET_HEADER, SVIX_HEADERS } from './constants';
+import type { SourcePreset, SourceProvider } from 'buzzkit/sources';
+import { GENERIC_SECRET_HEADER, SVIX_HEADERS } from 'buzzkit/sources';
 import { readPath } from './paths';
-import type { SourcePreset, SourceProvider } from './types';
 
 export const SOURCE_PRESETS: Record<SourceProvider, SourcePreset> = {
   stripe: {

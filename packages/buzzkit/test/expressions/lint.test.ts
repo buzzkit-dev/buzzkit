@@ -89,7 +89,7 @@ describe('lintExpression', () => {
       'any[0]: This object is neither a group nor a condition. Start it with one of "all", "any", "not" or "ref", "count", "never", "lastSeen", "channel".',
     ]);
     expect(messages({ all: [{ channel: 'sms ' }] })).toEqual([
-      'all[0].channel: "channel" must be one of "push", "email", "sms", got "sms ".',
+      'all[0].channel: "channel" must be one of "push", "email", got "sms ".',
     ]);
     expect(messages({ count: 'order.completed', gte: '2' })).toEqual([
       'gte: "gte" takes a whole number of times, 0 or more, got "2".',

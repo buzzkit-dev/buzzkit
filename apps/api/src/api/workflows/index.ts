@@ -166,7 +166,11 @@ export async function updateWorkflow(
       insertVersion: async (tx, nextVersion) => {
         const [inserted] = await tx
           .insert(tables.workflowVersion)
-          .values({ workflowId: existing.id, version: nextVersion, spec: patch.spec })
+          .values({
+            workflowId: existing.id,
+            version: nextVersion,
+            spec: patch.spec ?? existing.latest.spec,
+          })
           .returning();
         return inserted!;
       },

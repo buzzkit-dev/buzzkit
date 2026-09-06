@@ -1,18 +1,14 @@
+import { SOURCE_DELIVERY_OUTCOMES } from 'buzzkit';
+import { SOURCE_STATUSES } from 'buzzkit/sources';
 import { sql } from 'drizzle-orm';
 import { index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, createdAt, deletedAt, timestamptz, updatedAt } from './shared';
 import { subscriber } from './subscriber';
 import { tenant } from './tenant';
 
-export const sourceStatus = pgEnum('source_status', ['unverified', 'active', 'paused']);
+export const sourceStatus = pgEnum('source_status', SOURCE_STATUSES);
 
-export const sourceDeliveryOutcome = pgEnum('source_delivery_outcome', [
-  'event',
-  'duplicate',
-  'dropped',
-  'rejected',
-  'unverified',
-]);
+export const sourceDeliveryOutcome = pgEnum('source_delivery_outcome', SOURCE_DELIVERY_OUTCOMES);
 
 export const source = pgTable(
   'source',
@@ -24,8 +20,11 @@ export const source = pgTable(
     name: text('name').notNull(),
     provider: text('provider').notNull(),
     status: sourceStatus('status').notNull().default('unverified'),
-    verification: jsonb('verification').notNull().default({ scheme: 'header', header: 'x-buzzkit-secret' }),
-    mapping: jsonb('mapping').notNull(),
+    verification: jsonb('verification')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({ scheme: 'header', header: 'x-buzzkit-secret' }),
+    mapping: jsonb('mapping').$type<Record<string, unknown>>().notNull(),
     secretCiphertext: text('secret_ciphertext'),
     secretIv: text('secret_iv'),
     dekCiphertext: text('dek_ciphertext'),

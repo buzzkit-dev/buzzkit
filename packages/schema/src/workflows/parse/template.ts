@@ -1,5 +1,6 @@
-import { DATE_STYLES, DURATION_STYLES, TEMPLATE_FILTERS } from '../constants';
-import type { TemplateFilter } from '../types';
+import type { TemplateFilter } from 'buzzkit/workflows';
+import { TEMPLATE_FILTERS } from 'buzzkit/workflows';
+import { DATE_STYLES, DURATION_STYLES } from '../constants';
 import { isDuration } from './duration';
 
 export type TemplateIssue = { placeholder: string; message: string };

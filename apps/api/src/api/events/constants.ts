@@ -2,7 +2,7 @@ import { DAY_MS } from '@buzzkit/api/libs/timezone';
 
 import type { EventVolumeRange } from './types';
 
-export const EVENT_SOURCES = ['server', 'ios', 'android', 'web', 'system'] as const;
+export { EVENT_SOURCES } from 'buzzkit';
 
 export const CLIENT_SOURCES = ['ios', 'android', 'web'] as const;
 

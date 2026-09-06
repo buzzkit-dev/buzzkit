@@ -1,11 +1,12 @@
-import type { Expression } from 'buzzkit/expressions';
-import type { DELIVERY_OUTCOMES, DROP_REASONS, SOURCE_PROVIDERS, SOURCE_STATUSES } from './constants';
+import type { Expression } from '../expressions/index';
+import type { SOURCE_DELIVERY_OUTCOMES } from '../resources/common';
+import type { DROP_REASONS, SOURCE_PROVIDERS, SOURCE_STATUSES } from './constants';
 
 export type SourceProvider = (typeof SOURCE_PROVIDERS)[number];
 
 export type SourceStatus = (typeof SOURCE_STATUSES)[number];
 
-export type DeliveryOutcome = (typeof DELIVERY_OUTCOMES)[number];
+export type DeliveryOutcome = (typeof SOURCE_DELIVERY_OUTCOMES)[number];
 
 export type DropReason = (typeof DROP_REASONS)[number];
 

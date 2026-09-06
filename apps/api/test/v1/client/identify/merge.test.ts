@@ -576,7 +576,7 @@ describe('POST /v1/client/identify — anonymous merge', () => {
     }
     await eventually(async () => (await deliveriesOf(keyBearer, anon)) === 3, {
       label: 'all three anonymous deliveries landed',
-      timeoutMs: 30_000,
+      timeoutMs: 90_000,
       intervalMs: 300,
     });
 

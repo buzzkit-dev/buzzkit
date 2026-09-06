@@ -1,8 +1,9 @@
+import type { EVENT_FILTER_SOURCES } from 'buzzkit';
 import type { Static } from 'elysia';
 import type { SDK_EVENTS, SYSTEM_EVENTS } from './catalog';
-import type { CLIENT_SOURCES, EVENT_SOURCES } from './constants';
+import type { CLIENT_SOURCES } from './constants';
 
-export type EventSource = (typeof EVENT_SOURCES)[number] | 'webhook';
+export type EventSource = (typeof EVENT_FILTER_SOURCES)[number];
 
 export type ClientSource = (typeof CLIENT_SOURCES)[number];
 

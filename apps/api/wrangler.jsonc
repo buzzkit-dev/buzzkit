@@ -11,6 +11,13 @@
     "enabled": true
   },
 
+  // A preview is another version of this same Worker, so it shares every binding: the production
+  // database, Tinybird, provider credentials, KV and the subscriber Durable Objects. It is behind
+  // the same auth as production, but a send issued from a preview is written to the production
+  // database and delivered by production's own queues, so it reaches real devices.
+  // BETTER_AUTH_URL and DASHBOARD_URL are vars rather than secrets (they are public URLs) so a
+  // preview build can point them at itself and its paired dashboard preview with `--var`.
+  // Without that the preview refuses the dashboard's origin and scopes cookies to buzzkit.dev.
   "workers_dev": true,
   "preview_urls": true,
 
@@ -18,6 +25,7 @@
     "ENVIRONMENT": "production",
     "WORKFLOW_TIME_SCALE": "1",
     "DASHBOARD_URL": "https://buzzkit.dev",
+    "BETTER_AUTH_URL": "https://api.buzzkit.dev/v1/auth",
     "TRACE_SAMPLE_RATIO": "1",
     "TINYBIRD_URL": "https://api.us-east.aws.tinybird.co"
   },

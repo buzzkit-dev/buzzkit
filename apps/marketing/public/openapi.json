@@ -9732,7 +9732,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "event",
+                "duplicate",
+                "dropped",
+                "rejected",
+                "unverified"
+              ]
             }
           }
         ],
@@ -15010,12 +15017,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -15307,12 +15308,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -15603,12 +15598,6 @@
                                     "type": "string",
                                     "enum": [
                                       "email"
-                                    ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
                                     ]
                                   }
                                 ]
@@ -16020,12 +16009,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -16300,12 +16283,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -16579,12 +16556,6 @@
                                     "type": "string",
                                     "enum": [
                                       "email"
-                                    ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
                                     ]
                                   }
                                 ]
@@ -17148,12 +17119,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -17435,12 +17400,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -17721,12 +17680,6 @@
                                     "type": "string",
                                     "enum": [
                                       "email"
-                                    ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
                                     ]
                                   }
                                 ]
@@ -20884,12 +20837,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -21419,12 +21366,6 @@
                                     "enum": [
                                       "email"
                                     ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
-                                    ]
                                   }
                                 ]
                               }
@@ -21953,12 +21894,6 @@
                                     "type": "string",
                                     "enum": [
                                       "email"
-                                    ]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": [
-                                      "sms"
                                     ]
                                   }
                                 ]

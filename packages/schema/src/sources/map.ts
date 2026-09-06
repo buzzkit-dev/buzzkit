@@ -1,7 +1,7 @@
-import { PASSTHROUGH } from './constants';
+import type { MappingOutcome, SourceMapping } from 'buzzkit/sources';
+import { PASSTHROUGH } from 'buzzkit/sources';
 import { evaluatePayload } from './evaluate';
 import { readPath } from './paths';
-import type { MappingOutcome, SourceMapping } from './types';
 
 function text(value: unknown): string | null {
   if (typeof value === 'string' && value.length > 0) return value;

@@ -1,4 +1,4 @@
-export const STATS_INTERVALS = ['hour', 'day', 'week', 'month'] as const;
+export { STATS_INTERVALS } from 'buzzkit';
 
 export const MAX_RANGE_DAYS = 366;
 

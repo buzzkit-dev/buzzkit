@@ -1,11 +1,11 @@
 import {
-  DELIVERY_OUTCOMES,
   detectProvider,
   isSourceMapping,
   lintSourceMapping,
   type MappedEvent,
   mapPayload,
   readPath,
+  SOURCE_DELIVERY_OUTCOMES,
   SOURCE_PRESETS,
   type SourceMapping,
   STANDARD_WEBHOOK_HEADERS,
@@ -163,7 +163,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const tenant = await resolveTenant(request, params.slug);
   const ctx = { request, env };
   const requested = requestUrl(request).searchParams.get('outcome') ?? '';
-  const outcome = (DELIVERY_OUTCOMES as readonly string[]).includes(requested) ? requested : undefined;
+  const outcome = SOURCE_DELIVERY_OUTCOMES.find((value) => value === requested);
   return {
     setup: requestUrl(request).searchParams.has('setup'),
     outcomeFilter: outcome ?? 'all',

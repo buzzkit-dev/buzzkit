@@ -19,7 +19,7 @@ describe('expressionProblem', () => {
 
   it('names what is wrong and where', () => {
     expect(expressionProblem({ all: [{ channel: 'fax' }] })).toBe(
-      '"channel" must be one of "push", "email", "sms", got "fax". (all[0].channel)'
+      '"channel" must be one of "push", "email", got "fax". (all[0].channel)'
     );
     expect(expressionProblem({ all: [] })).toBe('"all" needs at least one condition. (all)');
     expect(expressionProblem({ all: [{ lastSeen: {} }] })).toBe(

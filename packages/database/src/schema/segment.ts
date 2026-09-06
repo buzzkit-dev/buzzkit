@@ -1,3 +1,4 @@
+import type { Expression } from 'buzzkit/expressions';
 import { sql } from 'drizzle-orm';
 import { index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, createdAt, deletedAt, updatedAt } from './shared';
@@ -34,7 +35,7 @@ export const segmentVersion = pgTable(
       .notNull()
       .references(() => segment.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
-    expression: jsonb('expression').notNull(),
+    expression: jsonb('expression').$type<Expression>().notNull(),
     createdAt: createdAt(),
   },
   (table) => [uniqueIndex('segment_version_unique').on(table.segmentId, table.version)]

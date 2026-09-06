@@ -8,15 +8,23 @@ import {
   list,
   type RefScope,
 } from 'buzzkit/expressions';
+import type { WorkflowIssue, WorkflowSpec } from 'buzzkit/workflows';
 import {
   CONCURRENCY_MODES,
   DELIVERY_MODES,
-  FALLBACK_CASE,
   FETCH_ERROR_MODES,
   FETCH_METHODS,
+  INTERRUPTION_LEVELS,
+  SEND_CHANNELS,
+  SEND_POLICY_MODES,
+  SEND_PRIORITIES,
+  STEP_KINDS,
+  TRIGGER_SOURCES,
+} from 'buzzkit/workflows';
+import {
+  FALLBACK_CASE,
   FETCH_TIMEOUT_PATTERN,
   FOREACH_ITEM_ROOTS,
-  INTERRUPTION_LEVELS,
   MAX_BRANCH_CASES,
   MAX_BRANCH_DEPTH,
   MAX_EXPECTED_STATUSES,
@@ -34,15 +42,10 @@ import {
   RESERVED_EVENT_PREFIX,
   SECRET_NAME_PATTERN,
   SEGMENT_SLUG_PATTERN,
-  SEND_CHANNELS,
-  SEND_POLICY_MODES,
-  SEND_PRIORITIES,
-  STEP_KINDS,
   STEP_NAME_MAX_LENGTH,
   STEP_NAME_PATTERN,
   SUBSCRIBER_TIMEZONE,
   SYSTEM_ATTRIBUTE_PREFIX,
-  TRIGGER_SOURCES,
   VAR_NAME_PATTERN,
   WALL_TIME_PATTERN,
   WORKFLOW_CONDITIONS,
@@ -51,7 +54,6 @@ import { cronProblem } from '../parse/cron';
 import { durationSeconds, isDuration } from '../parse/duration';
 import { lintTemplate, templatePaths } from '../parse/template';
 import { isTimezone } from '../parse/timezone';
-import type { WorkflowIssue, WorkflowSpec } from '../types';
 import { WORKFLOW_CHECKERS } from './conditions';
 
 const TRIGGER_REFS: RefScope = { roots: ['trigger', 'subscriber'], bare: [], label: 'a trigger' };

@@ -1,4 +1,4 @@
-import type { SourceMapping, SourceProvider, SourceStatus, Verification } from '@buzzkit/schema/sources';
+import type { SourceMapping, SourceStatus, Verification } from '@buzzkit/schema/sources';
 import type { Source, SourceDelivery } from './types';
 
 function ingestUrl(sourceId: string): string {
@@ -9,7 +9,7 @@ export function serializeSource(source: Source, id: string) {
   return {
     id: source.id,
     name: source.name,
-    provider: source.provider as SourceProvider,
+    provider: source.provider,
     status: source.status as SourceStatus,
     url: ingestUrl(id),
     mapping: source.mapping as SourceMapping,

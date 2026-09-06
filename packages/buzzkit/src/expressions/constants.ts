@@ -12,6 +12,4 @@ export const MAX_EXPRESSION_LEAVES = 50;
 
 export const MAX_IN_VALUES = 100;
 
-export const CHANNELS = ['push', 'email', 'sms'] as const;
-
 export const DURATION_UNIT_SECONDS = { m: 60, h: 3600, d: 86400 } as const;

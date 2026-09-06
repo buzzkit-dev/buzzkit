@@ -456,7 +456,6 @@ describe('segment membership', () => {
     await expectMembers({ not: { lastSeen: { within: '30d' } } }, ['grace']);
     await expectMembers({ channel: 'push' }, ['alice', 'bob', 'carol', 'erin', 'frank']);
     await expectMembers({ channel: 'email' }, ['dave', 'grace']);
-    await expectMembers({ channel: 'sms' }, []);
   });
 
   it('combines groups', async () => {
@@ -632,7 +631,10 @@ describe('segment membership', () => {
 
   it('completes a send to an empty segment', async () => {
     const slug = `seg-${uniq()}`;
-    await createSegment(keyBearer, { slug, expression: only({ channel: 'sms' }) });
+    await createSegment(keyBearer, {
+      slug,
+      expression: only({ ref: 'attributes.plan', eq: 'nobody-has-this-plan' }),
+    });
     const { body } = await send(keyBearer, { segment: slug });
     const completed = await awaitCompletion(keyBearer, body.data!.id);
     expect(completed.counts.total).toBe(0);

@@ -1,3 +1,4 @@
+import { DELIVERY_ATTEMPT_OUTCOMES, DELIVERY_STATUSES, MESSAGE_STATUSES } from 'buzzkit';
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, channel, createdAt, deletedAt, provider, timestamptz, updatedAt } from './shared';
@@ -5,30 +6,11 @@ import { subscriber, subscription } from './subscriber';
 import { tenant } from './tenant';
 import { topic } from './topic';
 
-export const messageStatus = pgEnum('message_status', [
-  'queued',
-  'processing',
-  'completed',
-  'scheduled',
-  'canceled',
-]);
+export const messageStatus = pgEnum('message_status', MESSAGE_STATUSES);
 
-export const deliveryStatus = pgEnum('delivery_status', [
-  'pending',
-  'retrying',
-  'sent',
-  'delivered',
-  'bounced',
-  'failed',
-  'invalid',
-]);
+export const deliveryStatus = pgEnum('delivery_status', DELIVERY_STATUSES);
 
-export const deliveryAttemptOutcome = pgEnum('delivery_attempt_outcome', [
-  'sent',
-  'retry',
-  'failed',
-  'invalid',
-]);
+export const deliveryAttemptOutcome = pgEnum('delivery_attempt_outcome', DELIVERY_ATTEMPT_OUTCOMES);
 
 export const message = pgTable(
   'message',
@@ -40,14 +22,14 @@ export const message = pgTable(
     channel: channel('channel').notNull(),
     topic: text('topic'),
     topicId: bigRef('topic_id').references(() => topic.id, { onDelete: 'restrict' }),
-    targets: jsonb('targets').notNull(),
-    payload: jsonb('payload').notNull(),
+    targets: jsonb('targets').$type<Record<string, unknown>>().notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
     idempotencyKey: text('idempotency_key'),
     idempotencyFingerprint: text('idempotency_fingerprint'),
     status: messageStatus('status').notNull().default('queued'),
-    schedule: jsonb('schedule'),
+    schedule: jsonb('schedule').$type<{ at: string; timezone: string; defaultTimezone?: string }>(),
     scheduledFor: timestamptz('scheduled_for'),
-    scheduledZones: jsonb('scheduled_zones'),
+    scheduledZones: jsonb('scheduled_zones').$type<string[]>(),
     runId: text('run_id'),
     runStep: text('run_step'),
     canceledAt: timestamptz('canceled_at'),

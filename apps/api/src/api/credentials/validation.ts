@@ -149,7 +149,7 @@ export async function revalidateCredential(db: Db, credential: Credential): Prom
     return updated!;
   }
 
-  const details = credential.details as Record<string, string>;
+  const { details } = credential;
   let outcome: ValidationOutcome;
   try {
     outcome = await validateCredentialUpload(credential.provider, {

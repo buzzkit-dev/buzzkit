@@ -27,7 +27,7 @@ import { Switch } from '@buzzkit/ui/components/switch';
 import { useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { CredentialStatusBadge, SandboxBadge } from '@/app/components/badges';
+import { CredentialStatusBadge, EnvironmentBadge } from '@/app/components/badges';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
@@ -61,6 +61,8 @@ const DETAIL_LABELS: Record<string, string> = {
   projectId: 'Project',
   clientEmail: 'Service account',
 };
+
+const ENVIRONMENTS: Array<Credential['environment']> = ['production', 'sandbox'];
 
 export function meta() {
   return [{ title: 'Channels · BuzzKit' }];
@@ -105,6 +107,13 @@ function detailsOf(credentials: Credential[]): string | null {
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
+function environmentsOf(credentials: Credential[]): Array<Credential['environment']> {
+  if (credentials[0]?.provider !== 'apns') return [];
+  return ENVIRONMENTS.filter((environment) =>
+    credentials.some((credential) => credential.environment === environment)
+  );
+}
+
 function ProviderRow({
   channel,
   provider,
@@ -140,9 +149,9 @@ function ProviderRow({
       title={
         <span className='flex items-center gap-1.5'>
           {provider.name}
-          {credentials.some((credential) => credential.environment === 'sandbox') && (
-            <SandboxBadge environment='sandbox' />
-          )}
+          {environmentsOf(credentials).map((environment) => (
+            <EnvironmentBadge key={environment} environment={environment} />
+          ))}
           {!provider.available && <Badge size='sm'>Soon</Badge>}
         </span>
       }

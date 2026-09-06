@@ -157,7 +157,7 @@ async function promoteReceipts(
 }
 
 export function subscriberAttributes(subscriber: Pick<Subscriber, 'attributes'>): Record<string, unknown> {
-  return (subscriber.attributes ?? {}) as Record<string, unknown>;
+  return subscriber.attributes;
 }
 
 function resolveTrackedEvent(event: EventInput, source: EventSource, now: Date): ActorEventInput {

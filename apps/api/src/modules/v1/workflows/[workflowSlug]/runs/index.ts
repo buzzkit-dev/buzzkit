@@ -1,12 +1,10 @@
-import { listRuns, RUN_STATUSES } from '@buzzkit/api/api/runs/index';
+import { ListWorkflowRunsQuerySchema, listRuns } from '@buzzkit/api/api/runs/index';
 import { findWorkflowBySlug } from '@buzzkit/api/api/workflows/index';
 import { WorkflowSlugParamsSchema } from '@buzzkit/api/api/workflows/schemas';
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { literalUnion } from '@buzzkit/api/libs/schemas';
 import { encodeId } from '@buzzkit/api/libs/sqids';
-import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const workflowRuns = new Elysia()
   .use(auth)
@@ -21,9 +19,6 @@ export const workflowRuns = new Elysia()
     {
       tenant: 'workflows:read',
       params: WorkflowSlugParamsSchema,
-      query: t.Object({
-        ...PaginationQuerySchema.properties,
-        status: t.Optional(literalUnion(RUN_STATUSES)),
-      }),
+      query: ListWorkflowRunsQuerySchema,
     }
   );

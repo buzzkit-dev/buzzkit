@@ -1,8 +1,11 @@
-import { findSource, listSourceDeliveries } from '@buzzkit/api/api/sources/index';
+import {
+  findSource,
+  ListSourceDeliveriesQuerySchema,
+  listSourceDeliveries,
+} from '@buzzkit/api/api/sources/index';
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const sourceDeliveries = new Elysia()
   .use(auth)
@@ -16,6 +19,6 @@ export const sourceDeliveries = new Elysia()
     },
     {
       tenant: 'sources:read',
-      query: t.Object({ ...PaginationQuerySchema.properties, outcome: t.Optional(t.String()) }),
+      query: ListSourceDeliveriesQuerySchema,
     }
   );

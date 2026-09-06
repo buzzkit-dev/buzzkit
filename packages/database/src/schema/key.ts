@@ -1,3 +1,4 @@
+import { KEY_KINDS } from 'buzzkit';
 import { sql } from 'drizzle-orm';
 import { check, index, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { user } from './auth';
@@ -5,7 +6,7 @@ import { bigId, bigRef, createdAt, deletedAt, timestamptz, updatedAt } from './s
 import { tenant } from './tenant';
 import { workspace } from './workspace';
 
-export const apiKeyKind = pgEnum('api_key_kind', ['workspace', 'tenant', 'client']);
+export const apiKeyKind = pgEnum('api_key_kind', KEY_KINDS);
 
 export const apiKey = pgTable(
   'api_key',

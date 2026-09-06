@@ -1,9 +1,11 @@
+import type { WorkflowSpec } from '@buzzkit/schema/workflows';
+import { WORKFLOW_STATUSES } from 'buzzkit';
 import { sql } from 'drizzle-orm';
 import { index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { bigId, bigRef, createdAt, deletedAt, timestamptz, updatedAt } from './shared';
 import { tenant } from './tenant';
 
-export const workflowStatus = pgEnum('workflow_status', ['draft', 'active', 'paused']);
+export const workflowStatus = pgEnum('workflow_status', WORKFLOW_STATUSES);
 
 export const workflow = pgTable(
   'workflow',
@@ -37,7 +39,7 @@ export const workflowVersion = pgTable(
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
-    spec: jsonb('spec').notNull(),
+    spec: jsonb('spec').$type<WorkflowSpec>().notNull(),
     publishedAt: timestamptz('published_at'),
     createdAt: createdAt(),
   },

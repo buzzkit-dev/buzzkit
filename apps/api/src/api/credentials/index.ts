@@ -95,7 +95,7 @@ export async function replaceCredential(
     provider: CredentialProvider;
     environment: CredentialEnvironment;
     secret: string;
-    details: Record<string, unknown>;
+    details: Record<string, string>;
     outcome: ValidationOutcome;
   }
 ): Promise<Credential> {

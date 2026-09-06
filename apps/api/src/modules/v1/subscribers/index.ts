@@ -1,8 +1,7 @@
-import { listSubscribers } from '@buzzkit/api/api/subscribers/index';
+import { ListSubscribersQuerySchema, listSubscribers } from '@buzzkit/api/api/subscribers/index';
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const subscribers = new Elysia()
   .use(auth)
@@ -15,9 +14,6 @@ export const subscribers = new Elysia()
     },
     {
       tenant: 'subscribers:read',
-      query: t.Object({
-        ...PaginationQuerySchema.properties,
-        search: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
-      }),
+      query: ListSubscribersQuerySchema,
     }
   );

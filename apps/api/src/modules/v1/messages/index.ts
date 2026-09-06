@@ -2,14 +2,13 @@ import {
   CreateMessageSchema,
   createMessage,
   enqueueFanout,
+  ListMessagesQuerySchema,
   listMessages,
-  MessageFiltersSchema,
   serializeMessage,
 } from '@buzzkit/api/api/messages/index';
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
-import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
-import Elysia, { t } from 'elysia';
+import Elysia from 'elysia';
 
 export const messages = new Elysia()
   .use(auth)
@@ -25,10 +24,7 @@ export const messages = new Elysia()
     },
     {
       tenant: 'messages:read',
-      query: t.Object({
-        ...PaginationQuerySchema.properties,
-        ...MessageFiltersSchema.properties,
-      }),
+      query: ListMessagesQuerySchema,
     }
   )
   .post(

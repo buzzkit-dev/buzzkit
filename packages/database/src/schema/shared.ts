@@ -1,10 +1,11 @@
+import { CHANNELS, ENVIRONMENTS, PROVIDERS } from 'buzzkit';
 import { bigint, pgEnum, timestamp } from 'drizzle-orm/pg-core';
 
-export const channel = pgEnum('channel', ['push', 'email']);
+export const channel = pgEnum('channel', CHANNELS);
 
-export const provider = pgEnum('provider', ['apns', 'fcm', 'resend']);
+export const provider = pgEnum('provider', PROVIDERS);
 
-export const environment = pgEnum('environment', ['production', 'sandbox']);
+export const environment = pgEnum('environment', ENVIRONMENTS);
 
 export const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 

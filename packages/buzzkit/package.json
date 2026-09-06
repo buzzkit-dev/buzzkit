@@ -3,14 +3,24 @@
   "license": "MIT",
   "version": "0.0.0",
   "type": "module",
-  "private": true,
+  "sideEffects": false,
   "files": [
-    "src"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./client": {
+      "types": "./src/client/index.ts",
+      "default": "./src/client/index.ts"
+    },
+    "./react": {
+      "types": "./src/react/index.ts",
+      "default": "./src/react/index.ts"
     },
     "./webhooks": {
       "types": "./src/webhooks/index.ts",
@@ -19,16 +29,66 @@
     "./expressions": {
       "types": "./src/expressions/index.ts",
       "default": "./src/expressions/index.ts"
+    },
+    "./workflows": {
+      "types": "./src/workflows/index.ts",
+      "default": "./src/workflows/index.ts"
+    },
+    "./sources": {
+      "types": "./src/sources/index.ts",
+      "default": "./src/sources/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
     }
   },
   "scripts": {
+    "build": "tsdown",
     "check-types": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "prepublishOnly": "publint"
   },
   "devDependencies": {
+    "@testing-library/react": "^16",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.11",
+    "jsdom": "^27",
     "publint": "^0.3.24",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "~4.1.10"
+  },
+  "description": "The TypeScript SDK for BuzzKit, the open source notification orchestration layer.",
+  "keywords": [
+    "push notifications",
+    "apns",
+    "fcm",
+    "notifications",
+    "ios",
+    "workflows",
+    "segments",
+    "buzzkit"
+  ],
+  "homepage": "https://buzzkit.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buzzkit-dev/buzzkit.git",
+    "directory": "packages/buzzkit"
+  },
+  "bugs": {
+    "url": "https://github.com/buzzkit-dev/buzzkit/issues"
+  },
+  "author": "Christo Todorov",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

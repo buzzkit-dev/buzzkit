@@ -1,4 +1,4 @@
-export const RUN_STATUSES = ['running', 'sleeping', 'waiting', 'completed', 'canceled', 'failed'] as const;
+export { RUN_STATUSES } from 'buzzkit';
 
 export const RUN_EVENTS_LIMIT = 1000;
 
