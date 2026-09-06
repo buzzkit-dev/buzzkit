@@ -11,6 +11,7 @@ export type ErrorContext = {
   param?: string;
   details?: unknown;
   requestId?: string;
+  retryAfterSeconds?: number;
 };
 
 export class BuzzKitError extends Error {
@@ -19,6 +20,7 @@ export class BuzzKitError extends Error {
   readonly param?: string;
   readonly details?: unknown;
   readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
 
   constructor(message: string, context: ErrorContext) {
     super(message);
@@ -28,6 +30,7 @@ export class BuzzKitError extends Error {
     this.param = context.param;
     this.details = context.details;
     this.requestId = context.requestId;
+    this.retryAfterSeconds = context.retryAfterSeconds;
   }
 }
 
@@ -67,12 +70,9 @@ export class ConflictError extends BuzzKitError {
 }
 
 export class RateLimitError extends BuzzKitError {
-  readonly retryAfterSeconds?: number;
-
-  constructor(message: string, context: ErrorContext & { retryAfterSeconds?: number }) {
+  constructor(message: string, context: ErrorContext) {
     super(message, context);
     this.name = 'RateLimitError';
-    this.retryAfterSeconds = context.retryAfterSeconds;
   }
 }
 
@@ -120,6 +120,7 @@ export function resolveError(
     param: body.param,
     details: body.details,
     requestId: meta.requestId,
+    retryAfterSeconds: meta.retryAfterSeconds,
   };
 
   if (status === 400 || status === 422) return new BadRequestError(body.message, context);
@@ -127,9 +128,7 @@ export function resolveError(
   if (status === 403) return new PermissionError(body.message, context);
   if (status === 404) return new NotFoundError(body.message, context);
   if (status === 409 || status === 410) return new ConflictError(body.message, context);
-  if (status === 429) {
-    return new RateLimitError(body.message, { ...context, retryAfterSeconds: meta.retryAfterSeconds });
-  }
+  if (status === 429) return new RateLimitError(body.message, context);
   if (status >= 500) return new ServerError(body.message, context);
 
   return new BuzzKitError(body.message, context);

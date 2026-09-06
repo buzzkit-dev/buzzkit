@@ -147,6 +147,22 @@ import { verifyWebhook } from 'buzzkit/webhooks';
 const event = await verifyWebhook(rawBody, request.headers, process.env.BUZZKIT_WEBHOOK_SECRET);
 ```
 
+## Retries
+
+Retries cover connection failures, timeouts, 429 and 5xx, and only for requests that are safe to repeat: GET, PUT, DELETE, or a POST carrying an idempotency key, which `messages.send` generates for you.
+
+A `Retry-After` header is honored exactly rather than shortened to the backoff ceiling. When a server asks for longer than a minute, the SDK stops instead of retrying early and throws, with `retryAfterSeconds` on the error so you can decide whether to queue the work rather than block a request on it.
+
+```ts
+try {
+  await buzzkit.messages.send({ to: 'user_42', title: 'Hello' });
+} catch (error) {
+  if (error instanceof BuzzKitError && error.retryAfterSeconds) {
+    await scheduleForLater(error.retryAfterSeconds);
+  }
+}
+```
+
 ## Entry points
 
 | Entry | Runs | Holds |

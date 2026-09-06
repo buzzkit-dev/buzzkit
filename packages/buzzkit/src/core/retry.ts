@@ -9,7 +9,7 @@ export const RETRY_POLICY: Omit<RetryPolicy, 'maxRetries'> = {
   maxDelayMs: 8_000,
 };
 
-const MAX_RETRY_AFTER_MS = 60_000;
+export const MAX_RETRY_AFTER_MS = 60_000;
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 

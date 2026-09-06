@@ -392,4 +392,30 @@ describe('Transport cancellation', () => {
       /response could not be read/
     );
   });
+
+  it('hands back the server delay instead of blocking the caller for minutes', async () => {
+    let calls = 0;
+    const source = stub([
+      () => {
+        calls += 1;
+        return failure(503, { code: 'unavailable', message: 'maintenance' }, { 'retry-after': '600' });
+      },
+    ]);
+    const transport = new Transport({
+      baseUrl: 'https://api.test',
+      headers: {},
+      maxRetries: 3,
+      timeoutMs: 1000,
+      fetch: source.fetch,
+    });
+
+    const caught = await transport
+      .request({ method: 'GET', path: '/v1/health' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    expect(calls).toBe(1);
+    expect((caught as BuzzKitError).retryAfterSeconds).toBe(600);
+    expect((caught as BuzzKitError).status).toBe(503);
+  });
 });
