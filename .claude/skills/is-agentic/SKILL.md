@@ -59,3 +59,7 @@ Failures are RFC 9457 `application/problem+json` with a stable `code` and a `res
 - Targets are exact: `example.com/docs` and `example.com` are separate reports, and a URL with a query string is its own report.
 - The rate limit is 120 requests per IP per 60 seconds.
 - For token-light reading, content pages and completed reports honor `Accept: text/markdown`.
+
+## The ratchet in CI
+
+`.github/workflows/agentic-audit.yml` scans production daily and compares the result with `.github/agentic-baseline.json`. It fails when the score falls below 80 or below the recorded score, or when fewer essential checks pass than the recorded count, and it raises the baseline itself when the score improves. Essential issues are annotations, not failures, so a known gap does not block the build while a regression does. The CLI hands back the stored snapshot rather than forcing a scan, so the run first visits `https://is-agentic.com/scan/<target>` and then polls the CLI for up to ten minutes until `scanned_at` moves, judging fresh data instead of an old report. If it never moves the run continues and warns when the snapshot is more than 48 hours old.
