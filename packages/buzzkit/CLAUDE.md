@@ -47,6 +47,16 @@ One package rather than Stripe's three, because `Topic`, `SubscriberPreference`,
 
 **A definition belongs here exactly when a customer can observe it through the public API.** Wire vocabularies, entity and parameter types, and the grammars a customer writes (`Expression`, `WorkflowSpec`, `SourceMapping`) yes; anything that only runs on our side (TypeBox request schemas, expression evaluation, the segment compiler, template rendering, cron and zone arithmetic, actor and queue shapes) no, that lives in `apps/api`. That test is what decides the edges: `subscriber_alias_source` is in here because the API serializes it, while `api_key_kind` and `live_activity_kind` stay in `packages/database` because key management is session-only and `kind` is storage where the wire carries `event`. The expression lint takes `checkers` so `@buzzkit/schema` can add its run-only conditions without them leaking into the SDK.
 
+## Releasing
+
+This is the only package published to npm, and it is published from `main` by `.github/workflows/release.yml` through npm's GitHub trusted publisher, so there is no npm token anywhere.
+
+**Every change that a customer would notice needs a changeset.** Run `bun run changeset`, pick the bump, write one sentence in the voice of the changelog, and commit that file with your work. Changesets is configured to ignore every other package, so app and dashboard work never versions the SDK. A change nobody installs cares about takes `bun run changeset --empty`.
+
+The rest is automatic. When a changeset lands on `main` the workflow builds, runs the SDK suite with its coverage thresholds, runs publint, then packs the package and imports every entry point from a clean project — the guard that stopped a release shipping raw TypeScript that Node cannot load from `node_modules`. It then opens or updates a pull request titled "chore: release the SDK", which consumes the changesets, bumps the version and writes `CHANGELOG.md`. Merging that pull request publishes and tags. Nothing reaches npm without that merge.
+
+**The workspace resolves `src`, npm gets `dist`.** `exports` points at TypeScript so the monorepo type-checks against real source and the parity assertions compare hand-written types rather than bundled declarations. `scripts/publish-manifest.ts` rewrites those entries to the built `.mjs` and `.d.mts` at publish time, and `tsdown.config.ts` builds them. Never point `exports` at `dist` to make something resolve — build it instead.
+
 ## Rules
 
 - **Same code standards as the API** (`apps/api/CLAUDE.md`): no comments anywhere, names written out, the verb vocabulary, one concern per file, ordered types → constants → errors → pure helpers → the public functions. A subpath is a directory with an `index.ts` barrel that exports only its public surface; internals stay unexported.

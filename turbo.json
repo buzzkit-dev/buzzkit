@@ -35,6 +35,10 @@
     "test": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "buzzkit#build": {
+      "inputs": ["src/**/*.ts", "tsdown.config.ts", "package.json", "tsconfig.json"],
+      "outputs": ["dist/**"]
     }
   }
 }

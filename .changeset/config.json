@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": ["@changesets/changelog-github", { "repo": "buzzkit-dev/buzzkit" }],
+  "commit": false,
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@buzzkit/api",
+    "@buzzkit/web",
+    "@buzzkit/marketing",
+    "@buzzkit/docs",
+    "@buzzkit/schema",
+    "@buzzkit/database",
+    "@buzzkit/auth",
+    "@buzzkit/eden",
+    "@buzzkit/observability",
+    "@buzzkit/tinybird",
+    "@buzzkit/ui"
+  ]
+}

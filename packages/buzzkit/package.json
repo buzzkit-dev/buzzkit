@@ -3,10 +3,11 @@
   "license": "MIT",
   "version": "0.0.0",
   "type": "module",
-  "private": true,
   "sideEffects": false,
   "files": [
-    "src"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -47,9 +48,9 @@
     }
   },
   "scripts": {
+    "build": "tsdown",
     "check-types": "tsc --noEmit",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "vitest run --coverage",
     "prepublishOnly": "publint"
   },
   "devDependencies": {
@@ -61,7 +62,33 @@
     "publint": "^0.3.24",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "~4.1.10"
+  },
+  "description": "The TypeScript SDK for BuzzKit, the open source notification orchestration layer.",
+  "keywords": [
+    "push notifications",
+    "apns",
+    "fcm",
+    "notifications",
+    "ios",
+    "workflows",
+    "segments",
+    "buzzkit"
+  ],
+  "homepage": "https://buzzkit.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buzzkit-dev/buzzkit.git",
+    "directory": "packages/buzzkit"
+  },
+  "bugs": {
+    "url": "https://github.com/buzzkit-dev/buzzkit/issues"
+  },
+  "author": "Christo Todorov",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

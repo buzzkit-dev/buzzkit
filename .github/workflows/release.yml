@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/buzzkit/**'
+      - '.changeset/**'
+      - '.github/workflows/release.yml'
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: npm new enough to publish through the GitHub trusted publisher
+        run: npm install --global npm@latest
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Build and test the SDK
+        run: |
+          bun run sdk:build
+          bun run --cwd packages/buzzkit test
+          bun run --cwd packages/buzzkit exec publint
+      - name: Prove the published package imports
+        run: |
+          cd packages/buzzkit
+          bun run scripts/publish-manifest.ts
+          bun pm pack --destination /tmp/pack
+          cd /tmp/pack
+          mkdir consumer && cd consumer
+          printf '{"name":"c","type":"module","private":true}' > package.json
+          npm install ../buzzkit-*.tgz
+          node --input-type=module -e "
+            import { BuzzKit, signIdentity } from 'buzzkit';
+            import { BuzzKitClient } from 'buzzkit/client';
+            import { verifyWebhook } from 'buzzkit/webhooks';
+            if (typeof BuzzKit !== 'function') throw new Error('the root entry did not load');
+            if (typeof BuzzKitClient !== 'function') throw new Error('the browser entry did not load');
+            if (typeof signIdentity !== 'function' || typeof verifyWebhook !== 'function') {
+              throw new Error('a server helper did not load');
+            }
+          "
+          cd "$GITHUB_WORKSPACE" && git checkout -- packages/buzzkit/package.json
+      - uses: changesets/action@v1
+        with:
+          version: bunx changeset version
+          publish: bun run sdk:release
+          title: 'chore: release the SDK'
+          commit: 'chore: release the SDK'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

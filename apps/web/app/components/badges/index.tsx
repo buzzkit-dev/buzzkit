@@ -192,7 +192,16 @@ export function RevokedBadge({ revoked }: { revoked: boolean }) {
 }
 
 export function SandboxBadge({ environment }: { environment: string }) {
-  return environment === 'sandbox' ? <Typed entry={{ label: 'Sandbox', tone: 'amber' }} /> : null;
+  return environment === 'sandbox' ? <Typed entry={ENVIRONMENTS.sandbox} /> : null;
+}
+
+const ENVIRONMENTS: Record<'production' | 'sandbox', Entry> = {
+  production: { label: 'Production', tone: 'blue' },
+  sandbox: { label: 'Sandbox', tone: 'amber' },
+};
+
+export function EnvironmentBadge({ environment }: { environment: keyof typeof ENVIRONMENTS }) {
+  return <Typed entry={ENVIRONMENTS[environment]} />;
 }
 
 export function SubscriptionStatusBadge({ status }: { status: string }) {
