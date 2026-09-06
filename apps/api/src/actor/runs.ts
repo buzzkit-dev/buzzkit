@@ -34,6 +34,8 @@ export type RunPorts = {
   cancelLocal?: (run: ActorRunRow) => void | Promise<void>;
 };
 
+export type CancelPorts = Pick<RunPorts, 'terminateRun' | 'cancelLocal'>;
+
 export type RunOutcome = { started: string[]; canceled: string[]; delivered: string[] };
 
 export function runEventData(run: ActorRunRow) {
@@ -197,7 +199,7 @@ async function cancelRun(
   store: ActorStore,
   run: ActorRunRow,
   reason: string,
-  ports: RunPorts,
+  ports: CancelPorts,
   outcome: RunOutcome
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -210,6 +212,18 @@ async function cancelRun(
   await ports.terminateRun(run.run_id);
   if (ports.cancelLocal) await ports.cancelLocal(run);
   outcome.canceled.push(run.run_id);
+}
+
+export async function cancelLiveRuns(
+  store: ActorStore,
+  reason: string,
+  ports: CancelPorts
+): Promise<string[]> {
+  const outcome: RunOutcome = { started: [], canceled: [], delivered: [] };
+  for (const run of store.listLiveRuns()) {
+    await cancelRun(store, run, reason, ports, outcome);
+  }
+  return outcome.canceled;
 }
 
 export async function scheduleRun(

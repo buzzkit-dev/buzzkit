@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { count, createDrizzle, type Db, type DrizzleOptions, type SQL } from '@buzzkit/database';
+import { count, createDrizzle, type Db, type DrizzleOptions, type SQL, type Tx } from '@buzzkit/database';
 import { instrumentDrizzleClient } from '@kubiks/otel-drizzle';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import Elysia from 'elysia';
@@ -15,7 +15,7 @@ export const stepDb = (): Db => createDb({ max: 1 }, { traced: false });
 
 export const batchDb = (): Db => createDb({ max: BATCH_DB_CONNECTIONS });
 
-export async function countRows(db: Db, table: PgTable, where: SQL | undefined): Promise<number> {
+export async function countRows(db: Db | Tx, table: PgTable, where: SQL | undefined): Promise<number> {
   const [row] = await db.select({ total: count() }).from(table).where(where);
   return Number(row?.total ?? 0);
 }

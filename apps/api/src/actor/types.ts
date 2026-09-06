@@ -48,6 +48,21 @@ export type ActorProjection = {
 
 export type ActorFlushOutcome = { flushed: number; batches: number; retryScheduled: boolean; pruned: number };
 
+export type ActorHistory = {
+  events: ActorEventRow[];
+  projections: ActorProjection[];
+  truncated: boolean;
+};
+
+export type ActorHistoryInput = ActorIdentity & ActorHistory & { from: number };
+
+export type ActorHistoryOutcome = {
+  events: number;
+  projections: number;
+  applied: boolean;
+  pending: boolean;
+};
+
 export type ActorRunStatus = 'running' | 'sleeping' | 'waiting' | 'completed' | 'canceled' | 'failed';
 
 export type ActorRunRow = {

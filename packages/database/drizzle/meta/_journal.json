@@ -134,6 +134,13 @@
       "when": 1788261560869,
       "tag": "0018_motionless_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788648146308,
+      "tag": "0019_skinny_texas_twister",
+      "breakpoints": true
     }
   ]
 }

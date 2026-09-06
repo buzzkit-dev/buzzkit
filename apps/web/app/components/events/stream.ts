@@ -17,6 +17,10 @@ export const SOURCE_LABELS: Record<StreamSource, string> = {
   webhook: 'Webhook',
 };
 
+function sentence(value: string | null): string | null {
+  return value ? `${value[0]?.toUpperCase()}${value.slice(1)}` : value;
+}
+
 function text(data: Data, key: string): string | null {
   const value = data[key];
   return typeof value === 'string' && value.trim() ? value : null;
@@ -133,7 +137,7 @@ const RESERVED: Record<string, Definition> = {
     icon: 'IconShieldCheckFilled',
     describe: (data) => ({
       icon: data.status === 'denied' ? PERMISSION_DENIED.icon : PERMISSION_GRANTED.icon,
-      detail: text(data, 'status'),
+      detail: sentence(text(data, 'status')),
     }),
   },
   $identify: {
@@ -144,7 +148,7 @@ const RESERVED: Record<string, Definition> = {
   '$subscriber.created': {
     label: 'Subscriber created',
     icon: 'IconUserAddFilled',
-    describe: (data) => ({ detail: attributeSummary(data) }),
+    describe: (data) => ({ detail: text(data, 'externalId') }),
   },
   '$subscriber.updated': {
     label: 'Attributes updated',
@@ -152,6 +156,16 @@ const RESERVED: Record<string, Definition> = {
     describe: (data) => ({ detail: attributeSummary(data) }),
   },
   '$subscriber.deleted': { label: 'Subscriber deleted', icon: 'IconUserRemoveFilled' },
+  '$subscriber.merged': {
+    label: 'Identity merged',
+    icon: 'IconPeopleEditFilled',
+    describe: (data) => ({ detail: text(data, 'from') }),
+  },
+  '$subscriber.aliased': {
+    label: 'Alias added',
+    icon: 'IconChainLink4',
+    describe: (data) => ({ detail: text(data, 'alias') }),
+  },
   '$subscription.registered': {
     label: 'Device registered',
     icon: 'IconPhoneFilled',

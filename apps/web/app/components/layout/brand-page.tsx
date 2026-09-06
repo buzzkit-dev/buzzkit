@@ -98,7 +98,7 @@ function Scatter() {
   );
 }
 
-export function AuthPage({ children }: { children: React.ReactNode }) {
+export function BrandPage({ children }: { children: React.ReactNode }) {
   const reducedMotion = useReducedMotion();
   return (
     <main className='relative isolate flex min-h-svh flex-col items-center justify-center overflow-hidden p-6'>

@@ -92,6 +92,50 @@ A send goes out only through subscriptions that are enabled, active, and opted i
   `status` is `active` or `invalid`. Delivery feedback from the provider, an APNs 410 or an FCM `UNREGISTERED`, flips a push subscription to `invalid` on its own, so dead tokens need no pruning of yours.
 </Note>
 
+## Anonymous to identified
+
+Apps track people before they sign up. The [iOS SDK](/sdks/ios/identity) mints an anonymous id at first launch and sends it as `anonymousId` on the first `identify` after the device was anonymous, and the API merges that subscriber into the identified one.
+
+```json POST /v1/client/identify
+{
+  "externalId": "user_42",
+  "anonymousId": "anon_9RmZ0hVQb2xKcT4wLpN7s"
+}
+```
+
+Push subscriptions, topic preferences, attributes, live activities, delivery history and the event history all come across, so the person keeps their devices and their timeline. When the id you identify with is new the subscriber is simply renamed and keeps everything untouched, the same row under a new name, and anything already running for them keeps running. When the id already exists the anonymous subscriber is merged into it and retired. On a preference conflict the newer choice wins, and where both identities hold the same live activity the identified one is kept.
+
+A workflow run that was still in flight on a subscriber being retired is canceled with the reason `subscriber_merged`, because the row it was started for no longer exists. A run started before a rename is untouched.
+
+The anonymous id is kept as an [alias](#aliases), so it stays resolvable, and every merge writes a `$subscriber.merged` event carrying the id it merged `from`.
+
+<Note>
+  Only an anonymous, never-verified subscriber is merged automatically. Naming an identified subscriber is refused with `merge_source_identified`, and repeating a merge that already happened does nothing, so identifying on every launch is safe. To link two ids deliberately, use the alias endpoint below.
+</Note>
+
+<Note>
+  A merge moves the most recent 1,000 events of the retired subscriber. Anything older stays where it was written and is not lost, it simply does not appear on the merged timeline. A merge is also refused with `merge_history_pending` while the retired subscriber still has events waiting to reach the event store, so retry it and nothing is dropped.
+</Note>
+
+## Aliases
+
+A subscriber can be known by more than one id. Every past id is kept as an alias, and **any endpoint that takes an `externalId` accepts an alias**, so an id never stops working once it has been used. That covers sends (`to`), including one scheduled before a merge, and the subscriber a [source](/audience/sources) rule names when a provider still reports the old id.
+
+```json POST /v1/subscribers/user_42/aliases
+{ "externalId": "onesignal:8f2c1a" }
+```
+
+The call returns the subscriber's full alias list and behaves in one of two ways:
+
+- **The id is unused.** It is recorded as an alias, and `GET /v1/subscribers/onesignal:8f2c1a` now answers with `user_42`.
+- **The id already belongs to another subscriber.** That subscriber is merged into this one: its subscriptions, preferences, attributes, live activities, deliveries and events move across, its own aliases follow, its in-flight runs are canceled, and it is retired. An id that is only an alias of another subscriber counts as belonging to it, so aliasing one merges that whole subscriber away. This is how you fold imported installs or a legacy id scheme into your real user ids.
+
+`GET /v1/subscribers/:externalId/aliases` lists them, each with the `source` that created it: `system` for one BuzzKit recorded when a device identified, `manual` for one you added yourself.
+
+<Warning>
+  Aliasing an id that belongs to another subscriber merges that subscriber away, and the merge is not reversible through the API. Aliasing a subscriber to its own primary id is refused with `alias_is_primary`.
+</Warning>
+
 ## Identity verification
 
 A client key alone lets any caller claim any `externalId`. To prove the claim, your backend computes `identityHash = HMAC-SHA256(externalId, identitySecret)` as hex and hands it to the app at login. The secret comes from `GET /v1/tenants/:slug/identity-secret`, which is session-only. Keep it server-side and never ship it in the app binary. `POST /v1/tenants/:slug/identity-secret/rotate` invalidates every outstanding hash.

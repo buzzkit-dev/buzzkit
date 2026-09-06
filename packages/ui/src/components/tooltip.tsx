@@ -2,18 +2,72 @@
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import { cn } from '@buzzkit/ui/lib/utils';
-import type * as React from 'react';
+import * as React from 'react';
+
+const TooltipTapContext = React.createContext<React.Dispatch<React.SetStateAction<boolean>> | null>(null);
+
+function useHasHover() {
+  const [hasHover, setHasHover] = React.useState(true);
+
+  React.useEffect(() => {
+    const query = window.matchMedia('(hover: hover)');
+    const onChange = () => {
+      setHasHover(query.matches);
+    };
+    onChange();
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  return hasHover;
+}
 
 function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot='tooltip-provider' delay={delay} {...props} />;
 }
 
-function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot='tooltip' {...props} />;
+function Tooltip({ open, onOpenChange, ...props }: TooltipPrimitive.Root.Props) {
+  const hasHover = useHasHover();
+  const [tapOpen, setTapOpen] = React.useState(false);
+
+  const openedByTap = !hasHover && open === undefined;
+
+  const handleOpenChange: TooltipPrimitive.Root.Props['onOpenChange'] = (nextOpen, details) => {
+    if (openedByTap) {
+      if (nextOpen) return;
+      setTapOpen(false);
+    }
+    onOpenChange?.(nextOpen, details);
+  };
+
+  return (
+    <TooltipTapContext.Provider value={openedByTap ? setTapOpen : null}>
+      <TooltipPrimitive.Root
+        data-slot='tooltip'
+        open={openedByTap ? tapOpen : open}
+        onOpenChange={handleOpenChange}
+        {...props}
+      />
+    </TooltipTapContext.Provider>
+  );
 }
 
-function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
-  return <TooltipPrimitive.Trigger data-slot='tooltip-trigger' {...props} />;
+function TooltipTrigger({ onClick, ...props }: TooltipPrimitive.Trigger.Props) {
+  const setTapOpen = React.useContext(TooltipTapContext);
+
+  const handleClick: TooltipPrimitive.Trigger.Props['onClick'] = (event) => {
+    setTapOpen?.((previous) => !previous);
+    onClick?.(event);
+  };
+
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot='tooltip-trigger'
+      closeOnClick={setTapOpen ? false : undefined}
+      onClick={handleClick}
+      {...props}
+    />
+  );
 }
 
 function TooltipContent({

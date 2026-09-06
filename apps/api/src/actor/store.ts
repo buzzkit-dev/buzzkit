@@ -60,6 +60,43 @@ export class ActorStore {
     return inserted!.sequence;
   }
 
+  hasEvent(id: string): boolean {
+    const [row] = this.sql<{ id: string }>`SELECT id FROM events WHERE id = ${id}`;
+    return row !== undefined;
+  }
+
+  listHistory(limit: number): ActorEventRow[] {
+    return this.sql<ActorEventRow>`
+      SELECT * FROM (SELECT * FROM events ORDER BY sequence DESC LIMIT ${limit}) ORDER BY sequence ASC
+    `;
+  }
+
+  countUnflushed(): number {
+    const flushed = this.readFlushedSequence();
+    const [row] = this.sql<{ pending: number }>`
+      SELECT count(*) AS pending FROM events WHERE sequence > ${flushed}
+    `;
+    return row?.pending ?? 0;
+  }
+
+  hasMergedFrom(subscriberId: number): boolean {
+    return this.readMeta(`merged_from_${subscriberId}`) !== null;
+  }
+
+  recordMergedFrom(subscriberId: number): void {
+    this.writeMeta(`merged_from_${subscriberId}`, new Date().toISOString());
+  }
+
+  mergeProjection(projection: ActorProjection): void {
+    this.sql`
+      INSERT INTO projections (name, count, last_sequence, last_at)
+      VALUES (${projection.name}, ${projection.count}, 0, ${projection.last_at})
+      ON CONFLICT (name) DO UPDATE SET
+        count = count + excluded.count,
+        last_at = max(last_at, excluded.last_at)
+    `;
+  }
+
   recordProjection(name: string, sequence: number, timestamp: string): void {
     this.sql`
       INSERT INTO projections (name, count, last_sequence, last_at)

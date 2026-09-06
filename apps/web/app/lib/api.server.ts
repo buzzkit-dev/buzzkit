@@ -619,6 +619,21 @@ export function getSubscriber(
   );
 }
 
+export function listSubscriberAliases(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  tenantSlug: string,
+  externalId: string
+) {
+  return unwrap(
+    ctx,
+    client(ctx.env, token, { workspace: workspaceSlug, tenant: tenantSlug })
+      .subscribers({ externalId })
+      .aliases.get()
+  );
+}
+
 export function getSubscriberPreferences(
   ctx: RequestContext,
   token: string,

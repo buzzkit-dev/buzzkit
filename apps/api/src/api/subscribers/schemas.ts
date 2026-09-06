@@ -42,6 +42,7 @@ export const DeviceContextSchema = t.Object({
 export const ClientIdentitySchema = t.Object({
   externalId: ExternalIdSchema,
   identityHash: t.Optional(IdentityHashSchema),
+  anonymousId: t.Optional(ExternalIdSchema),
 });
 
 export const SubscriptionInputSchema = t.Object({

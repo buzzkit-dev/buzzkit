@@ -13,8 +13,8 @@ import {
   useMatches,
 } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { NoAccessPage } from '@/app/components/errors/no-access';
-import { NotFoundPage } from '@/app/components/errors/not-found';
+import { NoAccessNotice } from '@/app/components/errors/no-access';
+import { NotFoundNotice } from '@/app/components/errors/not-found';
 import { Sidebar } from '@/app/components/layout/sidebar';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { KnownRoleProvider } from '@/app/hooks/use-known-role';
@@ -291,9 +291,9 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
                 }
               />
             ) : live?.failure === 404 ? (
-              <NotFoundPage />
+              <NotFoundNotice />
             ) : live?.failure === 403 ? (
-              <NoAccessPage />
+              <NoAccessNotice />
             ) : (
               <KnownRoleProvider role={sidebar.workspace?.role ?? role}>{route?.skeleton}</KnownRoleProvider>
             )}

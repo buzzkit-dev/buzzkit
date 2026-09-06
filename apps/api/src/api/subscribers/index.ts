@@ -19,8 +19,10 @@ import {
 import { serializeSubscriberListItem } from './serialize';
 import type { SubscriberListItem } from './types';
 
+export * from './aliases';
 export * from './attributes';
 export * from './constants';
+export * from './merge';
 export * from './profile';
 export * from './registration';
 export * from './schemas';

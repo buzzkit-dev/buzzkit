@@ -4,7 +4,7 @@ import { FieldError } from '@buzzkit/ui/components/field';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { Form, Link, useNavigation } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
-import { AuthPage } from '@/app/components/auth/page';
+import { BrandPage } from '@/app/components/layout/brand-page';
 import { WorkspaceAvatar } from '@/app/components/layout/workspace-switcher';
 import { inviteAction } from '@/app/lib/actions/invite.server';
 import { ApiError, getInvitePreview, getProfile } from '@/app/lib/api.server';
@@ -57,7 +57,7 @@ function InviteCard({
   children?: React.ReactNode;
 }) {
   return (
-    <AuthPage>
+    <BrandPage>
       <Card>
         <CardHeader>
           <CardTitle>
@@ -73,7 +73,7 @@ function InviteCard({
           )}
         </CardContent>
       </Card>
-    </AuthPage>
+    </BrandPage>
   );
 }
 

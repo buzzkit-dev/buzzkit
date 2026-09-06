@@ -963,7 +963,7 @@ export default function DesignSystem() {
         <Section
           id='truncate'
           title='Truncate'
-          description='A single line that cuts off with an ellipsis and, only when it really is cut off, shows the whole text in a tooltip after 150ms, like every time stamp. Replaces a bare `truncate` span wherever the text comes from data.'
+          description='A single line that cuts off with an ellipsis and, only when it really is cut off, shows the whole text in a tooltip after 150ms, like every time stamp. Replaces a bare `truncate` span wherever the text comes from data. `middle` cuts in the centre instead, for ids whose tail carries as much meaning as their head.'
           className='flex-col items-start gap-6'
         >
           <Specimen label='clipped · hover for the full text'>
@@ -980,6 +980,27 @@ export default function DesignSystem() {
             <div className='flex w-56 flex-col rounded-xl bg-bg-2 px-3 py-2'>
               <Truncate className='font-medium text-fg-4 text-sm'>Deals</Truncate>
               <Truncate className='text-fg-2 text-xs'>Weekly offers</Truncate>
+            </div>
+          </Specimen>
+          <Specimen label='middle · both ends of an id stay readable'>
+            <div className='flex w-56 flex-col rounded-xl bg-bg-2 px-3 py-2'>
+              <Truncate middle className='text-fg-4 text-xs'>
+                anon_9RmZ0hVQb2xKcT4wLpN7s
+              </Truncate>
+              <Truncate middle className='text-fg-4 text-xs'>
+                onesignal:8f2c1ad4e7b94f60ac31
+              </Truncate>
+            </div>
+          </Specimen>
+          <Specimen label='middle · several ids sharing one line'>
+            <div className='flex w-80 items-center gap-1.5 rounded-xl bg-bg-2 px-3 py-2'>
+              <Truncate middle className='min-w-0 flex-1 basis-0 text-fg-4 text-xs'>
+                anon_9RmZ0hVQb2xKcT4wLpN7s
+              </Truncate>
+              <span className='shrink-0 text-fg-1'>·</span>
+              <Truncate middle className='min-w-0 flex-1 basis-0 text-fg-4 text-xs'>
+                anon_e54621c03bbe4cd49dff9
+              </Truncate>
             </div>
           </Specimen>
         </Section>

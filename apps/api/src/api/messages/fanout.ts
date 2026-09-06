@@ -6,6 +6,7 @@ import {
   type SegmentVersion,
   selectSegmentVersionById,
 } from '@buzzkit/api/api/segments/index';
+import { externalIdCondition } from '@buzzkit/api/api/subscribers/index';
 import { type Channel, type Topic, topicDefault } from '@buzzkit/api/api/topics/index';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { type ProviderName, PUSH_PROVIDER_BY_PLATFORM } from '@buzzkit/api/providers/index';
@@ -50,7 +51,7 @@ async function resolveTargetPage(
   ];
 
   if (targets.to) {
-    conditions.push(inArray(tables.subscriber.externalId, targets.to));
+    conditions.push(externalIdCondition(targets.to));
   }
   if (zones) {
     conditions.push(zoneCondition(message, zones));

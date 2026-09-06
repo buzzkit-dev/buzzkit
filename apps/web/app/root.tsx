@@ -41,19 +41,19 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error) && error.status === 404) return <NotFoundPage />;
   if (isRouteErrorResponse(error) && error.status === 403) return <NoAccessPage />;
 
-  let title = 'Something broke';
+  let code: string | undefined;
   let details = 'Reload the page. If it keeps happening, contact support.';
   let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    title = `Error ${error.status}`;
+    code = String(error.status);
     details = error.statusText || details;
   } else if (error instanceof Error) {
     details = error.message;
     if (import.meta.env.DEV) stack = error.stack;
   }
 
-  return <ErrorPage title={title} details={details} stack={stack} />;
+  return <ErrorPage code={code} details={details} stack={stack} />;
 }
 
 export default function App() {

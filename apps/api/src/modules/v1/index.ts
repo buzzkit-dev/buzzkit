@@ -41,6 +41,7 @@ import { sourcePreview } from './sources/[id]/preview';
 import { stats } from './stats';
 import { subscribers } from './subscribers';
 import { subscriber } from './subscribers/[externalId]';
+import { subscriberAliases } from './subscribers/[externalId]/aliases';
 import { subscriberDeliveries } from './subscribers/[externalId]/deliveries';
 import { subscriberPreferences } from './subscribers/[externalId]/preferences';
 import { subscriberRuns } from './subscribers/[externalId]/runs';
@@ -159,6 +160,8 @@ export const v1 = new Elysia({ prefix: '/v1' })
   .use(subscribers)
   /* /v1/subscribers/:externalId */
   .use(subscriber)
+  /* /v1/subscribers/:externalId/aliases */
+  .use(subscriberAliases)
   /* /v1/subscribers/:externalId/subscriptions */
   .use(subscriberSubscriptions)
   /* /v1/subscribers/:externalId/preferences */

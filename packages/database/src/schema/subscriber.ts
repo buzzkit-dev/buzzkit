@@ -29,6 +29,31 @@ export const subscriber = pgTable(
   ]
 );
 
+export const subscriberAliasSource = pgEnum('subscriber_alias_source', ['system', 'manual']);
+
+export const subscriberAlias = pgTable(
+  'subscriber_alias',
+  {
+    id: bigId(),
+    tenantId: bigRef('tenant_id')
+      .notNull()
+      .references(() => tenant.id, { onDelete: 'cascade' }),
+    subscriberId: bigRef('subscriber_id')
+      .notNull()
+      .references(() => subscriber.id, { onDelete: 'cascade' }),
+    externalId: text('external_id').notNull(),
+    source: subscriberAliasSource('source').notNull(),
+    createdAt: createdAt(),
+    deletedAt: deletedAt(),
+  },
+  (table) => [
+    uniqueIndex('subscriber_alias_tenant_external_id_unique')
+      .on(table.tenantId, table.externalId)
+      .where(sql`${table.deletedAt} is null`),
+    index('subscriber_alias_subscriber_idx').on(table.subscriberId),
+  ]
+);
+
 export const subscription = pgTable(
   'subscription',
   {
@@ -64,4 +89,4 @@ export const subscription = pgTable(
   ]
 );
 
-export const subscriberTables = { subscriber, subscription };
+export const subscriberTables = { subscriber, subscriberAlias, subscription };

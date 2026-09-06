@@ -1,6 +1,21 @@
 import { uuidv7 } from '@buzzkit/api/utils/uuid';
 import type { ActorStore } from './store';
-import type { ActorEventInput, ActorIngestOutcome } from './types';
+import type { ActorEventInput, ActorEventRow, ActorIngestOutcome } from './types';
+
+export function toHistoryEvent(row: ActorEventRow): ActorEventInput {
+  return {
+    id: row.id,
+    idempotencyKey: null,
+    name: row.name,
+    source: row.source,
+    timestamp: row.timestamp,
+    receivedAt: row.received_at,
+    data: JSON.parse(row.data) as Record<string, unknown>,
+    runId: row.run_id,
+    messageId: row.message_id,
+    step: row.step,
+  };
+}
 
 export function acceptEvents(store: ActorStore, events: ActorEventInput[]): ActorIngestOutcome[] {
   return events.map((event) => acceptEvent(store, event));

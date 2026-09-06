@@ -1,4 +1,5 @@
 import { trackEvents } from '@buzzkit/api/api/events/track';
+import { selectSubscriberByExternalId } from '@buzzkit/api/api/subscribers/index';
 import { findTenantById } from '@buzzkit/api/api/tenants/index';
 import { ApiError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
@@ -62,6 +63,12 @@ function parsePayload(body: string): unknown {
 
 async function resolveSubscriber(db: Db, tenantId: number, event: MappedEvent): Promise<Resolved | null> {
   const rule = event.subscriber;
+
+  if ('externalId' in rule) {
+    const found = await selectSubscriberByExternalId(db, tenantId, rule.externalId);
+    return found ? { subscriberId: found.id, externalId: found.externalId } : null;
+  }
+
   const rows = await db
     .select({ id: tables.subscriber.id, externalId: tables.subscriber.externalId })
     .from(tables.subscriber)
@@ -69,9 +76,7 @@ async function resolveSubscriber(db: Db, tenantId: number, event: MappedEvent): 
       and(
         eq(tables.subscriber.tenantId, tenantId),
         isNull(tables.subscriber.deletedAt),
-        'externalId' in rule
-          ? eq(tables.subscriber.externalId, rule.externalId)
-          : sql`${tables.subscriber.attributes} ->> ${rule.attribute} = ${rule.value}`
+        sql`${tables.subscriber.attributes} ->> ${rule.attribute} = ${rule.value}`
       )
     )
     .orderBy(asc(tables.subscriber.id))

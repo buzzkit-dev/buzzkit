@@ -6,9 +6,11 @@ import {
   DeviceContextSchema,
   deviceSystemAttributes,
   EmailAddressSchema,
+  mergeAnonymousSubscriber,
   PushPermissionSchema,
   resolveSystemAttributes,
   SubscribeOptionsSchema,
+  type SubscriberMerge,
   serializeSubscriber,
   upsertSubscriberProfile,
 } from '@buzzkit/api/api/subscribers/index';
@@ -28,6 +30,14 @@ export const clientIdentify = new Elysia()
 
       assertNoSystemAttributes(body.attributes);
 
+      let merged: SubscriberMerge | null = null;
+      if (body.anonymousId) {
+        merged = await mergeAnonymousSubscriber(db, tenant.id, {
+          anonymousId: body.anonymousId,
+          externalId: body.externalId,
+        });
+      }
+
       const { subscriber, created } = await upsertSubscriberProfile(db, tenant.id, body.externalId, {
         upsert: {
           ...(body.attributes !== undefined ? { attributes: body.attributes, mergeAttributes: true } : {}),
@@ -43,6 +53,13 @@ export const clientIdentify = new Elysia()
         rebind: verified,
         events: (outcome) => {
           const events: SystemEvent[] = [];
+
+          if (merged) {
+            events.push({
+              name: 'subscriber.merged',
+              data: { externalId: outcome.subscriber.externalId, from: merged.from },
+            });
+          }
 
           if (outcome.created) {
             events.push({

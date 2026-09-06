@@ -289,6 +289,34 @@ describe('/v1/sources', () => {
     expect(timeline.body.data?.items[0]?.data).toEqual({ $provider: 'custom' });
   });
 
+  it('resolves the subscriber through an alias when the provider still sends an old id', async () => {
+    const { keyBearer } = await setupWorkspace({ bare: true });
+    const externalId = `user_${uniq()}`;
+    const legacy = `onesignal:${uniq()}`;
+    await identify(keyBearer, externalId);
+    const linked = await api(`/v1/subscribers/${externalId}/aliases`, {
+      method: 'POST',
+      headers: keyBearer,
+      body: JSON.stringify({ externalId: legacy }),
+    });
+    expect(linked.status).toBe(201);
+
+    const created = await createSource(keyBearer, {
+      name: 'Legacy backend',
+      provider: 'custom',
+      secret: 'shared',
+    });
+    const accepted = await ingest(
+      created.body.data!.url,
+      JSON.stringify({ id: `e_${uniq()}`, type: 'order.shipped', userId: legacy }),
+      { 'x-buzzkit-secret': 'shared' }
+    );
+    expect(accepted.body.data?.outcome).toBe('event');
+
+    const timeline = await api<Listed>(`/v1/subscribers/${externalId}/timeline`, { headers: keyBearer });
+    expect(timeline.body.data?.items.map((item) => item.name)).toContain('order.shipped');
+  });
+
   it('lets a custom source use any verification scheme, since a provider is only a template', async () => {
     const { keyBearer } = await setupWorkspace({ bare: true });
     const externalId = `user_${uniq()}`;

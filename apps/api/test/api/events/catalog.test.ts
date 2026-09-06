@@ -158,6 +158,14 @@ const systemPayloads: Record<keyof typeof SYSTEM_EVENTS, { valid: unknown; inval
     invalid: { externalId: 1, attributes: {} },
   },
   'subscriber.deleted': { valid: { externalId: 'user_1' }, invalid: { externalId: null } },
+  'subscriber.aliased': {
+    valid: { externalId: 'user_1', alias: 'anon_abc' },
+    invalid: { externalId: 'user_1', alias: 7 },
+  },
+  'subscriber.merged': {
+    valid: { externalId: 'user_1', from: 'anon_abc' },
+    invalid: { externalId: 'user_1', from: 7 },
+  },
   'subscription.registered': { valid: subscription, invalid: { ...subscription, endpoint: 42 } },
   'subscription.muted': {
     valid: { ...subscription, platform: null },

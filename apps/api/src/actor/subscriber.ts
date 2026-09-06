@@ -20,6 +20,7 @@ import {
   ACTOR_FLUSH_CALLBACK,
   ACTOR_FLUSH_RETRY_SECONDS,
   ACTOR_FLUSH_ROWS,
+  ACTOR_HISTORY_ROWS,
   ACTOR_RETAINED_ROWS,
   ACTOR_RUNS_LIMIT,
   ACTOR_SERVICE,
@@ -27,15 +28,18 @@ import {
 import { evaluateExpression, resolvePath } from './evaluate';
 import { flushEvents } from './flush';
 import { historyOptions } from './history';
-import { acceptEvent, acceptEvents, systemEvent } from './ingest';
+import { acceptEvent, acceptEvents, systemEvent, toHistoryEvent } from './ingest';
 import { selectQuietAnchor } from './quiet';
-import { advanceRuns, runEventData, scheduleRun } from './runs';
+import { advanceRuns, cancelLiveRuns, runEventData, scheduleRun } from './runs';
 import { ActorStore } from './store';
 import type {
   ActorDefinitions,
   ActorEventInput,
   ActorEventRow,
   ActorFlushOutcome,
+  ActorHistory,
+  ActorHistoryInput,
+  ActorHistoryOutcome,
   ActorIdentity,
   ActorIngestInput,
   ActorIngestOutcome,
@@ -129,6 +133,51 @@ export class SubscriberActor extends Agent<Env> {
       t.set('flush.batches', outcome.batches);
       t.set('flush.retry_scheduled', outcome.retryScheduled);
       return outcome;
+    });
+  }
+
+  exportHistory(limit = ACTOR_HISTORY_ROWS): ActorHistory {
+    const rows = this.store.listHistory(limit + 1);
+    const truncated = rows.length > limit;
+    return {
+      events: truncated ? rows.slice(1) : rows,
+      projections: this.store.listProjections(),
+      truncated,
+    };
+  }
+
+  async ingestHistory(input: ActorHistoryInput): Promise<ActorHistoryOutcome> {
+    this.store.writeIdentity(input);
+    if (this.store.hasMergedFrom(input.from)) {
+      return { events: 0, projections: 0, applied: false, pending: false };
+    }
+
+    const flushed = await this.flush();
+    if (flushed.retryScheduled || this.store.countUnflushed() > 0) {
+      return { events: 0, projections: 0, applied: false, pending: true };
+    }
+
+    let events = 0;
+    let lastSequence = 0;
+    for (const row of input.events) {
+      if (this.store.hasEvent(row.id)) continue;
+      lastSequence = this.store.insertEvent(toHistoryEvent(row));
+      events += 1;
+    }
+    const settled = lastSequence > 0 && this.store.countUnflushed() === events;
+    if (settled) this.store.advanceFlushedSequence(lastSequence);
+
+    for (const projection of input.projections) {
+      this.store.mergeProjection(projection);
+    }
+    this.store.recordMergedFrom(input.from);
+
+    return { events, projections: input.projections.length, applied: true, pending: false };
+  }
+
+  async cancelLiveRuns(reason: string): Promise<string[]> {
+    return await cancelLiveRuns(this.store, reason, {
+      terminateRun: (runId) => this.terminateRun(runId),
     });
   }
 

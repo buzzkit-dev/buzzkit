@@ -25,6 +25,8 @@ export const SYSTEM_EVENTS = {
   'subscriber.created': t.Object({ externalId: t.String(), attributes: AttributesSchema }),
   'subscriber.updated': t.Object({ externalId: t.String(), attributes: AttributesSchema }),
   'subscriber.deleted': t.Object({ externalId: t.String() }),
+  'subscriber.aliased': t.Object({ externalId: t.String(), alias: t.String() }),
+  'subscriber.merged': t.Object({ externalId: t.String(), from: t.String() }),
   'subscription.registered': SubscriptionEventDataSchema,
   'subscription.muted': SubscriptionEventDataSchema,
   'subscription.unmuted': SubscriptionEventDataSchema,

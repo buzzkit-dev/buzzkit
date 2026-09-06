@@ -4,6 +4,10 @@ export type Subscriber = typeof tables.subscriber.$inferSelect;
 
 export type Subscription = typeof tables.subscription.$inferSelect;
 
+export type SubscriberAlias = typeof tables.subscriberAlias.$inferSelect;
+
+export type SubscriberAliasSource = SubscriberAlias['source'];
+
 export type SubscriptionChannel = Subscription['channel'];
 
 export type SubscriberInput = {
@@ -17,6 +21,17 @@ export type SubscriberListItem = Subscriber & {
   lastSeenAt: Date | null;
   channels: string[];
   platforms: string[];
+};
+
+export type SubscriberMerge = {
+  subscriber: Subscriber;
+  from: string;
+};
+
+export type SubscriberAliasLink = {
+  subscriber: Subscriber;
+  alias: string;
+  merged: boolean;
 };
 
 export type SubscriptionRegistration = {

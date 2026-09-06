@@ -11,3 +11,5 @@ export const ACTOR_FLUSH_CALLBACK = 'flush';
 export const ACTOR_DEFINITIONS_CHECK_MS = 60_000;
 
 export const ACTOR_RUNS_LIMIT = 100;
+
+export const ACTOR_HISTORY_ROWS = 1_000;

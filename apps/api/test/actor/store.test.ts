@@ -182,6 +182,87 @@ describe('ActorStore', () => {
     });
   });
 
+  describe('listHistory', () => {
+    it('returns the newest events oldest-first so a copy preserves their order', () => {
+      const { store } = createActorStore();
+      insertMany(store, 5);
+
+      expect(store.listHistory(3).map((row) => row.id)).toEqual(['evt_3', 'evt_4', 'evt_5']);
+    });
+
+    it('returns everything it has when the limit is wider than the table', () => {
+      const { store } = createActorStore();
+      insertMany(store, 2);
+
+      expect(store.listHistory(10).map((row) => row.id)).toEqual(['evt_1', 'evt_2']);
+    });
+
+    it('is empty on a store that never saw an event', () => {
+      const { store } = createActorStore();
+
+      expect(store.listHistory(10)).toEqual([]);
+    });
+  });
+
+  describe('countUnflushed', () => {
+    it('counts only the events past the flushed mark', () => {
+      const { store } = createActorStore();
+      const sequences = insertMany(store, 4);
+      expect(store.countUnflushed()).toBe(4);
+
+      store.advanceFlushedSequence(sequences[1]!);
+      expect(store.countUnflushed()).toBe(2);
+
+      store.advanceFlushedSequence(sequences.at(-1)!);
+      expect(store.countUnflushed()).toBe(0);
+    });
+  });
+
+  describe('merge markers', () => {
+    it('remembers each source it already absorbed', () => {
+      const { store } = createActorStore();
+      expect(store.hasMergedFrom(7)).toBe(false);
+
+      store.recordMergedFrom(7);
+
+      expect(store.hasMergedFrom(7)).toBe(true);
+      expect(store.hasMergedFrom(8)).toBe(false);
+    });
+  });
+
+  describe('mergeProjection', () => {
+    it('adds an absorbed count onto the one already held and keeps the newest timestamp', () => {
+      const { store } = createActorStore();
+      store.recordProjection('app.opened', 4, '2026-08-27T00:00:04.000Z');
+
+      store.mergeProjection({
+        name: 'app.opened',
+        count: 3,
+        last_sequence: 9,
+        last_at: '2026-08-26T00:00:00.000Z',
+      });
+
+      expect(store.listProjections()).toEqual([
+        { name: 'app.opened', count: 4, last_sequence: 4, last_at: '2026-08-27T00:00:04.000Z' },
+      ]);
+    });
+
+    it('creates a projection the destination never had', () => {
+      const { store } = createActorStore();
+
+      store.mergeProjection({
+        name: 'cart.paid',
+        count: 2,
+        last_sequence: 5,
+        last_at: '2026-08-27T00:00:00.000Z',
+      });
+
+      expect(store.listProjections()).toEqual([
+        { name: 'cart.paid', count: 2, last_sequence: 0, last_at: '2026-08-27T00:00:00.000Z' },
+      ]);
+    });
+  });
+
   describe('recordProjection', () => {
     it('creates a projection with count 1 on first sight', () => {
       const { store } = createActorStore();

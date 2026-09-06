@@ -2,6 +2,7 @@ import { NotFoundError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { deepEqual } from '@buzzkit/api/utils/equality';
 import { and, type Db, eq, getTableColumns, isNull, sql, tables } from '@buzzkit/database';
+import { selectSubscriberByAlias } from './aliases';
 import { assertAttributesSize } from './attributes';
 import { IDENTITY_REVERIFY_THROTTLE_MS, SYSTEM_ATTRIBUTE_PREFIX } from './constants';
 import type { Subscriber, SubscriberInput, Subscription } from './types';
@@ -49,7 +50,7 @@ function isSubscriberCurrent(existing: Subscriber, input: SubscriberInput, now: 
   return true;
 }
 
-async function findExistingSubscriber(
+export async function selectSubscriberByExternalId(
   db: Db,
   tenantId: number,
   externalId: string
@@ -64,7 +65,9 @@ async function findExistingSubscriber(
         isNull(tables.subscriber.deletedAt)
       )
     );
-  return subscriber ?? null;
+  if (subscriber) return subscriber;
+
+  return await selectSubscriberByAlias(db, tenantId, externalId);
 }
 
 export async function findSubscriberByExternalId(
@@ -72,17 +75,8 @@ export async function findSubscriberByExternalId(
   tenantId: number,
   externalId: string
 ): Promise<Subscriber> {
-  const [subscriber] = await trace('subscribers.findByExternalId', async () => {
-    return await db
-      .select()
-      .from(tables.subscriber)
-      .where(
-        and(
-          eq(tables.subscriber.tenantId, tenantId),
-          eq(tables.subscriber.externalId, externalId),
-          isNull(tables.subscriber.deletedAt)
-        )
-      );
+  const subscriber = await trace('subscribers.findByExternalId', async () => {
+    return await selectSubscriberByExternalId(db, tenantId, externalId);
   });
 
   if (!subscriber) {
@@ -129,7 +123,7 @@ export async function upsertSubscriber(
 
   return await trace('subscribers.upsert', async (span) => {
     const now = new Date();
-    const existing = await findExistingSubscriber(db, tenantId, externalId);
+    const existing = await selectSubscriberByExternalId(db, tenantId, externalId);
 
     if (existing && isSubscriberCurrent(existing, input, now)) {
       span.set('subscriber.written', false);
@@ -137,6 +131,22 @@ export async function upsertSubscriber(
     }
 
     const attributes = resolveAttributes(existing, input);
+
+    if (existing) {
+      const [updated] = await db
+        .update(tables.subscriber)
+        .set({
+          ...(attributes !== undefined ? { attributes } : {}),
+          ...(input.verifiedNow ? { identityVerifiedAt: now } : {}),
+          updatedAt: now,
+        })
+        .where(eq(tables.subscriber.id, existing.id))
+        .returning();
+
+      span.set('subscriber.written', true);
+      return { subscriber: updated!, created: false, changed: true };
+    }
+
     const [row] = await db
       .insert(tables.subscriber)
       .values({

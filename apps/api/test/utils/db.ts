@@ -1,6 +1,6 @@
 import { and, drizzle, eq, postgres, sql, tables } from '@buzzkit/database';
 
-export { desc, eq, sql, tables } from '@buzzkit/database';
+export { and, desc, eq, isNull, sql, tables } from '@buzzkit/database';
 
 const client = postgres('postgresql://postgres:postgres@localhost:5460/buzzkit', {
   max: 2,

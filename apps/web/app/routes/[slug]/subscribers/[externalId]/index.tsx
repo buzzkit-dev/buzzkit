@@ -39,7 +39,7 @@ import {
 } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
@@ -69,6 +69,7 @@ import {
   getSubscriber,
   getSubscriberPreferences,
   listEventNames,
+  listSubscriberAliases,
   listSubscriberDeliveries,
   listSubscriberRuns,
   listSubscriberTimeline,
@@ -153,8 +154,9 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   return {
     activityFiltered: Boolean(eventFilter || sourceValue),
     detail: (async () => {
-      const [subscriber, preferences, deliveries, events, runs, names] = await Promise.all([
+      const [subscriber, aliases, preferences, deliveries, events, runs, names] = await Promise.all([
         requireFound(getSubscriber(ctx, token, params.slug, tenant, params.externalId)),
+        listSubscriberAliases(ctx, token, params.slug, tenant, params.externalId),
         getSubscriberPreferences(ctx, token, params.slug, tenant, params.externalId),
         listSubscriberDeliveries(ctx, token, params.slug, tenant, params.externalId, { limit: 8 }),
         listSubscriberTimeline(ctx, token, params.slug, tenant, params.externalId, {
@@ -185,6 +187,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       }));
       return {
         subscriber,
+        aliases: aliases.items,
         preferences,
         deliveries,
         events,
@@ -596,11 +599,8 @@ function textOf(data: Record<string, unknown>, key: string): string | null {
 function activityDetail(event: TimelineEvent): string | null {
   const data = (event.data ?? {}) as Record<string, unknown>;
   if (event.name === '$preferences.updated') return preferenceText(data);
-  if (
-    event.name === '$subscriber.created' ||
-    event.name === '$subscriber.updated' ||
-    event.name === '$identify'
-  ) {
+  if (event.name === '$subscriber.created') return textOf(data, 'externalId');
+  if (event.name === '$subscriber.updated' || event.name === '$identify') {
     const attributes = data.attributes;
     if (!attributes || typeof attributes !== 'object') return null;
     return pairText(
@@ -612,8 +612,7 @@ function activityDetail(event: TimelineEvent): string | null {
     return [textOf(data, 'workflow'), trailing && sentence(trailing)].filter(Boolean).join(' · ') || null;
   }
   if (event.name.startsWith('$')) {
-    const detail = describeStreamEvent(event).detail;
-    return detail ? sentence(detail) : null;
+    return describeStreamEvent(event).detail;
   }
   const entries = Object.entries(data);
   const plain = entries.filter(([key]) => !key.startsWith('$'));
@@ -685,7 +684,8 @@ function SubscriberContent({
   activityFiltered: boolean;
 }) {
   const filters = useFilters(['event', 'source']);
-  const { subscriber, preferences, deliveries, events, runs, name, eventNames, sourceOptions } = data;
+  const { subscriber, aliases, preferences, deliveries, events, runs, name, eventNames, sourceOptions } =
+    data;
   const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
   const custom = Object.fromEntries(
     Object.entries(attributes).filter(([key]) => !key.startsWith('$') && key !== 'name' && key !== 'email')
@@ -733,6 +733,20 @@ function SubscriberContent({
               <span className='text-xs'>{subscriber.externalId}</span>
               <VerifiedBadge verified={subscriber.verified} />
             </DetailRow>
+            {aliases.length > 0 && (
+              <DetailRow label='Also known as' copy={aliases.map((alias) => alias.externalId).join(', ')}>
+                <span className='flex min-w-0 items-center'>
+                  {aliases.map((alias, index) => (
+                    <Fragment key={alias.externalId}>
+                      <Truncate middle className='text-xs'>
+                        {alias.externalId}
+                      </Truncate>
+                      {index < aliases.length - 1 && <span className='mr-1 shrink-0 text-fg-2'>,</span>}
+                    </Fragment>
+                  ))}
+                </span>
+              </DetailRow>
+            )}
             {email && (
               <DetailRow label='Email' copy={email}>
                 {email}

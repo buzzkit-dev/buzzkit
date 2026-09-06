@@ -23,6 +23,7 @@ Domain functions (`src/api/**`) use exactly these verbs:
 | `revoke*` (keys/invites) · `remove*` (memberships, actor rows) | takes something away |
 | `assert*` | invariant check that throws; returns `void` |
 | `resolve*` | derive a value from input/context (settings, credentials, decrypted secrets) |
+| `merge*` · `link*` | fold one subscriber's identity into another · attach another id to one (`api/subscribers/merge.ts`) |
 | `serialize*` | response shape |
 | `mask*` · `mark*` | redaction · response decorators |
 | delivery verbs | `enqueue*` `claim*` `apply*` `finalize*` `expire*` `reconcile*` `rewrap*` `purge*` `touch*` `revalidate*` `resend*` `accept*` `record*` |
@@ -102,6 +103,7 @@ Names and structure carry the meaning; invariants live in `docs/`. Applies to ev
 - Routes use the `db` from context (the shared plugin client). Engine/DO steps use `stepDb()`; queue consumers and sweeps use `batchDb()`. Never call `createDb` with inline options.
 - Soft delete only; every read filters `isNull(deletedAt)`. Every data-plane query filters by `tenantId` from resolved auth context.
 - Counts go through `countRows(db, table, where)` — never hand-roll `select({ total: count() })` or raw `sql`count(*)``.
+- **A write that spans more than one table is one `db.transaction`**, and helpers it calls take `Db | Tx` (`api/keys/index.ts`). Durable Object and other out-of-database work cannot join that transaction, so it runs *before* it and must be idempotent — mark what it did in the actor (`store.recordMergedFrom`) and make a repeat a no-op, so a failed transaction is safely retried. Never leave a partial write behind by ordering the irreversible step last: `api/subscribers/merge.ts` moves history and cancels runs first, then does every row change in one transaction.
 
 ## Pagination — the domain owns the page
 
