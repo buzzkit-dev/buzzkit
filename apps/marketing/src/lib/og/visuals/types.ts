@@ -9,4 +9,5 @@ export type Visual =
   | { kind: 'schedule' }
   | { kind: 'sources' }
   | { kind: 'tenants' }
-  | { kind: 'apiKey' };
+  | { kind: 'apiKey' }
+  | { kind: 'dashboard' };

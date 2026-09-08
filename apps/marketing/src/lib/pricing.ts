@@ -13,9 +13,9 @@ export interface Plan {
 
 export const pricing = {
   title: 'Pay for notifications delivered.',
-  continuation: 'Not for every user you store.',
+  continuation: 'Not for every user you register.',
   intro:
-    'Unlimited subscribers, devices, tenants, workflows and providers on every plan. Bring your own delivery providers and pay BuzzKit only for orchestration at scale.',
+    'Subscribers, devices, tenants and workflows are unlimited on every plan. You bring your own delivery providers and pay them directly, so a plan covers only what BuzzKit does.',
   beta: {
     title: 'Free and unlimited during the beta.',
     text: 'No card, no limits, and notice before any billing starts. The plans below are a preview of where pricing is heading, not a commitment, and can still change.',
@@ -27,7 +27,7 @@ export const plans: Plan[] = [
     slug: 'community',
     name: 'Self-hosted',
     price: '$0',
-    audience: 'The whole product on your own infrastructure, free, for teams who want to run it themselves.',
+    audience: 'Run the whole product on your own servers for free. A setup guide arrives after the beta.',
     numbers: [
       { label: 'Deliveries', value: 'Unlimited' },
       { label: 'Events', value: 'Unlimited' },
@@ -35,7 +35,7 @@ export const plans: Plan[] = [
       { label: 'Support', value: 'Community' },
     ],
     cta: {
-      label: 'Read the Self Hosting Guide',
+      label: 'Read About Self-Hosting',
       href: 'https://docs.buzzkit.dev/platform/self-hosting',
       variant: 'elevated',
     },
@@ -44,7 +44,7 @@ export const plans: Plan[] = [
     slug: 'free',
     name: 'Free',
     price: '$0',
-    audience: 'Side projects and small apps. There is always a free plan.',
+    audience: 'Side projects and small apps. There’ll always be a free plan.',
     numbers: [
       { label: 'Deliveries', value: '100,000 a month' },
       { label: 'Events', value: '1 million a month' },
@@ -88,7 +88,7 @@ export const plans: Plan[] = [
     slug: 'enterprise',
     name: 'Enterprise',
     price: 'Custom',
-    audience: 'Contractual, security or infrastructure commitments.',
+    audience: 'Custom terms, security review and dedicated hosting.',
     numbers: [
       { label: 'Deliveries', value: 'Custom' },
       { label: 'Events', value: 'Custom' },
@@ -102,7 +102,7 @@ export const plans: Plan[] = [
 
 export const calculator = {
   title: 'Calculate your costs',
-  text: 'Deliveries are active users times the notifications each of them gets. Put in your numbers and the rate a per-user tool charges you today, and compare.',
+  text: 'Your deliveries are your active users times the notifications each of them gets. Put in your own numbers, add what a per-user tool charges you today, and compare the two.',
 };
 
 export const delivery = {
@@ -120,7 +120,7 @@ export const delivery = {
 
 export const providers = {
   title: 'Your providers, your bill',
-  text: 'BuzzKit sends through your own Apple and Firebase credentials, and through your own email and SMS providers as those channels arrive. You pay them directly. BuzzKit never marks up a message, so a plan is only about orchestration: events, subscribers, workflows, preferences, retries, the ledger and the dashboard.',
+  text: 'BuzzKit sends through your own Apple and Firebase credentials, and through your own email and SMS providers as those channels arrive. You pay those providers directly and BuzzKit never marks a message up, so what you pay for here is the events, workflows, preferences, retries, the delivery ledger and the dashboard around them.',
 };
 
 type Cell = boolean | string;
@@ -197,9 +197,9 @@ export const matrix: { group: string; rows: MatrixRow[] }[] = [
 
 export const pricingFaq: FaqItem[] = [
   {
-    question: 'Is it really free right now?',
+    question: 'What happens when the beta ends?',
     answer:
-      'Yes. During the beta the hosted version has no limits and no card. Existing workspaces are told before any billing starts, with time to pick a plan or move to self-hosting. A free plan will always exist.',
+      'You get notice before any billing starts, with time to pick a plan or move to self-hosting. A free plan will always exist.',
   },
   {
     question: 'Do you charge per user?',
@@ -214,11 +214,11 @@ export const pricingFaq: FaqItem[] = [
   {
     question: 'Which providers do I pay for?',
     answer:
-      'Apple and Firebase are free. When email and SMS arrive, you bring a provider such as Resend or Twilio and pay them directly. BuzzKit adds no markup.',
+      'Apple and Firebase are free, so push costs nothing beyond your plan. Email and SMS will need a provider such as Resend or Twilio when those channels arrive.',
   },
   {
-    question: 'Is the Free plan a crippled version?',
+    question: 'What is the difference between the plans?',
     answer:
-      'No. Every plan has the whole product: workflows, segments, topics, sources, the ledger. Paid plans buy volume, history, compliance and support.',
+      'Volume, history, compliance and support. Every plan has the whole product: workflows, segments, topics, sources and the delivery ledger.',
   },
 ];

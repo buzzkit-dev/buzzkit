@@ -26,8 +26,7 @@ export interface FaqItem {
 
 export const hero = {
   headline: 'The Open Source Notification Orchestration Layer.',
-  subheadline:
-    'One call sends, retries and lands on every device. Segments, workflows and scheduling are built in, and your users choose what reaches them.',
+  subheadline: 'Send notifications, automate follow-ups and track delivery with one API.',
   primaryCta: 'Get Started',
   secondaryCta: 'Star on GitHub',
 };
@@ -35,8 +34,8 @@ export const hero = {
 export const valueProps: ValueProp[] = [
   {
     icon: 'IconCodeLargeFilled',
-    lead: 'Code-first.',
-    text: 'A REST API and a typed SDK. Everything your code creates shows up in the dashboard exactly as you defined it.',
+    lead: 'Send with one call.',
+    text: 'Send to a person or an audience. BuzzKit finds their devices and handles delivery.',
   },
   {
     icon: 'IconLayersTwoFilled',
@@ -46,7 +45,7 @@ export const valueProps: ValueProp[] = [
   {
     icon: 'IconKey1',
     lead: 'Your keys, your data.',
-    text: 'Your own Apple and Firebase credentials, encrypted per tenant. Nothing sits between you and the providers, and no message is marked up.',
+    text: 'Your own provider credentials, encrypted, with no markup on messages and no shared provider account.',
   },
 ];
 
@@ -55,42 +54,42 @@ export const features: Feature[] = [
     id: 'workflows',
     icon: 'IconSplitFilled',
     title: 'Workflows',
-    text: 'Lifecycle messaging that reacts to what people do, with waits, branches and sends per subscriber.',
-    points: ['Quiet-moment delivery', 'Dry runs before publish', 'Versioned specs'],
+    text: 'Build event-based workflows with waits, conditions and follow-ups, with zero custom code.',
+    points: ['Quiet-moment delivery', 'Dry runs before publish', 'Version history'],
   },
   {
     id: 'segments',
     icon: 'IconTargetFilled',
     title: 'Segments',
-    text: 'Audiences by who someone is and what they did, evaluated live the moment you send.',
+    text: 'Reach new users, paying customers or people who haven’t opened your app in a week.',
     points: ['Attribute and event conditions', 'Inline expressions on a send', 'Live preview counts'],
   },
   {
     id: 'scheduling',
     icon: 'IconCalendarClockFilled',
     title: 'Scheduling',
-    text: 'One message, arriving at nine in the morning in every subscriber’s own time zone.',
+    text: 'Send at 9 a.m. in each user’s time zone, with quiet hours and daily limits built in.',
     points: ['Subscriber-timezone sends', 'Quiet hours and daily caps', 'Cancel until the last minute'],
   },
   {
     id: 'preferences',
     icon: 'IconToggle',
-    title: 'Topics & Preferences',
-    text: 'A notification settings screen straight from the API, with no backend code.',
-    points: ['Choices per topic and channel', 'Defaults with overrides', 'One GET, one PATCH'],
+    title: 'Topics & preferences',
+    text: 'Let users choose what they receive, with preferences automatically applied to every send.',
+    points: ['Choices per topic and channel', 'Defaults with overrides', 'Preferences API'],
   },
   {
     id: 'sources',
     icon: 'IconWebhooksFilled',
     title: 'Sources',
-    text: 'Turn the webhooks you already receive into subscriber events, presets included.',
+    text: 'Connect integrations or custom webhooks to trigger notifications from the tools you already use.',
     points: [],
   },
   {
     id: 'live-activities',
     icon: 'IconLiveFullFilled',
     title: 'Live Activities',
-    text: 'Start, update and end iOS Live Activities from the same API that sends your push.',
+    text: 'Start, update and end Live Activities for orders, scores and more, using the same API as your push notifications.',
     points: [],
   },
 ];
@@ -98,37 +97,37 @@ export const features: Feature[] = [
 export const deepDives: DeepDive[] = [
   {
     id: 'delivery',
-    title: 'Every attempt, accounted for.',
-    text: 'A durable queue fans out to every reachable device and keeps retrying for hours, so a provider hiccup never loses a notification. Every attempt is recorded, and the device reports back when a push landed and when it was opened.',
+    title: 'See what happened to every push.',
+    text: 'See whether a push was sent, delivered or opened, and why it failed, with automatic retries on failure.',
     points: [
-      'Retries with backoff, for hours',
-      'Delivered and opened receipts per device',
-      'Live counts, reconciled exactly',
-      'Idempotent sends, never a double push',
+      'Automatic retries for temporary failures',
+      'Delivery and open receipts per device',
+      'Progress for each message',
+      'Request retries without a second message',
     ],
   },
   {
     id: 'ios',
-    title: 'Drop the SDK in. The rest is wired.',
-    text: 'Identify, register and track in four lines. Offline queueing, action buttons, deep links and Live Activities come built in.',
+    title: 'Add the SDK. Skip the token management.',
+    text: 'Register your users and devices with the Swift SDK, which keeps device tokens up to date and tracks events even when offline.',
     points: [
       'Action buttons and deep links',
-      'Offline event queue with replay',
+      'Event tracking while offline',
       'Live Activities and push-to-start',
-      'Permission state as a segment condition',
+      'Targeting by push permission',
     ],
   },
 ];
 
 export const principles = {
-  title: 'Infrastructure you own.',
-  text: 'Your code, your workspaces, your credentials.',
+  title: 'Notifications made easy.',
+  text: 'Bring your provider credentials and let BuzzKit do the heavy lifting, from choosing who to notify to tracking actual delivery.',
 };
 
 export const agents = {
-  title: 'Agent native, end to end.',
-  text: 'Every page ships as markdown, the API as a spec and the integration guide as a skill. Your agent can wire push into your app in two prompts.',
-  prompt: 'Add push notifications to my app with BuzzKit',
+  title: 'Let your agent set it up.',
+  text: 'Point your agent to BuzzKit to add notifications to your app, with agent-friendly pages and guides it can read along the way.',
+  prompt: 'Add notifications to my app with buzzkit.dev',
   surface: [
     '/llms.txt',
     '/index.md',
@@ -147,65 +146,66 @@ export const agents = {
 
 export const selfHost = {
   title: 'Open source, top to bottom.',
-  text: 'Everything is open source, from the API, the dashboard and the SDKs to the schemas. Use the hosted version, or self-host the same code on your own.',
+  text: 'The API, dashboard and SDKs are fully open source. Run them yourself or use the hosted version.',
   facts: [
     {
       icon: 'IconGithub',
       lead: 'Open source.',
-      text: 'Every feature in the repository. Nothing held back.',
+      text: 'The full product is in the repo. Nothing held back.',
     },
     {
       icon: 'IconServer1Filled',
-      lead: 'Self-hostable.',
-      text: 'Run the same API and dashboard we run, on your own infrastructure.',
+      lead: 'Self-hosted.',
+      text: 'Same API and dashboard, on your own servers.',
     },
     {
       icon: 'IconRocket',
       lead: 'Hosted.',
-      text: 'The easiest way in. Run by us at buzzkit.dev, always on the latest.',
+      text: 'Sign up and start sending. No servers to run.',
     },
   ],
 };
 
 export const faq: FaqItem[] = [
   {
-    question: 'What is BuzzKit?',
+    question: 'What do I need to start sending?',
     answer:
-      'The open source notification orchestration layer. A REST API, a dashboard and an iOS SDK for sending, segmenting, scheduling and automating push, on your own Apple and Firebase credentials.',
+      'Your own provider credentials. Connect them in the dashboard and BuzzKit handles delivery, retries and tracking.',
   },
   {
-    question: 'How do I send a notification?',
+    question: 'What do I need to add to my app?',
     answer:
-      'One POST with a title, a body and a recipient: a subscriber, a topic or a segment. BuzzKit works out who is reachable, lands it on every device, retries when a provider stumbles and records each attempt.',
+      'Add the SDK, configure it with a client key and register users for push. The SDK handles device tokens and event tracking.',
   },
   {
-    question: 'Do I need my own APNs and FCM keys?',
-    answer:
-      'Yes. BuzzKit sends with your credentials, never through a shared account, so the relationship with Apple and Google stays yours. Each workspace and tenant keeps its own keys, encrypted.',
+    question: 'Does BuzzKit support Android or email?',
+    answer: 'Currently only iOS, including Live Activities. Android, email and web push are coming.',
   },
   {
-    question: 'Can users choose what they receive?',
-    answer:
-      'Yes. Topics give your app a notification settings screen with no backend code. Subscribers opt in or out per topic, and every send respects that.',
+    question: 'Can I use BuzzKit for multiple apps?',
+    answer: 'Yes. You can create as many workspaces as you like.',
   },
   {
-    question: 'Can I send at each user’s local time?',
+    question: 'Can I build on top of BuzzKit?',
     answer:
-      'Yes. Schedule a message for 9:00 in the subscriber’s time zone and it reaches each person when their own clock gets there.',
+      'Yes. Tenants are for when you send for your customers. Each tenant has its own subscribers, credentials and notifications.',
   },
   {
-    question: 'Which platforms are supported?',
-    answer:
-      'iOS today. BuzzKit is built multi-channel, with Android, email and web push as connectors on the same core, and starts with a complete iOS experience.',
+    question: 'Can I see if a notification was delivered?',
+    answer: 'Yes. Native tracing shows whether it was sent, delivered or opened, and why it failed.',
   },
   {
-    question: 'Can I self-host?',
+    question: 'What does BuzzKit cost?',
     answer:
-      'Yes. The whole thing is open source and runs on your own infrastructure. The hosted version at buzzkit.dev is the easiest way to start.',
+      'The hosted beta is free and unlimited, with no credit card required. See the [pricing page](/pricing) for full details.',
+  },
+  {
+    question: 'Can I self-host BuzzKit?',
+    answer: 'Yes. The API and dashboard are fully open source. Self-hosting guides are coming soon.',
   },
 ];
 
 export const closing = {
-  title: 'Your first push in five minutes.',
-  text: 'Create a workspace, connect a credential, send.',
+  title: 'Send your first notification.',
+  text: 'Free during the beta. No credit card required.',
 };

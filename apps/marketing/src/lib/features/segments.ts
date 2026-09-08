@@ -5,18 +5,17 @@ export const segments: FeaturePage = {
   name: 'Segments',
   icon: 'IconTargetFilled',
   group: 'Automate',
-  summary:
-    'Audiences described by who a subscriber is and what they did, evaluated live the moment you send.',
-  blurb: 'Expressions evaluated at send time',
-  title: 'Who they are and what they did.',
-  continuation: 'Evaluated the moment you send.',
+  summary: 'Reach new users, paying customers or people who have not opened the app in a week.',
+  blurb: 'Who they are, what they did',
+  title: 'Reach exactly who you want.',
+  continuation: 'Evaluated when you send.',
   intro:
-    'A segment describes an audience: attributes, events and how often, last activity, which channels can reach them. It is never a frozen list. Every send reads the audience as it stands right now, so nobody who churned yesterday gets today’s message.',
+    'Combine attributes, events and activity into an audience. There is no list to export or keep in sync, because it is worked out the moment you send.',
   vignette: 'segment',
   sections: [
     {
-      title: 'One grammar for every condition',
-      text: 'Combine conditions in all, any and not groups. Compare attributes, count events inside a window or require that one never happened, and filter on last activity and reachable channels. One grammar answers the whole audience question.',
+      title: 'Who they are and what they did.',
+      text: 'Attributes, events, last activity, who can be reached. Combine them however you need.',
       code: `{
   "all": [
     { "ref": "attributes.plan", "eq": "pro" },
@@ -31,8 +30,8 @@ export const segments: FeaturePage = {
 }`,
     },
     {
-      title: 'Preview before you save',
-      text: 'See the audience before you commit to it. The preview answers with how many subscribers match right now and a sample of who they are, and the dashboard builder updates the count as you type.',
+      title: 'See the audience first.',
+      text: 'Preview the count and a sample of who matches before you send.',
       code: `POST /v1/segments/preview
 {
   "expression": {
@@ -45,8 +44,8 @@ export const segments: FeaturePage = {
 { "count": 1284, "sample": [ … ] }`,
     },
     {
-      title: 'Versioned, and pinned on send',
-      text: 'Editing a segment creates a new version, and every message remembers which one it used. An edit never changes who an in-flight message reaches, and you can always explain why someone was in the audience.',
+      title: 'Every send records the audience it used.',
+      text: 'Change a segment later and the message still shows which version went out, and to how many people.',
       code: `POST /v1/messages
 {
   "segment": "active-pro",
@@ -54,7 +53,6 @@ export const segments: FeaturePage = {
   "body": "Book before Maya’s class fills."
 }
 
-// The message remembers exactly who it went to
 {
   "id": "msg_7g2h",
   "targets": {
@@ -68,44 +66,34 @@ export const segments: FeaturePage = {
   capabilities: [
     {
       title: 'Event windows',
-      text: 'Count an event in the last minutes, hours or days, or target the people who never did it.',
+      text: 'Three workouts this week, or none in a month.',
     },
     {
-      title: 'System attributes',
-      text: 'Country, timezone, language, app version and push permission arrive from the device with no work on your side.',
+      title: 'Device facts',
+      text: 'Country, time zone, language, app version and push permission, without tracking them yourself.',
     },
     {
-      title: 'Fresh within seconds',
-      text: 'Membership is one query over the event stream, as current as the last event that came in.',
+      title: 'Always current',
+      text: 'As fresh as the last event that came in.',
     },
     {
       title: 'Inline on a send',
-      text: 'Write the expression on the message itself for a one-off audience.',
+      text: 'A one-off audience without saving a segment.',
     },
     {
-      title: 'Shared with workflows',
-      text: 'Triggers, branches and schedules speak the same grammar, so an audience is defined once.',
+      title: 'Same expression everywhere',
+      text: 'Workflows and schedules take the one you already wrote.',
     },
     {
       title: 'Typed in the SDK',
-      text: 'Types and lint ship in the buzzkit package, so a broken expression fails on your machine and not in production.',
+      text: 'A broken expression fails on your machine, not in production.',
     },
   ],
   faq: [
     {
-      question: 'How fresh is a segment when I send to it?',
+      question: 'Can I filter on what is inside an event?',
       answer:
-        'Membership is evaluated at send time against the event stream, usually within seconds of the last event. Nothing is cached as a list.',
-    },
-    {
-      question: 'Can a segment filter on event data, not just the event name?',
-      answer:
-        'Today a segment counts events by name inside a window. Event data is stored as a queryable column, and predicates on it are the next step of the grammar.',
-    },
-    {
-      question: 'How large can an expression be?',
-      answer:
-        'Groups nest up to eight levels deep with at most fifty conditions, and an in condition takes up to a hundred values. The lint names the node when a limit is crossed.',
+        'Right now you can filter by the event name and a time window. Filtering on the data inside an event is coming.',
     },
   ],
   related: ['sending', 'workflows', 'topics'],

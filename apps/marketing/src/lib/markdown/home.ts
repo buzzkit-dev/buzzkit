@@ -47,9 +47,9 @@ POST /v1/messages
 }
 \`\`\`
 
-BuzzKit answers 202 with a message id, resolves who is reachable, fans out through a durable queue and records every delivery attempt.
+BuzzKit queues the notification and returns a message ID you can use to check delivery status.
 
-## Everything a push needs.
+## Everything you need, built in.
 
 ${features
   .map(

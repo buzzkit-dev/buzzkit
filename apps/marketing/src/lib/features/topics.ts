@@ -5,18 +5,17 @@ export const topics: FeaturePage = {
   name: 'Topics & Preferences',
   icon: 'IconTagFilled',
   group: 'Platform',
-  summary:
-    'Notification categories with per-topic, per-channel choices, and a settings screen your app gets with no backend code.',
-  blurb: 'A settings screen with no backend',
-  title: 'A settings screen with no backend code.',
-  continuation: 'Per topic, per channel, resolved for you.',
+  summary: 'Let users choose what they receive. Preferences apply to every send, automatically.',
+  blurb: 'Users choose what they get',
+  title: 'Let users choose what they receive.',
+  continuation: 'Applied to every send, automatically.',
   intro:
-    'Topics are the categories your notifications belong to: workout reminders, progress updates, tips and offers. Subscribers choose per topic and per channel, the settings screen comes straight from the API, and every send to a topic reaches the people who said yes.',
+    'A notification settings screen with no backend behind it, and no opt-out list to check before you send.',
   vignette: 'preferences',
   sections: [
     {
-      title: 'Defaults with overrides',
-      text: 'Decide what people get before they ever open settings. A topic carries a default choice, per-channel defaults and a category heading, and a subscriber’s own choice always wins over both.',
+      title: 'Defaults, with room to opt out.',
+      text: 'Start people on what makes sense. Their own choice always wins.',
       code: `POST /v1/topics
 {
   "slug": "running-reminders",
@@ -29,8 +28,8 @@ export const topics: FeaturePage = {
 }`,
     },
     {
-      title: 'The settings screen is two requests',
-      text: 'One GET returns the whole catalog with the resolved state per channel, grouped by category, ready to render as a list of switches. One PATCH saves a choice. The iOS SDK wraps both, so the screen is an afternoon and not a sprint.',
+      title: 'A settings screen from the API.',
+      text: 'One call reads the topics, another saves a choice, and the SDK renders the whole screen for you.',
       code: `PATCH /v1/client/preferences
 BuzzKit-Subscriber: user_42
 {
@@ -41,8 +40,8 @@ BuzzKit-Subscriber: user_42
 }`,
     },
     {
-      title: 'Every send respects the choice',
-      text: 'Send to a topic and BuzzKit filters to the people opted in on that channel. A muted device, a topic turned off or a channel switched off stops a delivery before it is queued, so a preference is a promise and not a suggestion.',
+      title: 'Every send respects the choice.',
+      text: 'Send to a topic and only the people who said yes get it.',
       code: `POST /v1/messages
 {
   "topic": "running-reminders",
@@ -51,15 +50,13 @@ BuzzKit-Subscriber: user_42
   "body": "Track is booked from 19:00."
 }
 
-// Only subscribers opted into running-reminders
-// on push are reachable
 { "id": "msg_4k1d", "counts": { "total": 812 } }`,
     },
   ],
   capabilities: [
     {
-      title: 'Deviations only',
-      text: 'Only changes are stored, so a new default reaches everyone who never chose.',
+      title: 'Defaults you can change later',
+      text: 'A new default reaches everyone who never chose for themselves.',
     },
     {
       title: 'Categories',
@@ -67,36 +64,30 @@ BuzzKit-Subscriber: user_42
     },
     {
       title: 'Server or client',
-      text: 'Read and write preferences from your backend or straight from the app.',
+      text: 'You can read and write preferences from your backend or straight from the app.',
     },
     {
       title: 'Identity verification',
-      text: 'A hash from your backend proves which user a request speaks for, so nobody can change someone else’s settings.',
+      text: 'A hash from your backend proves the request really is for that person.',
     },
     {
       title: 'Kept through changes',
-      text: 'Narrow a topic’s channels and the choices people already made survive.',
+      text: 'A choice someone already made survives even if you narrow a topic’s channels.',
     },
     {
-      title: 'On the timeline',
-      text: 'Every change is an event on the subscriber’s stream, so segments and workflows can react to it.',
+      title: 'Opting out is an event',
+      text: 'Segments and workflows can react when someone turns something off.',
     },
   ],
   faq: [
     {
-      question: 'How do I let users choose which notifications they get?',
+      question: 'Do I need a settings screen to use topics?',
       answer:
-        'Create a topic per category, then render the client preferences endpoint as a list of switches. The iOS SDK does this out of the box.',
+        'No. A topic is useful as a category on a send even if your app never shows one, and you can add the screen later.',
     },
     {
-      question: 'What happens when I change a topic’s default?',
-      answer:
-        'Subscribers who never chose follow the new default immediately. Subscribers who chose keep their choice.',
-    },
-    {
-      question: 'Can a subscriber opt out of push but keep email for the same topic?',
-      answer:
-        'Yes. Preferences are per topic and per channel, so a subscriber can keep the email and turn off the push, or the other way around.',
+      question: 'Can someone turn off one channel and keep another?',
+      answer: 'Yes. Someone can keep the push and drop the email for the same topic.',
     },
   ],
   related: ['sending', 'segments', 'ios-sdk'],

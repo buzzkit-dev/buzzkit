@@ -51,7 +51,7 @@ export function ValueCards({
       </div>
       <div className='flex flex-col rounded-[1.75rem] bg-bg-1 p-4 shadow-2 corner-superellipse/1.125'>
         <Frame>
-          <div className='absolute top-6 left-6 w-64'>
+          <div className='absolute top-6 left-1/2 w-64 max-w-[calc(100%_-_2rem)] -translate-x-1/2'>
             <Card className='p-1 shadow-3'>
               <span className='px-2.5 pt-1.5 pb-1 font-medium text-fg-2 text-xs'>Workspaces</span>
               <span className='flex h-8 items-center gap-2 rounded-lg py-1 pr-2 pl-1.25 text-fg-4 text-sm'>

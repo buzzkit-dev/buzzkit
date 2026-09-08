@@ -51,7 +51,6 @@ export function AccountCta({
 
 function resolvePlainLinks(docsUrl: string): Link[] {
   return [
-    { label: 'Buzz', href: '/buzz' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'Docs', href: docsUrl },
   ];

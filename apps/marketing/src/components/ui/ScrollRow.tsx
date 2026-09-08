@@ -7,7 +7,7 @@ export function ScrollRow({ children, className }: { children: React.ReactNode; 
   return (
     <div className={cn('relative', className)}>
       <ScrollFade orientation='horizontal' targetRef={viewport} />
-      <div ref={viewport} className='overflow-x-auto'>
+      <div ref={viewport} className='-m-2 overflow-x-auto p-2'>
         <div className='w-max min-w-full'>{children}</div>
       </div>
     </div>

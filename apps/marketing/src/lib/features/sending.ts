@@ -5,17 +5,17 @@ export const sending: FeaturePage = {
   name: 'Sending',
   icon: 'IconPaperPlaneTopRightFilled',
   group: 'Send',
-  summary: 'One POST reaches a subscriber, a topic or a whole segment, on every device they own.',
-  blurb: 'One POST, every device',
-  title: 'One call, every device.',
-  continuation: 'Target by id, topic or segment.',
+  summary: 'Send to a person, a topic or a segment. BuzzKit finds their devices and handles delivery.',
+  blurb: 'One call, every device',
+  title: 'Send with one call.',
+  continuation: 'To a person, a topic or a segment.',
   intro:
-    'Sending a notification is one POST: a title, a body and who it is for, by your own user ids, a topic or a segment. BuzzKit works out which devices can be reached, delivers through your own Apple and Firebase credentials and records every attempt along the way.',
+    'Send to a person or an audience. BuzzKit finds their devices, delivers through your credentials and records what happened.',
   vignette: 'send',
   sections: [
     {
-      title: 'Target the way you already think',
-      text: 'Address people, not tokens. Send to a user id, to a list of them, to everyone opted into a topic or to a segment, or describe a one-off audience inline on the send itself. Combine a topic with any target and preferences apply on their own.',
+      title: 'Send to people, not tokens.',
+      text: 'Address a user id, a list of them, a topic or a segment. Combine a topic with any of those and preferences apply on their own.',
       code: `POST /v1/messages
 {
   "segment": "active-pro",
@@ -27,8 +27,8 @@ export const sending: FeaturePage = {
 }`,
     },
     {
-      title: 'The full notification, not a subset',
-      text: 'Nothing Apple or Firebase can show is off the table. Subtitle, badge, sound, image, threading, interruption level, relevance score, up to four action buttons and a deep link are all first-class fields, and raw fields reach anything provider-specific on top.',
+      title: 'More than a title and a body.',
+      text: 'Add action buttons, a deep link, a badge, a sound or an image.',
       code: `POST /v1/messages
 {
   "to": "user_42",
@@ -49,8 +49,8 @@ export const sending: FeaturePage = {
 }`,
     },
     {
-      title: 'Idempotent by design',
-      text: 'Retry a request as many times as you like. With an idempotency key, a replay returns the original message and sends nothing new, so a network hiccup or a retry loop never turns into a double push.',
+      title: 'Fully idempotent.',
+      text: 'Retry the same send and only one push goes out.',
       code: `POST /v1/messages
 Idempotency-Key: workout-2026-08-20-user_42
 
@@ -64,45 +64,44 @@ Idempotent-Replayed: true
   ],
   capabilities: [
     {
-      title: 'Reachability resolved',
-      text: 'Subscriptions, preferences and channel switches are checked before anything is queued, so the people who can and want to receive it are the ones who do.',
+      title: 'One request',
+      text: 'A topic or a segment of any size is still one call.',
     },
     {
-      title: 'Expiry that holds',
-      text: 'Set a time to live from one minute to 28 days and the providers honor it, so a stale notification never lands late.',
+      title: 'Time to live',
+      text: 'A stale notification never lands late.',
     },
     {
       title: 'Live counts',
-      text: 'Pending, sent, failed and invalid update as the message goes out and are reconciled exactly at the end.',
+      text: 'Sent, delivered, failed and invalid as the message goes out.',
     },
     {
-      title: 'Send policy',
-      text: 'Quiet hours and a daily cap per tenant keep you from over-sending, with an override for the alerts that cannot wait.',
+      title: 'Quiet hours',
+      text: 'Daily caps and quiet hours, with an override for alerts that cannot wait.',
     },
     {
       title: 'Cancel in time',
-      text: 'A scheduled message can be canceled right up to the moment it releases.',
+      text: 'A scheduled message can be canceled until it goes out.',
     },
     {
-      title: 'Live Activities too',
-      text: 'The same API starts, updates and ends iOS Live Activities and reports what Apple answered.',
+      title: 'Live Activities',
+      text: 'The same API starts, updates and ends them.',
     },
   ],
   faq: [
     {
-      question: 'How many subscribers can one send target?',
+      question: 'How do I send a notification?',
       answer:
-        'A direct send takes up to a thousand ids at once. A topic or a segment has no ceiling: fan-out runs in pages that chain themselves, so a million-subscriber audience is still one request.',
+        'One POST with a title, a body and who it is for: a person, a topic or a segment. BuzzKit finds their devices and handles delivery.',
     },
     {
-      question: 'What happens if the same request is sent twice?',
+      question: 'What if I send the same request twice?',
       answer:
         'With an idempotency key, the second request returns the original message and nothing is sent again. Without one, two messages are created.',
     },
     {
       question: 'Can I send a silent push?',
-      answer:
-        'Yes. A data-only message is a silent push, and the raw Apple and Firebase fields give you content-available, priority and anything else provider-specific.',
+      answer: 'Yes. A data-only message is a silent push.',
     },
   ],
   related: ['segments', 'scheduling', 'delivery'],

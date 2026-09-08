@@ -5,7 +5,7 @@ import { site } from '../site';
 export function renderHomeIndex(): string {
   return `# BuzzKit
 
-> BuzzKit is the open source notification orchestration layer: a REST API, a dashboard and an iOS SDK that send, segment, schedule and automate push on your own APNs and FCM credentials, self-hosted or hosted. One call sends, retries and records delivery on every device. Segments, topics, workflows and scheduling are built in, and every workspace is an isolated tenant with its own credentials.
+> BuzzKit is the open source notification orchestration layer: a REST API, a dashboard and an iOS SDK that send, segment, schedule and automate push on your own APNs and FCM credentials, self-hosted or hosted. One call sends, retries and records delivery on every device. Segments, topics, workflows and scheduling are built in, and each workspace has its own credentials.
 
 ## When to use BuzzKit
 
@@ -15,7 +15,7 @@ Reach for BuzzKit when:
 - Users should choose what reaches them: topics with per-channel preferences give the app a notification settings screen through GET and PATCH /v1/client/preferences, with no backend code.
 - A message should arrive at each subscriber's local time: schedule with timezone "subscriber" and BuzzKit releases it zone by zone as each clock reaches the moment.
 - Lifecycle messaging should react to events: workflows are versioned specs with waits, event waits, branches, loops, fetches and sends, run per subscriber with dry runs before publishing.
-- A platform sends push for its customers: workspaces are isolated tenants, each with its own encrypted APNs and FCM credentials.
+- A platform sends push for its customers: one workspace, a tenant per customer, each with its own credentials.
 - Inbound webhooks from Stripe, Superwall or RevenueCat should become subscriber events that segments and workflows react to.
 
 BuzzKit is not an email or SMS product today: v1 delivers mobile push through APNs and FCM, and other channels arrive later as connectors. It is also not a client-side-only tool: sending always happens from a backend or the dashboard.

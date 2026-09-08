@@ -6,17 +6,17 @@ export const multiTenancy: FeaturePage = {
   icon: 'IconLayersTwoFilled',
   group: 'Platform',
   summary:
-    'One workspace, a tenant per customer, each with its own subscribers, credentials and sends, sealed off from the rest.',
-  blurb: 'A tenant per customer, one key',
+    'Building on BuzzKit? Each of your customers is a tenant, with its own subscribers, credentials and notifications.',
+  blurb: 'A tenant per customer',
   title: 'Send for your customers.',
-  continuation: 'One workspace, a tenant per app, one key.',
+  continuation: 'One workspace, a tenant per customer.',
   intro:
-    'Build a platform that sends push for its customers without building a push platform. A tenant is one customer: its own subscribers, topics, credentials, segments, workflows and messages, sealed off from every other tenant. Your platform keeps one key and names the tenant on each request.',
+    'Ship notifications as part of your own product without building the push infrastructure for every customer you sign. Your own apps stay workspaces.',
   vignette: 'tenants',
   sections: [
     {
-      title: 'One key, one header',
-      text: 'Create tenants with your workspace key and act on them with the same key. A tenant-scoped call adds one header naming the tenant, the way a Stripe platform names a connected account, and an app with a single tenant never has to think about any of this.',
+      title: 'One key, one header.',
+      text: 'Create tenants with your workspace key. Name the tenant on each request, the way Stripe names a connected account. A single-app workspace never has to think about this.',
       code: `POST /v1/tenants
 {
   "name": "Gymly",
@@ -29,20 +29,19 @@ buzzkit-tenant: gymly
 { "to": "user_42", "title": "Leg day" }`,
     },
     {
-      title: 'Isolated by default',
-      text: 'Each tenant brings its own Apple and Firebase credentials, and nothing crosses the line: subscribers, topics, segments, workflows, sources and messages stay in their tenant. Members, API keys and the audit log belong to the workspace, so your team sees everything.',
+      title: 'Isolated by default.',
+      text: 'Each tenant has its own credentials, subscribers and sends. Nothing crosses the line. Your team still sees everything.',
       code: `GET /v1/subscribers
 buzzkit-tenant: gymly
 
-// Only Gymly’s subscribers, on Gymly’s credentials
 {
   "data": [{ "externalId": "user_42" }],
   "total": 13460
 }`,
     },
     {
-      title: 'Keys with a smaller blast radius',
-      text: 'Hand a customer or a subsystem direct access with a tenant key that reaches one tenant and nothing else. Every tenant also gets a client key for the app, which can identify subscribers and register devices and do nothing more.',
+      title: 'Three kinds of key.',
+      text: 'A workspace key reaches every tenant, a tenant key reaches one, and a client key ships in the app.',
       code: `// Workspace key: every tenant, named per request
 Authorization: Bearer bk_ws_…
 buzzkit-tenant: gymly
@@ -61,40 +60,40 @@ Authorization: Bearer bk_pk_…`,
     },
     {
       title: 'Your customer id',
-      text: 'Store your own ids in the tenant’s metadata and find it by them.',
+      text: 'Keep your own ids on the tenant and look it up by them later.',
     },
     {
       title: 'Settings per tenant',
-      text: 'Pause a channel or require identity verification for one tenant and leave the rest alone.',
+      text: 'You can pause a channel for one customer and leave everyone else alone.',
     },
     {
       title: 'Identity secret',
-      text: 'A per-tenant secret proves who a subscriber is. Rotate it any time.',
+      text: 'Each tenant has its own secret for proving who a subscriber is, and you can rotate it any time.',
     },
     {
       title: 'Dashboard switcher',
-      text: 'Inspect any tenant’s subscribers, messages and runs from the workspace switcher.',
+      text: 'Your team can open any tenant and see its subscribers, messages and runs.',
     },
     {
       title: 'Audit trail',
-      text: 'Creating, changing and deleting tenants lands in the workspace audit log.',
+      text: 'Creating, changing and deleting a tenant all land in the workspace audit log.',
     },
   ],
   faq: [
     {
       question: 'Is a tenant an environment?',
       answer:
-        'No. A tenant is a customer or an app you send for, with its own data and credentials. Environments are handled by the credentials themselves: an Apple key covers sandbox and production.',
+        'No. A tenant is a customer you send for. Sandbox and production come from the credential itself, so you do not need a tenant for each.',
     },
     {
-      question: 'Do I need an API key per tenant?',
+      question: 'Can each customer bring their own Apple credentials?',
       answer:
-        'No. Store one workspace key and pass the tenant slug in the buzzkit-tenant header. Tenant keys exist for delegating one tenant’s access and are never required.',
+        'Yes. A tenant holds its own, so your customers keep their own relationship with Apple and their own app.',
     },
     {
-      question: 'Can I delete a tenant?',
+      question: 'Do I need a key per tenant?',
       answer:
-        'Yes. Deleting a tenant revokes its tenant keys and hides its data. The default tenant cannot be deleted or renamed.',
+        'No. You use one workspace key and name the tenant on each request. Tenant keys are there if you want to hand a customer their own access.',
     },
   ],
   related: ['sending', 'delivery', 'topics'],

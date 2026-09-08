@@ -5,18 +5,17 @@ export const sources: FeaturePage = {
   name: 'Sources',
   icon: 'IconMailboxFilled',
   group: 'Automate',
-  summary:
-    'Stripe, Superwall, RevenueCat or any webhook, turned into subscriber events with no code on your side.',
-  blurb: 'Webhooks turned into events',
-  title: 'Every webhook becomes an event.',
-  continuation: 'Verified, mapped, deduplicated.',
+  summary: 'Connect Stripe, Superwall, RevenueCat or your own webhooks, and turn them into events.',
+  blurb: 'Webhooks into events',
+  title: 'Turn webhooks into notifications.',
+  continuation: 'Stripe, Superwall, RevenueCat, or your own.',
   intro:
-    'A source turns the webhooks you already receive into events on a subscriber’s timeline. Stripe says a subscription started, the source verifies the signature, finds the customer and records it, and a workflow or a segment reacts. No endpoint to write, no code to deploy.',
+    'A payment or a cancellation becomes a subscriber event, verified, matched to the right person and deduplicated before a workflow ever sees it.',
   vignette: 'sources',
   sections: [
     {
-      title: 'A provider is a template',
-      text: 'Pick Stripe, Superwall, RevenueCat or custom, paste the signing secret, and the verification and the default mapping are filled in for you. Everything stays editable, and a source without a secret records what arrives without creating events.',
+      title: 'Pick a provider, paste the secret.',
+      text: 'Choose one of the presets or a custom source, and verification and a default mapping come filled in.',
       code: `POST /v1/sources
 {
   "name": "Stripe billing",
@@ -25,8 +24,8 @@ export const sources: FeaturePage = {
 }`,
     },
     {
-      title: 'The mapping decides what lands on the timeline',
-      text: 'Choose which provider events become which subscriber events, which values travel along as event data, and how the subscriber is found: by your external id or by any attribute such as a Stripe customer id. A where clause keeps test mode out of production.',
+      title: 'Decide which events matter.',
+      text: 'Pick the ones worth keeping, name them, and say how to find the person they belong to.',
       code: `{
   "type": "type",
   "id": "id",
@@ -44,8 +43,8 @@ export const sources: FeaturePage = {
 }`,
     },
     {
-      title: 'Every delivery has one outcome',
-      text: 'Nothing that hits the ingest URL goes unexplained. Each delivery is recorded as an event with the subscriber it landed on, a duplicate, dropped with a reason, or rejected, and you can replay a stored payload against a new mapping before you change it.',
+      title: 'See what happened to every webhook.',
+      text: 'Each one is recorded as an event, a duplicate, dropped or rejected, and you can replay it before changing a mapping.',
       code: `GET /v1/sources/src_2f9/deliveries
 {
   "data": [
@@ -67,44 +66,39 @@ export const sources: FeaturePage = {
   capabilities: [
     {
       title: 'Stripe, Superwall, RevenueCat',
-      text: 'Presets for the billing and paywall tools apps already run on, ready in a minute.',
+      text: 'Each preset knows the provider’s payload, so there is nothing to work out.',
     },
     {
       title: 'Custom sources',
-      text: 'Any service that posts JSON with a shared secret becomes a source.',
+      text: 'Anything that can post JSON with a shared secret works too.',
     },
     {
       title: 'Subscriber lookup',
-      text: 'Match by your external id or by any stored attribute.',
+      text: 'BuzzKit finds the person by your user id or any attribute you store.',
     },
     {
-      title: 'Secrets sealed at rest',
-      text: 'Signing secrets are encrypted and never returned.',
+      title: 'Write-only secrets',
+      text: 'A signing secret is encrypted and never returned by the API.',
     },
     {
       title: 'Pause without losing anything',
-      text: 'A paused source keeps a record of every delivery and creates no events until you resume.',
+      text: 'Deliveries keep being recorded while a source is paused, and no events are created until you resume.',
     },
     {
       title: 'Audit and webhooks',
-      text: 'Every change to a source is an audit entry and an outbound webhook.',
+      text: 'Every change is an audit entry and an outbound webhook.',
     },
   ],
   faq: [
     {
-      question: 'How do I turn Stripe webhooks into push notifications?',
+      question: 'Where do I point the provider’s webhook?',
       answer:
-        'Create a Stripe source, paste its signing secret, and add the ingest URL in Stripe. Subscription events land on the subscriber’s timeline, and a workflow triggered on subscription.started sends the push.',
+        'Every source gets its own ingest URL when you create it. Paste that into the provider, and signatures are checked from the first request.',
     },
     {
-      question: 'What if a webhook arrives for a customer BuzzKit does not know?',
+      question: 'What if BuzzKit does not know that customer yet?',
       answer:
-        'The delivery is recorded as dropped with the reason no_subscriber and no event is created. Store the provider’s customer id as an attribute on identify so the mapping can match it.',
-    },
-    {
-      question: 'Does BuzzKit replay duplicate webhooks?',
-      answer:
-        'No. The provider’s event id is the deduplication key per source, so a retried delivery is recorded as duplicate.',
+        'The delivery is recorded as dropped and no event is created. Store the provider’s customer id as an attribute so the next one matches.',
     },
   ],
   related: ['workflows', 'segments', 'sending'],

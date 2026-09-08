@@ -1,6 +1,7 @@
 import { cn } from '@buzzkit/ui/lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
+import { parseFaqAnswer } from '../../lib/faq';
 
 const spring = { type: 'spring', visualDuration: 0.25, bounce: 0 } as const;
 
@@ -41,7 +42,21 @@ function Item({ question, answer, last }: { question: string; answer: string; la
             transition={spring}
             className='overflow-hidden'
           >
-            <p className='pb-5 text-fg-2 text-pretty leading-relaxed'>{answer}</p>
+            <p className='pb-5 text-fg-2 text-pretty leading-relaxed'>
+              {parseFaqAnswer(answer).map((part) =>
+                part.href ? (
+                  <a
+                    key={part.start}
+                    href={part.href}
+                    className='font-medium text-fg-4 underline underline-offset-2 hover:opacity-70'
+                  >
+                    {part.text}
+                  </a>
+                ) : (
+                  part.text
+                )
+              )}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>

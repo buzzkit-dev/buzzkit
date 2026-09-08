@@ -1,6 +1,6 @@
 ---
 name: copy
-description: Rules for every user-facing string in the buzzkit dashboard (page titles and descriptions, card and field hints, empty states, buttons, dialogs, toasts, errors). Use whenever writing, changing or reviewing UI copy, before the string lands in a file.
+description: Write and review BuzzKit dashboard and marketing copy. Use for page copy, feature descriptions, FAQs, labels, hints, buttons and errors.
 ---
 
 # Copy
@@ -23,6 +23,37 @@ A page description says what the page is for. A field hint says what the option 
 | "New key" (button) | Does not name the action; the dialog's own button said "Create key". | "Create key" |
 | "API tokens" | The API calls them keys; the dashboard uses the API's words. | "API keys" |
 | "Invalid credentials." | Names no cause and no next step. | "Email or password is incorrect" + "Double-check your details or create an account." |
+| "Create a tenant for each app." | Tenants are not apps. | "Create a workspace for each app." |
+
+## Marketing copy
+
+Talk like a person. Be useful, specific and clean. Dashboard hint rules below are not a template for landing pages.
+
+A marketing string has one job: say what the reader can do, or what work BuzzKit takes off their hands. Then stop.
+
+**Useful beats short.** “Send at 9 a.m. in each user’s time zone” is useful. “Your notifications, in one place” and “An API, an SDK and a dashboard” are not. A concrete example that explains the feature stays: “Send a trial reminder after three days. Stop it if they subscribe.”
+
+**Heading and description work as a pair.** The description adds information. Do not restate the heading, define the label, or split one thought into slogans. Connected prose, one flowing sentence for a short description.
+
+**Conversational, not cute.** Headings say what the thing unlocks, not what it is. “Complex automations, no custom code” not “Workflows are just documents.” “Schedules too” is a gimmick. Feature names are ordinary words: Workflows, Schedules, Segments.
+
+**Talk normally.** An answer is a sentence a person would say out loud, with a subject and a verb. “Right now you can filter by the event name and a time window” not “Currently by event name and a time window.” “You use one workspace key and name the tenant on each request” not “One workspace key, and name the tenant on the request.” A leading “Yes.” or “No.” is followed by a full sentence, never a noun pile. “Currently only iOS, including Live Activities. Android, email and web push are coming.” not “iOS push and Live Activities today.” Not docs: no JSON fields, publishing mechanics, Xcode, APNs internals or notification service extensions in page copy. Those belong in examples or docs.
+
+**BuzzKit does the heavy lifting.** Bring provider credentials. Device tokens, delivery, retries and tracing are handled. Do not sell “infrastructure you own” or “infrastructure you manage.” The API, dashboard and SDKs are fully open source. Hosted means you sign up and start sending. Self-hosting guides are coming soon: do not link a guide that does not exist.
+
+**Workspaces and tenants.** A workspace is one app. Multiple apps are multiple workspaces: “You can create as many workspaces as you like.” Tenants are only for building on BuzzKit and sending for your customers. Never “a tenant per app.” A single-app page never has to mention tenants.
+
+**Channels.** Currently only iOS, including Live Activities. Do not write as if Android or email already send. iOS-specific pages (the SDK, Live Activities) can say iOS. Every other page stays product-wide and honest when asked.
+
+**Delivery.** Native tracing shows whether a push was sent, delivered or opened, and why it failed. Lead with that, not with Apple’s response or a service extension.
+
+**FAQs.** Questions someone would actually ask before using this page: setup, platforms, cost, delivery, self-hosting, building on BuzzKit. Answers talk normally and, when it helps, link (the pricing page). Not staged objections (“Is the Free plan a crippled version?”), not the feature grid asked back as questions, not Apple-only setup. If the page already has a section or card for it, the FAQ is not that question again. No FAQ is better than a stupid one: Live Activities are iOS-only, so do not ask whether they work on Android.
+
+**Capabilities.** Something the reader might not assume. Not expected behavior: validation, “refused before it can misfire,” honesty about bad input. A daily cap is a daily cap, not a share. Messages go out, not people. A scheduled time is a scheduled time, not a moment.
+
+### Feature pages
+
+Title is a page heading that says what it unlocks (“Send with one call”, “Complex automations, no custom code”), not a definition and not a stacked feature list. A useful example belongs in the intro. Continuation adds one fact. Intro is one or two sentences: the job, and what BuzzKit handles. A section title is a claim; its text adds information; the code sample shows, it does not explain. A capability title names the thing; its text is the extra fact. Keep useful existing copy; a full pass does not require changing every string.
 
 ## Per kind of string
 
@@ -44,7 +75,7 @@ A page description says what the page is for. A field hint says what the option 
 
 **Inline error** — what is wrong and what to do, addressed to the reader: "Give the key a name." "Pick at least one scope." "This slug is already taken. Try another."
 
-## Banned
+## Dashboard restrictions
 
 - Reassurance and sales: "safe", "secure", "simply", "easily", "powerful", "seamless".
 - Fragments joined by periods or semicolons where a sentence belongs.
@@ -58,6 +89,8 @@ A page description says what the page is for. A field hint says what the option 
 
 Use the API's nouns, and only these: **workspace**, **tenant**, **subscriber**, **subscription**, **topic**, **channel**, **message**, **delivery**, **credential**, **key** (workspace key, tenant key, client key, never token), **member**, **invite**, **webhook**, **event**. Providers are **Apple** and **Android**, the product is **BuzzKit**, the library is **the SDK**, the service is **the API**. People are "you"; the product is never "we" except in "Continue with GitHub"-style platform phrasing.
 
+A **workspace** is one app you send for. Multiple apps are multiple workspaces. A **tenant** is a customer of someone building on BuzzKit: you send for them from one workspace. Tenants are not apps, not projects, and not environments. A single-app workspace never has to mention tenants.
+
 ## Before you finish
 
 Read every new string as the person seeing it for the first time, on the actual screen, and check:
@@ -67,5 +100,9 @@ Read every new string as the person seeing it for the first time, on the actual 
 3. Would Stripe ship it word for word?
 4. Does it use a word from the banned list, or a noun not in the vocabulary?
 5. Is it the same length as its neighbours of the same kind?
+6. Did you call an app a tenant? Multiple apps are workspaces. Tenants are customers of someone building on BuzzKit.
+7. Is it useful and specific, or empty organization, a feature inventory or a docs definition?
+8. Does a FAQ repeat a section already on the page?
+9. Is this capability just expected behavior?
 
 If any answer is wrong, rewrite before moving on. Copy is never "good enough for now".

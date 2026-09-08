@@ -1,4 +1,5 @@
 import type { FaqItem } from '../content';
+import { absolutizeFaqLinks } from '../faq';
 import { site } from '../site';
 
 export const startLinks = `## Start
@@ -12,7 +13,9 @@ export function renderPoints(points: string[]): string {
 }
 
 export function renderFaq(items: FaqItem[]): string {
-  return items.map((item) => `### ${item.question}\n\n${item.answer}`).join('\n\n');
+  return items
+    .map((item) => `### ${item.question}\n\n${absolutizeFaqLinks(item.answer, site.url)}`)
+    .join('\n\n');
 }
 
 export function renderCell(value: boolean | string): string {

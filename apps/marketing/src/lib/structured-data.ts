@@ -1,4 +1,5 @@
 import type { FaqItem } from './content';
+import { plainFaqAnswer } from './faq';
 import { plans } from './pricing';
 import { site } from './site';
 
@@ -9,7 +10,7 @@ export function faqStructuredData(items: FaqItem[]) {
     mainEntity: items.map((item) => ({
       '@type': 'Question',
       name: item.question,
-      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+      acceptedAnswer: { '@type': 'Answer', text: plainFaqAnswer(item.answer) },
     })),
   };
 }

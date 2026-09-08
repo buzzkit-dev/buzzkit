@@ -13,6 +13,16 @@ describe('faqStructuredData', () => {
       ],
     });
   });
+
+  it('stores FAQ answers as plain text, not markdown links', () => {
+    const data = faqStructuredData([
+      { question: 'Cost?', answer: 'See the [pricing page](/pricing) for full details.' },
+    ]);
+    expect(data.mainEntity[0]?.acceptedAnswer).toEqual({
+      '@type': 'Answer',
+      text: 'See the pricing page for full details.',
+    });
+  });
 });
 
 describe('pageStructuredData', () => {

@@ -16,6 +16,7 @@ export const COLORS = {
   bg3: '#eff0f1',
   bg4: '#e6e7e9',
   bgA1: 'rgba(0, 0, 0, 0.027)',
+  bgA2: 'rgba(0, 0, 0, 0.047)',
   backgroundSubtle: '#fafafa',
   brand1: '#eef2ff',
   brand2: '#d9e3ff',
@@ -24,10 +25,13 @@ export const COLORS = {
   green4: '#58d176',
   greenText: '#009840',
   blue1: '#eefbff',
+  blue4: '#34cfff',
   blueText: '#008fb5',
   sky1: '#edf3ff',
+  sky4: '#4d8dfa',
   skyText: '#2376ff',
   amber1: '#fff8e9',
+  amber4: '#ffb62e',
   amberText: '#b27a00',
   purple1: '#f8f3fe',
   purpleText: '#a851ff',
@@ -65,7 +69,7 @@ export const SHADOWS = {
   knob: '0px 1px 2px rgba(0, 0, 0, 0.16), 0px 0px 0px 1px rgba(0, 0, 0, 0.04)',
 };
 
-const SCALE = 1.3;
+const SCALE = 1.4;
 
 export function px(value: number): number {
   return Math.round(value * SCALE * 2) / 2;
@@ -165,6 +169,63 @@ function svgDataUri(markup: string): string {
 
 function image(src: string, size: number, style: Style = {}): Node {
   return { type: 'img', props: { src, width: size, height: size, style } };
+}
+
+export interface AreaSeries {
+  values: number[];
+  color: string;
+}
+
+function curve(points: [number, number][]): string {
+  let path = `M ${points[0]![0]} ${points[0]![1]}`;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[index - 1] ?? points[index]!;
+    const from = points[index]!;
+    const to = points[index + 1]!;
+    const next = points[index + 2] ?? to;
+    const first = [from[0] + (to[0] - previous[0]) / 6, from[1] + (to[1] - previous[1]) / 6];
+    const second = [to[0] - (next[0] - from[0]) / 6, to[1] - (next[1] - from[1]) / 6];
+    path += ` C ${first[0]} ${first[1]} ${second[0]} ${second[1]} ${to[0]} ${to[1]}`;
+  }
+  return path;
+}
+
+export function areaChart(
+  series: AreaSeries[],
+  width: number,
+  height: number,
+  strokeWidth: number,
+  fillOpacity: number
+): Node {
+  const all = series.flatMap((entry) => entry.values);
+  const lowest = Math.min(...all);
+  const highest = Math.max(...all);
+  const span = highest - lowest || 1;
+  const top = strokeWidth;
+  const plot = height - top;
+
+  const shapes = series
+    .map((entry, index) => {
+      const points = entry.values.map(
+        (value, position) =>
+          [(position / (entry.values.length - 1)) * width, top + plot - ((value - lowest) / span) * plot] as [
+            number,
+            number,
+          ]
+      );
+      const line = curve(points);
+      const filled = `${line} L ${width} ${height} L 0 ${height} Z`;
+      return `<path d="${filled}" fill="url(#fill${index})" /><path d="${line}" fill="none" stroke="${entry.color}" stroke-width="${strokeWidth}" stroke-linecap="round" />`;
+    })
+    .join('');
+  const gradients = series
+    .map(
+      (entry, index) =>
+        `<linearGradient id="fill${index}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${entry.color}" stop-opacity="${fillOpacity}" /><stop offset="1" stop-color="${entry.color}" stop-opacity="0" /></linearGradient>`
+    )
+    .join('');
+  const markup = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none"><defs>${gradients}</defs>${shapes}</svg>`;
+  return { type: 'img', props: { src: svgDataUri(markup), width, height, style: {} } };
 }
 
 export function logo(size: number, radius: number): Node {

@@ -5,26 +5,25 @@ export const iosSdk: FeaturePage = {
   name: 'iOS SDK',
   icon: 'IconAppleFilled',
   group: 'SDKs',
-  summary:
-    'Registration, identity, events, action buttons, Live Activities and a settings screen in one Swift package.',
-  blurb: 'Identity, events and push in Swift',
-  title: 'Drop the SDK in.',
-  continuation: 'The rest is wired.',
+  summary: 'Push in a few lines of Swift. Tokens, permission and events are handled by the SDK.',
+  blurb: 'A few lines to push',
+  title: 'Push in a few lines of Swift.',
+  continuation: 'No token management.',
   intro:
-    'Four lines at launch and your app has push. Configure with a client key, identify the user by your own id, register for push and track what they do. Tokens, permission state, offline queues and receipts are handled for you from then on.',
+    'Device tokens, permission, sandbox builds and the event queue are handled by the SDK, so none of it ends up in your app code.',
   vignette: 'ios',
   sections: [
     {
-      title: 'Four lines to a registered device',
-      text: 'Configure, identify, register, track. The SDK keeps the device token current, stamps model, app version, locale, timezone and push permission on the subscriber, and reports delivered and opened receipts for every push, so targeting and reporting work from the first launch.',
+      title: 'A few lines to a registered device.',
+      text: 'Configure the SDK, say who the user is and ask for permission. Tokens and device facts are handled from then on.',
       code: `BuzzKit.configure(apiKey: "bk_pk_live_…")
 BuzzKit.identify("user_42")
 try await BuzzKit.registerForPush()
 BuzzKit.track("workout.completed", data: ["duration": 42])`,
     },
     {
-      title: 'Events that survive being offline',
-      text: 'Track from anywhere in the app and never think about the network. Events queue on the device with their own id and timestamp, drain in batches once a connection returns, and the API deduplicates them, so a subway ride never costs you a data point.',
+      title: 'Events that wait for a connection.',
+      text: 'Track from anywhere in the app. They queue on the device and send when the network is back.',
       code: `// Queued on the device with its own id and time,
 // sent in batches once the network is back
 BuzzKit.track("workout.completed", data: ["duration": 42])
@@ -34,51 +33,58 @@ BuzzKit.track("class.booked", data: ["class": "hiit-18"])
 // are tracked for you`,
     },
     {
-      title: 'Actions, deep links and settings built in',
-      text: 'Action buttons you define on a send show up on the device with no extra code, and a tap reports back which one was pressed. Deep links open through your handler, and the notification settings screen is one call to the preferences endpoint.',
-      code: `BuzzKit.onDeepLink { url in
+      title: 'Actions, deep links and settings.',
+      text: 'Buttons you define on a send appear on the device, deep links open where you send them, and the preferences screen is one call.',
+      code: `// An action button you named on the send
+BuzzKit.actions.register("snooze") { action in
+    reminders.snooze(action.data["workoutId"])
+}
+
+// The deep link a notification carries
+BuzzKit.onDeepLink { url in
     router.open(url)
-}`,
+}
+
+// The settings screen, grouped by category
+let topics = try await BuzzKit.preferences.all()
+try await BuzzKit.preferences.set("running-reminders", enabled: false)`,
     },
   ],
   capabilities: [
     {
-      title: 'Delivered and opened receipts',
-      text: 'A service extension reports the moment a push lands, and the app reports opens, taps and typed replies.',
+      title: 'Delivered and opened',
+      text: 'The SDK reports when a push lands and when it is opened.',
     },
     {
-      title: 'System attributes',
-      text: 'Country, timezone, language, app version and permission arrive on identify.',
+      title: 'Device facts',
+      text: 'Country, time zone, language, app version and permission arrive when you identify someone.',
     },
     {
       title: 'Sandbox aware',
-      text: 'Debug builds register against the sandbox credential on their own.',
+      text: 'A debug build registers against the sandbox credential without being told.',
     },
-    { title: 'Live Activities', text: 'Activity and push-to-start tokens registered for you.' },
+    {
+      title: 'Live Activities',
+      text: 'Activity and push-to-start tokens are registered for you.',
+    },
     {
       title: 'Local notifications',
-      text: 'Workflow sends can fire as local notifications, even offline.',
+      text: 'A workflow can fire a notification on the device itself, even offline.',
     },
     {
       title: 'Preferences screen',
-      text: 'The topic list per channel, grouped by category, ready to render.',
+      text: 'The topic list comes back grouped by category, ready to render.',
     },
   ],
   faq: [
     {
-      question: 'How do I add push notifications to an iOS app?',
+      question: 'Is it safe to put the key in the app?',
       answer:
-        'Add the Swift package, call configure with a client key, identify the user and register for push. Tokens, permission state and events are handled by the SDK.',
+        'Yes. A client key reaches nothing but the client API, and in production your backend signs a hash that proves who the user is.',
     },
     {
-      question: 'Is it safe to ship the API key in the app?',
-      answer:
-        'Client keys reach the client API and nothing else, and carry no scopes. For production, have your backend compute an identity hash per user so a stolen key cannot claim another id.',
-    },
-    {
-      question: 'Does the SDK work with SwiftUI and UIKit?',
-      answer:
-        'Yes. It is a Swift package with static entry points that fits either lifecycle, and it forwards the delegate callbacks for tokens and remote notifications.',
+      question: 'Does it work with SwiftUI and UIKit?',
+      answer: 'Yes. It is a Swift package that fits either lifecycle.',
     },
   ],
   related: ['live-activities', 'topics', 'sending'],

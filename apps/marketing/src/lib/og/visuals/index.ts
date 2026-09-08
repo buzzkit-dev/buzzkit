@@ -1,6 +1,7 @@
 import type { Node } from '../primitives';
 import { actions } from './actions';
 import { apiKey } from './api-key';
+import { dashboard } from './dashboard';
 import { ledger } from './ledger';
 import { liveActivity } from './live-activity';
 import { notifications } from './notifications';
@@ -26,6 +27,7 @@ const VISUALS: Record<Visual['kind'], () => Node> = {
   sources,
   tenants,
   apiKey,
+  dashboard,
 };
 
 export function visual(entry: Visual): Node {

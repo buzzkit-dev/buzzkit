@@ -18,6 +18,12 @@ describe('renderFaq', () => {
       ])
     ).toBe('### Why?\n\nBecause.\n\n### How?\n\nLike so.');
   });
+
+  it('turns root-relative FAQ links into absolute markdown links', () => {
+    expect(renderFaq([{ question: 'Cost?', answer: 'See the [pricing page](/pricing).' }])).toBe(
+      `### Cost?\n\nSee the [pricing page](${site.url}/pricing).`
+    );
+  });
 });
 
 describe('renderCell', () => {
