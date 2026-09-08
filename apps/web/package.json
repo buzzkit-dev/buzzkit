@@ -35,7 +35,7 @@
     "@cloudflare/vite-plugin": "^1.50.0",
     "@react-router/dev": "^8.3.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^26.4.0",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "class-variance-authority": "^0.7.1",

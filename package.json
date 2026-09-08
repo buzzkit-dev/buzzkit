@@ -23,7 +23,7 @@
     "@biomejs/biome": "2.5.9",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.2",
-    "@types/node": "^26.4.0",
+    "@types/node": "^24.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.2.0",
     "sherif": "^1.13.0",

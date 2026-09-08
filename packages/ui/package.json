@@ -37,7 +37,7 @@
     "@tailwindcss/postcss": "^4.1.18",
     "@types/d3-array": "^3.2.2",
     "@types/d3-shape": "^3.2.0",
-    "@types/node": "^26.4.0",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "postcss-load-config": "^6.0.1",
