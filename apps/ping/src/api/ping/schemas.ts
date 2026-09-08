@@ -16,6 +16,7 @@ export const PingBodySchema = t.Object({
   avatar: t.Optional(t.String({ maxLength: 500 })),
   url: t.Optional(t.String({ maxLength: 500 })),
   silent: t.Optional(t.Boolean()),
+  important: t.Optional(t.Boolean()),
   ttl: t.Optional(t.Integer({ minimum: 60, maximum: 86_400 })),
   custom: t.Optional(t.Record(t.String(), t.Any())),
 });

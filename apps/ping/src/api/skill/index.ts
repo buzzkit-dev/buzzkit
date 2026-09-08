@@ -72,13 +72,14 @@ the number, then write their answers to \`.claude/buzz/config.json\`:
 | Setting | Default | What it does |
 |---|---|---|
 | \`presence\` | \`true\` | While the user is active, Buzz sends nothing to the phone — they can see you already. |
+| \`presenceSeconds\` | \`30\` | How long one message from the user counts as "active". After that many seconds without a new message they are away and pings reach the phone again. Up to \`3600\`. |
 | \`attention\` | \`true\` | When you stop and wait for the user, Buzz buzzes their phone to pull them back. |
 | \`finished\` | \`false\` | When a turn ends, Buzz sends "Done" — but only if it ran longer than \`finishedAfter\`. |
 | \`finishedAfter\` | \`120\` | Seconds. A turn shorter than this never sends a "Done". |
 
 \`\`\`bash
 cat > .claude/buzz/config.json <<'JSON'
-{ "presence": true, "attention": true, "finished": false, "finishedAfter": 120 }
+{ "presence": true, "presenceSeconds": 30, "attention": true, "finished": false, "finishedAfter": 120 }
 JSON
 \`\`\`
 
@@ -110,23 +111,32 @@ endpoint="$(cat "$here/endpoint" 2>/dev/null || true)"
 [ -n "$endpoint" ] || exit 0
 config="$here/config.json"
 on() { grep -Eq "$(printf '"%s"[[:space:]]*:[[:space:]]*true' "$1")" "$config" 2>/dev/null; }
+setting() { grep -o "$(printf '"%s"[[:space:]]*:[[:space:]]*[0-9]*' "$1")" "$config" 2>/dev/null | grep -o '[0-9]*' | tail -1; }
+field() { grep -o "$(printf '"%s"[[:space:]]*:[[:space:]]*"[^"]*"' "$1")" | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//' | tr -d '\\\\'; }
 post() { curl -sS -m 5 -X POST "$endpoint$1" -H 'content-type: application/json' --data "$2" >/dev/null 2>&1 || true; }
 case "$1" in
   presence)
-    on presence || exit 0
     date +%s > "$here/started"
-    curl -sS -m 5 -X POST "$endpoint/presence" >/dev/null 2>&1 || true
+    on presence || exit 0
+    secs="$(setting presenceSeconds)"
+    [ -n "$secs" ] || secs=30
+    post "/presence" "$(printf '{"seconds":%s}' "$secs")"
     ;;
   attention)
     on attention || exit 0
-    msg="$(cat | grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*:"//;s/"$//' | head -1)"
+    input="$(cat)"
+    case "$(printf '%s' "$input" | field notification_type)" in
+      permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input) ;;
+      *) exit 0 ;;
+    esac
+    msg="$(printf '%s' "$input" | field message | cut -c1-180)"
     [ -n "$msg" ] || msg="I am waiting on you."
-    post "" "$(printf '{"title":"Waiting on you","body":"%s","agent":"claude-code"}' "$(printf '%s' "$msg" | cut -c1-180)")"
+    post "" "$(printf '{"title":"Waiting on you","body":"%s","agent":"claude-code","important":true}' "$msg")"
     ;;
   finished)
     on finished || exit 0
     started="$(cat "$here/started" 2>/dev/null || echo 0)"
-    min="$(grep -o '"finishedAfter"[[:space:]]*:[[:space:]]*[0-9]*' "$config" 2>/dev/null | grep -o '[0-9]*' | tail -1)"
+    min="$(setting finishedAfter)"
     [ -n "$min" ] || min=120
     [ "$started" -gt 0 ] || exit 0
     elapsed="$(( $(date +%s) - started ))"
@@ -139,32 +149,44 @@ chmod +x .claude/buzz/hook.sh
 \`\`\`
 
 Then merge these into \`.claude/settings.json\` (create the file if it is missing, and keep any hooks
-already there):
+already there). The \`matcher\` on \`Notification\` matters: that event also fires for idle timeouts,
+sign-ins and quota notices, and only the listed types mean Claude is actually blocked on the user.
+\`async\` keeps a slow network from delaying the prompt:
 
 \`\`\`json
 {
   "hooks": {
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": ".claude/buzz/hook.sh presence" }] }],
-    "Notification":     [{ "hooks": [{ "type": "command", "command": ".claude/buzz/hook.sh attention" }] }],
-    "Stop":             [{ "hooks": [{ "type": "command", "command": ".claude/buzz/hook.sh finished" }] }]
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "\\"$CLAUDE_PROJECT_DIR\\"/.claude/buzz/hook.sh presence", "async": true, "timeout": 10 }] }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input",
+        "hooks": [{ "type": "command", "command": "\\"$CLAUDE_PROJECT_DIR\\"/.claude/buzz/hook.sh attention", "async": true, "timeout": 10 }]
+      }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "\\"$CLAUDE_PROJECT_DIR\\"/.claude/buzz/hook.sh finished", "async": true, "timeout": 10 }] }
+    ]
   }
 }
 \`\`\`
 
 ### 4. Confirm
 
-Send one test so the user sees it land on their phone:
+Send one test so the user sees it land on their phone. Mark it \`important\`: the user is sitting
+right here, so presence would otherwise hold it back, and the point of this one is to be seen:
 
 \`\`\`bash
 curl -sS -X POST "$(cat .claude/buzz/endpoint)" -H 'content-type: application/json' \\
-  -d '{"title":"Buzz is set up","body":"You will hear from me here.","agent":"claude-code"}'
+  -d '{"title":"Buzz is set up","body":"You will hear from me here.","agent":"claude-code","important":true}'
 \`\`\`
 
 ## Report from the agent
 
 Every example uses \`$(cat .claude/buzz/endpoint)\` so the key stays in the file. If your environment
 can't run \`curl\` but you registered the MCP server, the \`buzz_notify\` and \`buzz_session\` tools take
-the same fields — reach for those instead.
+the same fields and \`buzz_presence\` covers the presence calls — reach for those instead.
 
 ### Notify
 
@@ -174,6 +196,12 @@ For a single piece of news, when work is finished and there was nothing to repor
 curl -sS -X POST "$(cat .claude/buzz/endpoint)" -H 'content-type: application/json' \\
   -d '{"title":"Tests passed","body":"142 passed in 38s","agent":"claude-code"}'
 \`\`\`
+
+Add \`"important": true\` when the news must reach the phone no matter what: a failed deploy, a
+production migration that stopped, anything the user would want to be pulled out of a meeting for,
+and every test the user explicitly asks you to send. An important ping ignores presence, always
+buzzes, and is delivered as an iOS time-sensitive notification, so it also breaks through a Focus
+mode. Everything else stays subject to presence, so keep it rare or it stops meaning anything.
 
 ### Report progress with a session
 
@@ -203,6 +231,7 @@ curl -sS -X POST "$(cat .claude/buzz/endpoint)" -H 'content-type: application/js
 | \`project\` | Repository or directory name. |
 | \`url\` | Deep link opened when the user taps. |
 | \`silent\` | \`true\` updates the screen without buzzing the phone. |
+| \`important\` | \`true\` buzzes the phone even while the user is marked present, or while a Live Activity is already carrying the session, and goes out as a time-sensitive notification that breaks through Focus. For a failure or a decision that must not wait. |
 
 **End every session you start.** Send \`status\` \`done\` or \`failed\` when the work finishes:
 
@@ -224,7 +253,8 @@ notifications are roomier and expand on long-press, so this matters most for ses
 
 Buzz does not answer for the user. When you hit a decision you cannot make, set the session
 \`status\` to \`waiting\` so the phone reads "Waiting on you" and floats to the top, then wait for the
-user as you normally would.
+user as you normally would. Going \`waiting\` always buzzes, even while the user is marked present:
+an agent that has stopped is the one thing they cannot afford to miss.
 
 \`\`\`bash
 curl -sS -X POST "$(cat .claude/buzz/endpoint)" -H 'content-type: application/json' \\
@@ -233,14 +263,28 @@ curl -sS -X POST "$(cat .claude/buzz/endpoint)" -H 'content-type: application/js
 
 ### Mark the user present
 
-If the user is sitting with you, a phone notification is noise — they can already see you. This marks
-them present so Buzz sends nothing to the phone for a few minutes. Work still shows: a running Live
-Activity keeps updating silently, so a glance at the Lock Screen is current; there is just no buzz.
-When they walk away the window lapses on its own and delivery resumes.
+If the user is sitting with you, a phone notification is noise — they can already see you. Presence
+means exactly that: the user interacted with you a moment ago, so ordinary pings stay in the app's
+timeline instead of buzzing the phone. Nothing detects this by itself; you (or your hook) tell Buzz.
+
+- **Mark them present on any interaction** — a message, an approval, a reply to a question, any
+  action aimed at you. Each call restarts a window of \`seconds\` (default 30, at most 3600); when it
+  lapses without a new interaction they count as away and delivery resumes on its own. If the user
+  says they are staying at their desk for a while, pass a longer \`seconds\`.
+- **Mark them away when they say so** — "stepping out", "back in an hour", "ping me when it's
+  done" — with \`DELETE .../presence\`, and remember what that implies: notify them when you finish,
+  and when you need them.
+- **Two things always get through**, present or not: a session going \`waiting\` and any ping marked
+  \`important\` (the setup confirmation, tests the user asks for, news that must not wait). If the
+  user never enabled presence, everything reaches the phone.
 
 \`\`\`bash
-curl -sS -X POST "$(cat .claude/buzz/endpoint)/presence"
+curl -sS -X POST "$(cat .claude/buzz/endpoint)/presence" -H 'content-type: application/json' \\
+  -d '{"seconds":30}'
+curl -sS -X DELETE "$(cat .claude/buzz/endpoint)/presence"
 \`\`\`
+
+Over MCP the same two calls are the \`buzz_presence\` tool with \`present\` true or false.
 
 ## Automation and your own pings must not double up
 

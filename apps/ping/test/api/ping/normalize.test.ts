@@ -17,6 +17,11 @@ describe('normalizePing', () => {
     expect(input.status).toBe('working');
   });
 
+  it('is not important unless asked', () => {
+    expect(normalizePing({ title: 'Done' }).important).toBe(false);
+    expect(normalizePing({ title: 'Deploy failed', important: true }).important).toBe(true);
+  });
+
   it('leaves a plain notification without a status', () => {
     const input = normalizePing({ title: 'Done' });
 

@@ -1,0 +1,145 @@
+---
+import { DevicePreview } from '../components/buzz/DevicePreview';
+import ProseSection from '../components/layout/ProseSection.astro';
+import Section from '../components/layout/Section.astro';
+import ClosingCta from '../components/sections/ClosingCta.astro';
+import Button from '../components/ui/Button.astro';
+import CodeBlock from '../components/ui/CodeBlock.astro';
+import Icon from '../components/ui/Icon.astro';
+import Site from '../layouts/Site.astro';
+import { site } from '../lib/site';
+import { BUZZ_CLAIM, BUZZ_MCP, BUZZ_NOTIFY, BUZZ_SESSION } from '../lib/snippets';
+
+const features = [
+  {
+    icon: 'IconZapFilled',
+    title: 'One endpoint',
+    text: 'Every update is one POST to one URL. Nothing to install on the machine running the agent.',
+  },
+  {
+    icon: 'IconCircleDashedFilled',
+    title: 'Live Activities',
+    text: 'Long work lives on your lock screen and in the Dynamic Island, updating in place until it is done.',
+  },
+  {
+    icon: 'IconLayersTwoFilled',
+    title: 'One merged view',
+    text: 'Run several agents at once and they collapse into a single live view, ordered by who needs you first.',
+  },
+  {
+    icon: 'IconBellActiveFilled',
+    title: 'Waiting on you',
+    text: 'A blocked agent floats to the top and says so, so you never miss the thing that needs a decision.',
+  },
+  {
+    icon: 'IconBellOffFilled',
+    title: 'Quiet while you work',
+    text: 'Buzz knows when you are at your desk and holds everything back until you step away.',
+  },
+  {
+    icon: 'IconShieldCheckFilled',
+    title: 'Built on BuzzKit',
+    text: 'Powered by the open-source BuzzKit framework, on the same public SDK anyone else would use.',
+  },
+] as const;
+---
+
+<Site
+  title='Buzz · BuzzKit'
+  image='/og/buzz.png'
+  description='Buzz gives your coding agents one endpoint. They tell you when work finishes, keep progress on your lock screen while it runs, and flag when they are blocked and need you.'
+  markdownPath='/buzz.md'
+>
+  <section class='overflow-hidden px-6 pt-16 pb-11 lg:pt-24'>
+    <div class='mx-auto grid max-w-5xl items-center gap-12 lg:grid-cols-2 lg:gap-16'>
+      <div class='flex flex-col items-center gap-7 text-center lg:items-start lg:text-left'>
+        <h1 class='font-medium text-4xl text-fg-4 leading-[1.1] tracking-tight text-balance lg:text-[3rem]'>
+          Live updates from your coding agents, <span class='text-fg-2'>on your lock screen.</span>
+        </h1>
+        <p class='max-w-md text-fg-2 text-lg text-pretty leading-relaxed'>
+          Buzz gives every coding agent one endpoint. They tell you when work finishes, keep progress on your
+          lock screen while it runs, and flag when they are blocked and need you. No account, nothing to install.
+        </p>
+        <div class='flex flex-wrap items-center justify-center gap-3 lg:justify-start'>
+          <Button href={site.testflightUrl} external>Install on TestFlight</Button>
+          <Button href={site.githubUrl} variant='elevated' external>
+            <Icon name='IconGithub' class='size-4.5' />
+            Star on GitHub
+          </Button>
+        </div>
+      </div>
+      <div class='relative flex justify-center'>
+        <div
+          class='pointer-events-none absolute inset-0 -z-10 bg-radial-[at_50%_35%] from-brand-2/60 via-brand-1/40 to-transparent to-70%'
+        >
+        </div>
+        <div class='w-full max-w-[300px]'>
+          <DevicePreview client:load />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Section>
+    <div class='flex flex-col items-start gap-1'>
+      <h2 class='max-w-xl font-medium text-2xl text-fg-4 tracking-tight text-balance lg:text-3xl'>
+        Everything an agent can tell you
+      </h2>
+      <p class='max-w-lg text-fg-2 text-pretty'>
+        One call covers a notification, a Live Activity and a flag for your attention.
+      </p>
+    </div>
+    <div class='mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+      {
+        features.map((feature) => (
+          <div class='flex flex-col gap-3 rounded-2xl border border-bg-3 bg-bg-1 p-5'>
+            <Icon name={feature.icon} class='size-5 text-fg-3' />
+            <div class='flex flex-col gap-0.5'>
+              <h3 class='font-medium text-fg-4'>{feature.title}</h3>
+              <p class='text-fg-2 text-pretty text-sm leading-relaxed'>{feature.text}</p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </Section>
+
+  <ProseSection title='Setup is one code'>
+    <p>
+      The app shows a six-digit code. Hand it to your agent and it claims its own endpoint and saves it. There is
+      no account, and nothing to install where the agent runs.
+    </p>
+    <CodeBlock code={BUZZ_CLAIM} lang='bash' />
+    <p>
+      After that, every update is a single POST. A finished piece of work is a notification.
+    </p>
+    <CodeBlock code={BUZZ_NOTIFY} lang='bash' />
+    <p>
+      Add a <code>session</code> to keep a long task live on your lock screen while it runs, and set{' '}
+      <code>status</code> to <code>waiting</code> when the agent is stuck, so it jumps to the top and the phone reads
+      "Waiting on you".
+    </p>
+    <CodeBlock code={BUZZ_SESSION} lang='http' />
+    <p>
+      Claude Code can point at the endpoint as a remote MCP server, so the tools show up with one command. Anything
+      else reads <code>ping.buzzkit.dev/skill.md</code> and sets itself up from there.
+    </p>
+    <CodeBlock code={BUZZ_MCP} lang='bash' />
+  </ProseSection>
+
+  <ProseSection title='It is just BuzzKit underneath'>
+    <p>
+      Buzz is not a custom backend. It is a small app built on BuzzKit, the open-source framework the rest of this
+      site is about, talking to the same public SDK and API you would.
+    </p>
+    <p>
+      BuzzKit does the heavy lifting: one workspace holds your APNs keys, every phone is a subscriber, and a single
+      endpoint folds a dozen agents into one Live Activity behind one push token. Buzz barely has to do anything,
+      and that is the point. When you{' '}
+      <a class='font-medium text-fg-4 underline underline-offset-2 hover:opacity-70' href='/'>
+        build your own notifications</a>, you start exactly where Buzz did.
+    </p>
+  </ProseSection>
+
+  <ClosingCta />
+</Site>

@@ -10,6 +10,7 @@ export const site = {
   githubOrgUrl: 'https://github.com/buzzkit-dev',
   githubUrl: 'https://github.com/buzzkit-dev/buzzkit',
   iosSdkUrl: 'https://github.com/buzzkit-dev/buzzkit-ios',
+  testflightUrl: 'https://testflight.apple.com/join/E3FXaW8U',
   docsUrl: 'https://docs.buzzkit.dev',
   iosDocsUrl: 'https://docs.buzzkit.dev/sdks/ios/overview',
   selfHostingUrl: 'https://docs.buzzkit.dev/platform/self-hosting',

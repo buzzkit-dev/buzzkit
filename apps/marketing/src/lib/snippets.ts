@@ -8,6 +8,27 @@ export const SEND_CURL = `curl https://api.buzzkit.dev/v1/messages \\
     "body": "Let’s go. 6:00 with Maya."
   }'`;
 
+export const BUZZ_NOTIFY = `curl -X POST https://ping.buzzkit.dev/YOUR_KEY \\
+  -d '{"title": "Tests passed", "body": "142 passed in 38s"}'`;
+
+export const BUZZ_SESSION = `POST https://ping.buzzkit.dev/YOUR_KEY
+{
+  "session": "buzzkit/ts-sdk",
+  "title": "Running migrations",
+  "body": "3 of 7 applied",
+  "status": "working",
+  "progress": 0.43,
+  "agent": "claude-code",
+  "project": "buzzkit"
+}`;
+
+export const BUZZ_MCP = `claude mcp add --transport http buzz https://ping.buzzkit.dev/YOUR_KEY/mcp`;
+
+export const BUZZ_CLAIM = `curl -X POST https://ping.buzzkit.dev/pair/claim \\
+  -d '{"code": "482913"}'
+
+{ "endpoint": "https://ping.buzzkit.dev/bz_…", "mcp": "https://ping.buzzkit.dev/bz_…/mcp" }`;
+
 export const SEND_REQUEST = `POST /v1/messages
 {
   "to": "user_42",

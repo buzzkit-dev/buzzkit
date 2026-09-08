@@ -232,6 +232,7 @@ export class DeviceState extends DurableObject<Env> {
       status: null,
       statusChanged: false,
       silent: input.silent,
+      important: input.important,
       present: isPresent(device, Date.now()),
       hasActivity: false,
     });
@@ -293,6 +294,7 @@ export class DeviceState extends DurableObject<Env> {
       status,
       statusChanged: changed,
       silent: input.silent,
+      important: input.important,
       present: isPresent(device, now),
       hasActivity: CARRIED_BY_ACTIVITY.has(activity),
     });

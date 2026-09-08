@@ -168,11 +168,40 @@ of this product is being annoying:
   `data` (`resolvePingMetadata`) so the notification-service extension can draw it. The server only
   carries the string; fetching, caching and the app-icon-vs-monogram fallback are the app's job.
 - **Presence suppresses delivery entirely.** `POST /:key/presence` marks the human as sitting at
-  their machine for a few minutes (a `UserPromptSubmit` hook is the natural caller). While present,
+  their machine for `seconds` (`DEFAULT_PRESENCE_SECONDS` 30, `MAX_PRESENCE_SECONDS` 3600), stored
+  as `present_until` on the device row; nothing else detects activity. The only signal is the agent
+  harness calling it when the user sends a message (the `UserPromptSubmit` hook, with
+  `presenceSeconds` from the config), so "present" means "spoke to an agent within the window" and
+  "away" means the window lapsed. `DELETE /:key/presence` ends it early. While present,
   `resolveDeliveryPolicy` returns `notify: false` for every notification and session banner — nothing
   is pushed, including a `waiting`, because someone at their desk can already see the agent. The Live
   Activity still updates (that push is separate from the banner), so a glance at the Lock Screen stays
   current; there is just no buzz. The window lapses on its own and delivery resumes.
+- **`important` is the one way through, and going `waiting` is important by itself.** A session
+  whose status changes to `waiting` is treated as `important: true` inside `resolveDeliveryPolicy`
+  (a further `waiting` ping on the same session is not, so it does not re-buzz). A ping with
+  `important: true` always notifies: it ignores
+  presence, it sends a banner even when a Live Activity is carrying the session, it overrides
+  `silent`, and it goes out at the `timeSensitive` interruption level so iOS shows it through a
+  Focus mode (the app carries the time-sensitive entitlement). The skill tells agents to use it for
+  the setup confirmation, for any test the user asks for, and for news that must not wait, and the
+  `Notification` hook marks "Waiting on you" important. It is the product word; time-sensitive is
+  the iOS mechanism underneath, which is why the field is not named after it.
+
+## The Claude Code hook recipe in skill.md is load-bearing
+
+The hook heredoc and the `settings.json` block in `api/skill/index.ts` are what most installs run,
+so they are checked against Claude Code's hook reference, not guessed. The rules they encode:
+`UserPromptSubmit` and `Stop` inject a hook's stdout into Claude's context, so the script prints
+nothing; `Notification` fires for `idle_prompt`, `auth_success` and quota notices too, so the
+settings carry a `matcher` and the script re-checks `notification_type` and only pings for
+`permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog` and `agent_needs_input`
+(idle is covered by the Stop hook's "Done", gated on `finishedAfter`); hooks are `async` with a 10s
+timeout so a slow network never delays a prompt; paths go through `"$CLAUDE_PROJECT_DIR"`; the
+`started` stamp is written before the presence switch so `finished` works with presence off; the
+message body is JSON-safe (quotes cannot appear, backslashes are dropped, 180 chars). To verify a
+change, render `renderSkill('bz_test')`, extract the heredoc, `bash -n` it, and run the three
+branches against a local capture server with a fake `notification_type` (idle must send nothing).
 
 ## Pairing hands out two different credentials, once
 
@@ -185,7 +214,11 @@ mint it.
 not `GET /:key`, not the snapshot. The ping key is deliberately a bearer URL that gets pasted into
 agent configs and shell history; if it also unlocked the buzzkit identity, every agent holding it
 could impersonate the device against the client API. The app stores the block in the Keychain, and a
-device that loses it re-pairs.
+device that loses it re-pairs. The same rule covers a block with no `identityHash` (a pairing made
+before `BUZZKIT_IDENTITY_SECRET` was set, or after the tenant secret rotates): the app treats it as
+unpaired on launch and pairs again, which mints a new device, a new endpoint and a fresh hash, so the
+agents holding the old endpoint have to claim a new code. Key rotation (`POST /:key/rotate`) never
+touches the identity, so it cannot be used to pick up a hash.
 
 `POST /pair` is unauthenticated by design (there are no accounts), which makes it a subscriber-creation
 vector, so it is rate limited per `cf-connecting-ip` through the same token bucket the pings use.
@@ -256,14 +289,20 @@ converts at the boundary. Unexpected errors are rethrown and become 500s.
 
 ## Setup
 
-Two resources must exist before the first deploy:
+Three resources must exist before the first deploy:
 
 ```
-bunx wrangler kv namespace create KEYS     # then replace REPLACE_WITH_KV_ID in wrangler.jsonc
-bunx wrangler secret put BUZZKIT_API_KEY   # a bk_tn_ tenant key for the Buzz tenant
+bunx wrangler kv namespace create KEYS             # then replace REPLACE_WITH_KV_ID in wrangler.jsonc
+bunx wrangler secret put BUZZKIT_API_KEY           # a workspace or tenant key for the Buzz tenant
+bunx wrangler secret put BUZZKIT_IDENTITY_SECRET   # the tenant's identity secret (dashboard → tenant → Identity)
 ```
 
 The tenant behind that key needs APNs connected, since every Buzz install is a subscriber in it.
+The identity secret is not optional in practice: every pairing mints a new external id on the same
+phone, and the API only moves a push token between subscribers for a verified identity. Without the
+secret a re-paired device keeps its token on the previous subscriber and every push to the new one
+targets nobody (`counts.total: 0` on the message). The hash is handed to the app once, at pairing, so
+setting the secret later means rotating the endpoint on the device.
 
 ## Commands
 

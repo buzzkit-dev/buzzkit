@@ -23,6 +23,7 @@ export function normalizePing(body: string | typeof PingBodySchema.static): Ping
     avatar: body.avatar ?? null,
     url: body.url ?? null,
     silent: body.silent ?? false,
+    important: body.important ?? false,
     ttlSeconds: body.ttl ?? null,
     custom: body.custom ?? null,
   };
@@ -41,6 +42,7 @@ function blankPing(overrides: Partial<PingInput>): PingInput {
     avatar: null,
     url: null,
     silent: false,
+    important: false,
     ttlSeconds: null,
     custom: null,
     ...overrides,

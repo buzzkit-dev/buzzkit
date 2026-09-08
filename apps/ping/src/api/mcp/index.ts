@@ -1,5 +1,5 @@
 import type { PingBodySchema, PingResult } from '@buzzkit/ping/api/ping/index';
-import { normalizePing } from '@buzzkit/ping/api/ping/index';
+import { DEFAULT_PRESENCE_SECONDS, MAX_PRESENCE_SECONDS, normalizePing } from '@buzzkit/ping/api/ping/index';
 import { device, unwrap } from '@buzzkit/ping/device/index';
 import { PingError } from '@buzzkit/ping/libs/error';
 import { PROTOCOL_VERSION, SERVER_INFO, TOOLS } from './tools';
@@ -68,6 +68,8 @@ async function runTool(
   const name = params.name as string;
   const args = (params.arguments ?? {}) as Record<string, unknown>;
 
+  if (name === 'buzz_presence') return await runPresence(deviceId, id, args);
+
   const input = resolveToolInput(name, args);
   if (!input) {
     return { jsonrpc: '2.0', id, error: { code: -32602, message: `Unknown tool: ${name}` } };
@@ -83,13 +85,32 @@ async function runTool(
   }
 }
 
+async function runPresence(
+  deviceId: string,
+  id: string | number,
+  args: Record<string, unknown>
+): Promise<JsonRpcResponse> {
+  const present = args.present !== false;
+  const requested = typeof args.seconds === 'number' ? Math.floor(args.seconds) : DEFAULT_PRESENCE_SECONDS;
+  if (requested < 1 || requested > MAX_PRESENCE_SECONDS) {
+    return toolError(id, `seconds must be between 1 and ${MAX_PRESENCE_SECONDS}.`);
+  }
+
+  await device(deviceId).markPresent(present ? Date.now() + requested * 1000 : null);
+
+  const text = present
+    ? `The user is marked present for ${requested}s; ordinary pings stay in the app until then.`
+    : 'The user is marked away; pings reach the phone again.';
+  return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } };
+}
+
 function toolError(id: string | number, message: string): JsonRpcResponse {
   return { jsonrpc: '2.0', id, result: { isError: true, content: [{ type: 'text', text: message }] } };
 }
 
 function resolveToolInput(name: string, args: Record<string, unknown>): ToolInput | null {
   if (name === 'buzz_notify') {
-    return { title: args.title, body: args.body, url: args.url } as ToolInput;
+    return { title: args.title, body: args.body, url: args.url, important: args.important } as ToolInput;
   }
 
   if (name === 'buzz_session') {
@@ -101,6 +122,7 @@ function resolveToolInput(name: string, args: Record<string, unknown>): ToolInpu
       progress: args.progress,
       agent: args.agent,
       project: args.project,
+      important: args.important,
     } as ToolInput;
   }
 
@@ -109,7 +131,9 @@ function resolveToolInput(name: string, args: Record<string, unknown>): ToolInpu
 
 function describeResult(result: PingResult): string {
   if (result.kind === 'notification') {
-    return result.delivered ? 'Sent to the phone.' : 'Held — the user is active.';
+    return result.delivered
+      ? 'Sent to the phone.'
+      : 'Held — the user is active. Pass important: true if this must reach them anyway.';
   }
 
   const base = `Session ${result.session} is ${result.status}.`;

@@ -12,6 +12,7 @@ export type PingInput = {
   avatar: string | null;
   url: string | null;
   silent: boolean;
+  important: boolean;
   ttlSeconds: number | null;
   custom: Record<string, unknown> | null;
 };

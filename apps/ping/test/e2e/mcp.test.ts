@@ -24,13 +24,49 @@ describe('mcp', () => {
     const body = await readJson<Rpc>(await rpc(key, { jsonrpc: '2.0', id: 2, method: 'tools/list' }));
 
     const names = body.result?.tools?.map((tool: { name: string }) => tool.name);
-    expect(names).toEqual(['buzz_notify', 'buzz_session']);
+    expect(names).toEqual(['buzz_notify', 'buzz_session', 'buzz_presence']);
 
     for (const tool of body.result?.tools ?? []) {
       expect(tool.description.length).toBeGreaterThan(20);
       expect(tool.inputSchema.type).toBe('object');
-      expect(tool.inputSchema.required.length).toBeGreaterThan(0);
+      expect(Object.keys(tool.inputSchema.properties).length).toBeGreaterThan(0);
     }
+  });
+
+  it('holds a notification after buzz_presence and releases it after present false', async () => {
+    const { key, buzzkit } = await pair();
+    await rpc(key, {
+      jsonrpc: '2.0',
+      id: 10,
+      method: 'tools/call',
+      params: { name: 'buzz_presence', arguments: { present: true, seconds: 60 } },
+    });
+    const held = await readJson<Rpc>(
+      await rpc(key, {
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: { name: 'buzz_notify', arguments: { title: 'While present' } },
+      })
+    );
+    expect(held.result?.content?.[0].text).toContain('Held');
+    expect(await messagesFor(buzzkit.externalId)).toHaveLength(0);
+
+    await rpc(key, {
+      jsonrpc: '2.0',
+      id: 12,
+      method: 'tools/call',
+      params: { name: 'buzz_presence', arguments: { present: false } },
+    });
+    const sent = await readJson<Rpc>(
+      await rpc(key, {
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: { name: 'buzz_notify', arguments: { title: 'Away again' } },
+      })
+    );
+    expect(sent.result?.content?.[0].text).toContain('Sent');
   });
 
   it('sends a notification through buzz_notify', async () => {

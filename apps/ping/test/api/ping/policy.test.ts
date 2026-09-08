@@ -9,6 +9,7 @@ function conditions(overrides: Partial<DeliveryConditions> = {}): DeliveryCondit
     status: 'working',
     statusChanged: false,
     silent: false,
+    important: false,
     present: false,
     hasActivity: false,
     ...overrides,
@@ -48,6 +49,23 @@ describe('resolveDeliveryPolicy', () => {
     expect(policy.interruptionLevel).toBe('active');
   });
 
+  it('treats going waiting as important on its own', () => {
+    const policy = resolveDeliveryPolicy(
+      conditions({ status: 'waiting', statusChanged: true, present: true, hasActivity: true })
+    );
+
+    expect(policy.notify).toBe(true);
+    expect(policy.interruptionLevel).toBe('timeSensitive');
+  });
+
+  it('does not re-buzz a session that is still waiting', () => {
+    const policy = resolveDeliveryPolicy(
+      conditions({ status: 'waiting', statusChanged: false, present: true })
+    );
+
+    expect(policy.notify).toBe(false);
+  });
+
   it('sends nothing while the human is present', () => {
     const policy = resolveDeliveryPolicy(conditions({ status: 'done', present: true }));
 
@@ -58,6 +76,31 @@ describe('resolveDeliveryPolicy', () => {
     const policy = resolveDeliveryPolicy(conditions({ kind: 'notification', session: null, present: true }));
 
     expect(policy.notify).toBe(false);
+  });
+
+  it('lets an important notification through while the human is present', () => {
+    const policy = resolveDeliveryPolicy(
+      conditions({ kind: 'notification', session: null, present: true, important: true })
+    );
+
+    expect(policy.notify).toBe(true);
+    expect(policy.interruptionLevel).toBe('timeSensitive');
+  });
+
+  it('lets important win over silent', () => {
+    const policy = resolveDeliveryPolicy(
+      conditions({ kind: 'notification', session: null, silent: true, important: true })
+    );
+
+    expect(policy.interruptionLevel).toBe('timeSensitive');
+  });
+
+  it('buzzes an important session update even while a Live Activity carries it', () => {
+    const policy = resolveDeliveryPolicy(conditions({ hasActivity: true, present: true, important: true }));
+
+    expect(policy.notify).toBe(true);
+    expect(policy.interruptionLevel).toBe('timeSensitive');
+    expect(policy.collapseId).toBe('buzzkit/ts-sdk');
   });
 
   it('honours silent on a plain notification', () => {

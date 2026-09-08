@@ -1,6 +1,6 @@
 import type { SessionStatus } from '@buzzkit/ping/api/sessions/index';
 
-export type InterruptionLevel = 'passive' | 'active';
+export type InterruptionLevel = 'passive' | 'active' | 'timeSensitive';
 
 export type DeliveryPolicy = {
   notify: boolean;
@@ -15,24 +15,35 @@ export type DeliveryConditions = {
   status: SessionStatus | null;
   statusChanged: boolean;
   silent: boolean;
+  important: boolean;
   present: boolean;
   hasActivity: boolean;
 };
 
 export function resolveDeliveryPolicy(conditions: DeliveryConditions): DeliveryPolicy {
   const { kind, session, status, statusChanged, silent, present, hasActivity } = conditions;
+
+  const important = conditions.important || (kind === 'session' && status === 'waiting' && statusChanged);
+
   const grouping = {
     collapseId: session,
     threadId: session,
   };
 
   if (kind === 'notification') {
+    if (important) {
+      return { notify: true, interruptionLevel: 'timeSensitive', collapseId: null, threadId: null };
+    }
     return {
       notify: !present,
       interruptionLevel: silent ? 'passive' : 'active',
       collapseId: null,
       threadId: null,
     };
+  }
+
+  if (important) {
+    return { notify: true, interruptionLevel: 'timeSensitive', ...grouping };
   }
 
   if (hasActivity) {

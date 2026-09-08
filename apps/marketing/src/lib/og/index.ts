@@ -77,6 +77,14 @@ export const ogCards: OgCard[] = [
     visual: { kind: 'notifications' },
   },
   {
+    path: 'buzz',
+    title: 'Buzz.',
+    continuation: 'Live updates from your agents, on your lock screen.',
+    kicker: 'Buzz',
+    icon: 'IconBellActiveFilled',
+    visual: { kind: 'liveActivity' },
+  },
+  {
     path: 'why-buzzkit',
     title: 'Why BuzzKit.',
     continuation: 'Everything a notification needs, already built.',

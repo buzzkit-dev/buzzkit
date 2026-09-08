@@ -66,6 +66,7 @@ Every page below also answers as markdown at the same URL with .md appended.
 - Comparisons index: ${site.url}/compare/llms.txt
 - Homepage as markdown: ${site.url}/index.md
 - Why BuzzKit, the promise and what is built in: ${site.url}/why-buzzkit.md
+- Buzz, the agent notification app built on BuzzKit: ${site.url}/buzz.md
 - Pricing: ${site.url}/pricing.md
 - About: ${site.url}/about.md
 - Contact: ${site.url}/contact.md
