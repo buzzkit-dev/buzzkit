@@ -42,7 +42,7 @@ import {
   stableKey,
 } from '@/app/components/segments/expression';
 import { SegmentPreviewPanel } from '@/app/components/segments/preview';
-import { describeSlugProblem, slugify } from '@/app/components/workspace/fields';
+import { describeSlugProblem, slugify, slugifyInput } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useCanManage } from '@/app/hooks/use-known-role';
 import type { Segment, SegmentMember, SegmentPreview, Topic } from '@/app/lib/api.server';
@@ -356,7 +356,7 @@ export function SegmentEditor({
                 aria-describedby={slugProblem ? 'segment-slug-error' : undefined}
                 onChange={(event) => {
                   setSlugTouched(true);
-                  setSlug(slugify(event.target.value));
+                  setSlug(slugifyInput(event.target.value));
                 }}
                 placeholder='active-pro-users'
                 maxLength={48}

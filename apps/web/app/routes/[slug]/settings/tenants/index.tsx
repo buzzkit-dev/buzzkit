@@ -32,7 +32,7 @@ import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { ImportDialog } from '@/app/components/subscribers/import';
-import { slugify } from '@/app/components/workspace/fields';
+import { slugify, slugifyInput } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
@@ -148,7 +148,7 @@ function TenantDialog({
               value={slugLocked ? tenant!.slug : slugValue}
               onChange={(event) => {
                 setSlugTouched(true);
-                setSlug(event.target.value.toLowerCase());
+                setSlug(slugifyInput(event.target.value));
               }}
               placeholder='customer-one'
               maxLength={48}

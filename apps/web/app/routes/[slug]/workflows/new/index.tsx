@@ -14,7 +14,7 @@ import { BlockSkeleton } from '@/app/components/loading/card';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { WorkflowFlow } from '@/app/components/workflows/flow';
 import { parseSpec, SpecEditor } from '@/app/components/workflows/spec-editor';
-import { describeSlugProblem, slugify } from '@/app/components/workspace/fields';
+import { describeSlugProblem, slugify, slugifyInput } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { workflowsAction } from '@/app/lib/actions/workflows.server';
 import type { Route } from './+types/index';
@@ -87,7 +87,7 @@ export default function NewWorkflowRoute({ params }: Route.ComponentProps) {
                 value={slugValue}
                 onChange={(event) => {
                   setSlugTouched(true);
-                  setSlug(event.target.value.toLowerCase());
+                  setSlug(slugifyInput(event.target.value));
                 }}
                 placeholder='trial-follow-up'
                 maxLength={64}

@@ -5,7 +5,7 @@ import {
 } from '@buzzkit/api/api/keys/index';
 import { BadRequestError, ConflictError } from '@buzzkit/api/libs/error';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
+import { isReservedSlug } from '@buzzkit/api/utils/reservedSlugs';
 import { and, type Db, desc, eq, isNull, tables } from '@buzzkit/database';
 import { serializeWorkspace } from './serialize';
 import type { Workspace } from './types';
@@ -15,7 +15,7 @@ export * from './serialize';
 export type * from './types';
 
 export async function assertSlugAvailable(db: Db, slug: string): Promise<void> {
-  if (RESERVED_SLUGS.has(slug)) {
+  if (isReservedSlug(slug)) {
     throw new BadRequestError('This slug is reserved');
   }
 

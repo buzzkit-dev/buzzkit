@@ -21,6 +21,14 @@ export function slugify(name: string): string {
     .slice(0, 48);
 }
 
+export function slugifyInput(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+/, '');
+}
+
 export function WorkspaceFields({
   errors,
   pending,
@@ -65,7 +73,7 @@ export function WorkspaceFields({
           value={slugValue}
           onChange={(event) => {
             setSlugTouched(true);
-            setSlug(event.target.value.toLowerCase());
+            setSlug(slugifyInput(event.target.value));
           }}
           placeholder='acme'
           required

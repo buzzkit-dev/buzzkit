@@ -395,3 +395,22 @@ export const RESERVED_SLUGS = new Set([
   'x',
   'you',
 ]);
+
+export const RESERVED_SLUG_PREFIXES = [
+  '404',
+  'about',
+  'buzz',
+  'contact',
+  'developers',
+  'docs',
+  'pricing',
+  'privacy',
+  'sitemap',
+  'why-buzzkit',
+];
+
+export function isReservedSlug(slug: string): boolean {
+  if (RESERVED_SLUGS.has(slug)) return true;
+
+  return RESERVED_SLUG_PREFIXES.some((prefix) => slug.startsWith(prefix));
+}

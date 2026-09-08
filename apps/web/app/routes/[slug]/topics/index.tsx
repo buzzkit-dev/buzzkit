@@ -34,7 +34,7 @@ import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { CHANNELS } from '@/app/components/onboarding/catalog';
-import { slugify } from '@/app/components/workspace/fields';
+import { slugify, slugifyInput } from '@/app/components/workspace/fields';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { Time } from '@/app/hooks/use-time-ago';
 import { topicsAction } from '@/app/lib/actions/topics.server';
@@ -206,7 +206,7 @@ function TopicDialog({
               value={slugValue}
               onChange={(event) => {
                 setSlugTouched(true);
-                setSlug(event.target.value.toLowerCase());
+                setSlug(slugifyInput(event.target.value));
               }}
               placeholder='running-reminders'
               maxLength={64}
