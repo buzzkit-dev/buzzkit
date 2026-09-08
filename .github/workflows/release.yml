@@ -28,10 +28,8 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-      - name: npm new enough to publish through the GitHub trusted publisher
-        run: npm install --global npm@12.0.2
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - name: Build and test the SDK

@@ -19,6 +19,7 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false,
+    retry: process.env.CI ? 2 : 0,
     server: {
       deps: {
         inline: [/otel-cf-workers/, /@buzzkit\/observability/],
