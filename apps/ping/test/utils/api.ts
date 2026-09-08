@@ -12,8 +12,6 @@ export type Snapshot = {
 
 export type Failure = { ok: false; error: { code: string; message: string; param?: string } };
 
-export type { PingResult };
-
 export type SessionResult = Extract<PingResult, { kind: 'session' }>;
 
 export type NotificationResult = Extract<PingResult, { kind: 'notification' }>;
@@ -50,14 +48,6 @@ export async function readJson<T>(response: Response): Promise<T> {
 
 export async function snapshot(key: string): Promise<Snapshot> {
   return await readJson<Snapshot>(await call(`/${key}`));
-}
-
-export async function pingJson<T extends PingResult = PingResult>(
-  key: string,
-  payload: unknown,
-  query = ''
-): Promise<T> {
-  return await readJson<T>(await ping(key, payload, query));
 }
 
 const STUB_URL = process.env.STUB_URL ?? 'http://127.0.0.1:8811';
