@@ -84,6 +84,21 @@
         "wrangler": "^4.118.0",
       },
     },
+    "apps/ping": {
+      "name": "@buzzkit/ping",
+      "version": "0.0.0",
+      "dependencies": {
+        "buzzkit": "workspace:*",
+        "elysia": "^1.4.29",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.3.14",
+        "@types/node": "^26.4.0",
+        "typescript": "^7.0.2",
+        "vitest": "~4.1.10",
+        "wrangler": "^4.118.0",
+      },
+    },
     "apps/web": {
       "name": "@buzzkit/web",
       "version": "0.0.0",
@@ -140,7 +155,7 @@
     },
     "packages/buzzkit": {
       "name": "buzzkit",
-      "version": "0.1.0",
+      "version": "0.0.0",
       "devDependencies": {
         "@testing-library/react": "^16",
         "@types/react": "^19.2.10",
@@ -487,6 +502,8 @@
     "@buzzkit/marketing": ["@buzzkit/marketing@workspace:apps/marketing"],
 
     "@buzzkit/observability": ["@buzzkit/observability@workspace:packages/observability"],
+
+    "@buzzkit/ping": ["@buzzkit/ping@workspace:apps/ping"],
 
     "@buzzkit/schema": ["@buzzkit/schema@workspace:packages/schema"],
 

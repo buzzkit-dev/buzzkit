@@ -13,7 +13,7 @@
     "format:fix": "biome check . --write",
     "prepare": "husky",
     "check-types": "turbo run check-types && tsc -p scripts",
-    "test": "turbo run test --filter=buzzkit --filter=@buzzkit/auth --filter=@buzzkit/schema --filter=@buzzkit/web --filter=@buzzkit/marketing",
+    "test": "turbo run test --filter=buzzkit --filter=@buzzkit/auth --filter=@buzzkit/schema --filter=@buzzkit/web --filter=@buzzkit/marketing --filter=@buzzkit/ping",
     "changeset": "changeset",
     "sdk:build": "turbo run build --filter=buzzkit",
     "sdk:release": "bun run --cwd packages/buzzkit scripts/publish-manifest.ts && changeset publish"

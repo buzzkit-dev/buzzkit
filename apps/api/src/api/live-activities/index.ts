@@ -6,7 +6,7 @@ import { log } from '@buzzkit/api/libs/logger';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { type LiveActivityPayload, PROVIDERS } from '@buzzkit/api/providers/index';
-import { and, type Db, eq, isNull, tables } from '@buzzkit/database';
+import { and, type Db, eq, isNull, sql, tables } from '@buzzkit/database';
 import type { SendLiveActivitySchema } from './schemas';
 import type { LiveActivity } from './types';
 
@@ -85,6 +85,25 @@ async function registerLiveActivityRow(
     return { activity: updated as LiveActivity, created: false };
   }
 
+  const conflict =
+    kind === 'activity'
+      ? {
+          target: [
+            tables.liveActivity.tenantId,
+            tables.liveActivity.subscriberId,
+            tables.liveActivity.activityId,
+          ],
+          targetWhere: sql`kind = 'activity' and deleted_at is null`,
+        }
+      : {
+          target: [
+            tables.liveActivity.tenantId,
+            tables.liveActivity.subscriberId,
+            tables.liveActivity.attributesType,
+          ],
+          targetWhere: sql`kind = 'start' and deleted_at is null`,
+        };
+
   const [created] = await db
     .insert(tables.liveActivity)
     .values({
@@ -95,6 +114,10 @@ async function registerLiveActivityRow(
       attributesType: input.attributesType,
       token,
       environment,
+    })
+    .onConflictDoUpdate({
+      ...conflict,
+      set: { token, environment, attributesType: input.attributesType, endedAt: null },
     })
     .returning();
   return { activity: created as LiveActivity, created: true };

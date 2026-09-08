@@ -10,6 +10,11 @@
       "project": ["src/**", "test/**"],
       "ignoreDependencies": ["cloudflare"]
     },
+    "apps/ping": {
+      "entry": ["test/**/*.test.ts", "test/utils/workers.ts"],
+      "project": ["src/**", "test/**", "scripts/**"],
+      "ignoreDependencies": ["cloudflare"]
+    },
     "apps/web": {
       "ignoreDependencies": ["tailwindcss"],
       "ignoreUnresolved": ["^\\./\\+types/"]

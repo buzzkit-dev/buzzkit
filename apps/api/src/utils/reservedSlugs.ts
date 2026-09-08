@@ -52,6 +52,7 @@ export const RESERVED_SLUGS = new Set([
   'brand',
   'brand-assets',
   'business',
+  'buzz',
   'buzzkit',
   'calculator',
   'calendar',

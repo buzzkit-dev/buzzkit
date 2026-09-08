@@ -24,7 +24,7 @@ apps/docs/               → @buzzkit/docs           Documentation at docs.buzzk
 apps/ping/               → @buzzkit/ping           The Buzz API at ping.buzzkit.dev (dev port 8792): one endpoint per device that coding
                                                    agents POST to for notifications, Live Activity progress and blocking approvals. A
                                                    customer of the framework that lives in the repo — it may import `buzzkit` and
-                                                   `@buzzkit/observability` and nothing else (`apps/ping/CLAUDE.md`)
+                                                   nothing else from the monorepo, and runs no OTel (`apps/ping/CLAUDE.md`)
 packages/buzzkit/        → buzzkit                 The public SDK: server, browser and React entries, plus the wire vocabularies and grammars every other package derives from
 packages/schema/         → @buzzkit/schema         Grammars the API and the dashboard both validate (`/workflows`: types, lint, parsers; `/sources`: webhook
                                                   mappings and presets; `/imports`: CSV parsing, provider presets and row mapping for bulk imports), private

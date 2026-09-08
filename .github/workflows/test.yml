@@ -25,6 +25,8 @@ jobs:
       - run: bun run test -- --filter=!@buzzkit/marketing
       - run: NODE_OPTIONS=--no-warnings bunx vitest run test/actor test/engine test/api test/libs test/queue test/utils test/providers test/packages
         working-directory: apps/api
+      - run: bun run test:e2e
+        working-directory: apps/ping
 
   marketing:
     runs-on: blacksmith-4vcpu-ubuntu-2404

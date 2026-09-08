@@ -1,0 +1,3 @@
+export const ACTIVITY_START_GRACE_MS = 4_000;
+
+export const ACTIVITY_BIND_RETRY_MS = 3_000;

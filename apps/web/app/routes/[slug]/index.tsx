@@ -457,7 +457,6 @@ function OverviewContent({
 }) {
   const { hasChannel, stats, messages, subscribers } = data;
 
-  const sent = stats.deliveries.sent;
   const delivered = stats.deliveries.delivered;
   const failed = stats.deliveries.failed + stats.deliveries.invalid;
   const deliveryLines = stats.deliveries.capped > 0 ? [...DELIVERY_LINES, CAPPED_LINE] : DELIVERY_LINES;
@@ -504,13 +503,6 @@ function OverviewContent({
           tone='purple'
           points={points((day) => day.messages)}
           delta={{ current: stats.messages.total, previous: stats.previous.messages.total, upIsGood: true }}
-        />
-        <Tile
-          label='Sent'
-          value={sent}
-          tone='green'
-          points={points((day) => day.sent)}
-          delta={{ current: sent, previous: stats.previous.deliveries.sent, upIsGood: true }}
         />
         <Tile
           label='Delivered'
@@ -785,7 +777,7 @@ function OverviewContent({
   );
 }
 
-const TILE_LABELS = ['Subscribers', 'Messages', 'Sent', 'Delivered', 'Failed', 'Events', 'Runs'];
+const TILE_LABELS = ['Subscribers', 'Messages', 'Delivered', 'Failed', 'Events', 'Runs'];
 
 function TileSkeleton({ label }: { label: string }) {
   return (

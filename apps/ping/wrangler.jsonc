@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "buzzkit-ping",
+  "account_id": "e8563b02f2bf2b6a136f2781445a486f",
+  "routes": [{ "pattern": "ping.buzzkit.dev", "custom_domain": true }],
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true
+  },
+
+  "workers_dev": true,
+  "preview_urls": true,
+
+  "vars": {
+    "ENVIRONMENT": "production",
+    "BUZZKIT_API_URL": "https://api.buzzkit.dev",
+    "BUZZKIT_PUBLISHABLE_KEY": "bk_pk_UJ7Xm7l4uEE2mH4WYnfOb4dxjwR1XvSGs53pxjM9",
+    "BUZZ_URL": "https://buzzkit.dev/buzz",
+    "PING_URL": "https://ping.buzzkit.dev"
+  },
+
+  // KEYS: ping key -> device id. The key in the URL is the whole credential, so this
+  // is read on every ping; rotation writes the new entry and deletes the old one.
+  "kv_namespaces": [
+    {
+      "binding": "KEYS",
+      "id": "REPLACE_WITH_KV_ID"
+    }
+  ],
+
+  // One DeviceState per paired device: the live session set, the pending asks, and the
+  // coalescing clock that keeps Live Activity pushes inside the APNs budget.
+  "durable_objects": {
+    "bindings": [{ "name": "DEVICE", "class_name": "DeviceState" }]
+  },
+
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceState"] }]
+}

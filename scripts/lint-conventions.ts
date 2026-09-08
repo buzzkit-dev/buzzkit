@@ -15,6 +15,9 @@ type BabelNode = {
 const ROOTS = [
   'apps/api/src',
   'apps/api/test',
+  'apps/ping/src',
+  'apps/ping/test',
+  'apps/ping/scripts',
   'apps/web/app',
   'apps/marketing/src',
   'apps/marketing/worker',
@@ -28,7 +31,7 @@ const BANNED_VERB_PATTERN = /^(get|fetch|load|set|delete|destroy)[A-Z]/;
 
 const BANNED_VERB_ALLOWLIST = new Set(['deleteCache', 'getStaticPaths']);
 
-const VERB_CHECK_ROOTS = ['apps/api/src', 'apps/marketing', 'packages'];
+const VERB_CHECK_ROOTS = ['apps/api/src', 'apps/ping/src', 'apps/marketing', 'packages'];
 
 const COMMENT_CHECK_EXCLUDED_ROOTS = ['packages/ui'];
 
@@ -56,6 +59,10 @@ function listSourceFiles(root: string): string[] {
   }
 
   return files;
+}
+
+function isRouteTable(file: string): boolean {
+  return file.endsWith('/modules/index.ts') || file.endsWith('/modules/v1/index.ts');
 }
 
 function collectCommentViolations(file: string, comments: BabelComment[], violations: Violation[]): void {
@@ -147,7 +154,10 @@ function run(): void {
         continue;
       }
 
-      if (!COMMENT_CHECK_EXCLUDED_ROOTS.some((excluded) => file.startsWith(excluded))) {
+      if (
+        !isRouteTable(file) &&
+        !COMMENT_CHECK_EXCLUDED_ROOTS.some((excluded) => file.startsWith(excluded))
+      ) {
         collectCommentViolations(file, parsed.comments ?? [], violations);
       }
       if (VERB_CHECK_ROOTS.some((verbRoot) => file.startsWith(verbRoot))) {

@@ -79,7 +79,7 @@ listUnflushed(limit: number): ActorEventRow[] {
 
 ## No comments — anywhere, ever
 
-Names and structure carry the meaning; invariants live in `docs/`. Applies to every package, JSDoc included. Only exceptions: functional directives (`biome-ignore`, `@ts-expect-error`), the `/* /v1/... */` route table (always `/*`, never `/**`), and `wrangler.jsonc` commentary.
+Names and structure carry the meaning; invariants live in `docs/`. Applies to every package, JSDoc included. Only exceptions: functional directives (`biome-ignore`, `@ts-expect-error`), the route-table path comments in a `modules/index.ts` or `modules/v1/index.ts` (one `/* /path */` above each `.use()`, always `/*`, never `/**`), and `wrangler.jsonc` commentary.
 
 ## Observability — every unit of work is a span
 

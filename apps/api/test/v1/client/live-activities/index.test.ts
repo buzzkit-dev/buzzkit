@@ -53,6 +53,54 @@ describe('/v1/client/live-activities', () => {
     expect(ended.body.data?.endedAt).not.toBeNull();
   });
 
+  it('registers the same activity concurrently without conflicting', async () => {
+    const { clientBearer } = await setupClient();
+    const externalId = `user_${uniq()}`;
+
+    const register = () => {
+      return api<ActivityBody>('/v1/client/live-activities', {
+        method: 'POST',
+        headers: clientBearer,
+        body: JSON.stringify({
+          externalId,
+          activityId: 'race_1',
+          attributesType: 'MatchAttributes',
+          token: TOKEN,
+          environment: 'sandbox',
+        }),
+      });
+    };
+
+    const results = await Promise.all([register(), register(), register(), register()]);
+
+    expect(results.map((result) => result.status).filter((status) => status >= 400)).toEqual([]);
+    expect(new Set(results.map((result) => result.body.data?.id)).size).toBe(1);
+  });
+
+  it('registers the same push-to-start type concurrently without conflicting', async () => {
+    const { clientBearer } = await setupClient();
+    const externalId = `user_${uniq()}`;
+
+    const register = () => {
+      return api<ActivityBody>('/v1/client/live-activities', {
+        method: 'POST',
+        headers: clientBearer,
+        body: JSON.stringify({
+          externalId,
+          kind: 'start',
+          attributesType: 'MatchAttributes',
+          token: TOKEN,
+          environment: 'sandbox',
+        }),
+      });
+    };
+
+    const results = await Promise.all([register(), register(), register()]);
+
+    expect(results.map((result) => result.status).filter((status) => status >= 400)).toEqual([]);
+    expect(new Set(results.map((result) => result.body.data?.id)).size).toBe(1);
+  });
+
   it('requires a client key, the subscriber header on delete, and 404s unknown activities', async () => {
     const { clientBearer } = await setupClient();
     const externalId = `user_${uniq()}`;
