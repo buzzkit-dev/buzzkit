@@ -193,7 +193,8 @@
       "!**/worker-configuration.d.ts",
       "!**/.astro",
       "!.claude",
-      "!apps/marketing/public/openapi.json"
+      "!apps/marketing/public/openapi.json",
+      "!apps/docs/openapi.json"
     ]
   },
   "javascript": {
