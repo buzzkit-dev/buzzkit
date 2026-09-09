@@ -231,7 +231,7 @@ function AttemptLedger({ attempts }: { attempts: DeliveryAttempt[] }) {
 
   return (
     <>
-      <table className='w-full table-fixed border-separate border-spacing-0 text-sm'>
+      <table className='w-full table-fixed border-separate border-spacing-0 text-sm max-lg:table-auto'>
         <thead>
           <tr>
             <SubHead className='w-28'>Attempt</SubHead>
@@ -658,8 +658,7 @@ function MessageContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel “{payload.title ?? 'Untitled'}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Delivery of this message stops.
-              <span className='block'>Deliveries already made stay as they are.</span>
+              Delivery of this message stops. Deliveries already made stay as they are.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -4,7 +4,7 @@ import { cloudflareContext } from '@/app/cloudflare';
 import { OnboardingLayout } from '@/app/components/onboarding/layout';
 import { WorkspaceFields } from '@/app/components/workspace/fields';
 import { onboardingAction } from '@/app/lib/actions/onboarding.server';
-import { listWorkspaces } from '@/app/lib/api.server';
+import { getProfile, listWorkspaces } from '@/app/lib/api.server';
 import { requireSession } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
 
@@ -15,18 +15,23 @@ export function meta() {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
-  const workspaces = await listWorkspaces({ request, env }, token);
+  const ctx = { request, env };
+  const [workspaces, profile] = await Promise.all([listWorkspaces(ctx, token), getProfile(ctx, token)]);
   if (workspaces.length > 0) throw redirect('/dashboard');
-  return null;
+  return { profile };
 }
 
 export const action = onboardingAction;
 
-export default function CreateWorkspaceRoute({ actionData }: Route.ComponentProps) {
+export default function CreateWorkspaceRoute({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
-  const pending = navigation.state !== 'idle' && navigation.formMethod != null;
+  const pending =
+    navigation.state !== 'idle' &&
+    navigation.formMethod != null &&
+    navigation.formData?.get('intent') !== 'sign-out';
   return (
     <OnboardingLayout
+      email={loaderData.profile.email}
       progress={[0.08, 0, 0, 0, 0]}
       transitionKey='workspace'
       motion={{ direction: 1, from: 'rows', to: 'rows' }}

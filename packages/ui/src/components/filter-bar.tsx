@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@buzzkit/ui/components/select';
+import { useIsMobile } from '@buzzkit/ui/hooks/use-mobile';
 import { cn } from '@buzzkit/ui/lib/utils';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
@@ -26,7 +27,10 @@ function FilterBar({ className, children, ...props }: React.ComponentProps<'div'
   return (
     <div
       data-slot='filter-bar'
-      className={cn('-mb-2.5 flex shrink-0 items-center justify-between gap-2', className)}
+      className={cn(
+        '-mb-2.5 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
+        className
+      )}
       {...props}
     >
       <div className='flex min-w-0 flex-wrap items-center gap-2'>{facets}</div>
@@ -41,7 +45,7 @@ function FilterSearch({
   ...props
 }: Omit<React.ComponentProps<typeof Input>, 'loading'> & { loading?: boolean }) {
   return (
-    <span data-slot='filter-search' className={cn('relative inline-flex w-64 shrink-0', className)}>
+    <span data-slot='filter-search' className={cn('relative inline-flex w-full shrink-0 sm:w-64', className)}>
       <Icon
         name='IconMagnifyingGlass'
         className='pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-fg-2'
@@ -165,6 +169,7 @@ function FilterRange({
   allowAny?: boolean;
   disabled?: boolean;
 }) {
+  const isMobile = useIsMobile();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<DateRange | undefined>(undefined);
@@ -209,16 +214,20 @@ function FilterRange({
         </SelectContent>
       </Select>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverContent anchor={triggerRef} align='start' className='w-auto gap-1 p-1'>
+        <PopoverContent
+          anchor={triggerRef}
+          align='start'
+          className='w-auto max-w-[calc(100vw-1rem)] gap-1 p-1'
+        >
           <Calendar
             mode='range'
-            numberOfMonths={2}
+            numberOfMonths={isMobile ? 1 : 2}
             selected={draft}
             onSelect={setDraft}
             defaultMonth={custom?.from ?? new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)}
             disabled={{ after: new Date() }}
           />
-          <div className='flex items-center justify-between gap-2 px-2 pb-1'>
+          <div className='flex flex-wrap items-center justify-between gap-2 px-2 pb-1'>
             <span className='text-fg-2 text-xs'>
               {complete ? formatRange(complete) : 'Pick a start and an end day'}
             </span>

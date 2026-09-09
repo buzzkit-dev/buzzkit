@@ -2,6 +2,7 @@ import { Badge } from '@buzzkit/ui/components/badge';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
+import { useHoverCapable } from '@buzzkit/ui/hooks/use-hover-capable';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
@@ -14,7 +15,7 @@ import type { Profile, Tenant, Workspace } from '@/app/lib/api.server';
 const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
 const fold = { type: 'spring', duration: 0.2, bounce: 0 } as const;
 
-function SwitcherPlaceholder({ slug }: { slug: string }) {
+export function SwitcherPlaceholder({ slug }: { slug: string }) {
   return (
     <div aria-hidden className='flex h-8 w-full items-center gap-2 rounded-xl pr-2.5 pl-1.25 text-sm'>
       <WorkspaceAvatar slug={slug} />
@@ -41,6 +42,7 @@ export function Sidebar({
   profile,
   tenant,
   tenants,
+  className,
 }: {
   slug: string;
   workspace: Workspace | null;
@@ -48,8 +50,10 @@ export function Sidebar({
   profile: Profile | null;
   tenant: Tenant | null;
   tenants: Tenant[];
+  className?: string;
 }) {
   const { pathname } = useLocation();
+  const hoverable = useHoverCapable();
   const base = `/${slug}`;
   const [hovered, setHovered] = useState<string | null>(null);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
@@ -67,8 +71,12 @@ export function Sidebar({
       !page.children?.some((entry) => entry.path !== page.path && isActive(entry)) &&
       !page.children?.some(isExact));
 
+  const hover = (key: string | null) => {
+    if (hoverable) setHovered(key);
+  };
+
   return (
-    <aside className='flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2'>
+    <aside className={cn('flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2', className)}>
       {workspace ? (
         <WorkspaceSwitcher workspaces={workspaces} current={workspace} tenant={tenant} tenants={tenants} />
       ) : (
@@ -79,7 +87,7 @@ export function Sidebar({
         ref={rootRef}
         aria-label='Workspace'
         className='relative isolate flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto'
-        onPointerLeave={() => setHovered(null)}
+        onPointerLeave={() => hover(null)}
       >
         <div
           ref={indicatorRef}
@@ -117,7 +125,7 @@ export function Sidebar({
                       type='button'
                       aria-expanded={open}
                       data-highlighted={highlighted ? '' : undefined}
-                      onPointerEnter={() => setHovered(key)}
+                      onPointerEnter={() => hover(key)}
                       onClick={() => setOpened((current) => ({ ...current, [page.path]: !open }))}
                       className={cn(rowClass, 'cursor-pointer pr-2')}
                     >
@@ -140,7 +148,7 @@ export function Sidebar({
                       prefetch='intent'
                       aria-current={active ? 'page' : undefined}
                       data-highlighted={highlighted ? '' : undefined}
-                      onPointerEnter={() => setHovered(key)}
+                      onPointerEnter={() => hover(key)}
                       className={rowClass}
                     >
                       {label}
@@ -178,7 +186,7 @@ export function Sidebar({
                                   prefetch='intent'
                                   aria-current={isCurrent(page, child) ? 'page' : undefined}
                                   data-highlighted={childHighlighted ? '' : undefined}
-                                  onPointerEnter={() => setHovered(child.path)}
+                                  onPointerEnter={() => hover(child.path)}
                                   className={childClass}
                                 >
                                   <span className='truncate'>{child.label}</span>

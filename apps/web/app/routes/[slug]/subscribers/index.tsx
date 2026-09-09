@@ -133,7 +133,7 @@ function LookupField({ query, base, cold }: { query: string; base: string; cold:
       autoComplete='off'
       spellCheck={false}
       loading={!settled || navigation.state === 'loading' || cold}
-      className='w-64'
+      className='w-full sm:w-64'
     />
   );
 }
@@ -244,7 +244,7 @@ export const handle: PageHandle = {
             spellCheck={false}
             loading
             readOnly
-            className='w-64'
+            className='w-full sm:w-64'
           />
         }
       />

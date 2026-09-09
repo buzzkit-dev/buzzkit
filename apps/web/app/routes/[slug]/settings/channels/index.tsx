@@ -286,7 +286,7 @@ function SendPolicyCard({
           title='Quiet hours'
           subtitle='Sends inside the window wait for the next allowed time.'
           end={
-            <span className='flex items-center gap-2'>
+            <span className='flex flex-wrap items-center gap-2'>
               {quietEnabled && (
                 <>
                   <Input
@@ -314,7 +314,7 @@ function SendPolicyCard({
                     }}
                   >
                     <ComboboxInput
-                      className='w-48'
+                      className='w-40 sm:w-48'
                       placeholder='Search timezones'
                       autoComplete='off'
                       spellCheck={false}

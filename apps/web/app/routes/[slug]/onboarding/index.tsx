@@ -1,13 +1,20 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { useState } from 'react';
-import { data, Link, redirect, type ShouldRevalidateFunctionArgs, useNavigate } from 'react-router';
+import {
+  data,
+  Link,
+  redirect,
+  type ShouldRevalidateFunctionArgs,
+  useNavigate,
+  useSearchParams,
+} from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import {
+  assertOnboardingPath,
   CHANNELS,
   findChannel,
   findProvider,
-  resolveOnboardingPath,
 } from '@/app/components/onboarding/catalog';
 import { ChoiceRow, ChoiceRows } from '@/app/components/onboarding/choice-row';
 import { connectedSlots } from '@/app/components/onboarding/connected';
@@ -30,9 +37,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const ctx = { request, env };
-  const { channel, provider } = resolveOnboardingPath(params['*']);
-  const stepParam = Number(new URL(request.url).searchParams.get('step') ?? '1');
-  const initialStep = Number.isInteger(stepParam) && stepParam > 0 ? stepParam - 1 : 0;
+  assertOnboardingPath(params['*']);
 
   try {
     const [workspace, profile, credentials] = await Promise.all([
@@ -41,14 +46,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       listCredentials(ctx, token, params.slug, 'default'),
     ]);
     if (credentials.length > 0) throw redirect(`/${params.slug}`);
-    return {
-      workspace,
-      profile,
-      credentials,
-      channelId: channel?.id ?? null,
-      providerId: provider?.id ?? null,
-      initialStep,
-    };
+    return { workspace, profile, credentials };
   } catch (error) {
     if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
       throw data(null, { status: error.status });
@@ -58,14 +56,14 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 }
 
 export function shouldRevalidate({
-  currentUrl,
-  nextUrl,
+  currentParams,
+  nextParams,
   actionResult,
   defaultShouldRevalidate,
 }: ShouldRevalidateFunctionArgs) {
-  if (currentUrl.pathname === nextUrl.pathname && currentUrl.search !== nextUrl.search) return false;
   if (actionResult && typeof actionResult === 'object' && 'ok' in actionResult && actionResult.ok)
     return false;
+  if (currentParams.slug === nextParams.slug) return false;
   return defaultShouldRevalidate;
 }
 
@@ -97,11 +95,15 @@ function resolveView(state: {
   return state.channel ? 'providers' : 'channels';
 }
 
-export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
+export default function OnboardingRoute({ loaderData, params }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const { workspace, credentials, channelId, providerId, initialStep } = loaderData;
-  const channel = channelId ? findChannel(channelId)! : null;
-  const provider = channel && providerId ? findProvider(channel.id, providerId)! : null;
+  const [search] = useSearchParams();
+  const { workspace, profile, credentials } = loaderData;
+  const [channelId, providerId] = (params['*'] ?? '').split('/').filter(Boolean);
+  const channel = channelId ? (findChannel(channelId) ?? null) : null;
+  const provider = channel && providerId ? (findProvider(channel.id, providerId) ?? null) : null;
+  const requestedStep = Number(search.get('step') ?? '1');
+  const initialStep = Number.isInteger(requestedStep) && requestedStep > 0 ? requestedStep - 1 : 0;
   const base = `/${workspace.slug}/onboarding`;
 
   const existing = provider
@@ -277,6 +279,7 @@ export default function OnboardingRoute({ loaderData }: Route.ComponentProps) {
 
   return (
     <OnboardingLayout
+      email={profile.email}
       progress={progress}
       transitionKey={transitionKey}
       motion={{ direction: nav.direction, from: nav.from, to: kind }}

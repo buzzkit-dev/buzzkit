@@ -1,5 +1,6 @@
+import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { cn } from '@buzzkit/ui/lib/utils';
-import type * as React from 'react';
+import * as React from 'react';
 
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
   return (
@@ -23,9 +24,10 @@ function CardHeader({
     <div
       data-slot='card-header'
       className={cn(
-        'grid auto-rows-min items-start gap-0.5 px-4 py-4 has-data-[slot=card-description]:grid-rows-[auto_auto] has-data-[slot=card-action]:pr-28 group-has-data-[slot=card-content]/card:pb-[13px]',
+        'grid auto-rows-min items-start gap-0.5 px-4 py-4 has-data-[slot=card-description]:grid-rows-[auto_auto] group-has-data-[slot=card-content]/card:pb-[13px] sm:has-data-[slot=card-action]:pr-28',
         divider && 'border-bg-3 [&:has(+_:not([data-slot=empty-state]))]:border-b',
-        'relative [&>[data-slot=card-title]~*:not([data-slot=card-description])]:absolute [&>[data-slot=card-title]~*:not([data-slot=card-description])]:inset-y-0 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:right-4 [&>[data-slot=card-title]~*:not([data-slot=card-description])]:my-auto [&>[data-slot=card-title]~*:not([data-slot=card-description])]:h-fit',
+        'relative sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:absolute sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:inset-y-0 sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:right-4 sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:my-auto sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:h-fit',
+        'max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:[&>[data-slot=card-description]]:order-last max-sm:[&>[data-slot=card-title]]:w-auto max-sm:[&>[data-slot=card-title]]:min-w-0 max-sm:[&>[data-slot=card-title]]:flex-auto max-sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:max-w-full max-sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:overflow-x-auto max-sm:[&>[data-slot=card-title]~*:not([data-slot=card-description])]:py-1',
         className
       )}
       {...props}
@@ -54,7 +56,18 @@ function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot='card-action' className={cn('flex items-center', className)} {...props} />;
+  const ref = React.useRef<HTMLDivElement>(null);
+  return (
+    <>
+      <ScrollFade orientation='horizontal' size={16} targetRef={ref} />
+      <div
+        ref={ref}
+        data-slot='card-action'
+        className={cn('flex min-w-0 items-center', className)}
+        {...props}
+      />
+    </>
+  );
 }
 
 function CardContent({ className, ...props }: React.ComponentProps<'div'>) {

@@ -362,7 +362,7 @@ const ROW_HELP = {
 function SummaryRow({ label, help, children }: { label: string; help: string; children: React.ReactNode }) {
   return (
     <div className='flex min-h-10 items-center gap-6 border-bg-3 border-b px-4 last:border-b-0'>
-      <dt className='w-36 shrink-0 text-fg-2 text-sm'>
+      <dt className='w-28 shrink-0 text-fg-2 text-sm sm:w-36'>
         <TooltipProvider delay={TIME_TOOLTIP_DELAY}>
           <Tooltip>
             <TooltipTrigger
@@ -842,7 +842,7 @@ function EditForm({ source, onClose }: { source: Source; onClose: () => void }) 
 function SourceFallback() {
   return (
     <>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
+      <header className='flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='flex min-w-0 flex-col gap-1'>
           <Skeleton className='h-7 w-48' />
           <Skeleton className='h-4 w-72' />
@@ -981,7 +981,7 @@ function SourceDetail({
 
   return (
     <>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
+      <header className='flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex min-w-0 items-center gap-2.5 font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             <Truncate>{source.name}</Truncate>
@@ -1037,7 +1037,7 @@ function SourceDetail({
         >
           {source.status === 'unverified' && (
             <Card className='px-4 py-3'>
-              <div className='flex items-center justify-between gap-4'>
+              <div className='flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
                 <span className='text-fg-2 text-sm'>
                   <span className='font-medium text-fg-4'>Unverified.</span> Deliveries are recorded here but
                   create no events until the secret is set.

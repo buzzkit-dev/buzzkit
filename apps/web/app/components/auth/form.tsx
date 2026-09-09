@@ -117,7 +117,7 @@ export function AuthForm({
 
   return (
     <CardContent className='gap-4 pt-1'>
-      <OAuthProviders github={providers.github} onGithub={github} pending={busy} />
+      <OAuthProviders github={providers.github} onGithub={github} disabled={busy} loading={redirecting} />
       <form
         onSubmit={(event) => {
           event.preventDefault();

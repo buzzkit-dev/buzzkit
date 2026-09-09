@@ -1,3 +1,4 @@
+import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import * as React from 'react';
@@ -69,6 +70,7 @@ export function PillTabs<V extends string>({
   renderItem?: (item: PillTabsItem<V>, props: PillTabsItemProps) => React.ReactNode;
 }) {
   const listRef = React.useRef<HTMLDivElement>(null);
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
   const itemRefs = React.useRef(new Map<string, HTMLElement>());
   const [active, setActive] = React.useState<{
     left: number;
@@ -166,46 +168,51 @@ export function PillTabs<V extends string>({
   });
 
   return (
-    <div ref={listRef} className={cn('relative isolate flex w-max', gapClassName, className)}>
-      {items.map((item) => {
-        const props: PillTabsItemProps = {
-          ref: registerItem(item.value),
-          className: cn(
-            itemBase,
-            styles.item,
-            'cursor-pointer outline-none transition-[color,scale] duration-150 focus-visible:ring-2 focus-visible:ring-primary-2',
-            item.value !== value && 'active:scale-[0.975]'
-          ),
-          children: item.label,
-          onClick: () => onValueChange?.(item.value),
-          ...(item.value === value && {
-            'aria-current': 'page' as const,
-            onPointerDown: () => setPressed(true),
-            onPointerUp: () => setPressed(false),
-            onPointerLeave: () => setPressed(false),
-          }),
-        };
-        if (renderItem) {
-          return <React.Fragment key={item.value}>{renderItem(item, props)}</React.Fragment>;
-        }
-        const { 'aria-current': _current, ...rest } = props;
-        return <button key={item.value} type='button' aria-pressed={item.value === value} {...rest} />;
-      })}
-      {/* The pill: an inverted copy of the row, revealed through the clip window. */}
-      <motion.div
-        aria-hidden
-        className={cn('pointer-events-none absolute inset-0 z-10 flex', gapClassName, styles.overlay)}
-        style={{ clipPath: clip }}
-        initial={false}
-        animate={{ opacity: active ? 1 : 0 }}
-        transition={{ opacity: fadeIn ? { duration: 0.15, ease: 'easeOut' } : { duration: 0 } }}
-      >
-        {items.map((item) => (
-          <span key={item.value} className={itemBase}>
-            {item.label}
-          </span>
-        ))}
-      </motion.div>
-    </div>
+    <>
+      <ScrollFade orientation='horizontal' size={16} targetRef={scrollerRef} />
+      <div ref={scrollerRef} className='scrollbar-hide -my-1 min-w-0 max-w-full overflow-x-auto py-1'>
+        <div ref={listRef} className={cn('relative isolate flex w-max', gapClassName, className)}>
+          {items.map((item) => {
+            const props: PillTabsItemProps = {
+              ref: registerItem(item.value),
+              className: cn(
+                itemBase,
+                styles.item,
+                'cursor-pointer outline-none transition-[color,scale] duration-150 focus-visible:ring-2 focus-visible:ring-primary-2',
+                item.value !== value && 'active:scale-[0.975]'
+              ),
+              children: item.label,
+              onClick: () => onValueChange?.(item.value),
+              ...(item.value === value && {
+                'aria-current': 'page' as const,
+                onPointerDown: () => setPressed(true),
+                onPointerUp: () => setPressed(false),
+                onPointerLeave: () => setPressed(false),
+              }),
+            };
+            if (renderItem) {
+              return <React.Fragment key={item.value}>{renderItem(item, props)}</React.Fragment>;
+            }
+            const { 'aria-current': _current, ...rest } = props;
+            return <button key={item.value} type='button' aria-pressed={item.value === value} {...rest} />;
+          })}
+          {/* The pill: an inverted copy of the row, revealed through the clip window. */}
+          <motion.div
+            aria-hidden
+            className={cn('pointer-events-none absolute inset-0 z-10 flex', gapClassName, styles.overlay)}
+            style={{ clipPath: clip }}
+            initial={false}
+            animate={{ opacity: active ? 1 : 0 }}
+            transition={{ opacity: fadeIn ? { duration: 0.15, ease: 'easeOut' } : { duration: 0 } }}
+          >
+            {items.map((item) => (
+              <span key={item.value} className={itemBase}>
+                {item.label}
+              </span>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+    </>
   );
 }

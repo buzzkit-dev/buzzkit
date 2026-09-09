@@ -218,7 +218,7 @@ function Tile({
     <Card className='gap-0 overflow-hidden'>
       <div className='flex flex-col px-4 pt-3.5'>
         <span className='text-fg-2 text-sm'>{label}</span>
-        <span className='flex items-center gap-2'>
+        <span className='flex flex-wrap items-center gap-x-2'>
           <NumberFlow className='font-medium text-2xl text-fg-4 leading-none tracking-tight' value={value} />
           <Delta {...delta} />
         </span>
@@ -471,7 +471,7 @@ function OverviewContent({
   return (
     <>
       {!hasChannel && (
-        <Card className='flex-row items-center gap-3 px-4 py-3'>
+        <Card className='flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center'>
           <IconTile icon='IconPaperPlaneTopRightFilled' size='sm' className='text-fg-2' />
           <span className='flex min-w-0 flex-1 flex-col'>
             <span className='font-medium text-fg-4 text-sm'>No channel connected</span>
@@ -479,13 +479,18 @@ function OverviewContent({
               Connect a channel before this tenant can send.
             </span>
           </span>
-          <Button size='sm' nativeButton={false} render={<Link to={`${base}/settings/channels`} />}>
+          <Button
+            size='sm'
+            className='shrink-0'
+            nativeButton={false}
+            render={<Link to={`${base}/settings/channels`} />}
+          >
             Connect channel
           </Button>
         </Card>
       )}
 
-      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-3'>
+      <div className='grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3'>
         <Tile
           label='Subscribers'
           value={stats.subscribers.total}
@@ -539,7 +544,7 @@ function OverviewContent({
       </div>
 
       {stats.scheduled.count > 0 && (
-        <Card className='flex-row items-center gap-3 px-4 py-3'>
+        <Card className='flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center'>
           <IconTile icon='IconCalendarClockFilled' size='sm' className='text-fg-2' />
           <span className='flex min-w-0 flex-1 flex-col'>
             <span className='font-medium text-fg-4 text-sm'>
@@ -556,6 +561,7 @@ function OverviewContent({
           <Button
             variant='soft'
             size='sm'
+            className='shrink-0'
             nativeButton={false}
             render={<Link to={`${base}/messages?status=scheduled`} />}
           >
@@ -846,7 +852,7 @@ function OverviewSkeleton() {
 
   return (
     <>
-      <div className='grid gap-5 md:grid-cols-2 lg:grid-cols-3'>
+      <div className='grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3'>
         {TILE_LABELS.map((label) => (
           <TileSkeleton key={label} label={label} />
         ))}

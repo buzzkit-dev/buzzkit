@@ -433,8 +433,8 @@ function SubscriptionRow({ subscription }: { subscription: Subscription }) {
             <AlertDialogHeader>
               <AlertDialogTitle>Remove subscription?</AlertDialogTitle>
               <AlertDialogDescription>
-                It stops receiving anything until the app registers it again.
-                <span className='block'>To stop messages for a while, mute it instead.</span>
+                It stops receiving anything until the app registers it again. To stop messages for a while,
+                mute it instead.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -840,7 +840,7 @@ function SubscriberContent({
           <CardHeader divider className='py-3'>
             <CardTitle>Activity</CardTitle>
             <CardAction>
-              <FilterBar className='mb-0'>
+              <FilterBar className='mb-0 flex-row items-center'>
                 <FilterSelect
                   label='Event'
                   value={filters.values.event}
@@ -1020,7 +1020,7 @@ function SubscriberSkeleton() {
           <CardHeader divider className='py-3'>
             <CardTitle>Activity</CardTitle>
             <CardAction>
-              <FilterBar className='mb-0'>
+              <FilterBar className='mb-0 flex-row items-center'>
                 <FilterSelect
                   label='Event'
                   value={null}

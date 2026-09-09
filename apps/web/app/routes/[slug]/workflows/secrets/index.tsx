@@ -252,8 +252,7 @@ export default function SecretsRoute({ loaderData }: Route.ComponentProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove “{removing}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Fetch steps that read it fail from the next run on.
-              <span className='block'>This cannot be undone.</span>
+              Fetch steps that read it fail from the next run on. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

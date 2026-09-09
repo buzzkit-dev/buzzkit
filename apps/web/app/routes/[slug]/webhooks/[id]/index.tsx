@@ -248,7 +248,7 @@ function AttemptLedger({
   return (
     <>
       {attempts.length > 0 && (
-        <table className='w-full table-fixed border-separate border-spacing-0 text-sm'>
+        <table className='w-full table-fixed border-separate border-spacing-0 text-sm max-lg:table-auto'>
           <thead>
             <tr>
               <SubHead className='w-28'>Attempt</SubHead>
@@ -271,7 +271,7 @@ function AttemptLedger({
         </table>
       )}
       {canReplay && (
-        <div className='flex items-center justify-between border-bg-3 border-t px-4 pt-3'>
+        <div className='flex items-center justify-between gap-3 border-bg-3 border-t px-4 pt-3'>
           <span className='text-fg-2 text-sm'>Sends the same event again as one more attempt.</span>
           <Button variant='soft' size='xs' loading={replaying} onClick={onReplay}>
             Resend
@@ -410,7 +410,7 @@ function EditForm({
 function EndpointFallback() {
   return (
     <>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
+      <header className='flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='flex min-w-0 flex-col gap-1'>
           <Skeleton className='h-7 w-48' />
           <Skeleton className='h-4 w-72' />
@@ -486,7 +486,7 @@ function EndpointDetail({ detail, base, filter }: { detail: Detail; base: string
 
   return (
     <>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
+      <header className='flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex min-w-0 items-center gap-2.5 font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             <Truncate>{endpoint.url}</Truncate>

@@ -1,5 +1,6 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { Icon } from '@buzzkit/ui/components/icon';
+import { Sheet, SheetContent, SheetTitle } from '@buzzkit/ui/components/sheet';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { useEffect, useState } from 'react';
@@ -15,7 +16,9 @@ import {
 import { cloudflareContext } from '@/app/cloudflare';
 import { NoAccessNotice } from '@/app/components/errors/no-access';
 import { NotFoundNotice } from '@/app/components/errors/not-found';
-import { Sidebar } from '@/app/components/layout/sidebar';
+import { AccountMenu } from '@/app/components/layout/account-menu';
+import { Sidebar, SwitcherPlaceholder } from '@/app/components/layout/sidebar';
+import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { KnownRoleProvider } from '@/app/hooks/use-known-role';
 import { workspaceAction } from '@/app/lib/actions/workspace.server';
@@ -199,6 +202,41 @@ function resolveSidebar(slug: string, chrome: Chrome | null, last: Chrome | null
   };
 }
 
+type SidebarProps = ReturnType<typeof resolveSidebar>;
+
+function MobileBar({ slug, sidebar, onOpen }: { slug: string; sidebar: SidebarProps; onOpen: () => void }) {
+  return (
+    <div className='flex h-10 shrink-0 items-center gap-1 lg:hidden'>
+      <Button
+        variant='ghost'
+        size='icon'
+        icon='IconSidebar'
+        aria-label='Open navigation'
+        className='shrink-0 text-fg-2'
+        onClick={onOpen}
+      />
+      <div className='flex min-w-0 flex-1'>
+        {sidebar.workspace ? (
+          <WorkspaceSwitcher
+            workspaces={sidebar.workspaces}
+            current={sidebar.workspace}
+            tenant={sidebar.tenant}
+            tenants={sidebar.tenants}
+            className='w-auto max-w-full'
+          />
+        ) : (
+          <SwitcherPlaceholder slug={slug} />
+        )}
+      </div>
+      {sidebar.profile ? (
+        <AccountMenu profile={sidebar.profile} />
+      ) : (
+        <Skeleton className='size-7 shrink-0 rounded-full' />
+      )}
+    </div>
+  );
+}
+
 export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   const { pathname } = useLocation();
   const route = useMatches().at(-1)?.handle as PageHandle | undefined;
@@ -206,6 +244,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   const [settled, setSettled] = useState<{ outcome: Promise<ChromeOutcome>; value: ChromeOutcome } | null>(
     null
   );
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const live = settled?.outcome === outcome ? settled.value : null;
   const cached = recallPage<Chrome>(`layout:${slug}`) ?? null;
   const last = recallPage<Chrome>('layout:last') ?? null;
@@ -234,6 +273,10 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
     rememberPage('layout:last', live.chrome);
   }, [live, slug]);
 
+  useEffect(() => {
+    setNavigationOpen(false);
+  }, [pathname]);
+
   if (live?.chrome?.needsOnboarding) return <Navigate to={`${base}/onboarding`} replace />;
 
   return (
@@ -245,12 +288,24 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         Skip to content
       </a>
 
-      <Sidebar slug={slug} {...sidebar} />
+      <Sidebar slug={slug} {...sidebar} className='hidden lg:flex' />
+
+      <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
+        <SheetContent
+          side='left'
+          showCloseButton={false}
+          className='bg-background-subtle data-[side=left]:w-72 lg:hidden'
+        >
+          <SheetTitle className='sr-only'>Navigation</SheetTitle>
+          <Sidebar slug={slug} {...sidebar} className='h-full w-full' />
+        </SheetContent>
+      </Sheet>
 
       <main
         id='content'
-        className={cn('flex min-w-0 flex-1 flex-col gap-2 p-2 pl-0', viewingTenant && 'pt-3')}
+        className={cn('flex min-w-0 flex-1 flex-col gap-2 p-2 lg:pl-0', viewingTenant && 'lg:pt-3')}
       >
+        <MobileBar slug={slug} sidebar={sidebar} onOpen={() => setNavigationOpen(true)} />
         {viewingTenant && (
           <div className='corner-superellipse/1.125 flex h-8 shrink-0 items-center gap-2 rounded-xl bg-amber-4/10 pr-1 pl-3 text-amber-4 text-sm'>
             <Icon name='IconBuildingsFilled' className='size-4 shrink-0 opacity-90' />
@@ -261,7 +316,9 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
               ) : (
                 <Skeleton className='inline-block h-3.5 w-16 bg-amber-4/20 align-middle' />
               )}
-              . Its subscribers, topics, messages and credentials are isolated from every other tenant.
+              <span className='hidden md:inline'>
+                . Its subscribers, topics, messages and credentials are isolated from every other tenant.
+              </span>
             </span>
             <Button
               variant='ghost'
@@ -274,8 +331,8 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
             </Button>
           </div>
         )}
-        <div className='corner-superellipse/1.125 flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl bg-card px-8.5 pt-7.5 shadow-sm'>
-          <div className='flex flex-1 flex-col pb-7.5'>
+        <div className='corner-superellipse/1.125 flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl bg-card px-4 pt-5 shadow-sm sm:px-6 sm:pt-6 lg:px-8.5 lg:pt-7.5'>
+          <div className='pb-5 lg:flex lg:flex-1 lg:flex-col lg:pb-7.5'>
             {chrome ? (
               <Outlet
                 context={

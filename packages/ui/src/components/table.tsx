@@ -3,6 +3,7 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { useLink } from '@buzzkit/ui/components/link';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
+import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
 import * as React from 'react';
@@ -14,13 +15,18 @@ function Table({ className, children, ...props }: React.ComponentProps<'table'>)
   const parts = React.Children.toArray(children);
   const pinned = parts.filter((part) => React.isValidElement(part) && part.type === TablePagination);
   const inside = parts.filter((part) => !pinned.includes(part));
+  const viewportRef = React.useRef<HTMLDivElement>(null);
 
   return (
     <div data-slot='table-root' className='flex min-h-0 w-full flex-col'>
-      <div data-slot='table-viewport' className='relative min-h-0 flex-1 overflow-auto'>
+      <ScrollFade orientation='horizontal' targetRef={viewportRef} />
+      <div ref={viewportRef} data-slot='table-viewport' className='relative min-h-0 flex-1 overflow-auto'>
         <table
           data-slot='table'
-          className={cn('w-full caption-bottom border-separate border-spacing-0 text-sm', className)}
+          className={cn(
+            'w-full caption-bottom border-separate border-spacing-0 text-sm max-lg:table-auto',
+            className
+          )}
           {...props}
         >
           {inside}

@@ -2,10 +2,11 @@ import { type ActionFunctionArgs, data, redirect } from 'react-router';
 import { beginAction } from '@/app/lib/actions/context.server';
 import { createWorkspaceFromForm } from '@/app/lib/actions/workspace.server';
 import { listWorkspaces } from '@/app/lib/api.server';
-import { lastWorkspaceCookie } from '@/app/lib/session.server';
+import { lastWorkspaceCookie, signOut } from '@/app/lib/session.server';
 
 export async function onboardingAction(args: ActionFunctionArgs) {
-  const { env, token, ctx, form } = await beginAction(args);
+  const { env, token, ctx, form, intent } = await beginAction(args);
+  if (intent === 'sign-out') return signOut(args.request, env);
   if ((await listWorkspaces(ctx, token)).length > 0) throw redirect('/dashboard');
 
   const result = await createWorkspaceFromForm(ctx, token, form);

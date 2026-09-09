@@ -4,6 +4,7 @@ import { buildCredentialUpload } from '@/app/components/onboarding/guides/upload
 import type { ConnectActionData } from '@/app/components/onboarding/provider-guide';
 import { beginAction } from '@/app/lib/actions/context.server';
 import { ApiError, createCredential, type RequestContext, validateCredential } from '@/app/lib/api.server';
+import { signOut } from '@/app/lib/session.server';
 
 export async function connectProvider(
   ctx: RequestContext,
@@ -37,7 +38,8 @@ export async function connectProvider(
 }
 
 export async function connectProviderAction(args: ActionFunctionArgs): Promise<ConnectActionData> {
-  const { token, ctx, form, intent } = await beginAction(args);
+  const { env, token, ctx, form, intent } = await beginAction(args);
+  if (intent === 'sign-out') throw await signOut(args.request, env);
   const { provider } = resolveOnboardingPath(args.params['*']);
   if (!provider) throw data(null, { status: 404 });
   return connectProvider(ctx, token, String(args.params.slug), 'default', provider.id, form, intent);

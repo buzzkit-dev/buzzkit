@@ -1,21 +1,29 @@
 import { Button } from '@buzzkit/ui/components/button';
-import { Icon } from '@buzzkit/ui/components/icon';
 import { Separator } from '@buzzkit/ui/components/separator';
 
 export function OAuthProviders({
   github,
   onGithub,
-  pending,
+  disabled,
+  loading,
 }: {
   github: boolean;
   onGithub: () => void;
-  pending?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
   if (!github) return null;
   return (
     <div className='flex flex-col gap-4'>
-      <Button type='button' variant='elevated' className='w-full' disabled={pending} onClick={onGithub}>
-        <Icon name='IconGithub' className='opacity-100' />
+      <Button
+        type='button'
+        variant='elevated'
+        className='w-full'
+        icon={{ name: 'IconGithub', className: 'opacity-100' }}
+        disabled={disabled}
+        loading={loading}
+        onClick={onGithub}
+      >
         Continue with GitHub
       </Button>
       <div className='flex items-center gap-3'>

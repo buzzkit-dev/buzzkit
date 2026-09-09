@@ -1917,6 +1917,11 @@ export default function DesignSystem() {
               <OAuthProviders github onGithub={() => undefined} />
             </div>
           </Specimen>
+          <Specimen label='sign-in providers · redirecting'>
+            <div className='w-72'>
+              <OAuthProviders github onGithub={() => undefined} loading />
+            </div>
+          </Specimen>
         </Section>
 
         <Section

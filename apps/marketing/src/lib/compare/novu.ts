@@ -4,17 +4,17 @@ export const novu: ComparePage = {
   slug: 'novu',
   competitor: 'Novu',
   summary:
-    'BuzzKit and Novu are both open source. Novu spans every channel; BuzzKit does mobile push completely.',
+    'BuzzKit and Novu are both open source. Novu covers every channel today; BuzzKit starts with mobile push and goes deeper on it.',
   blurb: 'Two open source takes on notifications',
   title: 'BuzzKit vs Novu.',
   continuation: 'Both open source, different depths.',
   intro:
-    'Novu is open source notification infrastructure across email, in-app, SMS, chat and push. BuzzKit is open source too, and goes deep on mobile push: segments, local-time delivery, quiet moments and a ledger.',
+    'Novu is open source notification infrastructure across email, in-app, SMS, chat and push. BuzzKit is open source too, and multi-channel by design, with mobile push finished first: segments over your own events, device-level waits and a ledger. Email and SMS follow.',
   groups: [
     {
       group: 'Channels',
       rows: [
-        { capability: 'iOS push', buzzkit: true, competitor: 'Through providers' },
+        { capability: 'iOS push', buzzkit: true, competitor: true },
         { capability: 'Live Activities', buzzkit: true, competitor: false },
         { capability: 'Android push', buzzkit: 'Soon', competitor: true },
         { capability: 'Email', buzzkit: 'Soon', competitor: true },
@@ -27,9 +27,9 @@ export const novu: ComparePage = {
       rows: [
         { capability: 'Your own APNs and FCM keys', buzzkit: true, competitor: true },
         { capability: 'Action buttons and deep links', buzzkit: true, competitor: 'Provider payload' },
-        { capability: 'Delivery in each subscriber’s time zone', buzzkit: true, competitor: false },
-        { capability: 'Quiet hours and daily caps', buzzkit: true, competitor: 'Throttle step' },
-        { capability: 'A ledger of every delivery attempt', buzzkit: true, competitor: 'Activity feed' },
+        { capability: 'Delivery in each subscriber’s time zone', buzzkit: true, competitor: true },
+        { capability: 'Quiet hours and daily caps', buzzkit: true, competitor: true },
+        { capability: 'A ledger of every delivery attempt', buzzkit: true, competitor: true },
       ],
     },
     {
@@ -37,7 +37,11 @@ export const novu: ComparePage = {
       rows: [
         { capability: 'Subscribers by your own ids', buzzkit: true, competitor: true },
         { capability: 'Unlimited subscribers', buzzkit: true, competitor: true },
-        { capability: 'Segments over attributes and events', buzzkit: true, competitor: 'Topics' },
+        {
+          capability: 'Segments over attributes and events',
+          buzzkit: true,
+          competitor: 'Topics and filters',
+        },
         { capability: 'Topics and preferences', buzzkit: true, competitor: true },
         { capability: 'Tenants for platforms built on top of it', buzzkit: true, competitor: true },
       ],
@@ -45,14 +49,14 @@ export const novu: ComparePage = {
     {
       group: 'Automation',
       rows: [
-        { capability: 'Workflows that start from user events', buzzkit: true, competitor: 'API trigger' },
-        { capability: 'Conditions on what the user did', buzzkit: true, competitor: false },
+        { capability: 'Workflows that start from user events', buzzkit: true, competitor: true },
+        { capability: 'Conditions on what the user did', buzzkit: true, competitor: 'Seen, read, online' },
         { capability: 'Wait for an event', buzzkit: true, competitor: false },
         { capability: 'Wait for a quiet moment on the device', buzzkit: true, competitor: false },
-        { capability: 'Branches and loops', buzzkit: true, competitor: 'Step conditions' },
+        { capability: 'Branches and loops', buzzkit: true, competitor: 'Conditions, or code' },
         { capability: 'Call your own API from a step', buzzkit: true, competitor: true },
-        { capability: 'Workflows as versioned specs', buzzkit: true, competitor: 'Code-first framework' },
-        { capability: 'Webhooks from other tools as events', buzzkit: true, competitor: false },
+        { capability: 'Workflows as versioned specs', buzzkit: true, competitor: true },
+        { capability: 'Webhooks from other tools as events', buzzkit: true, competitor: 'Your own endpoint' },
       ],
     },
     {
@@ -68,7 +72,7 @@ export const novu: ComparePage = {
   ],
   chooseBuzzkit: [
     'You want everything a push needs in one place: sending, segments, scheduling, preferences, workflows and a ledger, from one POST.',
-    'Mobile push is the channel that matters and you want it handled deeply.',
+    'Mobile push is the channel that matters right now and you want it handled deeply.',
     'You want segments over your own events, not only topics.',
     'You run a platform and need isolated tenants with their own keys.',
   ],

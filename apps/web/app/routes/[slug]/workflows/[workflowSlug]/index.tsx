@@ -575,7 +575,7 @@ function WorkflowContent({
 
   return (
     <>
-      <header className='flex shrink-0 items-center justify-between gap-4'>
+      <header className='flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex items-center gap-2.5 text-balance font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             <Truncate>{workflow.name}</Truncate>
@@ -758,8 +758,7 @@ function WorkflowContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Pause “{workflow.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              No new runs start while it is paused.
-              <span className='block'>Runs already going finish as planned.</span>
+              No new runs start while it is paused. Runs already going finish as planned.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -779,8 +778,7 @@ function WorkflowContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{workflow.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Runs still going stop and no new ones start.
-              <span className='block'>This cannot be undone.</span>
+              Runs still going stop and no new ones start. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

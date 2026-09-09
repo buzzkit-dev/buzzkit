@@ -612,8 +612,7 @@ export default function TopicsRoute({ loaderData }: Route.ComponentProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{deleting?.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Sends to it stop and subscribers no longer see it.
-              <span className='block'>This cannot be undone.</span>
+              Sends to it stop and subscribers no longer see it. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

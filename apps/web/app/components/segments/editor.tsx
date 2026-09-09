@@ -272,7 +272,7 @@ export function SegmentEditor({
         Segments
       </Button>
 
-      <header className='flex shrink-0 items-center justify-between gap-4'>
+      <header className='flex shrink-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='flex min-w-0 flex-col gap-0.5'>
           <h1 className='flex min-w-0 items-center gap-2.5 font-medium text-2xl text-fg-4 leading-tighter tracking-tight'>
             <Truncate>{segment?.name ?? 'New segment'}</Truncate>

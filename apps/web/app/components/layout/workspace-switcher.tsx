@@ -49,11 +49,13 @@ export function WorkspaceSwitcher({
   current,
   tenant,
   tenants,
+  className,
 }: {
   workspaces: Workspace[];
   current: Workspace;
   tenant: Tenant | null;
   tenants: Tenant[];
+  className?: string;
 }) {
   const { pathname } = useLocation();
   const [creating, setCreating] = useState(false);
@@ -63,7 +65,7 @@ export function WorkspaceSwitcher({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant='ghost' className='w-full justify-start pr-2.5 pl-1.25' />}
+          render={<Button variant='ghost' className={cn('w-full justify-start pr-2.5 pl-1.25', className)} />}
         >
           <WorkspaceAvatar slug={current.slug} avatarUrl={current.avatarUrl} />
           <Truncate>

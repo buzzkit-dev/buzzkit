@@ -2,6 +2,7 @@ import { Badge } from '@buzzkit/ui/components/badge';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
+import { useHoverCapable } from '@buzzkit/ui/hooks/use-hover-capable';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
@@ -12,9 +13,14 @@ const HoverContext = createContext<{ hovered: string | null; setHovered: (id: st
 });
 
 export function ChoiceRows({ children }: { children: React.ReactNode }) {
+  const hoverable = useHoverCapable();
   const [hovered, setHovered] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useAnimatedIndicator(rootRef);
+
+  const hover = (id: string | null) => {
+    if (hoverable) setHovered(id);
+  };
 
   useEffect(() => {
     const indicator = indicatorRef.current;
@@ -23,7 +29,7 @@ export function ChoiceRows({ children }: { children: React.ReactNode }) {
   }, [hovered, indicatorRef]);
 
   return (
-    <HoverContext.Provider value={{ hovered, setHovered }}>
+    <HoverContext.Provider value={{ hovered, setHovered: hover }}>
       <div ref={rootRef} className='relative isolate -mx-2' onPointerLeave={() => setHovered(null)}>
         <div
           ref={indicatorRef}

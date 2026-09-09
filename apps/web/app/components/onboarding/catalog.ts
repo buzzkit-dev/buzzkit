@@ -124,3 +124,7 @@ export function resolveOnboardingPath(splat: string | undefined) {
   if (providerId && !provider) throw data(null, { status: 404 });
   return { channel, provider };
 }
+
+export function assertOnboardingPath(splat: string | undefined): void {
+  resolveOnboardingPath(splat);
+}
