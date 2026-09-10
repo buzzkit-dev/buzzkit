@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
 import { describe, expect, it } from 'vitest';
 
-const FORWARDED_BY_DASHBOARD = ['buzzkit.dev/', 'buzzkit.dev/api'];
+const FORWARDED_BY_DASHBOARD = ['buzzkit.dev/', 'buzzkit.dev/api', 'buzzkit.dev/buzz'];
 
 function listRoutePatterns(): string[] {
   const jsonc = readFileSync(join(process.cwd(), 'wrangler.jsonc'), 'utf8');

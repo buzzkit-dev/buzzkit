@@ -45,12 +45,11 @@ describe('reserved slugs', () => {
   });
 
   it('refuses a slug that a prefix route would swallow', () => {
-    for (const slug of ['buzz-app', 'buzzkit-e2e', 'docs-team', 'pricing-2'])
-      expect(isReservedSlug(slug)).toBe(true);
+    for (const slug of ['about-us-app', 'docs-team', 'pricing-2']) expect(isReservedSlug(slug)).toBe(true);
   });
 
   it('allows an ordinary slug', () => {
-    for (const slug of ['cruisesignal', 'deskbot', 'acme', 'my-app'])
+    for (const slug of ['cruisesignal', 'deskbot', 'acme', 'my-app', 'buzz-app', 'buzzkit-e2e'])
       expect(isReservedSlug(slug)).toBe(false);
   });
 });

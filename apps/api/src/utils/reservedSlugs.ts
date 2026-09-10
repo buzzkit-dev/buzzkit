@@ -399,7 +399,6 @@ export const RESERVED_SLUGS = new Set([
 export const RESERVED_SLUG_PREFIXES = [
   '404',
   'about',
-  'buzz',
   'contact',
   'developers',
   'docs',

@@ -7,7 +7,7 @@ const requestHandler = createRequestHandler(
 );
 
 const MARKETING_HOST = 'buzzkit.dev';
-const MARKETING_PATHS = new Set(['/', '/api']);
+const MARKETING_PATHS = new Set(['/', '/api', '/buzz']);
 
 export default {
   fetch(request, env, ctx) {
