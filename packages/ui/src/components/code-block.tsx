@@ -9,7 +9,15 @@ import * as React from 'react';
  * A copyable command/code snippet. Deliberately plain — no syntax highlighting,
  * just mono text on a soft surface with a copy affordance in the corner.
  */
-export function CodeBlock({ code, className }: { code: string; className?: string }) {
+export function CodeBlock({
+  code,
+  className,
+  onCopy,
+}: {
+  code: string;
+  className?: string;
+  onCopy?: () => void;
+}) {
   const [copied, setCopied] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -18,6 +26,7 @@ export function CodeBlock({ code, className }: { code: string; className?: strin
     setCopied(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), 1500);
+    onCopy?.();
   };
 
   React.useEffect(() => () => clearTimeout(timer.current), []);

@@ -23,7 +23,6 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@buzzkit/ui/com
 import { Input } from '@buzzkit/ui/components/input';
 import { type ScopeGroup, ScopePicker } from '@buzzkit/ui/components/scope-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@buzzkit/ui/components/select';
-import { toast } from '@buzzkit/ui/components/sonner';
 import { Table, TableBody, TableCell, TablePagination, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import type { BuzzKit } from 'buzzkit';
@@ -31,6 +30,7 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { KeyKindBadge, RevokedBadge } from '@/app/components/badges';
+import { CopyButton } from '@/app/components/copy/button';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
@@ -145,29 +145,61 @@ function firstUseSnippet(apiUrl: string, kind: BuzzKit.KeyKind, secret: string) 
   ].join('\n');
 }
 
-function KeyDialog({
-  open,
-  onOpenChange,
-  tenants,
+function CreatedKey({
+  created,
   apiUrl,
+  onCopy,
+  onDone,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  tenants: { id: string; name: string; slug: string; isDefault: boolean }[];
+  created: { secret: string; kind: BuzzKit.KeyKind };
   apiUrl: string;
+  onCopy: () => void;
+  onDone: () => void;
 }) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Copy your key</DialogTitle>
+      </DialogHeader>
+      <div className='flex w-full flex-col gap-3'>
+        <CodeBlock code={created.secret} className='w-full' onCopy={onCopy} />
+        <Field>
+          <FieldLabel>Use it right away</FieldLabel>
+          <CodeBlock
+            code={firstUseSnippet(apiUrl, created.kind, created.secret)}
+            className='w-full'
+            onCopy={onCopy}
+          />
+        </Field>
+        <Button className='w-full' onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function KeyForm({
+  tenants,
+  onCreated,
+  onCancel,
+}: {
+  tenants: { id: string; name: string; slug: string; isDefault: boolean }[];
+  onCreated: (created: { secret: string; kind: BuzzKit.KeyKind }) => void;
+  onCancel: () => void;
+}) {
+  const { submit, pending } = useActionFetcher((data) => {
+    if (typeof data.secret === 'string')
+      onCreated({ secret: data.secret, kind: (data.kind as BuzzKit.KeyKind) ?? 'workspace' });
+    else onCancel();
+  });
+
   const defaultTenant = tenants.find((entry) => entry.isDefault)?.slug ?? tenants[0]?.slug ?? '';
   const [name, setName] = useState('');
   const [kind, setKind] = useState<BuzzKit.KeyKind>('workspace');
   const [tenant, setTenant] = useState(defaultTenant);
   const [preset, setPreset] = useState<Preset>('full');
   const [scopes, setScopes] = useState<string[]>([]);
-  const [created, setCreated] = useState<{ secret: string; kind: BuzzKit.KeyKind } | null>(null);
-  const { submit, pending } = useActionFetcher((data) => {
-    if (typeof data.secret === 'string')
-      setCreated({ secret: data.secret, kind: (data.kind as BuzzKit.KeyKind) ?? 'workspace' });
-    else onOpenChange(false);
-  });
 
   const groups = groupsFor(kind);
   const selected =
@@ -183,147 +215,143 @@ function KeyDialog({
 
   const create = () => submit('create', { name: trimmed, kind, tenant, scopes: JSON.stringify(selected) });
 
-  useEffect(() => {
-    if (!open) return;
-    setName('');
-    setKind('workspace');
-    setTenant(defaultTenant);
-    setPreset('full');
-    setScopes([]);
-    setCreated(null);
-  }, [open, defaultTenant]);
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton>
-        {created ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Copy your key</DialogTitle>
-            </DialogHeader>
-            <div className='flex w-full flex-col gap-3'>
-              <CodeBlock code={created.secret} className='w-full' />
-              <Field>
-                <FieldLabel>Use it right away</FieldLabel>
-                <CodeBlock code={firstUseSnippet(apiUrl, created.kind, created.secret)} className='w-full' />
-              </Field>
-              <Button className='w-full' onClick={() => onOpenChange(false)}>
-                Done
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>New API key</DialogTitle>
-            </DialogHeader>
-            <FieldGroup className='w-full'>
-              <Field>
-                <FieldLabel htmlFor='key-name'>Name</FieldLabel>
-                <Input
-                  id='key-name'
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={kind === 'client' ? 'iOS app' : 'Production backend'}
-                  maxLength={100}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='key-kind'>Type</FieldLabel>
-                <Select
-                  items={KINDS}
-                  value={kind}
-                  onValueChange={(value) => setKind(value as BuzzKit.KeyKind)}
-                >
-                  <SelectTrigger id='key-kind' className='w-full'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {KINDS.map((entry) => (
-                      <SelectItem key={entry.value} value={entry.value}>
-                        {entry.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  {kind === 'workspace'
-                    ? 'Workspace keys can access every tenant and are meant for your backend.'
-                    : kind === 'tenant'
-                      ? "Tenant keys are scoped to a single tenant and can't reach anything outside it."
-                      : 'Client keys can be embedded directly in your app and used with the SDK.'}
-                </FieldDescription>
-              </Field>
-              {kind !== 'workspace' && (
-                <Field>
-                  <FieldLabel htmlFor='key-tenant'>Tenant</FieldLabel>
-                  <Select
-                    items={tenants.map((entry) => ({ value: entry.slug, label: entry.name }))}
-                    value={tenant}
-                    onValueChange={(value) => setTenant(String(value))}
-                  >
-                    <SelectTrigger id='key-tenant' className='w-full'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenants.map((entry) => (
-                        <SelectItem key={entry.id} value={entry.slug}>
-                          {entry.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-              {kind !== 'client' && (
-                <Field>
-                  <FieldLabel htmlFor='key-preset'>Permissions</FieldLabel>
-                  <Select
-                    items={PRESETS}
-                    value={preset}
-                    onValueChange={(value) => setPreset(value as Preset)}
-                  >
-                    <SelectTrigger id='key-preset' className='w-full'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRESETS.map((entry) => (
-                        <SelectItem key={entry.value} value={entry.value}>
-                          {entry.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    {preset === 'full'
-                      ? 'Everything, including permissions added later.'
-                      : preset === 'read'
-                        ? 'Read access to every resource. Cannot change anything.'
-                        : 'Pick exactly what this key can do.'}
-                  </FieldDescription>
-                </Field>
-              )}
-              {kind !== 'client' && preset === 'custom' && (
-                <Field>
-                  <FieldLabel>Custom permissions</FieldLabel>
-                  <ScopePicker groups={groups} selected={scopes} onChange={setScopes} />
-                </Field>
-              )}
-              <Button className='w-full' disabled={!canCreate} loading={pending} onClick={create}>
-                Create key
-              </Button>
-            </FieldGroup>
-          </>
+    <>
+      <DialogHeader>
+        <DialogTitle>New API key</DialogTitle>
+      </DialogHeader>
+      <FieldGroup className='w-full'>
+        <Field>
+          <FieldLabel htmlFor='key-name'>Name</FieldLabel>
+          <Input
+            id='key-name'
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder={kind === 'client' ? 'iOS app' : 'Production backend'}
+            maxLength={100}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor='key-kind'>Type</FieldLabel>
+          <Select items={KINDS} value={kind} onValueChange={(value) => setKind(value as BuzzKit.KeyKind)}>
+            <SelectTrigger id='key-kind' className='w-full'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KINDS.map((entry) => (
+                <SelectItem key={entry.value} value={entry.value}>
+                  {entry.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>
+            {kind === 'workspace'
+              ? 'Workspace keys can access every tenant and are meant for your backend.'
+              : kind === 'tenant'
+                ? "Tenant keys are scoped to a single tenant and can't reach anything outside it."
+                : 'Client keys can be embedded directly in your app and used with the SDK.'}
+          </FieldDescription>
+        </Field>
+        {kind !== 'workspace' && (
+          <Field>
+            <FieldLabel htmlFor='key-tenant'>Tenant</FieldLabel>
+            <Select
+              items={tenants.map((entry) => ({ value: entry.slug, label: entry.name }))}
+              value={tenant}
+              onValueChange={(value) => setTenant(String(value))}
+            >
+              <SelectTrigger id='key-tenant' className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {tenants.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.slug}>
+                    {entry.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         )}
-      </DialogContent>
-    </Dialog>
+        {kind !== 'client' && (
+          <Field>
+            <FieldLabel htmlFor='key-preset'>Permissions</FieldLabel>
+            <Select items={PRESETS} value={preset} onValueChange={(value) => setPreset(value as Preset)}>
+              <SelectTrigger id='key-preset' className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRESETS.map((entry) => (
+                  <SelectItem key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldDescription>
+              {preset === 'full'
+                ? 'Everything, including permissions added later.'
+                : preset === 'read'
+                  ? 'Read access to every resource. Cannot change anything.'
+                  : 'Pick exactly what this key can do.'}
+            </FieldDescription>
+          </Field>
+        )}
+        {kind !== 'client' && preset === 'custom' && (
+          <Field>
+            <FieldLabel>Custom permissions</FieldLabel>
+            <ScopePicker groups={groups} selected={scopes} onChange={setScopes} />
+          </Field>
+        )}
+        <Button className='w-full' disabled={!canCreate} loading={pending} onClick={create}>
+          Create key
+        </Button>
+      </FieldGroup>
+    </>
   );
 }
 
-function copyToClipboard(value: string) {
-  navigator.clipboard.writeText(value).then(
-    () => toast.success('Copied to clipboard'),
-    () => toast.error('Unable to copy', { description: 'Select the key and copy it manually.' })
+function KeyDialog({
+  open,
+  onOpenChange,
+  tenants,
+  apiUrl,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenants: { id: string; name: string; slug: string; isDefault: boolean }[];
+  apiUrl: string;
+}) {
+  const [created, setCreated] = useState<{ secret: string; kind: BuzzKit.KeyKind } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const locked = created !== null && !copied;
+
+  const close = () => onOpenChange(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setCreated(null);
+    setCopied(false);
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next || !locked) onOpenChange(next);
+      }}
+      disablePointerDismissal={locked}
+    >
+      <DialogContent showCloseButton={created === null}>
+        {created ? (
+          <CreatedKey created={created} apiUrl={apiUrl} onCopy={() => setCopied(true)} onDone={close} />
+        ) : (
+          <KeyForm key={String(open)} tenants={tenants} onCreated={setCreated} onCancel={close} />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -361,7 +389,7 @@ function KeyRow({
   canManage: boolean;
   onRevoke: (key: ApiKey) => void;
 }) {
-  const copyable = apiKey.kind === 'client' && apiKey.token;
+  const token = !apiKey.revokedAt && apiKey.kind === 'client' ? (apiKey.token ?? null) : null;
 
   return (
     <TableRow className={apiKey.revokedAt ? 'opacity-60' : undefined}>
@@ -372,7 +400,15 @@ function KeyRow({
         </span>
       </TableCell>
       <TableCell className='text-xs'>
-        {apiKey.prefix}…{apiKey.last4}
+        {token ? (
+          <CopyButton value={token} label='Copy key'>
+            {apiKey.prefix}…{apiKey.last4}
+          </CopyButton>
+        ) : (
+          <>
+            {apiKey.prefix}…{apiKey.last4}
+          </>
+        )}
       </TableCell>
       <TableCell>
         <KeyKindBadge kind={apiKey.kind} />
@@ -388,7 +424,7 @@ function KeyRow({
         <Time at={apiKey.createdAt} />
       </TableCell>
       <TableCell className='w-0 py-1.5 text-right'>
-        {!apiKey.revokedAt && (canManage || copyable) && (
+        {!apiKey.revokedAt && canManage && (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -401,16 +437,9 @@ function KeyRow({
               }
             />
             <DropdownMenuContent align='end'>
-              {copyable && (
-                <DropdownMenuItem onClick={() => copyToClipboard(apiKey.token as string)}>
-                  Copy key
-                </DropdownMenuItem>
-              )}
-              {canManage && (
-                <DropdownMenuItem variant='destructive' onClick={() => onRevoke(apiKey)}>
-                  Revoke
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem variant='destructive' onClick={() => onRevoke(apiKey)}>
+                Revoke
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
