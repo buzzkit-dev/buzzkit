@@ -3,11 +3,15 @@ import { join } from 'node:path';
 import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
 import { describe, expect, it } from 'vitest';
 
-function listRouteSegments(): string[] {
+function listRoutePatterns(): string[] {
   const jsonc = readFileSync(join(process.cwd(), 'wrangler.jsonc'), 'utf8');
   const config = JSON.parse(jsonc.replace(/^\s*\/\/.*$/gm, '')) as { routes: { pattern: string }[] };
-  const segments = config.routes.map(
-    (route) => route.pattern.replace(/^buzzkit\.dev\//, '').split(/[/*.]/)[0]!
+  return config.routes.map((route) => route.pattern);
+}
+
+function listRouteSegments(): string[] {
+  const segments = listRoutePatterns().map(
+    (pattern) => pattern.replace(/^buzzkit\.dev\//, '').split(/[/*.?]/)[0]!
   );
   return [...new Set(segments.filter((segment) => segment.length > 0 && !segment.startsWith('_')))];
 }
@@ -17,5 +21,14 @@ describe('marketing routes', () => {
     const segments = listRouteSegments();
     expect(segments.length).toBeGreaterThan(10);
     for (const segment of segments) expect(RESERVED_SLUGS.has(segment), segment).toBe(true);
+  });
+
+  it('match their own paths with a query string', () => {
+    const patterns = new Set(listRoutePatterns());
+    for (const pattern of patterns) {
+      if (pattern.endsWith('*')) continue;
+      const covered = patterns.has(`${pattern}?*`) || patterns.has(`${pattern}*`);
+      expect(covered, pattern).toBe(true);
+    }
   });
 });
