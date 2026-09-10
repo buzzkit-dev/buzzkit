@@ -167,8 +167,16 @@ function svgDataUri(markup: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(markup).toString('base64')}`;
 }
 
-function image(src: string, size: number, style: Style = {}): Node {
+export function image(src: string, size: number, style: Style = {}): Node {
   return { type: 'img', props: { src, width: size, height: size, style } };
+}
+
+export function picture(src: string, width: number, height: number, style: Style = {}): Node {
+  return { type: 'img', props: { src, width, height, style } };
+}
+
+export function pngAsset(path: string): string {
+  return `data:image/png;base64,${readAsset(path).toString('base64')}`;
 }
 
 export interface AreaSeries {

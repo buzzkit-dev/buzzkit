@@ -1,10 +1,12 @@
 import type { Node } from '../primitives';
 import { actions } from './actions';
+import { agents } from './agents';
 import { apiKey } from './api-key';
 import { dashboard } from './dashboard';
 import { ledger } from './ledger';
 import { liveActivity } from './live-activity';
 import { notifications } from './notifications';
+import { phone } from './phone';
 import { preferences } from './preferences';
 import { schedule } from './schedule';
 import { segment } from './segment';
@@ -19,6 +21,7 @@ const VISUALS: Record<Visual['kind'], () => Node> = {
   notifications,
   actions,
   liveActivity,
+  agents,
   workflow,
   segment,
   preferences,
@@ -28,6 +31,7 @@ const VISUALS: Record<Visual['kind'], () => Node> = {
   tenants,
   apiKey,
   dashboard,
+  phone,
 };
 
 export function visual(entry: Visual): Node {

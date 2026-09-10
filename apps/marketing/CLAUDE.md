@@ -26,9 +26,10 @@ src/
   lib/og/                       The OG images: index.ts (one card per page — title, continuation, visual — drawn as the site's hero:
                                 wordmark and title centered, the visual on a stage below that runs off the bottom edge), visuals/ (one
                                 file per visual, each a faithful redraw of the site's own component: notifications, actions,
-                                live-activity, workflow, segment, preferences, ledger, schedule, sources, tenants, api-key, and
-                                dashboard, the Overview screen in its frame at the dashboard's natural width, which every page without
-                                a product visual falls back to; elements.ts holds the Card, Badge, Switch, table row and live-ping
+                                live-activity, agents (Buzz's merged Live Activity, redrawn from the app's own SessionRows with the
+                                agent marks in src/assets/agents/), workflow, segment, preferences, ledger, schedule, sources, tenants,
+                                api-key, and dashboard, the Overview screen in its frame at the dashboard's natural width, which every
+                                page without a product visual falls back to; elements.ts holds the Card, Badge, Switch, table row and live-ping
                                 equivalents; index.ts the `Visual` type and the dispatcher), primitives.ts (tokens as hex, PastelAvatar,
                                 the fonts, balanced line breaking measured with the real font, icons from the Central paths, area charts
                                 as inline SVG)

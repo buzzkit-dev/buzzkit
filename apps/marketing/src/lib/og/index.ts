@@ -63,8 +63,8 @@ export const ogCards: OgCard[] = [
   {
     path: 'buzz',
     title: 'Buzz.',
-    continuation: 'Live updates from your agents, on your lock screen.',
-    visual: { kind: 'liveActivity' },
+    continuation: 'Live updates from your coding agents, on your lock screen.',
+    visual: { kind: 'phone' },
   },
   {
     path: 'why-buzzkit',

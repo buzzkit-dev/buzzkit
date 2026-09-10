@@ -2,6 +2,7 @@ export type Visual =
   | { kind: 'notifications' }
   | { kind: 'actions' }
   | { kind: 'liveActivity' }
+  | { kind: 'agents' }
   | { kind: 'workflow' }
   | { kind: 'segment' }
   | { kind: 'preferences' }
@@ -10,4 +11,5 @@ export type Visual =
   | { kind: 'sources' }
   | { kind: 'tenants' }
   | { kind: 'apiKey' }
-  | { kind: 'dashboard' };
+  | { kind: 'dashboard' }
+  | { kind: 'phone' };
