@@ -14,6 +14,12 @@
 
   "routes": [{ "pattern": "buzzkit.dev/*", "zone_name": "buzzkit.dev" }],
 
+  // Marketing owns a fixed list of paths, but a Cloudflare route pattern matches the
+  // query string too and cannot end in one, so "/" and "/api" with a query fall through
+  // to this Worker. They are handed back to the marketing Worker instead of rendering
+  // the dashboard. See apps/marketing/wrangler.jsonc.
+  "services": [{ "binding": "MARKETING", "service": "buzzkit-marketing" }],
+
   "workers_dev": true,
   "preview_urls": true,
 

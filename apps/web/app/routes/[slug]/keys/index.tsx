@@ -11,7 +11,13 @@ import {
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@buzzkit/ui/components/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -148,20 +154,27 @@ function firstUseSnippet(apiUrl: string, kind: BuzzKit.KeyKind, secret: string) 
 function CreatedKey({
   created,
   apiUrl,
+  copied,
   onCopy,
   onDone,
 }: {
   created: { secret: string; kind: BuzzKit.KeyKind };
   apiUrl: string;
+  copied: boolean;
   onCopy: () => void;
   onDone: () => void;
 }) {
+  const captureManualCopy = () => {
+    if (document.getSelection()?.toString().includes(created.secret)) onCopy();
+  };
+
   return (
     <>
       <DialogHeader>
         <DialogTitle>Copy your key</DialogTitle>
+        <DialogDescription>This is the only time the key is shown.</DialogDescription>
       </DialogHeader>
-      <div className='flex w-full flex-col gap-3'>
+      <div className='flex w-full flex-col gap-3' onCopy={captureManualCopy}>
         <CodeBlock code={created.secret} className='w-full' onCopy={onCopy} />
         <Field>
           <FieldLabel>Use it right away</FieldLabel>
@@ -171,7 +184,7 @@ function CreatedKey({
             onCopy={onCopy}
           />
         </Field>
-        <Button className='w-full' onClick={onDone}>
+        <Button className='w-full' disabled={!copied} onClick={onDone}>
           Done
         </Button>
       </div>
@@ -346,7 +359,13 @@ function KeyDialog({
     >
       <DialogContent showCloseButton={created === null}>
         {created ? (
-          <CreatedKey created={created} apiUrl={apiUrl} onCopy={() => setCopied(true)} onDone={close} />
+          <CreatedKey
+            created={created}
+            apiUrl={apiUrl}
+            copied={copied}
+            onCopy={() => setCopied(true)}
+            onDone={close}
+          />
         ) : (
           <KeyForm key={String(open)} tenants={tenants} onCreated={setCreated} onCancel={close} />
         )}

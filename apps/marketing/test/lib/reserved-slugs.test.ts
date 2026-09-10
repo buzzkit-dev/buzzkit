@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { RESERVED_SLUGS } from '@buzzkit/api/utils/reservedSlugs';
 import { describe, expect, it } from 'vitest';
 
+const FORWARDED_BY_DASHBOARD = ['buzzkit.dev/', 'buzzkit.dev/api'];
+
 function listRoutePatterns(): string[] {
   const jsonc = readFileSync(join(process.cwd(), 'wrangler.jsonc'), 'utf8');
   const config = JSON.parse(jsonc.replace(/^\s*\/\/.*$/gm, '')) as { routes: { pattern: string }[] };
@@ -23,12 +25,10 @@ describe('marketing routes', () => {
     for (const segment of segments) expect(RESERVED_SLUGS.has(segment), segment).toBe(true);
   });
 
-  it('match their own paths with a query string', () => {
-    const patterns = new Set(listRoutePatterns());
-    for (const pattern of patterns) {
-      if (pattern.endsWith('*')) continue;
-      const covered = patterns.has(`${pattern}?*`) || patterns.has(`${pattern}*`);
-      expect(covered, pattern).toBe(true);
+  it('end with a wildcard, so a query string still matches them', () => {
+    for (const pattern of listRoutePatterns()) {
+      if (FORWARDED_BY_DASHBOARD.includes(pattern)) continue;
+      expect(pattern.endsWith('*'), pattern).toBe(true);
     }
   });
 });

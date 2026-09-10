@@ -6,8 +6,15 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE
 );
 
+const MARKETING_HOST = 'buzzkit.dev';
+const MARKETING_PATHS = new Set(['/', '/api']);
+
 export default {
   fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.hostname === MARKETING_HOST && MARKETING_PATHS.has(url.pathname))
+      return env.MARKETING.fetch(request);
+
     const routerContext = new RouterContextProvider();
     routerContext.set(cloudflareContext, { env, ctx });
     return requestHandler(request, routerContext);
