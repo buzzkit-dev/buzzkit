@@ -302,6 +302,7 @@ function StreamFilters({
         }))}
         onValueChange={(value) => filters.set('event', value)}
         disabled={cold}
+        loading={filters.pending.event}
       />
       <FilterSelect
         label='Source'
@@ -309,8 +310,9 @@ function StreamFilters({
         options={sourceOptions}
         onValueChange={(value) => filters.set('source', value)}
         disabled={cold}
+        loading={filters.pending.source}
       />
-      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}
     </FilterBar>
   );
 }
@@ -421,6 +423,7 @@ function StreamSkeleton() {
 }
 
 export const handle: PageHandle = {
+  live: false,
   skeleton: (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
       <StreamHeader live={null} />

@@ -21,6 +21,7 @@ import { Sidebar, SwitcherPlaceholder } from '@/app/components/layout/sidebar';
 import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { KnownRoleProvider } from '@/app/hooks/use-known-role';
+import { useLive } from '@/app/hooks/use-live';
 import { workspaceAction } from '@/app/lib/actions/workspace.server';
 import {
   ApiError,
@@ -256,6 +257,8 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   );
   const viewingTenant = requested !== 'default' && tenantPage;
   const tenantName = chrome && chrome.tenant.slug === requested ? chrome.tenant.name : null;
+
+  useLive(route?.live !== false);
 
   useEffect(() => {
     let active = true;

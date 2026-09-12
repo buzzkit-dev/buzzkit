@@ -1,1 +1,1 @@
-export type PageHandle = { skeleton: React.ReactNode };
+export type PageHandle = { skeleton: React.ReactNode; live?: boolean };

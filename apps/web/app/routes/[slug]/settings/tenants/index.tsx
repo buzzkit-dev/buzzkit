@@ -353,6 +353,7 @@ function TenantsSkeleton() {
 }
 
 export const handle: PageHandle = {
+  live: false,
   skeleton: (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
       <TenantsHeader canManage={null} />

@@ -469,7 +469,7 @@ function DetailsDialog({
     if (!open) return;
     setName(workflow.name);
     setDescription(workflow.description ?? '');
-  }, [open, workflow]);
+  }, [open, workflow.name, workflow.description]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

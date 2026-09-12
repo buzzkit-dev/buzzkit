@@ -176,6 +176,7 @@ export default function SourcesRoute({ loaderData, params }: Route.ComponentProp
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(0);
+
   const openDialog = () => {
     setOpened((count) => count + 1);
     setOpen(true);

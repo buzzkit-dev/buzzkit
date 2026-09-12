@@ -272,4 +272,4 @@ function GeneralSkeleton() {
   );
 }
 
-export const handle: PageHandle = { skeleton: <GeneralSkeleton /> };
+export const handle: PageHandle = { skeleton: <GeneralSkeleton />, live: false };

@@ -688,6 +688,7 @@ function ChannelsHeader() {
 }
 
 export const handle: PageHandle = {
+  live: false,
   skeleton: (
     <div className='flex w-full flex-col gap-5'>
       <ChannelsHeader />

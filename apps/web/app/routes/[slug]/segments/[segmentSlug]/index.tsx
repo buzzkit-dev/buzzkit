@@ -79,4 +79,7 @@ export default function SegmentRoute({ loaderData, params }: Route.ComponentProp
   );
 }
 
-export const handle: PageHandle = { skeleton: <SegmentEditorSkeleton existing canManage={null} /> };
+export const handle: PageHandle = {
+  skeleton: <SegmentEditorSkeleton existing canManage={null} />,
+  live: false,
+};

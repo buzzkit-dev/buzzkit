@@ -661,4 +661,4 @@ function WorkflowTestPending() {
   );
 }
 
-export const handle: PageHandle = { skeleton: <WorkflowTestPending /> };
+export const handle: PageHandle = { skeleton: <WorkflowTestPending />, live: false };

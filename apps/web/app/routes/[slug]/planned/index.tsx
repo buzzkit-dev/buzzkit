@@ -41,4 +41,4 @@ export default function PlannedRoute({ loaderData }: Route.ComponentProps) {
   return <PlannedPage page={loaderData.page} />;
 }
 
-export const handle: PageHandle = { skeleton: <PlannedPending /> };
+export const handle: PageHandle = { skeleton: <PlannedPending />, live: false };

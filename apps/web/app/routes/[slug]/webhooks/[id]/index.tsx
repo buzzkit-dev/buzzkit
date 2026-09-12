@@ -34,15 +34,8 @@ import {
 } from '@buzzkit/ui/components/table';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { useEffect, useRef, useState } from 'react';
-import {
-  Link,
-  useNavigate,
-  useOutletContext,
-  useParams,
-  useRevalidator,
-  useSearchParams,
-} from 'react-router';
+import { useRef, useState } from 'react';
+import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EndpointStatusBadge, WebhookAttemptBadge, WebhookStatusBadge } from '@/app/components/badges';
 import { DetailRow } from '@/app/components/detail/row';
@@ -76,10 +69,6 @@ import { paginate, readPage } from '@/app/lib/utils/pagination';
 import { requestUrl } from '@/app/lib/utils/request';
 import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
-
-const LIVE_POLL_MS = 3_000;
-
-const LIVE_POLL_MAX_MS = 60_000;
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -433,7 +422,6 @@ function EndpointFallback() {
 function EndpointDetail({ detail, base, filter }: { detail: Detail; base: string; filter: Filter }) {
   const { workspace } = useOutletContext<WorkspaceOutletContext>();
   const navigate = useNavigate();
-  const revalidator = useRevalidator();
   const [searchParams] = useSearchParams();
   const { submit, pending } = useActionFetcher((data) => {
     setRotateOpen(false);
@@ -465,24 +453,6 @@ function EndpointDetail({ detail, base, filter }: { detail: Detail; base: string
   };
   const go = (patch: Record<string, string | null>) =>
     navigate(withParams(patch), { preventScrollReset: true, replace: true });
-
-  useEffect(() => {
-    const now = Date.now();
-    const due = deliveries.items.flatMap((delivery) => {
-      if (delivery.status === 'pending') return [now + LIVE_POLL_MS];
-      if (delivery.status !== 'failed') return [];
-      const next = delivery.nextAttemptAt ? new Date(delivery.nextAttemptAt).getTime() + 2_000 : now;
-      return [Math.max(next, now + LIVE_POLL_MS)];
-    });
-    if (due.length === 0) return;
-    const timer = setTimeout(
-      () => {
-        if (revalidator.state === 'idle') void revalidator.revalidate();
-      },
-      Math.min(Math.min(...due) - now, LIVE_POLL_MAX_MS)
-    );
-    return () => clearTimeout(timer);
-  }, [deliveries.items, revalidator]);
 
   return (
     <>

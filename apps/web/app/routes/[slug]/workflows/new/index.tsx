@@ -233,4 +233,4 @@ function NewWorkflowPending() {
   );
 }
 
-export const handle: PageHandle = { skeleton: <NewWorkflowPending /> };
+export const handle: PageHandle = { skeleton: <NewWorkflowPending />, live: false };
