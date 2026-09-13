@@ -23,6 +23,7 @@ import { BlockSkeleton } from '@/app/components/loading/card';
 import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
+import { usePendingParam, useSelectedParams } from '@/app/hooks/use-filters';
 import { TIME_TOOLTIP_DELAY, TimeAgo } from '@/app/hooks/use-time-ago';
 import { type EventRange, getEventVolume, listEventNames } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
@@ -59,7 +60,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const range = RANGES.find((entry) => entry.value === requestUrl(request).searchParams.get('range'))?.value;
 
   return {
-    range: range ?? DEFAULT_RANGE,
     results: (async () => {
       const [names, volume] = await Promise.all([
         listEventNames(ctx, token, params.slug, tenant),
@@ -97,9 +97,12 @@ function SourcesCell({ sources, providers }: { sources: string[]; providers: str
 }
 
 export default function EventsRoute({ loaderData, params }: Route.ComponentProps) {
-  const { range, results } = loaderData;
+  const { results } = loaderData;
   const { apiUrl } = useOutletContext<WorkspaceOutletContext>();
   const navigate = useNavigate();
+  const selected = useSelectedParams();
+  const rangePending = usePendingParam('range');
+  const range = RANGES.find((entry) => entry.value === selected.get('range'))?.value ?? DEFAULT_RANGE;
   const snippet = [
     `curl -X POST ${apiUrl}/v1/events \\`,
     "  -H 'Authorization: Bearer bk_ws_…' \\",
@@ -147,6 +150,7 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
                     <PillTabs
                       items={RANGES}
                       value={range}
+                      loading={rangePending}
                       itemClassName='h-6.5 px-2.5 text-xs'
                       onValueChange={(value) =>
                         navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {

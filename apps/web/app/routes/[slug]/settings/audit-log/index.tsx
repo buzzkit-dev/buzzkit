@@ -339,22 +339,25 @@ function AuditLogFilters({ cold }: { cold: boolean }) {
           })),
         }))}
         onValueChange={(value) => filters.set('event', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.event}
       />
       <FilterSelect
         label='Actor'
         value={filters.values.actor as (typeof ACTORS)[number]['value'] | null}
         options={ACTORS.map((actor) => ({ value: actor.value, label: actor.label }))}
         onValueChange={(value) => filters.set('actor', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.actor}
       />
       <FilterRange
         presets={Object.entries(RANGES).map(([value, range]) => ({ value, label: range.label }))}
         value={filters.values.range}
         onValueChange={(value) => filters.set('range', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.range}
       />
-      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}
       <FilterSearch
         value={filters.search}
         onChange={(change) => filters.setSearch(change.target.value)}

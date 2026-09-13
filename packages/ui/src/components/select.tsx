@@ -4,6 +4,7 @@ import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { HighlightList } from '@buzzkit/ui/components/highlight-list';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { type MenuItemIcon, menuIconPosition, renderMenuIcon } from '@buzzkit/ui/components/menu-icon';
+import { Spinner } from '@buzzkit/ui/components/spinner';
 import { cn } from '@buzzkit/ui/lib/utils';
 import * as React from 'react';
 
@@ -92,18 +93,23 @@ function SelectTrigger({
   className,
   children,
   variant = 'default',
+  loading = false,
+  disabled,
   onMouseDown,
   onClick,
   ...props
 }: SelectPrimitive.Trigger.Props & {
-  /** `ghost`: no fill at rest — the background only appears on hover/open. */
   variant?: 'default' | 'ghost';
+  loading?: boolean;
 }) {
   const ctx = React.useContext(SelectOpenContext);
   return (
     <SelectPrimitive.Trigger
       data-slot='select-trigger'
       data-variant={variant}
+      data-loading={loading ? '' : undefined}
+      aria-busy={loading || undefined}
+      disabled={disabled || loading}
       onMouseDown={(event) => {
         // Base UI opens the popup on mousedown. Block it so it opens on click
         // (mouseup) instead — the press-scale animation gets a chance to show.
@@ -125,6 +131,7 @@ function SelectTrigger({
           : 'before:bg-bg-2 enabled:active:before:bg-bg-3/80 enabled:hover:before:bg-bg-3/80 aria-expanded:before:bg-bg-3/80',
         'outline-[1.5px] outline-transparent focus-visible:outline-primary-4/40 focus-visible:ring-[1.5px] focus-visible:ring-primary-2/60',
         'disabled:cursor-not-allowed disabled:opacity-50',
+        'data-loading:cursor-wait',
         'aria-invalid:focus-visible:outline-red-4 aria-invalid:focus-visible:ring-red-2',
         'data-placeholder:text-fg-2',
         '*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5',
@@ -134,9 +141,13 @@ function SelectTrigger({
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon
-        render={<Icon name='IconChevronDownMedium' className='pointer-events-none size-4 text-fg-2' />}
-      />
+      {loading ? (
+        <Spinner className='text-fg-2' />
+      ) : (
+        <SelectPrimitive.Icon
+          render={<Icon name='IconChevronDownMedium' className='pointer-events-none size-4 text-fg-2' />}
+        />
+      )}
     </SelectPrimitive.Trigger>
   );
 }

@@ -172,16 +172,18 @@ function RunsFilters({
         value={filters.values.status as RunStatus | null}
         options={STATUS_OPTIONS}
         onValueChange={(value) => filters.set('status', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.status}
       />
       <FilterSelect
         label='Workflow'
         value={filters.values.workflow}
         options={workflows.map((workflow) => ({ value: workflow.slug, label: workflow.name }))}
         onValueChange={(value) => filters.set('workflow', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.workflow}
       />
-      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}
     </FilterBar>
   );
 }

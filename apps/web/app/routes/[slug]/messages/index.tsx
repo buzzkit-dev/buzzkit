@@ -24,6 +24,7 @@ import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
 import { SendDialog } from '@/app/components/messages/send-dialog';
 import { describeTarget } from '@/app/components/messages/target';
+import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
@@ -156,6 +157,23 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
   const [open, setOpen] = useState(false);
   const filters = useFilters(FILTER_KEYS);
 
+  useRegisterCommands([
+    {
+      id: 'send-test-message',
+      label: 'Send test message',
+      icon: 'IconPaperPlaneTopRightFilled',
+      keywords: ['push', 'notification', 'new message'],
+      run: () => setOpen(true),
+    },
+    {
+      id: 'scheduled-messages',
+      label: 'Show scheduled messages',
+      icon: 'IconCalendarClockFilled',
+      keywords: ['pending', 'upcoming', 'filter'],
+      to: `${base}?status=scheduled`,
+    },
+  ]);
+
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
       <MessagesHeader onSend={() => setOpen(true)} />
@@ -254,7 +272,8 @@ function MessagesFilters({
         value={filters.values.status as (typeof STATUS_OPTIONS)[number]['value'] | null}
         options={[...STATUS_OPTIONS]}
         onValueChange={(value) => filters.set('status', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.status}
       />
       {connected && connected.length > 1 && (
         <FilterSelect
@@ -262,7 +281,8 @@ function MessagesFilters({
           value={filters.values.channel as Channel | null}
           options={CHANNEL_OPTIONS.filter((option) => connected.includes(option.value))}
           onValueChange={(value) => filters.set('channel', value)}
-          disabled={cold}
+          disabled={cold || filters.clearing}
+          loading={filters.pending.channel}
         />
       )}
       {topics.length > 0 && (
@@ -271,7 +291,8 @@ function MessagesFilters({
           value={filters.values.topic}
           options={topics.map((topic) => ({ value: topic.slug, label: topic.name }))}
           onValueChange={(value) => filters.set('topic', value)}
-          disabled={cold}
+          disabled={cold || filters.clearing}
+          loading={filters.pending.topic}
         />
       )}
       <FilterRange
@@ -281,9 +302,10 @@ function MessagesFilters({
         }))}
         value={filters.values.range}
         onValueChange={(value) => filters.set('range', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
+        loading={filters.pending.range}
       />
-      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} />}
+      {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}
       <FilterSearch
         value={filters.search}
         onChange={(event) => filters.setSearch(event.target.value)}

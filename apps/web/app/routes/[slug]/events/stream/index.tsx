@@ -301,7 +301,7 @@ function StreamFilters({
           label: describeStreamEvent({ name, data: {} }).label,
         }))}
         onValueChange={(value) => filters.set('event', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
         loading={filters.pending.event}
       />
       <FilterSelect
@@ -309,7 +309,7 @@ function StreamFilters({
         value={filters.values.source}
         options={sourceOptions}
         onValueChange={(value) => filters.set('source', value)}
-        disabled={cold}
+        disabled={cold || filters.clearing}
         loading={filters.pending.source}
       />
       {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}

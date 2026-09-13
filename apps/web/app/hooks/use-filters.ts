@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useNavigation, useSearchParams } from 'react-router';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { type NavigateOptions, useLocation, useNavigate, useNavigation, useSearchParams } from 'react-router';
 
 const PAGE_PARAMS = ['cursor', 'trail'];
 
@@ -32,45 +32,113 @@ export function resolveInterval(window: { from?: string; to?: string }): 'hour' 
   return 'month';
 }
 
-export function useFilters<K extends string>(keys: readonly K[]) {
+type Heading = { search: string; anchor: string };
+
+const headings = new Map<string, Heading>();
+const listeners = new Set<() => void>();
+
+function subscribeHeadings(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function setHeading(pathname: string, heading: Heading | null) {
+  if (heading) headings.set(pathname, heading);
+  else headings.delete(pathname);
+  for (const listener of listeners) listener();
+}
+
+function useHeading() {
+  const location = useLocation();
+  const navigation = useNavigation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const navigation = useNavigation();
-  const query = params.get('q') ?? '';
+  const { pathname } = location;
+  const stored = useSyncExternalStore(
+    subscribeHeadings,
+    () => headings.get(pathname),
+    () => undefined
+  );
+  const inflight =
+    navigation.location && navigation.location.pathname === pathname
+      ? new URLSearchParams(navigation.location.search)
+      : null;
+  const heading = stored && (stored.anchor === location.key || inflight !== null) ? stored : undefined;
+  const selected = heading ? new URLSearchParams(heading.search) : (inflight ?? params);
+  const outgoing = heading !== undefined || inflight !== null;
+
+  useEffect(() => {
+    if (stored && !heading) setHeading(pathname, null);
+  }, [stored, heading, pathname]);
+
+  return {
+    params,
+    selected,
+    outgoing,
+    differs: (key: string) => outgoing && selected.get(key) !== params.get(key),
+    go: (next: URLSearchParams, options?: NavigateOptions) => {
+      const search = next.toString();
+      setHeading(pathname, { search, anchor: location.key });
+      void navigate(search ? `?${search}` : '.', options);
+    },
+  };
+}
+
+export function useSelectedParams() {
+  return useHeading().selected;
+}
+
+export function usePendingParam(key: string) {
+  return useHeading().differs(key);
+}
+
+export function useFilters<K extends string>(keys: readonly K[]) {
+  const { params, selected, outgoing, differs, go } = useHeading();
+  const query = selected.get('q') ?? '';
   const [search, setSearch] = useState(query);
   const settled = search.trim() === query;
+  const all = [...keys, 'q'];
 
   const build = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(params);
+    const next = new URLSearchParams(selected);
     for (const key of PAGE_PARAMS) next.delete(key);
     for (const [key, value] of Object.entries(patch)) {
       if (value === null || value === '') next.delete(key);
       else next.set(key, value);
     }
-    const encoded = next.toString();
-    return encoded ? `?${encoded}` : '.';
+    return next;
   };
+
+  const values = Object.fromEntries(keys.map((key) => [key, selected.get(key)])) as Record<K, string | null>;
+  const clearing = outgoing && all.every((key) => !selected.get(key)) && all.some((key) => params.get(key));
+  const pending = Object.fromEntries(keys.map((key) => [key, !clearing && differs(key)])) as Record<
+    K,
+    boolean
+  >;
+  const active = keys.some((key) => selected.get(key)) || query.length > 0 || clearing;
+  const searching = !clearing && (!settled || differs('q'));
 
   useEffect(() => {
     if (settled) return;
-    const timer = setTimeout(() => navigate(build({ q: search.trim() }), { replace: true }), 300);
+    const timer = setTimeout(() => go(build({ q: search.trim() }), { replace: true }), 300);
     return () => clearTimeout(timer);
   });
-
-  const values = Object.fromEntries(keys.map((key) => [key, params.get(key)])) as Record<K, string | null>;
-  const active = keys.some((key) => params.get(key)) || query.length > 0;
 
   return {
     values,
     query,
     search,
     setSearch,
-    searching: !settled || navigation.state === 'loading',
+    searching,
     active,
-    set: (key: K, value: string | null) => navigate(build({ [key]: value })),
+    pending,
+    clearing,
+    set: (key: K, value: string | null) => go(build({ [key]: value })),
     clear: () => {
       setSearch('');
-      void navigate(build(Object.fromEntries([...keys, 'q'].map((key) => [key, null]))));
+      go(build(Object.fromEntries(all.map((key) => [key, null]))));
     },
   };
 }

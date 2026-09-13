@@ -17,18 +17,19 @@ import { Table, TableBody, TableCell, TableDetail, TableRow } from '@buzzkit/ui/
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { Suspense, useRef, useState } from 'react';
-import { Await, Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Await, Link, useNavigate, useParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { EventSourceBadge } from '@/app/components/badges';
 import { describeStreamEvent, summarizeData } from '@/app/components/events/stream';
 import { VolumeChart } from '@/app/components/events/volume-chart';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { BlockSkeleton } from '@/app/components/loading/card';
-import { Deferred } from '@/app/components/loading/deferred';
+import { Deferred, usePageCold } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
+import { usePendingParam, useSelectedParams } from '@/app/hooks/use-filters';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
-import { type EventNameDetail, type EventRange, getEventName } from '@/app/lib/api.server';
+import { type EventNameDetail, type EventRange, getEventName, requireFound } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { requestUrl } from '@/app/lib/utils/request';
 import type { Route } from './+types/index';
@@ -62,10 +63,11 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const range = RANGES.find((entry) => entry.value === requestUrl(request).searchParams.get('range'))?.value;
 
   return {
-    range: range ?? DEFAULT_RANGE,
-    detail: getEventName({ request, env }, token, params.slug, tenant, params.name, {
-      range: range ?? DEFAULT_RANGE,
-    }),
+    detail: requireFound(
+      getEventName({ request, env }, token, params.slug, tenant, params.name, {
+        range: range ?? DEFAULT_RANGE,
+      })
+    ),
   };
 }
 
@@ -248,9 +250,13 @@ function EventDetail({ detail, slug }: { detail: EventNameDetail; slug: string }
   );
 }
 
-function EventNamePage({ detail, range }: { detail: Promise<EventNameDetail> | null; range: EventRange }) {
+function EventNamePage({ detail }: { detail: Promise<EventNameDetail> | null }) {
   const navigate = useNavigate();
   const params = useParams();
+  const selected = useSelectedParams();
+  const rangePending = usePendingParam('range');
+  const cold = usePageCold();
+  const range = RANGES.find((entry) => entry.value === selected.get('range'))?.value ?? DEFAULT_RANGE;
   const slug = params.slug ?? '';
   const { label } = describeStreamEvent({ name: params.name ?? '', data: {} });
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -290,6 +296,7 @@ function EventNamePage({ detail, range }: { detail: Promise<EventNameDetail> | n
           <PillTabs
             items={RANGES}
             value={range}
+            loading={rangePending || cold}
             itemClassName='h-6.5 px-2.5 text-xs'
             onValueChange={(value) =>
               navigate(value === DEFAULT_RANGE ? '.' : `?range=${value}`, {
@@ -334,14 +341,8 @@ function EventNameSkeleton() {
   );
 }
 
-function EventNamePending() {
-  const [search] = useSearchParams();
-  const range = RANGES.find((entry) => entry.value === search.get('range'))?.value ?? DEFAULT_RANGE;
-  return <EventNamePage detail={null} range={range} />;
-}
-
 export default function EventNameRoute({ loaderData }: Route.ComponentProps) {
-  return <EventNamePage detail={loaderData.detail} range={loaderData.range} />;
+  return <EventNamePage detail={loaderData.detail} />;
 }
 
-export const handle: PageHandle = { skeleton: <EventNamePending /> };
+export const handle: PageHandle = { skeleton: <EventNamePage detail={null} /> };

@@ -1,6 +1,21 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useSyncExternalStore } from 'react';
 import { Await, useLocation, useOutletContext } from 'react-router';
-import { recallPage, rememberPage } from '@/app/lib/utils/stale';
+import { recallPage, rememberPage, subscribePages } from '@/app/lib/utils/stale';
+
+function usePageCacheKey() {
+  const { pathname } = useLocation();
+  const context = useOutletContext<{ tenantSlug?: string } | undefined>();
+  return `${context?.tenantSlug ?? ''}:${pathname}`;
+}
+
+export function usePageCold() {
+  const cacheKey = usePageCacheKey();
+  return useSyncExternalStore(
+    subscribePages,
+    () => recallPage(cacheKey) === undefined,
+    () => true
+  );
+}
 
 function Resolved({
   cacheKey,
@@ -25,9 +40,7 @@ export function Deferred<T>({
   resolve: Promise<T>;
   children: (data: T | undefined, pending: boolean) => React.ReactNode;
 }) {
-  const { pathname } = useLocation();
-  const context = useOutletContext<{ tenantSlug?: string } | undefined>();
-  const cacheKey = `${context?.tenantSlug ?? ''}:${pathname}`;
+  const cacheKey = usePageCacheKey();
   const cached = recallPage<T>(cacheKey);
 
   return (

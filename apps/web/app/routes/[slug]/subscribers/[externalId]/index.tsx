@@ -28,6 +28,7 @@ import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
+import { toast } from '@buzzkit/ui/components/sonner';
 import { Switch } from '@buzzkit/ui/components/switch';
 import { Table, TableBody, TableCell, TableDetail, TableRow } from '@buzzkit/ui/components/table';
 import {
@@ -61,6 +62,7 @@ import { CHANNELS } from '@/app/components/onboarding/catalog';
 import { providerLabel } from '@/app/components/sources/describe';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { useFilters } from '@/app/hooks/use-filters';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
@@ -711,6 +713,20 @@ function SubscriberContent({
   const mainRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLDivElement>(null);
   useLinkedScroll(mainRef, asideRef);
+  useRegisterCommands([
+    {
+      id: 'copy-external-id',
+      label: 'Copy external id',
+      hint: subscriber.externalId,
+      icon: 'IconClipboard2',
+      keywords: ['clipboard', 'user id', 'subscriber'],
+      run: () => {
+        void navigator.clipboard
+          .writeText(subscriber.externalId)
+          .then(() => toast.success('External id copied.'));
+      },
+    },
+  ]);
 
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-5 lg:flex-row'>
@@ -847,6 +863,8 @@ function SubscriberContent({
                   options={eventNames.map((eventName) => ({ value: eventName, label: eventName }))}
                   onValueChange={(value) => filters.set('event', value)}
                   className='h-[26px] rounded-[10px] text-xs'
+                  disabled={filters.clearing}
+                  loading={filters.pending.event}
                 />
                 <FilterSelect
                   label='Source'
@@ -854,9 +872,15 @@ function SubscriberContent({
                   options={sourceOptions}
                   onValueChange={(value) => filters.set('source', value)}
                   className='h-[26px] rounded-[10px] text-xs'
+                  disabled={filters.clearing}
+                  loading={filters.pending.source}
                 />
                 {filters.active && (
-                  <FilterClear className='h-[26px] rounded-[10px] text-xs' onClick={filters.clear} />
+                  <FilterClear
+                    className='h-[26px] rounded-[10px] text-xs'
+                    onClick={filters.clear}
+                    loading={filters.clearing}
+                  />
                 )}
               </FilterBar>
             </CardAction>

@@ -41,6 +41,7 @@ export type PillTabsItemProps = {
   className: string;
   children: React.ReactNode;
   onClick: () => void;
+  'aria-disabled'?: true;
   'aria-current'?: 'page';
   onPointerDown?: () => void;
   onPointerUp?: () => void;
@@ -51,6 +52,7 @@ export function PillTabs<V extends string>({
   items,
   value,
   onValueChange,
+  loading = false,
   variant = 'soft',
   className,
   gapClassName = 'gap-1',
@@ -60,13 +62,11 @@ export function PillTabs<V extends string>({
   items: PillTabsItem<V>[];
   value: V | null;
   onValueChange?: (value: V) => void;
+  loading?: boolean;
   variant?: keyof typeof VARIANTS;
   className?: string;
-  /** Spacing between items — applied to both layers, so keep it a gap-*. */
   gapClassName?: string;
-  /** Sizing shared by both layers, e.g. 'h-6.5 px-2.5 text-xs'. */
   itemClassName?: string;
-  /** Custom interactive element per item (PillTabs renders buttons otherwise). */
   renderItem?: (item: PillTabsItem<V>, props: PillTabsItemProps) => React.ReactNode;
 }) {
   const listRef = React.useRef<HTMLDivElement>(null);
@@ -171,7 +171,15 @@ export function PillTabs<V extends string>({
     <>
       <ScrollFade orientation='horizontal' size={16} targetRef={scrollerRef} />
       <div ref={scrollerRef} className='scrollbar-hide -my-1 min-w-0 max-w-full overflow-x-auto py-1'>
-        <div ref={listRef} className={cn('relative isolate flex w-max', gapClassName, className)}>
+        <div
+          ref={listRef}
+          className={cn(
+            'relative isolate flex w-max transition-opacity duration-150 ease-out',
+            loading && 'opacity-50',
+            gapClassName,
+            className
+          )}
+        >
           {items.map((item) => {
             const props: PillTabsItemProps = {
               ref: registerItem(item.value),
@@ -179,10 +187,15 @@ export function PillTabs<V extends string>({
                 itemBase,
                 styles.item,
                 'cursor-pointer outline-none transition-[color,scale] duration-150 focus-visible:ring-2 focus-visible:ring-primary-2',
-                item.value !== value && 'active:scale-[0.975]'
+                item.value !== value && !loading && 'active:scale-[0.975]',
+                loading && 'cursor-wait hover:text-fg-2 active:text-fg-2'
               ),
               children: item.label,
-              onClick: () => onValueChange?.(item.value),
+              onClick: () => {
+                if (loading) return;
+                onValueChange?.(item.value);
+              },
+              ...(loading && { 'aria-disabled': true as const }),
               ...(item.value === value && {
                 'aria-current': 'page' as const,
                 onPointerDown: () => setPressed(true),
@@ -193,8 +206,17 @@ export function PillTabs<V extends string>({
             if (renderItem) {
               return <React.Fragment key={item.value}>{renderItem(item, props)}</React.Fragment>;
             }
-            const { 'aria-current': _current, ...rest } = props;
-            return <button key={item.value} type='button' aria-pressed={item.value === value} {...rest} />;
+            const { 'aria-current': _current, 'aria-disabled': _disabled, ...rest } = props;
+            return (
+              <button
+                key={item.value}
+                type='button'
+                disabled={loading}
+                aria-pressed={item.value === value}
+                aria-busy={(loading && item.value === value) || undefined}
+                {...rest}
+              />
+            );
           })}
           {/* The pill: an inverted copy of the row, revealed through the clip window. */}
           <motion.div

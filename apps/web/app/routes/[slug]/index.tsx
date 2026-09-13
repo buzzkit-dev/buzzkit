@@ -150,14 +150,14 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
 
 export const action = quickStartAction;
 
-function sendSnippet(apiUrl: string, channel: Channel) {
+function sendSnippet(apiUrl: string, channel: Channel, secret: string | null) {
   const body =
     channel === 'push'
       ? '{ "to": "user_42", "title": "Hello from BuzzKit", "body": "Your first message." }'
       : `{ "to": "user_42", "channel": "${channel}", "title": "Hello from BuzzKit", "body": "Your first message." }`;
   return [
     `curl -X POST ${apiUrl}/v1/messages \\`,
-    "  -H 'Authorization: Bearer bk_ws_…' \\",
+    `  -H 'Authorization: Bearer ${secret ?? 'bk_ws_…'}' \\`,
     "  -H 'Content-Type: application/json' \\",
     `  -d '${body}'`,
   ].join('\n');
@@ -516,7 +516,15 @@ type AppGuide = {
   guide: { label: string; href: string };
 };
 
-const APP_GUIDES: Record<'push' | 'email' | 'mixed', AppGuide> = {
+const APP_GUIDES: Record<'setup' | 'push' | 'email' | 'mixed', AppGuide> = {
+  setup: {
+    description:
+      'Add the SDK and identify your users. The first subscriber appears under Subscribers and completes this step.',
+    waiting: 'Waiting for the first subscriber',
+    done: 'Subscriber registered',
+    footer: 'Every SDK starts with the client key above.',
+    guide: { label: 'Read the docs', href: 'https://docs.buzzkit.dev' },
+  },
   push: {
     description:
       'Identify the user and register for push. The first device appears under Subscribers and completes this step.',
@@ -544,6 +552,7 @@ const APP_GUIDES: Record<'push' | 'email' | 'mixed', AppGuide> = {
 };
 
 function resolveAppGuide(connected: Channel[]): AppGuide {
+  if (connected.length === 0) return APP_GUIDES.setup;
   if (connected.length > 1) return APP_GUIDES.mixed;
   if (connected[0] === 'email') return APP_GUIDES.email;
   return APP_GUIDES.push;
@@ -671,12 +680,14 @@ function SendCard({
   apiUrl,
   connected,
   first,
+  secret,
   pending,
   onSend,
 }: {
   apiUrl: string;
   connected: Channel[];
   first: FirstSubscription | null;
+  secret: string | null;
   pending: boolean;
   onSend: () => void;
 }) {
@@ -689,7 +700,7 @@ function SendCard({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <CodeBlock code={sendSnippet(apiUrl, resolveSendChannel(connected))} className='w-full' />
+        <CodeBlock code={sendSnippet(apiUrl, resolveSendChannel(connected), secret)} className='w-full' />
       </CardContent>
       <CardFooter>
         <span className='text-pretty text-fg-2 text-xs'>
@@ -698,6 +709,8 @@ function SendCard({
               Goes to <span className='text-fg-4'>{first.externalId}</span> on{' '}
               {channelLabel(first.channel).toLowerCase()}.
             </>
+          ) : secret ? (
+            'The snippet carries your new key until you leave this page.'
           ) : (
             'Enabled once the first subscriber has registered.'
           )}
@@ -728,9 +741,13 @@ function QuickStart({
   sending: Sending;
 }) {
   const creating = useActionFetcher((data) => {
-    if (typeof data.secret === 'string') setCreated({ secret: data.secret, kind: 'workspace' });
+    if (typeof data.secret === 'string') {
+      setCreated({ secret: data.secret, kind: 'workspace' });
+      setSecret(data.secret);
+    }
   });
   const [created, setCreated] = useState<CreatedKey | null>(null);
+  const [secret, setSecret] = useState<string | null>(null);
 
   const createWorkspaceKey = () => {
     void creating.submit('create-key', { name: 'Backend', kind: 'workspace', scopes: JSON.stringify(['*']) });
@@ -791,6 +808,7 @@ function QuickStart({
         apiUrl={apiUrl}
         connected={connected}
         first={first}
+        secret={secret}
         pending={sending.pending}
         onSend={sendFirstMessage}
       />
@@ -810,7 +828,14 @@ function QuickStartSkeleton() {
     <>
       <AppCard connected={connected} registered={false} clientKey={null} apiUrl={apiUrl} loading />
       <KeyCard hasKey={false} pending={false} onCreate={() => {}} base={base} loading />
-      <SendCard apiUrl={apiUrl} connected={connected} first={null} pending={false} onSend={() => {}} />
+      <SendCard
+        apiUrl={apiUrl}
+        connected={connected}
+        first={null}
+        secret={null}
+        pending={false}
+        onSend={() => {}}
+      />
     </>
   );
 }

@@ -67,6 +67,50 @@ export type FilterGroup<V extends string = string> = { label: string; options: F
 
 const ANY = '__any__';
 
+export type FilterFacet = {
+  id: string;
+  label: string;
+  value: string | null;
+  options: { value: string; label: string }[];
+  onValueChange: (value: string | null) => void;
+};
+
+const FilterRegistryContext = React.createContext<((facet: FilterFacet) => () => void) | null>(null);
+
+function FilterRegistryProvider({
+  register,
+  children,
+}: {
+  register: (facet: FilterFacet) => () => void;
+  children: React.ReactNode;
+}) {
+  return <FilterRegistryContext.Provider value={register}>{children}</FilterRegistryContext.Provider>;
+}
+
+function plainLabel(option: FilterOption<string>): { value: string; label: string } {
+  return { value: option.value, label: typeof option.label === 'string' ? option.label : option.value };
+}
+
+function useRegisterFacet(facet: Omit<FilterFacet, 'id'>) {
+  const register = React.useContext(FilterRegistryContext);
+  const id = React.useId();
+  const { label, value, options, onValueChange } = facet;
+  const serialized = JSON.stringify(options);
+  const latest = React.useRef(onValueChange);
+  latest.current = onValueChange;
+
+  React.useEffect(() => {
+    if (!register) return;
+    return register({
+      id,
+      label,
+      value,
+      options: JSON.parse(serialized) as FilterFacet['options'],
+      onValueChange: (next) => latest.current(next),
+    });
+  }, [register, id, label, value, serialized]);
+}
+
 function isGroup<V extends string>(entry: FilterOption<V> | FilterGroup<V>): entry is FilterGroup<V> {
   return 'options' in entry;
 }
@@ -78,6 +122,7 @@ function FilterSelect<V extends string>({
   onValueChange,
   className,
   disabled,
+  loading,
 }: {
   label: string;
   value: V | null;
@@ -85,10 +130,18 @@ function FilterSelect<V extends string>({
   onValueChange: (value: V | null) => void;
   className?: string;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   const any = { value: ANY, label: `Any ${label.toLowerCase()}` };
   const groups = options.filter(isGroup);
-  const items = [any, ...options.flatMap((entry) => (isGroup(entry) ? entry.options : [entry]))];
+  const flat = options.flatMap((entry) => (isGroup(entry) ? entry.options : [entry]));
+  const items = [any, ...flat];
+  useRegisterFacet({
+    label,
+    value,
+    options: flat.map(plainLabel),
+    onValueChange: (next) => onValueChange(next as V | null),
+  });
   const item = (entry: FilterOption<string>) => (
     <SelectItem key={entry.value} value={entry.value}>
       {entry.label}
@@ -103,6 +156,7 @@ function FilterSelect<V extends string>({
       <SelectTrigger
         aria-label={label}
         disabled={disabled}
+        loading={loading}
         data-active={value !== null ? '' : undefined}
         className={cn('w-auto data-active:text-fg-4', className)}
       >
@@ -159,6 +213,7 @@ function FilterRange({
   className,
   allowAny = true,
   disabled,
+  loading,
 }: {
   label?: string;
   presets: FilterOption[];
@@ -168,6 +223,8 @@ function FilterRange({
   /** Offer "Any time" (clears the range). Off for pages that always need a window. */
   allowAny?: boolean;
   disabled?: boolean;
+  /** The range is already shown but the page is still loading it. */
+  loading?: boolean;
 }) {
   const isMobile = useIsMobile();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
@@ -181,6 +238,7 @@ function FilterRange({
     { value: CUSTOM, label: 'Custom range' },
   ];
   const complete = draft?.from && draft?.to ? { from: draft.from, to: draft.to } : null;
+  useRegisterFacet({ label, value, options: presets.map(plainLabel), onValueChange });
 
   return (
     <>
@@ -200,6 +258,7 @@ function FilterRange({
           ref={triggerRef}
           aria-label={label}
           disabled={disabled}
+          loading={loading}
           data-active={value !== null ? '' : undefined}
           className={cn('w-auto data-active:text-fg-4', className)}
         >
@@ -268,4 +327,4 @@ function FilterClear({ className, ...props }: Omit<React.ComponentProps<typeof B
   );
 }
 
-export { FilterBar, FilterClear, FilterRange, FilterSearch, FilterSelect };
+export { FilterBar, FilterClear, FilterRange, FilterRegistryProvider, FilterSearch, FilterSelect };
