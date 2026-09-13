@@ -1,9 +1,9 @@
-import { createApiKey, listApiKeys, maskApiKey } from '@buzzkit/api/api/keys/index';
+import { createApiKey, KeyCreateSchema, listApiKeys, maskApiKey } from '@buzzkit/api/api/keys/index';
 import { findTenantBySlug } from '@buzzkit/api/api/tenants/index';
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { BadRequestError } from '@buzzkit/api/libs/error';
 import { Response } from '@buzzkit/api/libs/response';
-import { KeyKindSchema, NameSchema } from '@buzzkit/api/libs/schemas';
+import { KeyKindSchema } from '@buzzkit/api/libs/schemas';
 import { assertValidKeyScopes } from '@buzzkit/api/libs/scopes';
 import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
@@ -76,14 +76,5 @@ export const keys = new Elysia()
         .status(201)
         .send(set);
     },
-    {
-      scope: 'keys:write',
-      body: t.Object({
-        name: NameSchema,
-        kind: t.Optional(KeyKindSchema),
-        tenant: t.Optional(t.String({ minLength: 1, description: 'Tenant slug — required for tenant keys' })),
-        scopes: t.Optional(t.Array(t.String({ minLength: 1 }), { maxItems: 32 })),
-        expiresAt: t.Optional(t.String({ format: 'date-time' })),
-      }),
-    }
+    { scope: 'keys:write', body: KeyCreateSchema }
   );

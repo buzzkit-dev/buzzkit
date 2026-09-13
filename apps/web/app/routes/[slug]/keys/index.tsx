@@ -10,14 +10,7 @@ import {
 } from '@buzzkit/ui/components/alert-dialog';
 import { Button } from '@buzzkit/ui/components/button';
 import { Card } from '@buzzkit/ui/components/card';
-import { CodeBlock } from '@buzzkit/ui/components/code-block';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@buzzkit/ui/components/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@buzzkit/ui/components/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,11 +30,13 @@ import { useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { KeyKindBadge, RevokedBadge } from '@/app/components/badges';
 import { CopyButton } from '@/app/components/copy/button';
+import { type CreatedKey, CreatedKeyDialog, CreatedKeyView } from '@/app/components/keys/created';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
@@ -132,64 +127,6 @@ export const action = keysAction;
 
 function groupsFor(kind: BuzzKit.KeyKind): KeyScopeGroup[] {
   return kind === 'tenant' ? SCOPE_GROUPS.filter((group) => group.tenant) : SCOPE_GROUPS;
-}
-
-function firstUseSnippet(apiUrl: string, kind: BuzzKit.KeyKind, secret: string) {
-  if (kind === 'client') {
-    return [
-      `curl -X POST ${apiUrl}/v1/client/identify \\`,
-      `  -H 'Authorization: Bearer ${secret}' \\`,
-      "  -H 'Content-Type: application/json' \\",
-      `  -d '{ "externalId": "user_42" }'`,
-    ].join('\n');
-  }
-  return [
-    `curl -X PUT ${apiUrl}/v1/subscribers/user_42 \\`,
-    `  -H 'Authorization: Bearer ${secret}' \\`,
-    "  -H 'Content-Type: application/json' \\",
-    `  -d '{ "email": "jane@acme.com" }'`,
-  ].join('\n');
-}
-
-function CreatedKey({
-  created,
-  apiUrl,
-  copied,
-  onCopy,
-  onDone,
-}: {
-  created: { secret: string; kind: BuzzKit.KeyKind };
-  apiUrl: string;
-  copied: boolean;
-  onCopy: () => void;
-  onDone: () => void;
-}) {
-  const captureManualCopy = () => {
-    if (document.getSelection()?.toString().includes(created.secret)) onCopy();
-  };
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Copy your key</DialogTitle>
-        <DialogDescription>This is the only time the key is shown.</DialogDescription>
-      </DialogHeader>
-      <div className='flex w-full flex-col gap-3' onCopy={captureManualCopy}>
-        <CodeBlock code={created.secret} className='w-full' onCopy={onCopy} />
-        <Field>
-          <FieldLabel>Use it right away</FieldLabel>
-          <CodeBlock
-            code={firstUseSnippet(apiUrl, created.kind, created.secret)}
-            className='w-full'
-            onCopy={onCopy}
-          />
-        </Field>
-        <Button className='w-full' disabled={!copied} onClick={onDone}>
-          Done
-        </Button>
-      </div>
-    </>
-  );
 }
 
 function KeyForm({
@@ -359,7 +296,7 @@ function KeyDialog({
     >
       <DialogContent showCloseButton={created === null}>
         {created ? (
-          <CreatedKey
+          <CreatedKeyView
             created={created}
             apiUrl={apiUrl}
             copied={copied}
@@ -401,11 +338,15 @@ function KeyRow({
   apiKey,
   tenantName,
   canManage,
+  onRename,
+  onRotate,
   onRevoke,
 }: {
   apiKey: ApiKey;
   tenantName: string | null;
   canManage: boolean;
+  onRename: (key: ApiKey) => void;
+  onRotate: (key: ApiKey) => void;
   onRevoke: (key: ApiKey) => void;
 }) {
   const token = !apiKey.revokedAt && apiKey.kind === 'client' ? (apiKey.token ?? null) : null;
@@ -456,6 +397,8 @@ function KeyRow({
               }
             />
             <DropdownMenuContent align='end'>
+              <DropdownMenuItem onClick={() => onRename(apiKey)}>Rename</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRotate(apiKey)}>Rotate key</DropdownMenuItem>
               <DropdownMenuItem variant='destructive' onClick={() => onRevoke(apiKey)}>
                 Revoke
               </DropdownMenuItem>
@@ -471,10 +414,46 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
   const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
   const { page } = loaderData;
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
+  const rename = useActionFetcher(() => setRenaming(null));
+  const rotate = useActionFetcher((data) => {
+    setRotateOpen(false);
+    if (typeof data.secret === 'string')
+      setRotated({ secret: data.secret, kind: (data.kind as BuzzKit.KeyKind) ?? 'workspace' });
+  });
+  const { submit, pending } = useActionFetcher(() => setRevokeOpen(false));
   const [open, setOpen] = useState(false);
+  const [renaming, setRenaming] = useState<ApiKey | null>(null);
+  const [name, setName] = useState('');
+  const [rotating, setRotating] = useState<ApiKey | null>(null);
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const [rotated, setRotated] = useState<CreatedKey | null>(null);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
-  const { submit, pending } = useActionFetcher(() => setRevokeOpen(false));
+  const trimmedName = name.trim();
+
+  useRegisterCommands(
+    canManage
+      ? [
+          {
+            id: 'create-key',
+            label: 'Create key',
+            icon: 'IconPlusMedium',
+            keywords: ['api key', 'new', 'client key', 'secret'],
+            run: () => setOpen(true),
+          },
+        ]
+      : []
+  );
+
+  const openRename = (key: ApiKey) => {
+    setName(key.name);
+    setRenaming(key);
+  };
+
+  const openRotate = (key: ApiKey) => {
+    setRotating(key);
+    setRotateOpen(true);
+  };
 
   const openRevoke = (key: ApiKey) => {
     setRevoking(key);
@@ -511,6 +490,8 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
                           apiKey={apiKey}
                           tenantName={tenants.find((entry) => entry.id === apiKey.tenantId)?.name ?? null}
                           canManage={canManage}
+                          onRename={openRename}
+                          onRotate={openRotate}
                           onRevoke={openRevoke}
                         />
                       ))}
@@ -525,6 +506,57 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
           );
         }}
       </Deferred>
+
+      <Dialog open={renaming !== null} onOpenChange={(next) => !next && setRenaming(null)}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Rename key</DialogTitle>
+          </DialogHeader>
+          <FieldGroup className='w-full'>
+            <Field>
+              <FieldLabel htmlFor='rename-key-name'>Name</FieldLabel>
+              <Input
+                id='rename-key-name'
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={100}
+              />
+              <FieldDescription>The secret and permissions stay the same.</FieldDescription>
+            </Field>
+            <Button
+              className='w-full'
+              disabled={trimmedName.length === 0 || rename.pending}
+              loading={rename.pending}
+              onClick={() => renaming && rename.submit('rename', { id: renaming.id, name: trimmedName })}
+            >
+              Rename key
+            </Button>
+          </FieldGroup>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={rotateOpen} onOpenChange={setRotateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rotate “{rotating?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A new secret replaces the current one. Requests with the current secret start failing
+              immediately, and the key keeps its name, permissions and id.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={rotate.pending}
+              onClick={() => rotating && rotate.submit('rotate', { id: rotating.id })}
+            >
+              Rotate key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <CreatedKeyDialog created={rotated} apiUrl={apiUrl} onDone={() => setRotated(null)} />
 
       <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
         <AlertDialogContent>

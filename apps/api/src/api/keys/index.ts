@@ -14,9 +14,12 @@ import type { ApiKey, ApiKeyKind, ResolvedApiKey } from './types';
 
 export * from './cache';
 export * from './constants';
+export * from './schemas';
 export * from './serialize';
 export * from './tokens';
 export type * from './types';
+
+export const API_KEY_AUDIT_IGNORE = ['updatedAt', 'lastUsedAt', 'keyHash', 'token'] as const;
 
 export async function listApiKeys(
   db: Db,
@@ -195,6 +198,45 @@ export async function createDefaultClientKey(
       .returning();
   });
   return key!;
+}
+
+export async function updateApiKey(db: Db, key: ApiKey, input: { name?: string }): Promise<ApiKey> {
+  if (input.name === undefined) return key;
+
+  const [updated] = await trace('keys.update', async () => {
+    return await db
+      .update(tables.apiKey)
+      .set({ name: input.name })
+      .where(eq(tables.apiKey.id, key.id))
+      .returning();
+  });
+  return updated!;
+}
+
+export async function rotateApiKeySecret(db: Db, key: ApiKey): Promise<{ key: ApiKey; secret: string }> {
+  if (key.revokedAt) {
+    throw new BadRequestError('A revoked key cannot be rotated', { code: 'key_revoked' });
+  }
+
+  const secret = generateApiKeySecret(key.kind);
+  const keyHash = await hashApiKeySecret(secret);
+  const prefixLength = KIND_PREFIXES[key.kind].length;
+
+  const [rotated] = await trace('keys.rotateSecret', async () => {
+    return await db
+      .update(tables.apiKey)
+      .set({
+        keyHash,
+        token: key.kind === 'client' ? secret : null,
+        prefix: secret.slice(0, prefixLength + 6),
+        last4: secret.slice(-4),
+      })
+      .where(eq(tables.apiKey.id, key.id))
+      .returning();
+  });
+
+  await purgeApiKeyCache([key.keyHash]);
+  return { key: rotated!, secret };
 }
 
 export async function revokeApiKey(db: Db, keyId: number): Promise<ApiKey> {

@@ -69,4 +69,4 @@ Branch on `error.code`, never on `error.message`. Quote `metadata.requestId` in 
 
 ## Rotation
 
-Create the replacement key first, move your backend over, then revoke the old one from the dashboard or with `DELETE /v1/workspaces/:workspaceSlug/keys/:id`. Revocation takes effect immediately in the region that served the request and within about a minute everywhere else.
+For a zero-downtime rotation, create the replacement key first, move your backend over, then revoke the old one from the dashboard or with `DELETE /v1/workspaces/:workspaceSlug/keys/:id`. When a secret has leaked, rotate the key in place instead: `POST /v1/workspaces/:workspaceSlug/keys/:id/rotate` (or Rotate key on the dashboard's API keys page) keeps the key's id, name and scopes, kills the old secret at once and returns the new one exactly once. Revocation and rotation take effect immediately in the region that served the request and within about a minute everywhere else.

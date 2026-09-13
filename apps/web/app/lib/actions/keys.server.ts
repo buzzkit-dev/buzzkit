@@ -1,6 +1,13 @@
 import type { ActionFunctionArgs } from 'react-router';
 import { beginAction } from '@/app/lib/actions/context.server';
-import { ApiError, createKey, type RequestContext, revokeKey } from '@/app/lib/api.server';
+import {
+  ApiError,
+  createKey,
+  type RequestContext,
+  revokeKey,
+  rotateKey,
+  updateKey,
+} from '@/app/lib/api.server';
 
 export async function createKeyIntent(ctx: RequestContext, token: string, slug: string, form: FormData) {
   const name = String(form.get('name') ?? '').trim();
@@ -39,6 +46,16 @@ export async function keysAction(args: ActionFunctionArgs) {
     switch (intent) {
       case 'create':
         return createKeyIntent(ctx, token, slug, form);
+      case 'rename': {
+        const name = String(form.get('name') ?? '').trim();
+        if (!name) return { error: 'Give the key a name.' };
+        await updateKey(ctx, token, slug, String(form.get('id')), { name });
+        return { ok: true };
+      }
+      case 'rotate': {
+        const rotated = await rotateKey(ctx, token, slug, String(form.get('id')));
+        return { ok: true, secret: rotated.secret, kind: rotated.kind };
+      }
       case 'revoke': {
         await revokeKey(ctx, token, slug, String(form.get('id')));
         return { ok: true };

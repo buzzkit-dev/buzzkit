@@ -100,6 +100,18 @@ export const EVENT_GROUPS: { label: string; events: Record<string, Definition> }
           detail: [text(data, 'name'), text(data, 'kind')].filter(Boolean).join(' · '),
         }),
       },
+      'key.updated': {
+        label: 'API key updated',
+        icon: 'IconKeyholeFilled',
+        describe: (data) => ({
+          detail: [text(data, 'name'), changedFields(data)].filter(Boolean).join(' · '),
+        }),
+      },
+      'key.rotated': {
+        label: 'API key rotated',
+        icon: 'IconRotateFilled',
+        describe: (data) => ({ detail: text(data, 'name') }),
+      },
       'key.revoked': {
         label: 'API key revoked',
         icon: 'IconKeyholeFilled',

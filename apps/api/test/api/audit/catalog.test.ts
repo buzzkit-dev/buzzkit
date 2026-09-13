@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 describe('audit catalog', () => {
   it('keeps internal events off the webhook surface', () => {
-    for (const name of ['key.created', 'key.revoked', 'invite.resent', 'profile.updated']) {
+    for (const name of [
+      'key.created',
+      'key.updated',
+      'key.rotated',
+      'key.revoked',
+      'invite.resent',
+      'profile.updated',
+    ]) {
       expect(PUBLIC_EVENTS, name).not.toContain(name);
     }
     for (const name of [

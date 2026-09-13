@@ -16,6 +16,8 @@ export const AUDIT_CATALOG = {
   'invite.accepted': { webhook: true },
 
   'key.created': { webhook: false },
+  'key.updated': { webhook: false },
+  'key.rotated': { webhook: false },
   'key.revoked': { webhook: false },
 
   'tenant.created': { webhook: true },

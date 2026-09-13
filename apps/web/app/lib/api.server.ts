@@ -479,6 +479,20 @@ export function createKey(
   return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys.post(body));
 }
 
+export function updateKey(
+  ctx: RequestContext,
+  token: string,
+  workspaceSlug: string,
+  id: string,
+  body: { name?: string }
+) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys({ id }).patch(body));
+}
+
+export function rotateKey(ctx: RequestContext, token: string, workspaceSlug: string, id: string) {
+  return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys({ id }).rotate.post());
+}
+
 export function revokeKey(ctx: RequestContext, token: string, workspaceSlug: string, id: string) {
   return unwrap(ctx, client(ctx.env, token).workspaces({ workspaceSlug }).keys({ id }).delete());
 }

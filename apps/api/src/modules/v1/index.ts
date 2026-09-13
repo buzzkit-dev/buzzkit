@@ -71,6 +71,7 @@ import { invite } from './workspaces/[workspaceSlug]/invites/[id]';
 import { inviteResend } from './workspaces/[workspaceSlug]/invites/[id]/resend';
 import { keys } from './workspaces/[workspaceSlug]/keys';
 import { key } from './workspaces/[workspaceSlug]/keys/[id]';
+import { keyRotate } from './workspaces/[workspaceSlug]/keys/[id]/rotate';
 import { members } from './workspaces/[workspaceSlug]/members';
 import { member } from './workspaces/[workspaceSlug]/members/[id]';
 import { webhooks } from './workspaces/[workspaceSlug]/webhooks';
@@ -110,6 +111,8 @@ export const v1 = new Elysia({ prefix: '/v1' })
   .use(keys)
   /* /v1/workspaces/:slug/keys/:id */
   .use(key)
+  /* /v1/workspaces/:slug/keys/:id/rotate */
+  .use(keyRotate)
   /* /v1/workspaces/:slug/audit */
   .use(auditLog)
   /* /v1/workspaces/:slug/webhooks */
