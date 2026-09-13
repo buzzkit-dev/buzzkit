@@ -26,6 +26,18 @@ import { Checkbox } from '@buzzkit/ui/components/checkbox';
 import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem } from '@buzzkit/ui/components/combobox';
 import {
+  Command,
+  CommandEmpty,
+  CommandFooter,
+  CommandGroup,
+  CommandHint,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from '@buzzkit/ui/components/command';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -186,6 +198,7 @@ const SECTIONS = [
   { id: 'controls', label: 'Checkbox, Radio, Switch' },
   { id: 'tabs', label: 'Tabs' },
   { id: 'pill-tabs', label: 'Pill tabs' },
+  { id: 'command', label: 'Command menu' },
   { id: 'dropdown', label: 'Dropdown menu' },
   { id: 'popover', label: 'Popover' },
   { id: 'navigation-menu', label: 'Navigation menu' },
@@ -545,10 +558,12 @@ function PillTabsDemo({
   variant,
   itemClassName,
   values,
+  loading,
 }: {
   variant: 'primary' | 'soft';
   itemClassName: string;
   values: string[];
+  loading?: boolean;
 }) {
   const [value, setValue] = useState(values[0] ?? null);
   return (
@@ -559,6 +574,7 @@ function PillTabsDemo({
       items={values.map((entry) => ({ value: entry, label: entry }))}
       value={value}
       onValueChange={setValue}
+      loading={loading}
     />
   );
 }
@@ -1065,6 +1081,31 @@ export default function DesignSystem() {
               <FilterSearch placeholder='Search' aria-label='Search' defaultValue='order' loading />
             </FilterBar>
           </Specimen>
+          <Specimen label='picked · loading'>
+            <FilterBar>
+              <FilterSelect
+                label='Status'
+                value='queued'
+                options={[
+                  { value: 'queued', label: 'Queued' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+                onValueChange={() => {}}
+                loading
+              />
+              <FilterRange
+                presets={[
+                  { value: '7d', label: 'Last 7 days' },
+                  { value: '30d', label: 'Last 30 days' },
+                ]}
+                value='30d'
+                onValueChange={() => {}}
+                loading
+              />
+              <FilterClear />
+              <FilterSearch placeholder='Search' aria-label='Search' defaultValue='' />
+            </FilterBar>
+          </Specimen>
         </Section>
         <Section
           id='charts'
@@ -1478,6 +1519,64 @@ export default function DesignSystem() {
               values={['Overview', 'Subscribers', 'Messages', 'Settings']}
             />
           </Specimen>
+          <Specimen label='picked · loading'>
+            <PillTabsDemo
+              variant='soft'
+              itemClassName='h-6.5 px-2.5 text-xs'
+              values={['24 hours', '7 days', '30 days']}
+              loading
+            />
+          </Specimen>
+        </Section>
+
+        <Section
+          id='command'
+          title='Command menu'
+          description='cmdk under the menu grammar: one sliding highlight, quiet group headings, a hint after the label and the shortcut at the right edge. In the dashboard it opens with ⌘K as a dialog; here it is inline.'
+        >
+          <Command className='corner-superellipse/1.125 w-full max-w-[560px] rounded-xl shadow-md'>
+            <CommandInput placeholder='Search pages, actions, or paste an id…' end={<Kbd>esc</Kbd>} />
+            <CommandList>
+              <CommandEmpty>No matches.</CommandEmpty>
+              <CommandGroup heading='On this page'>
+                <CommandItem icon='IconPaperPlaneTopRightFilled'>Send test message</CommandItem>
+              </CommandGroup>
+              <CommandGroup heading='Go to'>
+                <CommandItem icon='IconHomeRoundDoorFilled'>
+                  Overview
+                  <CommandShortcut keys={['G', 'O']} />
+                </CommandItem>
+                <CommandItem icon='IconAgentsFilled'>
+                  Runs
+                  <CommandHint>Workflows</CommandHint>
+                  <CommandShortcut keys={['G', 'R']} />
+                </CommandItem>
+                <CommandItem icon='IconSettingsGear4Filled' disabled>
+                  Billing
+                  <CommandHint>Soon</CommandHint>
+                </CommandItem>
+              </CommandGroup>
+              <CommandSeparator />
+              <CommandGroup heading='Help'>
+                <CommandItem icon='IconBook'>
+                  Documentation
+                  <CommandHint>docs.buzzkit.dev</CommandHint>
+                  <Icon name='IconArrowUpRight' className='ml-auto size-4' />
+                </CommandItem>
+              </CommandGroup>
+            </CommandList>
+            <CommandFooter>
+              <span className='flex items-center gap-1'>
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+                <span className='ml-0.5'>Move</span>
+              </span>
+              <span className='flex items-center gap-1'>
+                <Kbd>↵</Kbd>
+                <span className='ml-0.5'>Open</span>
+              </span>
+            </CommandFooter>
+          </Command>
         </Section>
 
         <Section
@@ -2016,7 +2115,7 @@ export default function DesignSystem() {
         <Section
           id='loading'
           title='Loading & waiting'
-          description='A spinner means the app is working. The live ping means the app is ready and listening for something external, so it sits beside the thing it waits for. A page never spins: its title, description, filters and static buttons paint on the first frame, and only what is actually loading is a skeleton of the exact size it will have.'
+          description='A spinner means the app is working. The live ping means the app is ready and listening for something external, so it sits beside the thing it waits for. A page never spins: its title, description, filters, time range and static buttons paint on the first frame, and only what is actually loading is a skeleton of the exact size it will have. A select in the page header is a filter: disabled on a cold load, spinning while the change it made is in flight. Header action buttons stay enabled.'
           className='flex-col items-stretch'
         >
           <Specimen label='spinner'>
@@ -2063,6 +2162,26 @@ export default function DesignSystem() {
                   { label: 'Slug', fill: 'h-4 w-24' },
                   { label: 'Created', fill: 'h-4 w-20' },
                 ]}
+              />
+            </div>
+          </Specimen>
+          <Specimen label='page header · time range disabled on a cold load, same as a filter'>
+            <div className='flex w-full max-w-3xl flex-col gap-5 rounded-2xl bg-card p-6'>
+              <PageHeader
+                title='Overview'
+                description='Track subscribers, messages, deliveries, events and workflows over time.'
+                actions={
+                  <FilterRange
+                    presets={[
+                      { value: '7d', label: 'Last 7 days' },
+                      { value: '30d', label: 'Last 30 days' },
+                    ]}
+                    value='7d'
+                    onValueChange={() => {}}
+                    allowAny={false}
+                    disabled
+                  />
+                }
               />
             </div>
           </Specimen>

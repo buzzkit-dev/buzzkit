@@ -5,9 +5,9 @@ import { features } from '../../lib/features';
 import Section from '../layout/Section.astro';
 import Icon from '../ui/Icon.astro';
 
-const links: { label: string; href?: string }[] = [
+const links: { label: string; href: string }[] = [
   { label: 'llms.txt', href: '/llms.txt' },
-  { label: 'Agent Skills' },
+  { label: 'Agent skill', href: '/skill.md' },
 ];
 
 const rows = [
@@ -55,22 +55,15 @@ const chip =
       </div>
       <div class='flex flex-wrap items-center gap-4'>
         {
-          links.map((link) =>
-            link.href ? (
-              <a
-                href={link.href}
-                class='flex items-center gap-1 font-medium text-background/70 text-sm transition-colors duration-150 hover:text-background active:text-background'
-              >
-                {link.label}
-                <Icon name='IconArrowUpRight' class='size-3.5' />
-              </a>
-            ) : (
-              <span class='flex items-center gap-2 font-medium text-background/50 text-sm'>
-                {link.label}
-                <span class='rounded-full bg-background/10 px-2 py-0.5 text-background/60 text-xs'>Soon</span>
-              </span>
-            )
-          )
+          links.map((link) => (
+            <a
+              href={link.href}
+              class='flex items-center gap-1 font-medium text-background/70 text-sm transition-colors duration-150 hover:text-background active:text-background'
+            >
+              {link.label}
+              <Icon name='IconArrowUpRight' class='size-3.5' />
+            </a>
+          ))
         }
       </div>
     </div>

@@ -63,6 +63,6 @@ Scopes are `resource:action` pairs (`messages:write`, `subscribers:read`, `event
 
 Errors look like `{ "success": false, "data": null, "error": { "code": "invalid_api_key", "message": "Invalid API key", "param": null, "details": null }, "metadata": { "timestamp": "...", "requestId": "..." } }`. Quote `metadata.requestId` in support requests.
 
-## Revocation
+## Revocation and rotation
 
-Revoke a key from the dashboard's API keys page or with `DELETE /v1/workspaces/<workspace>/keys/<id>` as a signed-in member. Revocation takes effect immediately in the region that served the request and within about a minute everywhere else. Rotate by creating the replacement first, moving your backend over, then revoking the old key.
+Revoke a key from the dashboard's API keys page or with `DELETE /v1/workspaces/<workspace>/keys/<id>` as a signed-in member. Rotate a leaked key in place with `POST /v1/workspaces/<workspace>/keys/<id>/rotate`: the key keeps its id, name and scopes, the old secret dies at once and the new secret is returned exactly once. Both take effect immediately in the region that served the request and within about a minute everywhere else. For a zero-downtime swap, create the replacement first, move your backend over, then revoke the old key.

@@ -6,7 +6,7 @@ import { Form, useNavigation } from 'react-router';
 import { OnboardingProgress } from '@/app/components/onboarding/progress';
 import { STEP_DURATION_MS, type StepMotion, StepTransition } from '@/app/components/onboarding/transition';
 
-const ONBOARDING_STEPS = ['Workspace', 'Channel', 'Provider', 'Connect', 'Import'] as const;
+const ONBOARDING_STEPS = ['Workspace', 'Channel', 'Provider', 'Connect', 'Import', 'Integrate'] as const;
 
 export type OnboardingSlots = {
   title: React.ReactNode;

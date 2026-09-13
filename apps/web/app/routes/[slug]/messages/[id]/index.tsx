@@ -16,6 +16,7 @@ import { Icon } from '@buzzkit/ui/components/icon';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { PillTabs } from '@buzzkit/ui/components/pill-tabs';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
+import { toast } from '@buzzkit/ui/components/sonner';
 import {
   Table,
   TableBody,
@@ -54,6 +55,7 @@ import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
 import { describeTarget } from '@/app/components/messages/target';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { useLinkedScroll } from '@/app/hooks/use-linked-scroll';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { messageAction } from '@/app/lib/actions/messages.server';
@@ -427,6 +429,29 @@ function MessageContent({
   const { submit: submitCancel, pending: canceling } = useActionFetcher(() => setCancelOpen(false));
 
   useLinkedScroll(mainRef, asideRef);
+  useRegisterCommands([
+    {
+      id: 'copy-message-id',
+      label: 'Copy message id',
+      hint: message.id,
+      icon: 'IconClipboard2',
+      keywords: ['clipboard', 'msg'],
+      run: () => {
+        void navigator.clipboard.writeText(message.id).then(() => toast.success('Message id copied.'));
+      },
+    },
+    ...(cancelable
+      ? [
+          {
+            id: 'cancel-message',
+            label: 'Cancel message',
+            icon: 'IconCircleXFilled' as const,
+            keywords: ['stop', 'scheduled', 'abort'],
+            run: () => setCancelOpen(true),
+          },
+        ]
+      : []),
+  ]);
 
   const withParams = (patch: Record<string, string | null>) => {
     const search = new URLSearchParams();

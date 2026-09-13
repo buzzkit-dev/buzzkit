@@ -22,12 +22,14 @@ import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { KnownRoleProvider } from '@/app/hooks/use-known-role';
 import { useLive } from '@/app/hooks/use-live';
+import { QuickStartProvider } from '@/app/hooks/use-quick-start';
 import { workspaceAction } from '@/app/lib/actions/workspace.server';
 import {
   ApiError,
   getProfile,
   getWorkspace,
   listCredentials,
+  listMessages,
   listTenants,
   listWorkspaces,
   type Profile,
@@ -38,7 +40,9 @@ import {
 import { type Channel, connectedChannels } from '@/app/lib/channels';
 import {
   lastWorkspaceCookie,
+  quickStartHintCookie,
   readLastWorkspace,
+  readQuickStartHint,
   readRoleHint,
   requireSession,
   resolveTenant,
@@ -152,11 +156,29 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
     if (role) responseHeaders.append('Set-Cookie', await roleHintCookie(env, request, params.slug, role));
   }
 
+  let quickstart = await readQuickStartHint(request, params.slug, requested);
+  if (quickstart !== false) {
+    const messages = await listMessages({ request, env }, token, params.slug, requested, { limit: 1 }).catch(
+      (error: unknown) => {
+        if (error instanceof ApiError) return null;
+        throw error;
+      }
+    );
+    if (messages) {
+      quickstart = messages.items.length === 0;
+      responseHeaders.append(
+        'Set-Cookie',
+        await quickStartHintCookie(env, request, params.slug, requested, quickstart)
+      );
+    }
+  }
+
   return data(
     {
       slug: params.slug,
       tenant: requested,
       role,
+      quickstart: quickstart ?? false,
       apiUrl: env.API_URL,
       outcome: resolveChrome({ request, env }, token, params.slug, requested, listed),
     },
@@ -241,7 +263,7 @@ function MobileBar({ slug, sidebar, onOpen }: { slug: string; sidebar: SidebarPr
 export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   const { pathname } = useLocation();
   const route = useMatches().at(-1)?.handle as PageHandle | undefined;
-  const { slug, tenant: requested, role, apiUrl, outcome } = loaderData;
+  const { slug, tenant: requested, role, quickstart, apiUrl, outcome } = loaderData;
   const [settled, setSettled] = useState<{ outcome: Promise<ChromeOutcome>; value: ChromeOutcome } | null>(
     null
   );
@@ -291,7 +313,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         Skip to content
       </a>
 
-      <Sidebar slug={slug} {...sidebar} className='hidden lg:flex' />
+      <Sidebar slug={slug} {...sidebar} quickstart={quickstart} className='hidden lg:flex' />
 
       <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
         <SheetContent
@@ -300,7 +322,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
           className='bg-background-subtle data-[side=left]:w-72 lg:hidden'
         >
           <SheetTitle className='sr-only'>Navigation</SheetTitle>
-          <Sidebar slug={slug} {...sidebar} className='h-full w-full' />
+          <Sidebar slug={slug} {...sidebar} quickstart={quickstart} className='h-full w-full' />
         </SheetContent>
       </Sheet>
 
@@ -336,27 +358,31 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         )}
         <div className='corner-superellipse/1.125 flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl bg-card px-4 pt-5 shadow-sm sm:px-6 sm:pt-6 lg:px-8.5 lg:pt-7.5'>
           <div className='pb-5 lg:flex lg:flex-1 lg:flex-col lg:pb-7.5'>
-            {chrome ? (
-              <Outlet
-                context={
-                  {
-                    workspace: chrome.workspace,
-                    tenantSlug: requested,
-                    profile: chrome.profile,
-                    apiUrl,
-                    connected: chrome.connected,
-                    tenant: chrome.tenant,
-                    tenants: chrome.tenants,
-                  } satisfies WorkspaceOutletContext
-                }
-              />
-            ) : live?.failure === 404 ? (
-              <NotFoundNotice />
-            ) : live?.failure === 403 ? (
-              <NoAccessNotice />
-            ) : (
-              <KnownRoleProvider role={sidebar.workspace?.role ?? role}>{route?.skeleton}</KnownRoleProvider>
-            )}
+            <QuickStartProvider quickstart={quickstart}>
+              {chrome ? (
+                <Outlet
+                  context={
+                    {
+                      workspace: chrome.workspace,
+                      tenantSlug: requested,
+                      profile: chrome.profile,
+                      apiUrl,
+                      connected: chrome.connected,
+                      tenant: chrome.tenant,
+                      tenants: chrome.tenants,
+                    } satisfies WorkspaceOutletContext
+                  }
+                />
+              ) : live?.failure === 404 ? (
+                <NotFoundNotice />
+              ) : live?.failure === 403 ? (
+                <NoAccessNotice />
+              ) : (
+                <KnownRoleProvider role={sidebar.workspace?.role ?? role}>
+                  {route?.skeleton}
+                </KnownRoleProvider>
+              )}
+            </QuickStartProvider>
           </div>
         </div>
       </main>

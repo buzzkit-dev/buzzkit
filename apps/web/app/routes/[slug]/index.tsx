@@ -1,10 +1,12 @@
 import { Avatar } from '@buzzkit/ui/components/avatar';
+import { Badge } from '@buzzkit/ui/components/badge';
 import { Button } from '@buzzkit/ui/components/button';
 import {
   Card,
   CardAction,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@buzzkit/ui/components/card';
@@ -12,42 +14,61 @@ import { Area, AreaChart } from '@buzzkit/ui/components/charts/area-chart';
 import { Grid } from '@buzzkit/ui/components/charts/grid';
 import { ChartTooltip } from '@buzzkit/ui/components/charts/tooltip/chart-tooltip';
 import { XAxis } from '@buzzkit/ui/components/charts/x-axis';
+import { CodeBlock } from '@buzzkit/ui/components/code-block';
 import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { FilterRange } from '@buzzkit/ui/components/filter-bar';
 import { Flag } from '@buzzkit/ui/components/flag';
 import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { IconTile } from '@buzzkit/ui/components/icon-tile';
+import { LivePing } from '@buzzkit/ui/components/live-ping';
 import { NumberFlow } from '@buzzkit/ui/components/number-flow';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@buzzkit/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@buzzkit/ui/components/tooltip';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { cn } from '@buzzkit/ui/lib/utils';
-import { useMemo } from 'react';
-import { Link, useOutletContext, useSearchParams } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Link,
+  useNavigate,
+  useOutletContext,
+  useParams,
+  useRouteLoaderData,
+  useSearchParams,
+} from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { ChannelBadge, MessageStatusBadge, PlatformBadge } from '@/app/components/badges';
 import { EventName } from '@/app/components/events/name';
+import { IntegratePanel } from '@/app/components/integrate/panel';
+import { type CreatedKey, CreatedKeyDialog } from '@/app/components/keys/created';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns } from '@/app/components/loading/table';
+import { CHANNELS } from '@/app/components/onboarding/catalog';
+import { SettingsRow, SettingsRows } from '@/app/components/settings/card';
 import { attribute, countryName } from '@/app/components/subscribers/attributes';
 import { LiveRuns } from '@/app/components/workflows/live-runs';
+import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { RANGES, resolveInterval, resolveRange, useFilters } from '@/app/hooks/use-filters';
+import { useQuickStart } from '@/app/hooks/use-quick-start';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
+import { quickStartAction } from '@/app/lib/actions/quick-start.server';
 import {
   getStats,
+  getTenant,
   listCredentials,
+  listKeys,
   listMessages,
   listSubscribers,
   type Message,
   type Stats,
   type Subscriber,
 } from '@/app/lib/api.server';
+import { type Channel, channelLabel, connectedChannels } from '@/app/lib/channels';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { requestUrl } from '@/app/lib/utils/request';
-import type { WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
+import type { loader as layoutLoader, WorkspaceOutletContext } from '@/app/routes/[slug]/layout';
 import type { Route } from './+types/index';
 
 const DEFAULT_RANGE = '7d';
@@ -101,14 +122,49 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
         listMessages(ctx, token, params.slug, tenant, { limit: 5 }),
         listSubscribers(ctx, token, params.slug, tenant, { limit: 5 }),
       ]);
+
+      let clientKey: string | null = null;
+      let hasWorkspaceKey = false;
+      if (messages.items.length === 0) {
+        const [clientKeys, workspaceKeys, current] = await Promise.all([
+          listKeys(ctx, token, params.slug, { kind: 'client' }),
+          listKeys(ctx, token, params.slug, { kind: 'workspace' }),
+          getTenant(ctx, token, params.slug, tenant),
+        ]);
+        clientKey =
+          clientKeys.items.find((key) => !key.revokedAt && key.tenantId === current.id)?.token ?? null;
+        hasWorkspaceKey = workspaceKeys.items.some((key) => !key.revokedAt);
+      }
+
       return {
-        hasChannel: credentials.length > 0,
+        connected: connectedChannels(credentials),
         stats,
         messages: messages.items,
         subscribers: subscribers.items,
+        clientKey,
+        hasWorkspaceKey,
       };
     })(),
   };
+}
+
+export const action = quickStartAction;
+
+function sendSnippet(apiUrl: string, channel: Channel) {
+  const body =
+    channel === 'push'
+      ? '{ "to": "user_42", "title": "Hello from BuzzKit", "body": "Your first message." }'
+      : `{ "to": "user_42", "channel": "${channel}", "title": "Hello from BuzzKit", "body": "Your first message." }`;
+  return [
+    `curl -X POST ${apiUrl}/v1/messages \\`,
+    "  -H 'Authorization: Bearer bk_ws_…' \\",
+    "  -H 'Content-Type: application/json' \\",
+    `  -d '${body}'`,
+  ].join('\n');
+}
+
+function resolveSendChannel(connected: Channel[]): Channel {
+  return connected.includes('push') ? 'push' : (connected[0] ?? 'push');
 }
 
 function dayOf(date: string): Date {
@@ -448,14 +504,346 @@ function SubscriberRow({ subscriber, base }: { subscriber: Subscriber; base: str
     </TableRow>
   );
 }
+const QUICK_START_PROVIDERS = CHANNELS.flatMap((channel) =>
+  channel.available ? channel.providers.filter((provider) => provider.available) : []
+);
+
+type AppGuide = {
+  description: string;
+  waiting: string;
+  done: string;
+  footer: string;
+  guide: { label: string; href: string };
+};
+
+const APP_GUIDES: Record<'push' | 'email' | 'mixed', AppGuide> = {
+  push: {
+    description:
+      'Identify the user and register for push. The first device appears under Subscribers and completes this step.',
+    waiting: 'Waiting for the first device',
+    done: 'Device registered',
+    footer: 'Adding the SDK by hand takes four lines of Swift.',
+    guide: { label: 'Read the iOS guide', href: 'https://docs.buzzkit.dev/sdks/ios/overview' },
+  },
+  email: {
+    description:
+      'Identify your users with their email address. The first subscriber appears under Subscribers and completes this step.',
+    waiting: 'Waiting for the first subscriber',
+    done: 'Subscriber registered',
+    footer: 'The server SDK is one npm install.',
+    guide: { label: 'Read the quickstart', href: 'https://docs.buzzkit.dev/quickstart' },
+  },
+  mixed: {
+    description:
+      'Identify your users and register their devices and addresses. The first subscription appears under Subscribers and completes this step.',
+    waiting: 'Waiting for the first subscription',
+    done: 'Subscription registered',
+    footer: 'Every SDK starts with the client key above.',
+    guide: { label: 'Read the docs', href: 'https://docs.buzzkit.dev' },
+  },
+};
+
+function resolveAppGuide(connected: Channel[]): AppGuide {
+  if (connected.length > 1) return APP_GUIDES.mixed;
+  if (connected[0] === 'email') return APP_GUIDES.email;
+  return APP_GUIDES.push;
+}
+
+type FirstSubscription = { externalId: string; channel: Channel };
+
+function resolveFirstSubscription(subscribers: Subscriber[], connected: Channel[]): FirstSubscription | null {
+  for (const subscriber of subscribers) {
+    const channel = connected.find((entry) => subscriber.channels.includes(entry));
+    if (channel) return { externalId: subscriber.externalId, channel };
+  }
+  return null;
+}
+
+function AppCard({
+  connected,
+  registered,
+  clientKey,
+  apiUrl,
+  loading = false,
+}: {
+  connected: Channel[];
+  registered: boolean;
+  clientKey: string | null;
+  apiUrl: string;
+  loading?: boolean;
+}) {
+  const guide = resolveAppGuide(connected);
+
+  return (
+    <Card className='shrink-0'>
+      <CardHeader>
+        <CardTitle>Add BuzzKit to your app</CardTitle>
+        <CardDescription>{guide.description}</CardDescription>
+        {registered ? (
+          <CardAction>
+            <Badge variant='green' size='sm'>
+              {guide.done}
+            </Badge>
+          </CardAction>
+        ) : (
+          connected.length > 0 && (
+            <CardAction className='gap-1.5 py-0.5 pl-1 text-fg-2 text-xs'>
+              <LivePing />
+              {guide.waiting}
+            </CardAction>
+          )
+        )}
+      </CardHeader>
+      <CardContent>
+        <IntegratePanel apiUrl={apiUrl} clientKey={clientKey} loading={loading} fit />
+      </CardContent>
+      <CardFooter>
+        <span className='text-pretty text-fg-2 text-xs'>{guide.footer}</span>
+        <Button
+          variant='ghost'
+          size='xs'
+          className='-mr-2'
+          nativeButton={false}
+          render={<a href={guide.guide.href} target='_blank' rel='noreferrer' />}
+        >
+          {guide.guide.label}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function KeyCard({
+  hasKey,
+  pending,
+  onCreate,
+  base,
+  loading = false,
+}: {
+  hasKey: boolean;
+  pending: boolean;
+  onCreate: () => void;
+  base: string;
+  loading?: boolean;
+}) {
+  return (
+    <Card className='shrink-0'>
+      <CardHeader>
+        <CardTitle>Create a workspace key</CardTitle>
+        <CardDescription>
+          Your backend sends with a workspace key. It is shown once, so keep it where your server reads it.
+        </CardDescription>
+        {hasKey && (
+          <CardAction>
+            <Badge variant='green' size='sm'>
+              Key created
+            </Badge>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardFooter>
+        <span className='text-pretty text-fg-2 text-xs'>
+          {hasKey
+            ? 'Every key is listed under API keys.'
+            : 'Full access, named “Backend”. Rename or narrow it under API keys.'}
+        </span>
+        {hasKey ? (
+          <Button
+            variant='ghost'
+            size='xs'
+            className='-mr-2'
+            nativeButton={false}
+            render={<Link to={`${base}/keys`} />}
+          >
+            Open API keys
+          </Button>
+        ) : (
+          <Button size='xs' disabled={loading} loading={pending} onClick={onCreate}>
+            Create workspace key
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+}
+
+function SendCard({
+  apiUrl,
+  connected,
+  first,
+  pending,
+  onSend,
+}: {
+  apiUrl: string;
+  connected: Channel[];
+  first: FirstSubscription | null;
+  pending: boolean;
+  onSend: () => void;
+}) {
+  return (
+    <Card className='shrink-0'>
+      <CardHeader>
+        <CardTitle>Send your first message</CardTitle>
+        <CardDescription>
+          A real message to the first subscriber that registered, or the same call from your backend.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <CodeBlock code={sendSnippet(apiUrl, resolveSendChannel(connected))} className='w-full' />
+      </CardContent>
+      <CardFooter>
+        <span className='text-pretty text-fg-2 text-xs'>
+          {first ? (
+            <>
+              Goes to <span className='text-fg-4'>{first.externalId}</span> on{' '}
+              {channelLabel(first.channel).toLowerCase()}.
+            </>
+          ) : (
+            'Enabled once the first subscriber has registered.'
+          )}
+        </span>
+        <Button size='xs' disabled={first === null} loading={pending} onClick={onSend}>
+          Send test message
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function QuickStart({
+  connected,
+  first,
+  hasWorkspaceKey,
+  clientKey,
+  apiUrl,
+  base,
+  sending,
+}: {
+  connected: Channel[];
+  first: FirstSubscription | null;
+  hasWorkspaceKey: boolean;
+  clientKey: string | null;
+  apiUrl: string;
+  base: string;
+  sending: Sending;
+}) {
+  const creating = useActionFetcher((data) => {
+    if (typeof data.secret === 'string') setCreated({ secret: data.secret, kind: 'workspace' });
+  });
+  const [created, setCreated] = useState<CreatedKey | null>(null);
+
+  const createWorkspaceKey = () => {
+    void creating.submit('create-key', { name: 'Backend', kind: 'workspace', scopes: JSON.stringify(['*']) });
+  };
+
+  const sendFirstMessage = () => {
+    if (!first) return;
+    void sending.submit('send', {
+      channel: first.channel,
+      target: 'subscriber',
+      to: first.externalId,
+      title: 'Hello from BuzzKit',
+      body: 'Your first message arrived.',
+    });
+  };
+
+  return (
+    <>
+      {connected.length === 0 && (
+        <Card className='shrink-0'>
+          <CardHeader>
+            <CardTitle>Connect a channel</CardTitle>
+            <CardDescription>Nothing can be sent before a provider credential is connected.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SettingsRows divided>
+              {QUICK_START_PROVIDERS.map((provider) => (
+                <SettingsRow
+                  key={provider.id}
+                  start={<IconTile icon={provider.icon} size='sm' />}
+                  title={provider.name}
+                  subtitle={provider.description}
+                  end={
+                    <Button
+                      variant='soft'
+                      size='xs'
+                      nativeButton={false}
+                      render={<Link to={`${base}/settings/channels`} />}
+                    >
+                      Connect
+                    </Button>
+                  }
+                />
+              ))}
+            </SettingsRows>
+          </CardContent>
+        </Card>
+      )}
+
+      <AppCard connected={connected} registered={first !== null} clientKey={clientKey} apiUrl={apiUrl} />
+      <KeyCard
+        hasKey={hasWorkspaceKey}
+        pending={creating.pending}
+        onCreate={createWorkspaceKey}
+        base={base}
+      />
+      <SendCard
+        apiUrl={apiUrl}
+        connected={connected}
+        first={first}
+        pending={sending.pending}
+        onSend={sendFirstMessage}
+      />
+      <CreatedKeyDialog created={created} apiUrl={apiUrl} onDone={() => setCreated(null)} />
+    </>
+  );
+}
+
+function QuickStartSkeleton() {
+  const { slug } = useParams();
+  const { connected } = useQuickStart();
+  const layout = useRouteLoaderData<typeof layoutLoader>('routes/[slug]/layout');
+  const apiUrl = layout?.apiUrl ?? '';
+  const base = `/${slug}`;
+
+  return (
+    <>
+      <AppCard connected={connected} registered={false} clientKey={null} apiUrl={apiUrl} loading />
+      <KeyCard hasKey={false} pending={false} onCreate={() => {}} base={base} loading />
+      <SendCard apiUrl={apiUrl} connected={connected} first={null} pending={false} onSend={() => {}} />
+    </>
+  );
+}
+
+type Sending = ReturnType<typeof useActionFetcher>;
+
 function OverviewContent({
   data,
+  apiUrl,
   base,
+  sending,
 }: {
   data: Awaited<Route.ComponentProps['loaderData']['overview']>;
+  apiUrl: string;
   base: string;
+  sending: Sending;
 }) {
-  const { hasChannel, stats, messages, subscribers } = data;
+  const { connected, stats, messages, subscribers, clientKey, hasWorkspaceKey } = data;
+  const hasChannel = connected.length > 0;
+
+  if (messages.length === 0) {
+    return (
+      <QuickStart
+        connected={connected}
+        first={resolveFirstSubscription(subscribers, connected)}
+        hasWorkspaceKey={hasWorkspaceKey}
+        clientKey={clientKey}
+        apiUrl={apiUrl}
+        base={base}
+        sending={sending}
+      />
+    );
+  }
 
   const delivered = stats.deliveries.delivered;
   const failed = stats.deliveries.failed + stats.deliveries.invalid;
@@ -847,8 +1235,11 @@ function ListCardSkeleton({ title, columns }: { title: string; columns: TableCol
 
 function OverviewSkeleton() {
   const [params] = useSearchParams();
+  const hinted = useQuickStart();
   const requested = resolveRange(params.get('range'));
   const interval = resolveInterval(requested.from ? requested : resolveRange(DEFAULT_RANGE));
+
+  if (hinted.quickstart) return <QuickStartSkeleton />;
 
   return (
     <>
@@ -908,23 +1299,67 @@ function OverviewSkeleton() {
 }
 
 export default function OverviewRoute({ loaderData }: Route.ComponentProps) {
-  const { workspace } = useOutletContext<WorkspaceOutletContext>();
+  const { workspace, apiUrl } = useOutletContext<WorkspaceOutletContext>();
   const { overview } = loaderData;
   const base = `/${workspace.slug}`;
+  const navigate = useNavigate();
+  const sending = useActionFetcher((data) => {
+    if (typeof data.id === 'string') void navigate(`${base}/messages/${data.id}`);
+  });
+  const [view, setView] = useState<OverviewView>('cold');
 
   return (
     <div className='flex w-full flex-col gap-6'>
-      <OverviewHeader />
+      <OverviewHeader
+        cold={view === 'cold'}
+        quickstart={view === 'cold' ? undefined : view === 'quickstart'}
+      />
 
       <Deferred resolve={overview}>
-        {(data) => (data === undefined ? <OverviewSkeleton /> : <OverviewContent data={data} base={base} />)}
+        {(data) => (
+          <OverviewBody data={data} apiUrl={apiUrl} base={base} sending={sending} onView={setView} />
+        )}
       </Deferred>
     </div>
   );
 }
 
-function OverviewHeader() {
+type OverviewView = 'cold' | 'quickstart' | 'overview';
+
+function OverviewBody({
+  data,
+  apiUrl,
+  base,
+  sending,
+  onView,
+}: {
+  data: Awaited<Route.ComponentProps['loaderData']['overview']> | undefined;
+  apiUrl: string;
+  base: string;
+  sending: Sending;
+  onView: (view: OverviewView) => void;
+}) {
+  const view: OverviewView =
+    data === undefined ? 'cold' : data.messages.length === 0 ? 'quickstart' : 'overview';
+  useEffect(() => {
+    onView(view);
+  }, [view, onView]);
+  if (data === undefined) return <OverviewSkeleton />;
+  return <OverviewContent data={data} apiUrl={apiUrl} base={base} sending={sending} />;
+}
+
+function OverviewHeader({ cold = false, quickstart }: { cold?: boolean; quickstart?: boolean }) {
   const filters = useFilters(['range'] as const);
+  const hinted = useQuickStart();
+
+  if (quickstart ?? hinted.quickstart) {
+    return (
+      <PageHeader
+        title='Quick start'
+        description='Connect a channel, add BuzzKit to your app and send your first message.'
+      />
+    );
+  }
 
   return (
     <PageHeader
@@ -936,6 +1371,8 @@ function OverviewHeader() {
           value={filters.values.range ?? DEFAULT_RANGE}
           onValueChange={(value) => filters.set('range', value ?? DEFAULT_RANGE)}
           allowAny={false}
+          disabled={cold}
+          loading={filters.pending.range}
         />
       }
     />
@@ -945,7 +1382,7 @@ function OverviewHeader() {
 export const handle: PageHandle = {
   skeleton: (
     <div className='flex w-full flex-col gap-6'>
-      <OverviewHeader />
+      <OverviewHeader cold />
       <OverviewSkeleton />
     </div>
   ),

@@ -31,6 +31,11 @@ describe('resolveAssetPath', () => {
     expect(resolveAssetPath('/.well-known/ard.json')).toBe('/.well-known/ard.json');
     expect(resolveAssetPath('/pricing')).toBe('/pricing');
   });
+
+  it('serves the integration skill at the short skill.md path', () => {
+    expect(resolveAssetPath('/skill.md')).toBe('/.well-known/agent-skills/buzzkit/SKILL.md');
+    expect(resolveAssetPath('/skill')).toBe('/skill');
+  });
 });
 
 describe('rewriteRequest', () => {

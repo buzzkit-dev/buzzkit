@@ -45,6 +45,8 @@ const variants = {
 function TextSwap({ children, className }: { children: string; className?: string }) {
   const sizerRef = React.useRef<HTMLSpanElement>(null);
   const [width, setWidth] = React.useState<number | null>(null);
+  const restingWidth = React.useRef<number | null>(null);
+  if (width !== null && restingWidth.current === null) restingWidth.current = width;
   const reel = React.useRef<string[]>([children]);
   const [entry, setEntry] = React.useState({ text: children, id: 0, direction: 1 });
   if (entry.text !== children) {
@@ -71,6 +73,8 @@ function TextSwap({ children, className }: { children: string; className?: strin
     <motion.span
       className={cn('relative inline-flex items-center justify-center overflow-hidden', className)}
       style={{
+        boxSizing: 'content-box',
+        width: restingWidth.current ?? undefined,
         paddingInline: MASK_X,
         paddingBlock: MASK_Y,
         marginInline: `calc(${MASK_X} * -1)`,
@@ -81,7 +85,7 @@ function TextSwap({ children, className }: { children: string; className?: strin
         WebkitMaskComposite: 'source-in',
       }}
       initial={false}
-      animate={width === null ? undefined : { width: `calc(${width}px + ${MASK_X} * 2)` }}
+      animate={width === null ? undefined : { width }}
       transition={moveSpring}
     >
       <span ref={sizerRef} aria-hidden className='invisible whitespace-nowrap'>

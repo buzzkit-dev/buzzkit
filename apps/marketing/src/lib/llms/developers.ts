@@ -11,7 +11,7 @@ export function renderDevelopersIndex(): string {
 - [API catalog](${site.url}/.well-known/api-catalog): the RFC 9727 linkset
 - [Documentation](${site.docsUrl}): guides and the reference for every resource
 - [iOS SDK](${site.iosDocsUrl}): registration, identity, events, action buttons, Live Activities
-- [Integration skill](${site.url}/.well-known/agent-skills/buzzkit/SKILL.md): the steps packaged for coding agents
+- [Integration skill](${site.url}/skill.md): a router for coding agents with a reference file per part, best practices first
 - Everything on the site: ${site.url}/llms.txt
 `;
 }

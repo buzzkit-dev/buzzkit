@@ -13,7 +13,7 @@ describe('renderDevelopersIndex', () => {
       '/auth.md',
       '/openapi.json',
       '/.well-known/api-catalog',
-      '/.well-known/agent-skills/buzzkit/SKILL.md',
+      '/skill.md',
       '/llms.txt',
     ]) {
       expect(body).toContain(`${site.url}${path}`);

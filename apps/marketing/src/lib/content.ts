@@ -126,8 +126,8 @@ export const principles = {
 
 export const agents = {
   title: 'Let your agent set it up.',
-  text: 'Point your agent to BuzzKit to add notifications to your app, with agent-friendly pages and guides it can read along the way.',
-  prompt: 'Add notifications to my app with buzzkit.dev',
+  text: 'Point your agent at the BuzzKit skill and it adds notifications to your app and your backend, with agent-friendly pages it can read along the way.',
+  prompt: 'Install and integrate BuzzKit following buzzkit.dev/skill.md',
   surface: [
     '/llms.txt',
     '/index.md',

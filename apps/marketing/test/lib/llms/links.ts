@@ -14,6 +14,7 @@ const GENERATED = [
   '/features/llms.txt',
   '/compare/llms.txt',
   '/developers/llms.txt',
+  '/skill.md',
   '/.well-known/agent-skills/index.json',
   ...features.map((feature) => `/features/${feature.slug}.md`),
   ...comparisons.map((comparison) => `/compare/${comparison.slug}.md`),

@@ -155,6 +155,13 @@ describe('the marketing worker', () => {
     expect((JSON.parse(await response.text()) as { specVersion: string }).specVersion).toBe('1.0');
   });
 
+  it('serves the integration skill at skill.md', async () => {
+    const response = await fetchSite('/skill.md');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+    expect((await response.text()).startsWith('---\nname: buzzkit\n')).toBe(true);
+  });
+
   it('answers unknown paths with the html 404 for browsers and 404.md for everything else', async () => {
     const browser = await fetchSite('/nope', { accept: 'text/html' });
     expect(browser.status).toBe(404);

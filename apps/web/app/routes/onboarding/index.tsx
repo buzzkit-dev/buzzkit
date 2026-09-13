@@ -32,7 +32,7 @@ export default function CreateWorkspaceRoute({ loaderData, actionData }: Route.C
   return (
     <OnboardingLayout
       email={loaderData.profile.email}
-      progress={[0.08, 0, 0, 0, 0]}
+      progress={[0.08, 0, 0, 0, 0, 0]}
       transitionKey='workspace'
       motion={{ direction: 1, from: 'rows', to: 'rows' }}
       slots={{

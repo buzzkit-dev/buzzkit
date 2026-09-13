@@ -1,84 +1,105 @@
 ---
 name: buzzkit
-description: Integrate BuzzKit push notifications into an app. Register devices with the iOS SDK, identify subscribers, send messages from a backend, and set up topics, segments, scheduled sends and workflows through the REST API.
+description: Integrate BuzzKit, the open source notification orchestration layer, into an app and its backend. Use when a user wants push notifications in an iOS app, wants to send push from a server, or asks for subscribers, topics and preferences, segments, scheduled sends, events, workflows, Live Activities, inbound webhook sources or outbound webhooks. Covers the TypeScript SDK, the REST API, the iOS SDK and the dashboard, with the practices that make an integration hold up.
 ---
 
-# Integrating BuzzKit
+# BuzzKit
 
-BuzzKit is the open source notification orchestration layer: a REST API, a dashboard and an iOS SDK that send, segment, schedule and automate push on the workspace's own APNs and FCM credentials, self-hosted or hosted. Use this skill when a user wants push notifications in their app, wants to send push from their backend, or asks for segments, notification preferences, scheduled sends or lifecycle automation.
+BuzzKit sends, segments, schedules and automates mobile push through a REST API, a dashboard and an iOS SDK, on the workspace's own Apple (APNs) and Firebase (FCM) credentials. The hosted version is `https://buzzkit.dev` with the API at `https://api.buzzkit.dev`; a self-hosted deployment serves the same API at its own origin.
+
+Use this skill when the user wants notifications in their app, wants to send from their backend, or asks for anything in the description above. Everything in this skill is exact: field names, paths, error codes and limits come from the product. Do not invent endpoints, fields, scopes or limits. When something is not covered, read the documentation; every docs page answers as markdown with `.md` appended, and `https://docs.buzzkit.dev/llms-full.txt` is the whole reference in one file.
+
+## Install this skill
+
+Save this directory where your harness reads skills, so the reference files are on disk next session:
+
+- Claude Code: `.claude/skills/buzzkit/`
+- Cursor: `.cursor/skills/buzzkit/`
+- Codex: `.codex/skills/buzzkit/`
+- Anything else: the directory your tool documents for skills
+
+Fetch every file listed under "Reference files" into `references/` beside this one. The canonical copy is `https://buzzkit.dev/skill.md` (also `https://buzzkit.dev/.well-known/agent-skills/buzzkit/SKILL.md`, digest-indexed at `https://buzzkit.dev/.well-known/agent-skills/index.json`), and each reference lives at `https://buzzkit.dev/.well-known/agent-skills/buzzkit/references/<file>`. Re-fetch when the user says the product changed.
+
+## Reference files
+
+Read the file for the part you are working on before writing code. Each is exact and self-contained.
+
+| Read | When |
+| --- | --- |
+| `references/best-practices.md` | **Always, before the first line of code.** Identity, attributes, events, topics, idempotency, verification, secrets: the decisions that make everything later possible. |
+| `references/server-sdk.md` | Any backend in TypeScript or JavaScript: the `buzzkit` package, every resource and method, pagination, errors, retries, identity signing, webhook verification. |
+| `references/rest-api.md` | Any backend in another language, or when you need the exact HTTP shape: auth, the envelope, every endpoint by resource, error codes. |
+| `references/ios-sdk.md` | The iOS app: install, configure, push registration, identity, events, deep links and actions, the service extension, the preferences screen, Live Activities, local notifications. |
+| `references/browser-react.md` | A web app or React front end: `buzzkit/client` and `buzzkit/react`. |
+| `references/messages.md` | Sending: targeting, every content field, scheduling, idempotency, expiry, delivery and how to debug a send. |
+| `references/topics-preferences.md` | Notification categories and the settings screen. Read this whenever the app has any notification preference. |
+| `references/events.md` | Tracking events from the backend and the app, reserved events, reading the stream. |
+| `references/segments.md` | The expression grammar, saved segments, previews, inline audiences. |
+| `references/workflows.md` | Versioned automations: triggers, every step, templates, dry runs, runs, local notifications. |
+| `references/sources-webhooks.md` | Inbound webhooks from Stripe, Superwall, RevenueCat or anything custom, and outbound webhooks to the user's endpoint. |
+| `references/tenants.md` | Workspaces, tenants for platforms sending for their customers, tenant settings, the identity secret, self-hosting. |
+
+## What you need from the user
+
+Ask for these before writing code. Keys are created in the dashboard, never through the API.
+
+| Value | Where it comes from | Where it goes |
+| --- | --- | --- |
+| Client key `bk_pk_…` | Dashboard → API keys. Every workspace and tenant gets one automatically; the onboarding and the quick start hand it out. | The app binary and the browser. Public by design. |
+| Workspace key `bk_ws_…` | Dashboard → API keys → Create key, type Workspace, or the quick start's "Create a workspace key". Shown once. | The backend only, as `BUZZKIT_API_KEY`. Never in an app, a browser bundle or a commit. |
+| Identity secret | Dashboard → Settings → Channels → Identity verification. | The backend only, as `BUZZKIT_IDENTITY_SECRET`, to sign the identity hash. |
+| API origin | `https://api.buzzkit.dev`, or the self-hosted origin. | `baseUrl` in the SDK, `apiURL` on iOS, the host in every curl. |
+
+If the user pasted a client key into the prompt, that is the app key. Sending and everything under `/v1/*` needs a workspace key, so ask for one when the integration reaches the backend and put it in an environment variable.
+
+## The integration, in order
+
+Do the steps in this order and verify each before the next. Every step is idempotent, so re-running is safe.
+
+1. **Read `references/best-practices.md`.** It decides how you name ids, what you put on subscribers, what you track and how preferences are built. Getting these right at the start is the difference between an integration that can segment, automate and personalize later and one that has to be redone.
+2. **Confirm a channel is connected.** Sends fail with `channel_not_connected` until the tenant has a credential. The user uploads it in the dashboard; an agent cannot.
+3. **The app** (`references/ios-sdk.md`): add the SDK with the client key, identify the user by the backend's own user id with every attribute you know, register for push, register the app's named actions, track the events that matter.
+4. **The backend** (`references/server-sdk.md` or `references/rest-api.md`): install `buzzkit`, identify the same user id with the backend's attributes and timezone on every login, sign the identity hash, and send one message to it.
+5. **Verify** (`references/messages.md`): `GET /v1/messages/:id` shows `counts`; `counts.total: 0` means no reachable subscription, which means the device never registered or registered under another id.
+6. **Identity verification** (`references/tenants.md`): sign the hash on the backend, pass it to the app, turn on required verification once every client sends it.
+7. **Preferences** (`references/topics-preferences.md`): if the app has, or will have, a notification settings screen, build it on topics now. Never a homegrown preferences table.
+8. **Then the product work**: segments, scheduled sends, workflows, sources, webhooks, each in its reference.
+
+Ask before anything that reaches real people: publishing a workflow, sending to a topic or segment, any send in a production tenant. Prefer the dry run (`POST /v1/workflows/:slug/test`) and the segment preview (`POST /v1/segments/preview`) to see what would happen.
+
+## The practices that are not optional
+
+The full reasoning is in `references/best-practices.md`. The rules an integration must never break:
+
+1. **One id per person, the user's own.** `externalId` is the backend's user id in the app, on the server and in `to`. Never mint a BuzzKit-specific id and never store BuzzKit's `sub_` id as the address.
+2. **Identify everywhere, every time, with everything.** Call identify on every launch and login from the app and on every login from the backend, carrying every attribute that could ever matter for targeting: plan, role, locale, signup date, lifecycle stage, counts, flags. Attributes are what segments filter and workflows branch on; an attribute you did not set cannot be used later.
+3. **Track the events that describe the user's life in the product**, with stable dot-separated names and useful `data`. Events are what workflows trigger on and what segments count. Give every server-sent event an `id`.
+4. **Any notification preference is a topic.** The settings screen reads and writes topics through the client API or the drop-in iOS view. No custom table, no custom endpoint, no flag on the user record.
+5. **Idempotency on every send from server code.** Pass a meaningful `idempotencyKey`; retry only 429, 5xx and network failures.
+6. **Secrets stay on the server.** `bk_ws_` and `bk_tn_` keys and the identity secret live in environment variables; `bk_pk_` is the only key that ships in an app or browser bundle.
+7. **Verify with a read after every write** and dry-run before publishing. Never claim a push was delivered from a `202`.
+8. **Do not invent.** Every field, path, scope and limit is in these files or the docs.
 
 ## Keys and authentication
 
-Every server call carries `Authorization: Bearer <key>`. Keys come from the dashboard:
+Every request carries `Authorization: Bearer <key>`.
 
-- Workspace keys reach every tenant of the workspace.
-- Tenant keys are scoped to one tenant. Prefer them in application backends.
-- Client keys (`bk_pk_…`) are safe to ship inside an app binary and only work on `/v1/client/*`.
+| Kind | Prefix | Runs | Reaches |
+| --- | --- | --- | --- |
+| Workspace | `bk_ws_` | The backend | Every tenant of the workspace. Pick one with `BuzzKit-Tenant: <slug>`, or omit it for the `default` tenant. |
+| Tenant | `bk_tn_` | A backend that should see one tenant | That tenant's data plane only. Rejected on workspace routes. |
+| Client | `bk_pk_` | Inside the app or browser | `/v1/client/*` only: identify, device registration, events and the subscriber's own preferences. Cannot send or read other subscribers. |
 
-Tenant-context routes take a `buzzkit-tenant` header when the key is not already tenant-scoped. All paths below are relative to `/v1` on the BuzzKit host (the hosted API or a self-hosted deployment).
+Keys carry scopes written `resource:action` (`messages:send`, `subscribers:write`, `events:write`, `*`). A key without the route's scope gets `403 missing_permission`. `keys:*`, `invites:*`, `members:write`, `workspace:delete` and `tenants:secrets` are session-only and can never be granted to a key.
 
-## Server quickstart
+Every response is the same envelope: `{ "success", "data", "error": { "code", "message", "param", "details" }, "metadata": { "timestamp", "requestId" } }`. Branch on `error.code`, never on the message, and quote `metadata.requestId` when asking for help. The codes are listed per resource in the references and in full in `references/rest-api.md`.
 
-1. Identify a subscriber (idempotent upsert, addressed by your own user id):
+## Documentation
 
-```
-PUT /v1/subscribers/user_42
-{ "attributes": { "name": "Maya", "plan": "pro" }, "timezone": "Europe/Berlin" }
-```
-
-2. Send a message:
-
-```
-POST /v1/messages
-{
-  "to": "user_42",
-  "title": "Leg day",
-  "body": "Let's go. 6:00 with Maya.",
-  "deepLink": "app://workouts/legs",
-  "idempotencyKey": "workout-2026-09-01-user_42"
-}
-```
-
-Targeting is one of `to` (up to 1000 ids), `topic`, `segment` (a saved segment's slug) or `where` (an inline expression using the segment grammar), optionally combined with `topic`. The API answers 202 with the message and asynchronous delivery. Always send an idempotency key from server code; a replay returns the original message and sends nothing.
-
-3. Read results: `GET /v1/messages/:id` for status and counts, `GET /v1/messages/:id/deliveries` for per-device outcomes, `GET /v1/deliveries/:id/attempts` for the full attempt ledger.
-
-4. Track events that segments and workflows react to:
-
-```
-POST /v1/events
-{ "events": [{ "externalId": "user_42", "name": "workout.completed", "data": { "duration": 42 }, "id": "<uuid>" }] }
-```
-
-Give every event a unique `id` and retry on 429 or 5xx until a 202 arrives; replays are answered as duplicates.
-
-## iOS quickstart
-
-Add the package from https://github.com/buzzkit-dev/buzzkit-ios, then:
-
-```swift
-BuzzKit.configure(apiKey: "bk_pk_…")
-BuzzKit.identify("user_42")
-try await BuzzKit.registerForPush()
-BuzzKit.track("workout.completed", data: ["duration": 42])
-```
-
-The SDK registers the device token, queues events offline with replay, handles notification action buttons and deep links, and renders notification preferences from the client API.
-
-## Common tasks
-
-- Notification settings screen: `GET /v1/client/preferences` returns the resolved topic list per channel; `PATCH` with `{ "preferences": { "gym-reminders": false } }` saves a choice. Topics are created with `POST /v1/topics`.
-- Local-time delivery: add `"schedule": { "at": "2026-09-02T09:00", "timezone": "subscriber" }` to a send and each subscriber receives it as their own clock reaches 9:00.
-- Segments: `POST /v1/segments` with an expression such as `{ "all": [{ "ref": "attributes.plan", "eq": "pro" }, { "count": "workout.completed", "within": "7d", "gte": 3 }] }`; preview membership with `POST /v1/segments/preview`.
-- Workflows: `POST /v1/workflows` with a spec (trigger, steps with `wait`, `waitUntil`, `waitFor`, `branch`, `fetch`, `send`), then `POST /v1/workflows/:slug/publish`. Test any version first with `POST /v1/workflows/:slug/test`, which runs the spec without sending.
-- Inbound webhooks: `POST /v1/sources` turns Stripe, Superwall, RevenueCat or custom webhooks into subscriber events.
-
-## Reference
-
-- Documentation: https://docs.buzzkit.dev. Every page also answers as markdown at the same URL with `.md` appended.
-- Everything in one file: https://docs.buzzkit.dev/llms-full.txt
-- API reference, every endpoint with its scope and schemas: https://docs.buzzkit.dev/api-reference
-- OpenAPI description: https://buzzkit.dev/openapi.json
+- Documentation: https://docs.buzzkit.dev (every page also as markdown with `.md` appended)
+- Everything in one file: https://docs.buzzkit.dev/llms-full.txt, index at https://docs.buzzkit.dev/llms.txt
+- API reference: https://docs.buzzkit.dev/api-reference, OpenAPI: https://buzzkit.dev/openapi.json
 - Authentication walkthrough: https://buzzkit.dev/auth.md
-- Docs MCP server, search and read the docs as tools: https://docs.buzzkit.dev/mcp
-- llms.txt: https://buzzkit.dev/llms.txt
+- iOS SDK: https://github.com/buzzkit-dev/buzzkit-ios and https://docs.buzzkit.dev/sdks/ios/overview
+- The product site for agents: https://buzzkit.dev/llms.txt, https://buzzkit.dev/developers.md
+- Docs MCP server, to search and read the docs as tools: https://docs.buzzkit.dev/mcp

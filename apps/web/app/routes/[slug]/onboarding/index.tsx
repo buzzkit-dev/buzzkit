@@ -1,15 +1,9 @@
 import { Button } from '@buzzkit/ui/components/button';
 import { CardContent } from '@buzzkit/ui/components/card';
 import { useState } from 'react';
-import {
-  data,
-  Link,
-  redirect,
-  type ShouldRevalidateFunctionArgs,
-  useNavigate,
-  useSearchParams,
-} from 'react-router';
+import { data, Link, redirect, type ShouldRevalidateFunctionArgs, useSearchParams } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { IntegratePanel } from '@/app/components/integrate/panel';
 import {
   assertOnboardingPath,
   CHANNELS,
@@ -24,7 +18,14 @@ import { useProviderGuide } from '@/app/components/onboarding/provider-guide';
 import type { StepKind } from '@/app/components/onboarding/transition';
 import { ImportForm } from '@/app/components/subscribers/import';
 import { connectProviderAction } from '@/app/lib/actions/connect.server';
-import { ApiError, getProfile, getWorkspace, listCredentials } from '@/app/lib/api.server';
+import {
+  ApiError,
+  getProfile,
+  getTenant,
+  getWorkspace,
+  listCredentials,
+  listKeys,
+} from '@/app/lib/api.server';
 import { connectedChannels as resolveConnectedChannels } from '@/app/lib/channels';
 import { requireSession } from '@/app/lib/session.server';
 import type { Route } from './+types/index';
@@ -40,13 +41,16 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   assertOnboardingPath(params['*']);
 
   try {
-    const [workspace, profile, credentials] = await Promise.all([
+    const [workspace, profile, credentials, tenant, keys] = await Promise.all([
       getWorkspace(ctx, token, params.slug),
       getProfile(ctx, token),
       listCredentials(ctx, token, params.slug, 'default'),
+      getTenant(ctx, token, params.slug, 'default'),
+      listKeys(ctx, token, params.slug, { kind: 'client' }),
     ]);
     if (credentials.length > 0) throw redirect(`/${params.slug}`);
-    return { workspace, profile, credentials };
+    const clientKey = keys.items.find((key) => !key.revokedAt && key.tenantId === tenant.id)?.token ?? null;
+    return { workspace, profile, credentials, clientKey, apiUrl: env.API_URL };
   } catch (error) {
     if (error instanceof ApiError && (error.status === 404 || error.status === 403)) {
       throw data(null, { status: error.status });
@@ -78,11 +82,12 @@ const VIEW_POSITIONS = {
   connected: 900,
   migrate: 950,
   import: 1000,
+  integrate: 1100,
 } as const;
 
 type OnboardingView = keyof typeof VIEW_POSITIONS;
 
-type ConnectedStage = 'connected' | 'migrate' | 'import';
+type ConnectedStage = 'connected' | 'migrate' | 'import' | 'integrate';
 
 function resolveView(state: {
   connected: boolean;
@@ -96,9 +101,8 @@ function resolveView(state: {
 }
 
 export default function OnboardingRoute({ loaderData, params }: Route.ComponentProps) {
-  const navigate = useNavigate();
   const [search] = useSearchParams();
-  const { workspace, profile, credentials } = loaderData;
+  const { workspace, profile, credentials, clientKey, apiUrl } = loaderData;
   const [channelId, providerId] = (params['*'] ?? '').split('/').filter(Boolean);
   const channel = channelId ? (findChannel(channelId) ?? null) : null;
   const provider = channel && providerId ? (findProvider(channel.id, providerId) ?? null) : null;
@@ -147,10 +151,12 @@ export default function OnboardingRoute({ loaderData, params }: Route.ComponentP
     });
   }
 
-  const step = { channels: 1, providers: 2, guide: 3, connected: 3, migrate: 4, import: 4 }[view];
+  const step = { channels: 1, providers: 2, guide: 3, connected: 3, migrate: 4, import: 4, integrate: 5 }[
+    view
+  ];
   const connectProgress =
     view === 'connected' ? 1 : view === 'guide' && guide.total > 0 ? guide.current / guide.total : 0;
-  const progress = [0, 1, 2, 3, 4].map((index) => {
+  const progress = [0, 1, 2, 3, 4, 5].map((index) => {
     if (index < step) return 1;
     if (index > step) return 0;
     return index === 3 ? Math.max(CURRENT_STEP_FILL, connectProgress) : CURRENT_STEP_FILL;
@@ -163,7 +169,27 @@ export default function OnboardingRoute({ loaderData, params }: Route.ComponentP
   ).length;
 
   let slots: OnboardingSlots;
-  if (view === 'import' && connected) {
+  if (view === 'integrate') {
+    slots = {
+      title: 'Integrate BuzzKit',
+      description: 'Hand the prompt to your coding agent, or add the SDK yourself.',
+      content: (
+        <CardContent className='pt-2.5'>
+          <IntegratePanel apiUrl={apiUrl} clientKey={clientKey} />
+        </CardContent>
+      ),
+      footer: (
+        <>
+          <Button variant='ghost' size='xs' className='-ml-2' onClick={() => setStage('migrate')}>
+            Back
+          </Button>
+          <Button size='xs' nativeButton={false} render={<Link to={`/${workspace.slug}`} />}>
+            Open dashboard
+          </Button>
+        </>
+      ),
+    };
+  } else if (view === 'import' && connected) {
     slots = {
       title: 'Bring your subscribers',
       description: 'Upload the export from your previous provider and every device keeps receiving.',
@@ -176,7 +202,7 @@ export default function OnboardingRoute({ loaderData, params }: Route.ComponentP
               connectedChannels: resolveConnectedChannels(connected),
             }}
             sandbox={connected.some((credential) => credential.environment === 'sandbox')}
-            onDone={() => void navigate(`/${workspace.slug}/subscribers`)}
+            onDone={() => setStage('integrate')}
           />
         </CardContent>
       ),
@@ -200,7 +226,7 @@ export default function OnboardingRoute({ loaderData, params }: Route.ComponentP
               description='Upload the export from your previous provider.'
             />
             <ChoiceRow
-              to={`/${workspace.slug}`}
+              onClick={() => setStage('integrate')}
               icon='IconTeamFilled'
               title='Start fresh'
               description='Subscribers appear as your app identifies them.'

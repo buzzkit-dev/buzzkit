@@ -37,4 +37,21 @@ describe('renderAgentIndex', () => {
   it('writes two-space JSON with a trailing newline', () => {
     expect(rendered).toBe(`${JSON.stringify(index, null, 2)}\n`);
   });
+
+  it('lists reference files with their own digests, sorted, and omits the array when there are none', () => {
+    expect(index.skills[0]).not.toHaveProperty('files');
+
+    const withFiles = JSON.parse(
+      renderAgentIndex(SKILL, [
+        { path: 'references/server-sdk.md', content: 'sdk' },
+        { path: 'references/best-practices.md', content: 'best' },
+      ])
+    ) as { skills: { files: { url: string; digest: string }[] }[] };
+    const files = withFiles.skills[0]!.files;
+    expect(files.map((entry) => entry.url)).toEqual([
+      `${site.url}/.well-known/agent-skills/buzzkit/references/best-practices.md`,
+      `${site.url}/.well-known/agent-skills/buzzkit/references/server-sdk.md`,
+    ]);
+    expect(files[0]!.digest).toBe(`sha256:${createHash('sha256').update('best').digest('hex')}`);
+  });
 });

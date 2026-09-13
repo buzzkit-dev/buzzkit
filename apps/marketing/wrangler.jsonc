@@ -40,6 +40,7 @@
     { "pattern": "buzzkit.dev/apple-touch-icon.png*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/openapi.json*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/auth.md*", "zone_name": "buzzkit.dev" },
+    { "pattern": "buzzkit.dev/skill.md*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/llms-full.txt*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/developers*", "zone_name": "buzzkit.dev" },
     { "pattern": "buzzkit.dev/api", "zone_name": "buzzkit.dev" },

@@ -55,5 +55,5 @@ Every page on this site has a markdown twin and answers `Accept: text/markdown`.
 
 - The index: https://buzzkit.dev/llms.txt
 - The whole site in one file: https://buzzkit.dev/llms-full.txt
-- The integration skill for coding agents: https://buzzkit.dev/.well-known/agent-skills/buzzkit/SKILL.md
+- The integration skill for coding agents, a router with a reference file per part: https://buzzkit.dev/skill.md
 - The resource catalog: https://buzzkit.dev/.well-known/ard.json

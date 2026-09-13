@@ -25,7 +25,41 @@ const roleHints = createCookie('buzzkit.roles', {
   maxAge: 60 * 60,
 });
 
+const quickStartHints = createCookie('buzzkit.quickstart', {
+  path: '/',
+  sameSite: 'lax',
+  httpOnly: true,
+  maxAge: 60 * 60 * 24 * 30,
+});
+
 const DEFAULT_TENANT = 'default';
+
+async function readQuickStartHints(request: Request): Promise<Record<string, boolean>> {
+  const value = await quickStartHints.parse(request.headers.get('Cookie'));
+  return value && typeof value === 'object' ? (value as Record<string, boolean>) : {};
+}
+
+export async function readQuickStartHint(
+  request: Request,
+  workspaceSlug: string,
+  tenantSlug: string
+): Promise<boolean | null> {
+  return (await readQuickStartHints(request))[`${workspaceSlug}/${tenantSlug}`] ?? null;
+}
+
+export async function quickStartHintCookie(
+  env: Env,
+  request: Request,
+  workspaceSlug: string,
+  tenantSlug: string,
+  quickstart: boolean
+): Promise<string> {
+  const hints = await readQuickStartHints(request);
+  return quickStartHints.serialize(
+    { ...hints, [`${workspaceSlug}/${tenantSlug}`]: quickstart },
+    { secure: env.ENVIRONMENT !== 'development' }
+  );
+}
 
 async function readTenantChoices(request: Request): Promise<Record<string, string>> {
   const value = await tenantChoices.parse(request.headers.get('Cookie'));

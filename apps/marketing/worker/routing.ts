@@ -8,8 +8,11 @@ export function resolveDocsRedirect(pathname: string): string | null {
   return `${site.docsUrl}${match[1] ?? ''}`;
 }
 
+const SKILL_PATH = '/.well-known/agent-skills/buzzkit/SKILL.md';
+
 export function resolveAssetPath(pathname: string): string {
   if (pathname === '/.well-known/ai-catalog.json') return '/.well-known/ard.json';
+  if (pathname === '/skill.md') return SKILL_PATH;
   return pathname;
 }
 
