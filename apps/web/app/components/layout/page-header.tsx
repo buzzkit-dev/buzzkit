@@ -1,4 +1,6 @@
+import { ActionRegistryProvider } from '@buzzkit/ui/components/action-registry';
 import { cn } from '@buzzkit/ui/lib/utils';
+import { registerAction } from '@/app/hooks/use-commands';
 
 export function PageHeader({
   title,
@@ -24,7 +26,11 @@ export function PageHeader({
         </h1>
         <p className='text-pretty text-base text-fg-2 leading-tighter'>{description}</p>
       </div>
-      {actions && <div className='flex w-full shrink-0 items-center gap-2 sm:w-auto'>{actions}</div>}
+      {actions && (
+        <ActionRegistryProvider register={registerAction}>
+          <div className='flex w-full shrink-0 items-center gap-2 sm:w-auto'>{actions}</div>
+        </ActionRegistryProvider>
+      )}
     </header>
   );
 }

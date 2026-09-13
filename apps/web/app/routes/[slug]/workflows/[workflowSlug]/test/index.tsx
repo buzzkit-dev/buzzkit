@@ -17,13 +17,14 @@ import { cloudflareContext } from '@/app/cloudflare';
 import { RunStatusBadge, WorkflowStatusBadge } from '@/app/components/badges';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { BlockSkeleton } from '@/app/components/loading/card';
+import { InputSkeleton } from '@/app/components/loading/field';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { describeRunEvent } from '@/app/components/workflows/describe';
 import { type RunPath, WorkflowFlow } from '@/app/components/workflows/flow';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import { TimeAgo } from '@/app/hooks/use-time-ago';
 import { workflowsAction } from '@/app/lib/actions/workflows.server';
-import { getWorkflow, listSubscribers, type WorkflowTest } from '@/app/lib/api.server';
+import { getWorkflow, listSubscribers, requireFound, type WorkflowTest } from '@/app/lib/api.server';
 import { requireSession, resolveTenant } from '@/app/lib/session.server';
 import { requestUrl } from '@/app/lib/utils/request';
 import type { Route } from './+types/index';
@@ -136,7 +137,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const search = requestUrl(request).searchParams;
   const query = search.get('q')?.trim() ?? '';
   const [workflow, suggested] = await Promise.all([
-    getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug),
+    requireFound(getWorkflow(ctx, token, params.slug, tenant, params.workflowSlug)),
     query
       ? listSubscribers(ctx, token, params.slug, tenant, { search: query, limit: SUGGESTION_LIMIT })
       : Promise.resolve(null),
@@ -623,7 +624,7 @@ function WorkflowTestPending() {
         <Skeleton className='h-3.5 w-24' />
       </Button>
       <PageHeader
-        title={<Skeleton className='h-7 w-64' />}
+        title={<Skeleton className='h-[1.15em] w-64' />}
         titleClassName='flex items-center gap-2.5'
         description='Run a version for a subscriber and see the path it takes and what every step would do. Nothing is sent.'
       />
@@ -636,11 +637,11 @@ function WorkflowTestPending() {
             <FieldGroup className='w-full'>
               <Field>
                 <FieldLabel>Subscriber</FieldLabel>
-                <Skeleton className='h-8.5 w-full rounded-xl' />
+                <InputSkeleton />
               </Field>
               <Field>
                 <FieldLabel>Clock</FieldLabel>
-                <Skeleton className='h-8.5 w-full rounded-xl' />
+                <InputSkeleton />
               </Field>
             </FieldGroup>
           </div>

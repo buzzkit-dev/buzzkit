@@ -24,7 +24,6 @@ import { Funnel } from '@/app/components/messages/funnel';
 import { Recipients } from '@/app/components/messages/recipients';
 import { SendDialog } from '@/app/components/messages/send-dialog';
 import { describeTarget } from '@/app/components/messages/target';
-import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { RANGES, resolveRange, useFilters } from '@/app/hooks/use-filters';
 import { Time, TimeAgo } from '@/app/hooks/use-time-ago';
 import { messagesAction } from '@/app/lib/actions/messages.server';
@@ -156,23 +155,6 @@ export default function MessagesRoute({ loaderData, params }: Route.ComponentPro
   const base = `/${params.slug}/messages`;
   const [open, setOpen] = useState(false);
   const filters = useFilters(FILTER_KEYS);
-
-  useRegisterCommands([
-    {
-      id: 'send-test-message',
-      label: 'Send test message',
-      icon: 'IconPaperPlaneTopRightFilled',
-      keywords: ['push', 'notification', 'new message'],
-      run: () => setOpen(true),
-    },
-    {
-      id: 'scheduled-messages',
-      label: 'Show scheduled messages',
-      icon: 'IconCalendarClockFilled',
-      keywords: ['pending', 'upcoming', 'filter'],
-      to: `${base}?status=scheduled`,
-    },
-  ]);
 
   return (
     <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>

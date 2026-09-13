@@ -11,10 +11,10 @@ import {
 import { Button } from '@buzzkit/ui/components/button';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
-import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { useState } from 'react';
 import { useFetcher, useOutletContext } from 'react-router';
 import { PageHeader } from '@/app/components/layout/page-header';
+import { InputSkeleton } from '@/app/components/loading/field';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { SettingsCard } from '@/app/components/settings/card';
 import { type SettingsActionData, useActionFetcher } from '@/app/hooks/use-action-fetcher';
@@ -233,7 +233,7 @@ function GeneralSkeleton() {
           )
         }
       >
-        <Skeleton className='h-8.5 max-w-xs rounded-xl' />
+        <InputSkeleton className='max-w-xs' />
       </SettingsCard>
       <SettingsCard
         title='Slug'
@@ -252,7 +252,7 @@ function GeneralSkeleton() {
         }
       >
         <Field className='max-w-xs'>
-          <Skeleton className='h-8.5 rounded-xl' />
+          <InputSkeleton />
           <FieldDescription>Lowercase letters, numbers and hyphens.</FieldDescription>
         </Field>
       </SettingsCard>

@@ -1,4 +1,5 @@
 import { Button } from '@buzzkit/ui/components/button';
+import { FilterRegistryProvider } from '@buzzkit/ui/components/filter-bar';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { Sheet, SheetContent, SheetTitle } from '@buzzkit/ui/components/sheet';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
@@ -14,12 +15,14 @@ import {
   useMatches,
 } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
+import { CommandMenu } from '@/app/components/command/menu';
 import { NoAccessNotice } from '@/app/components/errors/no-access';
 import { NotFoundNotice } from '@/app/components/errors/not-found';
 import { AccountMenu } from '@/app/components/layout/account-menu';
 import { Sidebar, SwitcherPlaceholder } from '@/app/components/layout/sidebar';
 import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { PageHandle } from '@/app/components/loading/handle';
+import { registerFacet } from '@/app/hooks/use-commands';
 import { KnownRoleProvider } from '@/app/hooks/use-known-role';
 import { useLive } from '@/app/hooks/use-live';
 import { QuickStartProvider } from '@/app/hooks/use-quick-start';
@@ -157,15 +160,19 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   }
 
   let quickstart = await readQuickStartHint(request, params.slug, requested);
+  let connected: Channel[] = [];
   if (quickstart !== false) {
-    const messages = await listMessages({ request, env }, token, params.slug, requested, { limit: 1 }).catch(
-      (error: unknown) => {
-        if (error instanceof ApiError) return null;
-        throw error;
-      }
-    );
-    if (messages) {
+    const tenantState = await Promise.all([
+      listMessages({ request, env }, token, params.slug, requested, { limit: 1 }),
+      listCredentials({ request, env }, token, params.slug, requested),
+    ]).catch((error: unknown) => {
+      if (error instanceof ApiError) return null;
+      throw error;
+    });
+    if (tenantState) {
+      const [messages, credentials] = tenantState;
       quickstart = messages.items.length === 0;
+      connected = connectedChannels(credentials);
       responseHeaders.append(
         'Set-Cookie',
         await quickStartHintCookie(env, request, params.slug, requested, quickstart)
@@ -179,6 +186,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       tenant: requested,
       role,
       quickstart: quickstart ?? false,
+      connected,
       apiUrl: env.API_URL,
       outcome: resolveChrome({ request, env }, token, params.slug, requested, listed),
     },
@@ -227,7 +235,17 @@ function resolveSidebar(slug: string, chrome: Chrome | null, last: Chrome | null
 
 type SidebarProps = ReturnType<typeof resolveSidebar>;
 
-function MobileBar({ slug, sidebar, onOpen }: { slug: string; sidebar: SidebarProps; onOpen: () => void }) {
+function MobileBar({
+  slug,
+  sidebar,
+  onOpen,
+  onSearch,
+}: {
+  slug: string;
+  sidebar: SidebarProps;
+  onOpen: () => void;
+  onSearch: () => void;
+}) {
   return (
     <div className='flex h-10 shrink-0 items-center gap-1 lg:hidden'>
       <Button
@@ -237,6 +255,14 @@ function MobileBar({ slug, sidebar, onOpen }: { slug: string; sidebar: SidebarPr
         aria-label='Open navigation'
         className='shrink-0 text-fg-2'
         onClick={onOpen}
+      />
+      <Button
+        variant='ghost'
+        size='icon'
+        icon='IconMagnifyingGlass'
+        aria-label='Search'
+        className='shrink-0 text-fg-2'
+        onClick={onSearch}
       />
       <div className='flex min-w-0 flex-1'>
         {sidebar.workspace ? (
@@ -263,11 +289,12 @@ function MobileBar({ slug, sidebar, onOpen }: { slug: string; sidebar: SidebarPr
 export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   const { pathname } = useLocation();
   const route = useMatches().at(-1)?.handle as PageHandle | undefined;
-  const { slug, tenant: requested, role, quickstart, apiUrl, outcome } = loaderData;
+  const { slug, tenant: requested, role, quickstart, connected, apiUrl, outcome } = loaderData;
   const [settled, setSettled] = useState<{ outcome: Promise<ChromeOutcome>; value: ChromeOutcome } | null>(
     null
   );
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const live = settled?.outcome === outcome ? settled.value : null;
   const cached = recallPage<Chrome>(`layout:${slug}`) ?? null;
   const last = recallPage<Chrome>('layout:last') ?? null;
@@ -298,6 +325,11 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
     rememberPage('layout:last', live.chrome);
   }, [live, slug]);
 
+  const openCommands = () => {
+    setNavigationOpen(false);
+    setCommandOpen(true);
+  };
+
   useEffect(() => {
     setNavigationOpen(false);
   }, [pathname]);
@@ -313,7 +345,13 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         Skip to content
       </a>
 
-      <Sidebar slug={slug} {...sidebar} quickstart={quickstart} className='hidden lg:flex' />
+      <Sidebar
+        slug={slug}
+        {...sidebar}
+        quickstart={quickstart}
+        onSearch={openCommands}
+        className='hidden lg:flex'
+      />
 
       <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
         <SheetContent
@@ -322,15 +360,37 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
           className='bg-background-subtle data-[side=left]:w-72 lg:hidden'
         >
           <SheetTitle className='sr-only'>Navigation</SheetTitle>
-          <Sidebar slug={slug} {...sidebar} quickstart={quickstart} className='h-full w-full' />
+          <Sidebar
+            slug={slug}
+            {...sidebar}
+            quickstart={quickstart}
+            onSearch={openCommands}
+            className='h-full w-full'
+          />
         </SheetContent>
       </Sheet>
+
+      <CommandMenu
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        slug={slug}
+        workspaces={sidebar.workspaces}
+        workspace={sidebar.workspace}
+        tenants={sidebar.tenants}
+        tenant={sidebar.tenant}
+        quickstart={quickstart}
+      />
 
       <main
         id='content'
         className={cn('flex min-w-0 flex-1 flex-col gap-2 p-2 lg:pl-0', viewingTenant && 'lg:pt-3')}
       >
-        <MobileBar slug={slug} sidebar={sidebar} onOpen={() => setNavigationOpen(true)} />
+        <MobileBar
+          slug={slug}
+          sidebar={sidebar}
+          onOpen={() => setNavigationOpen(true)}
+          onSearch={openCommands}
+        />
         {viewingTenant && (
           <div className='corner-superellipse/1.125 flex h-8 shrink-0 items-center gap-2 rounded-xl bg-amber-4/10 pr-1 pl-3 text-amber-4 text-sm'>
             <Icon name='IconBuildingsFilled' className='size-4 shrink-0 opacity-90' />
@@ -358,21 +418,23 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         )}
         <div className='corner-superellipse/1.125 flex min-w-0 flex-1 flex-col overflow-y-auto rounded-2xl bg-card px-4 pt-5 shadow-sm sm:px-6 sm:pt-6 lg:px-8.5 lg:pt-7.5'>
           <div className='pb-5 lg:flex lg:flex-1 lg:flex-col lg:pb-7.5'>
-            <QuickStartProvider quickstart={quickstart}>
+            <QuickStartProvider hint={{ quickstart, connected }}>
               {chrome ? (
-                <Outlet
-                  context={
-                    {
-                      workspace: chrome.workspace,
-                      tenantSlug: requested,
-                      profile: chrome.profile,
-                      apiUrl,
-                      connected: chrome.connected,
-                      tenant: chrome.tenant,
-                      tenants: chrome.tenants,
-                    } satisfies WorkspaceOutletContext
-                  }
-                />
+                <FilterRegistryProvider register={registerFacet}>
+                  <Outlet
+                    context={
+                      {
+                        workspace: chrome.workspace,
+                        tenantSlug: requested,
+                        profile: chrome.profile,
+                        apiUrl,
+                        connected: chrome.connected,
+                        tenant: chrome.tenant,
+                        tenants: chrome.tenants,
+                      } satisfies WorkspaceOutletContext
+                    }
+                  />
+                </FilterRegistryProvider>
               ) : live?.failure === 404 ? (
                 <NotFoundNotice />
               ) : live?.failure === 403 ? (

@@ -5,6 +5,7 @@ import { Calendar } from '@buzzkit/ui/components/calendar';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { Input } from '@buzzkit/ui/components/input';
 import { Popover, PopoverContent } from '@buzzkit/ui/components/popover';
+import { createRegistryContext } from '@buzzkit/ui/components/registry';
 import {
   Select,
   SelectContent,
@@ -75,32 +76,23 @@ export type FilterFacet = {
   onValueChange: (value: string | null) => void;
 };
 
-const FilterRegistryContext = React.createContext<((facet: FilterFacet) => () => void) | null>(null);
-
-function FilterRegistryProvider({
-  register,
-  children,
-}: {
-  register: (facet: FilterFacet) => () => void;
-  children: React.ReactNode;
-}) {
-  return <FilterRegistryContext.Provider value={register}>{children}</FilterRegistryContext.Provider>;
-}
+const { RegistryProvider: FilterRegistryProvider, useRegister: useFilterRegister } =
+  createRegistryContext<FilterFacet>('FilterRegistry');
 
 function plainLabel(option: FilterOption<string>): { value: string; label: string } {
   return { value: option.value, label: typeof option.label === 'string' ? option.label : option.value };
 }
 
-function useRegisterFacet(facet: Omit<FilterFacet, 'id'>) {
-  const register = React.useContext(FilterRegistryContext);
+function useRegisterFacet(facet: Omit<FilterFacet, 'id'> & { disabled: boolean }) {
+  const register = useFilterRegister();
   const id = React.useId();
-  const { label, value, options, onValueChange } = facet;
+  const { label, value, options, onValueChange, disabled } = facet;
   const serialized = JSON.stringify(options);
   const latest = React.useRef(onValueChange);
   latest.current = onValueChange;
 
   React.useEffect(() => {
-    if (!register) return;
+    if (!register || disabled) return;
     return register({
       id,
       label,
@@ -108,7 +100,7 @@ function useRegisterFacet(facet: Omit<FilterFacet, 'id'>) {
       options: JSON.parse(serialized) as FilterFacet['options'],
       onValueChange: (next) => latest.current(next),
     });
-  }, [register, id, label, value, serialized]);
+  }, [register, id, label, value, serialized, disabled]);
 }
 
 function isGroup<V extends string>(entry: FilterOption<V> | FilterGroup<V>): entry is FilterGroup<V> {
@@ -141,6 +133,7 @@ function FilterSelect<V extends string>({
     value,
     options: flat.map(plainLabel),
     onValueChange: (next) => onValueChange(next as V | null),
+    disabled: Boolean(disabled),
   });
   const item = (entry: FilterOption<string>) => (
     <SelectItem key={entry.value} value={entry.value}>
@@ -238,7 +231,13 @@ function FilterRange({
     { value: CUSTOM, label: 'Custom range' },
   ];
   const complete = draft?.from && draft?.to ? { from: draft.from, to: draft.to } : null;
-  useRegisterFacet({ label, value, options: presets.map(plainLabel), onValueChange });
+  useRegisterFacet({
+    label,
+    value,
+    options: presets.map(plainLabel),
+    onValueChange,
+    disabled: Boolean(disabled),
+  });
 
   return (
     <>

@@ -4,13 +4,13 @@ import { EmptyState } from '@buzzkit/ui/components/empty-state';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@buzzkit/ui/components/field';
 import { Input } from '@buzzkit/ui/components/input';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
-import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Textarea } from '@buzzkit/ui/components/textarea';
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { PageHeader } from '@/app/components/layout/page-header';
 import { BlockSkeleton } from '@/app/components/loading/card';
+import { InputSkeleton, TextareaSkeleton } from '@/app/components/loading/field';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { WorkflowFlow } from '@/app/components/workflows/flow';
 import { parseSpec, SpecEditor } from '@/app/components/workflows/spec-editor';
@@ -199,16 +199,16 @@ function NewWorkflowPending() {
           <FieldGroup className='p-4'>
             <Field>
               <FieldLabel>Name</FieldLabel>
-              <Skeleton className='h-8.5 w-full rounded-xl' />
+              <InputSkeleton />
             </Field>
             <Field>
               <FieldLabel>Slug</FieldLabel>
-              <Skeleton className='h-8.5 w-full rounded-xl' />
+              <InputSkeleton />
               <FieldDescription>Names the workflow in the API and on its runs.</FieldDescription>
             </Field>
             <Field>
               <FieldLabel>Description</FieldLabel>
-              <Skeleton className='h-[4.75rem] w-full rounded-xl' />
+              <TextareaSkeleton rows={3} />
             </Field>
           </FieldGroup>
         </Card>
@@ -218,7 +218,7 @@ function NewWorkflowPending() {
               <CardTitle>Definition</CardTitle>
             </CardHeader>
             <div className='p-4'>
-              <Skeleton className='h-[30rem] w-full rounded-xl' />
+              <TextareaSkeleton rows={22} className='text-xs' />
             </div>
           </Card>
           <Card className='min-w-0'>

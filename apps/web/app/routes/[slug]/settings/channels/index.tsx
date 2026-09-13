@@ -29,6 +29,7 @@ import { useLocation, useOutletContext } from 'react-router';
 import { cloudflareContext } from '@/app/cloudflare';
 import { CredentialStatusBadge, EnvironmentBadge } from '@/app/components/badges';
 import { PageHeader } from '@/app/components/layout/page-header';
+import { ButtonSkeleton } from '@/app/components/loading/button';
 import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import {
@@ -567,7 +568,7 @@ function ProviderRowSkeleton({ provider }: { provider: ProviderEntry }) {
         </span>
       }
       subtitle={<Skeleton className='inline-block h-3 w-72 align-middle' />}
-      end={<Skeleton className='h-[26px] w-[74px] rounded-[10px]' />}
+      end={<ButtonSkeleton label='Connect' size='xs' />}
     />
   );
 }

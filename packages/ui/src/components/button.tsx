@@ -1,8 +1,10 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
+import { useRegisterAction } from '@buzzkit/ui/components/action-registry';
 import { type MenuItemIcon, menuIconPosition, renderMenuIcon } from '@buzzkit/ui/components/menu-icon';
 import { Spinner } from '@buzzkit/ui/components/spinner';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
 
 const buttonVariants = cva(
   [
@@ -83,6 +85,7 @@ function Button({
   loading = false,
   disabled,
   children,
+  ref,
   ...props
 }: ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
@@ -92,8 +95,25 @@ function Button({
   const position = menuIconPosition(icon) ?? (loading ? 'inline-start' : undefined);
   const iconName = typeof icon === 'string' ? icon : icon?.name;
   const spinner = <Spinner className='size-4' />;
+  const element = React.useRef<HTMLElement | null>(null);
+  const attach = React.useCallback(
+    (node: HTMLElement | null) => {
+      element.current = node;
+      const button = node as HTMLButtonElement | null;
+      if (typeof ref === 'function') return ref(button);
+      if (ref) ref.current = button;
+    },
+    [ref]
+  );
+  useRegisterAction({
+    children,
+    icon: iconName,
+    disabled: Boolean(disabled || loading),
+    activate: () => element.current?.click(),
+  });
   return (
     <ButtonPrimitive
+      ref={attach}
       data-slot='button'
       data-icon={position}
       data-chevron={!loading && iconName?.startsWith('IconChevron') ? '' : undefined}

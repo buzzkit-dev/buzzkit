@@ -15,6 +15,7 @@ export default [
   route(':slug/onboarding/*', 'routes/[slug]/onboarding/index.tsx'),
   route(':slug', 'routes/[slug]/layout.tsx', [
     index('routes/[slug]/index.tsx'),
+    route('search', 'routes/[slug]/search/index.ts'),
     route('subscribers', 'routes/[slug]/subscribers/index.tsx'),
     route('segments', 'routes/[slug]/segments/index.tsx'),
     route('segments/new', 'routes/[slug]/segments/new/index.tsx'),

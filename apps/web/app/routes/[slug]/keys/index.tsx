@@ -36,7 +36,6 @@ import { Deferred } from '@/app/components/loading/deferred';
 import type { PageHandle } from '@/app/components/loading/handle';
 import { type TableColumn, TableColumns, TableSkeleton } from '@/app/components/loading/table';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
-import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { useCanManage } from '@/app/hooks/use-known-role';
 import { Time } from '@/app/hooks/use-time-ago';
 import { keysAction } from '@/app/lib/actions/keys.server';
@@ -430,20 +429,6 @@ export default function KeysRoute({ loaderData }: Route.ComponentProps) {
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const trimmedName = name.trim();
-
-  useRegisterCommands(
-    canManage
-      ? [
-          {
-            id: 'create-key',
-            label: 'Create key',
-            icon: 'IconPlusMedium',
-            keywords: ['api key', 'new', 'client key', 'secret'],
-            run: () => setOpen(true),
-          },
-        ]
-      : []
-  );
 
   const openRename = (key: ApiKey) => {
     setName(key.name);

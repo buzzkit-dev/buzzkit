@@ -47,6 +47,7 @@ import {
 import { WorkflowFlow } from '@/app/components/workflows/flow';
 import { parseSpec, prettySpec, SpecEditor } from '@/app/components/workflows/spec-editor';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
+import { useRegisterCommands } from '@/app/hooks/use-commands';
 import { TIME_TOOLTIP_DELAY, Time, TimeAgo, useTimeAgo } from '@/app/hooks/use-time-ago';
 import { workflowsAction } from '@/app/lib/actions/workflows.server';
 import {
@@ -558,6 +559,30 @@ function WorkflowContent({
   const tabs = scheduled ? [...TABS] : TABS.filter((entry) => entry.value !== 'schedule');
   const publishLabel =
     workflow.draft !== null ? 'Publish draft' : workflow.status === 'paused' ? 'Resume' : 'Publish';
+
+  useRegisterCommands([
+    {
+      id: 'test-workflow',
+      label: 'Test workflow',
+      hint: workflow.name,
+      icon: 'IconPlayFilled',
+      keywords: ['dry run', 'simulate', 'preview'],
+      to: `${base}/${workflow.slug}/test`,
+    },
+    ...(canManage
+      ? [
+          {
+            id: 'workflow-details',
+            label: 'Edit details',
+            hint: workflow.name,
+            icon: 'IconPencilFilled' as const,
+            keywords: ['rename', 'description', 'name'],
+            run: () => setDetailsOpen(true),
+          },
+        ]
+      : []),
+  ]);
+
   const canPublish = workflow.status !== 'active' || workflow.draft !== null;
   const go = (patch: Record<string, string | null>) => {
     const search = new URLSearchParams();

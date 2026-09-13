@@ -27,7 +27,11 @@ const PRESS_INSET = { x: 1, y: 0.5 };
  */
 function useAnimatedIndicator<T extends HTMLElement>(
   rootRef: React.RefObject<T | null>,
-  { attribute = 'data-highlighted', press = true }: { attribute?: string; press?: boolean } = {}
+  {
+    attribute = 'data-highlighted',
+    value,
+    press = true,
+  }: { attribute?: string; value?: string; press?: boolean } = {}
 ): React.RefObject<HTMLDivElement | null> {
   const indicatorRef = React.useRef<HTMLDivElement>(null);
 
@@ -39,7 +43,7 @@ function useAnimatedIndicator<T extends HTMLElement>(
     let hasAppeared = false;
     let translate = '';
     let activeEl: HTMLElement | null = null;
-    const selector = `[${attribute}]`;
+    const selector = value === undefined ? `[${attribute}]` : `[${attribute}="${value}"]`;
 
     const applyTransform = () => {
       indicator.style.transform = `${translate} scale(var(--hl-press-scale, 1))`;
@@ -170,7 +174,7 @@ function useAnimatedIndicator<T extends HTMLElement>(
       release();
       activeEl?.removeAttribute('data-indicator-here');
     };
-  }, [rootRef, attribute, press]);
+  }, [rootRef, attribute, value, press]);
 
   return indicatorRef;
 }

@@ -1,6 +1,7 @@
 import { Badge } from '@buzzkit/ui/components/badge';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { Icon } from '@buzzkit/ui/components/icon';
+import { Kbd, KbdGroup } from '@buzzkit/ui/components/kbd';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { useHoverCapable } from '@buzzkit/ui/hooks/use-hover-capable';
 import { cn } from '@buzzkit/ui/lib/utils';
@@ -10,6 +11,7 @@ import { Link, useLocation } from 'react-router';
 import { AccountMenu } from '@/app/components/layout/account-menu';
 import { NAVIGATION, type NavigationPage } from '@/app/components/layout/navigation';
 import { WorkspaceAvatar, WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
+import { useCommandKey } from '@/app/hooks/use-commands';
 import type { Profile, Tenant, Workspace } from '@/app/lib/api.server';
 
 const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
@@ -42,6 +44,8 @@ export function Sidebar({
   profile,
   tenant,
   tenants,
+  quickstart = false,
+  onSearch,
   className,
 }: {
   slug: string;
@@ -50,10 +54,13 @@ export function Sidebar({
   profile: Profile | null;
   tenant: Tenant | null;
   tenants: Tenant[];
+  quickstart?: boolean;
+  onSearch?: () => void;
   className?: string;
 }) {
   const { pathname } = useLocation();
   const hoverable = useHoverCapable();
+  const commandKey = useCommandKey();
   const base = `/${slug}`;
   const [hovered, setHovered] = useState<string | null>(null);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
@@ -75,8 +82,10 @@ export function Sidebar({
     if (hoverable) setHovered(key);
   };
 
+  const release = (event: React.MouseEvent<HTMLElement>) => event.currentTarget.blur();
+
   return (
-    <aside className={cn('flex w-60 shrink-0 flex-col gap-3 px-3 pt-3 pb-2', className)}>
+    <aside className={cn('flex w-60 shrink-0 flex-col gap-0.5 px-3 pt-3 pb-2', className)}>
       {workspace ? (
         <WorkspaceSwitcher workspaces={workspaces} current={workspace} tenant={tenant} tenants={tenants} />
       ) : (
@@ -86,7 +95,7 @@ export function Sidebar({
       <nav
         ref={rootRef}
         aria-label='Workspace'
-        className='relative isolate flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto'
+        className='relative isolate flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pb-2.5'
         onPointerLeave={() => hover(null)}
       >
         <div
@@ -95,8 +104,31 @@ export function Sidebar({
           className='corner-superellipse/1.125 pointer-events-none absolute top-0 left-0 -z-10 rounded-xl bg-bg-a2/70 opacity-0'
           style={{ willChange: 'transform, opacity', contain: 'layout paint', transformOrigin: 'center' }}
         />
-        {NAVIGATION.map((section) => (
+        {NAVIGATION.map((section, sectionIndex) => (
           <div key={section.label ?? 'top'} className='flex flex-col gap-0.5'>
+            {sectionIndex === 0 && (
+              <button
+                type='button'
+                data-highlighted={hovered === 'search' ? '' : undefined}
+                onPointerEnter={() => hover('search')}
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  hover(null);
+                  onSearch?.();
+                }}
+                className={cn(
+                  'corner-superellipse/1.125 mb-2.5 flex h-8 cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 font-medium text-fg-2 text-sm outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary-2 data-indicator-here:text-fg-4',
+                  '[&>svg:first-child]:transition-opacity [&>svg:first-child]:duration-200 [&[data-indicator-here]>svg:first-child]:opacity-85'
+                )}
+              >
+                <Icon name='IconMagnifyingGlass' className='size-4.5' />
+                <span className='truncate'>Search</span>
+                <KbdGroup className='ml-auto'>
+                  <Kbd>{commandKey}</Kbd>
+                  <Kbd>K</Kbd>
+                </KbdGroup>
+              </button>
+            )}
             {section.label && (
               <span className='px-2.5 pb-1 font-medium text-fg-2 text-xs'>{section.label}</span>
             )}
@@ -114,7 +146,9 @@ export function Sidebar({
               const label = (
                 <>
                   {page.icon && <Icon name={page.icon} className={cn('size-4.5', active && 'opacity-85')} />}
-                  <span className='truncate'>{page.label}</span>
+                  <span className='truncate'>
+                    {page.path === '' && quickstart ? 'Quick start' : page.label}
+                  </span>
                   {page.soon && <Badge className='ml-auto'>Soon</Badge>}
                 </>
               );
@@ -126,7 +160,10 @@ export function Sidebar({
                       aria-expanded={open}
                       data-highlighted={highlighted ? '' : undefined}
                       onPointerEnter={() => hover(key)}
-                      onClick={() => setOpened((current) => ({ ...current, [page.path]: !open }))}
+                      onClick={(event) => {
+                        event.currentTarget.blur();
+                        setOpened((current) => ({ ...current, [page.path]: !open }));
+                      }}
                       className={cn(rowClass, 'cursor-pointer pr-2')}
                     >
                       {label}
@@ -146,6 +183,7 @@ export function Sidebar({
                     <Link
                       to={`${base}${page.path}`}
                       prefetch='intent'
+                      onClick={release}
                       aria-current={active ? 'page' : undefined}
                       data-highlighted={highlighted ? '' : undefined}
                       onPointerEnter={() => hover(key)}
@@ -184,6 +222,7 @@ export function Sidebar({
                                   key={child.path}
                                   to={`${base}${child.path}`}
                                   prefetch='intent'
+                                  onClick={release}
                                   aria-current={isCurrent(page, child) ? 'page' : undefined}
                                   data-highlighted={childHighlighted ? '' : undefined}
                                   onPointerEnter={() => hover(child.path)}

@@ -30,6 +30,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useFetcher, useNavigate, useParams } from 'react-router';
 import { describeExpression } from '@/app/components/conditions/describe';
 import { PageHeader } from '@/app/components/layout/page-header';
+import { ButtonSkeleton } from '@/app/components/loading/button';
+import { InputSkeleton } from '@/app/components/loading/field';
 import { SendDialog } from '@/app/components/messages/send-dialog';
 import { SegmentBuilder } from '@/app/components/segments/builder';
 import {
@@ -546,11 +548,11 @@ export function SegmentEditorSkeleton({
       </Button>
 
       <PageHeader
-        title={existing ? <Skeleton className='h-7 w-56' /> : 'New segment'}
+        title={existing ? <Skeleton className='h-[1.15em] w-56' /> : 'New segment'}
         titleClassName='flex min-w-0 items-center gap-2.5'
         description={
           existing ? (
-            <span className='inline-block h-5 w-80 animate-pulse rounded-sm bg-bg-4 align-middle' />
+            <span className='inline-block h-4 w-80 animate-pulse rounded-sm bg-bg-4 align-middle' />
           ) : (
             'Who this segment includes, checked against your subscribers as you go.'
           )
@@ -566,15 +568,20 @@ export function SegmentEditorSkeleton({
           <FieldGroup className='p-4'>
             <Field>
               <FieldLabel>Name</FieldLabel>
-              <Skeleton className='h-8.5 w-full rounded-xl' />
+              <InputSkeleton />
             </Field>
             <Field>
               <FieldLabel>Slug</FieldLabel>
-              <Skeleton className='h-8.5 w-full rounded-xl' />
+              <InputSkeleton />
+              <FieldDescription>
+                {existing
+                  ? 'Messages target the segment by this slug.'
+                  : "How the API refers to it. Can't be changed once created."}
+              </FieldDescription>
             </Field>
             <Field>
               <FieldLabel>Description</FieldLabel>
-              <Skeleton className='h-8.5 w-full rounded-xl' />
+              <InputSkeleton />
             </Field>
           </FieldGroup>
         </Card>
@@ -586,8 +593,21 @@ export function SegmentEditorSkeleton({
               <PillTabs items={MODES} value='builder' itemClassName='h-6.5 px-2.5 text-xs' />
             </CardAction>
           </CardHeader>
-          <div className='p-4'>
-            <Skeleton className='h-8.5 w-full rounded-xl' />
+          <div className='flex flex-col'>
+            <div className='flex flex-wrap items-center gap-2 border-bg-3 border-b px-4 py-2.25 text-fg-4 text-sm'>
+              <span>Subscribers matching</span>
+              <Skeleton className='h-8 w-14 rounded-xl' />
+              <span>of these conditions</span>
+            </div>
+            <div className='flex flex-wrap items-center gap-2 border-bg-3 border-b px-4 py-2.5'>
+              <Skeleton className='h-8 w-28 rounded-xl' />
+              <Skeleton className='h-8 w-40 rounded-xl' />
+              <Skeleton className='h-8 w-24 rounded-xl' />
+              <Skeleton className='h-8 w-32 rounded-xl' />
+            </div>
+            <div className='px-4 py-3'>
+              <ButtonSkeleton label='Add condition' icon='IconPlusMedium' size='sm' />
+            </div>
           </div>
         </Card>
       </div>
