@@ -5,6 +5,7 @@ import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { Kbd, KbdGroup } from '@buzzkit/ui/components/kbd';
 import { type MenuItemIcon, menuIconPosition, renderMenuIcon } from '@buzzkit/ui/components/menu-icon';
+import { SizeAnimator } from '@buzzkit/ui/components/size-animator';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { Command as CommandPrimitive } from 'cmdk';
 import * as React from 'react';
@@ -42,7 +43,7 @@ function CommandDialog({
       <DialogContent
         finalFocus={finalFocus}
         className={cn(
-          'top-[max(3rem,14vh)] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[560px]',
+          'top-[max(3rem,14vh)] translate-y-0 gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[560px]',
           className
         )}
       >
@@ -66,14 +67,14 @@ function CommandInput({
   return (
     <div
       data-slot='command-input-wrapper'
-      className='flex h-12 shrink-0 items-center gap-2.5 border-bg-3 border-b px-4'
+      className='flex h-[39px] shrink-0 items-center gap-2.5 border-bg-3 border-b px-2.5'
     >
       <Icon name='IconMagnifyingGlass' className='size-4.5 shrink-0 text-fg-2' />
       {start}
       <CommandPrimitive.Input
         data-slot='command-input'
         className={cn(
-          'h-full min-w-0 flex-1 bg-transparent font-medium text-fg-4 text-sm outline-none placeholder:font-normal placeholder:text-fg-2 disabled:cursor-not-allowed disabled:opacity-50',
+          'min-w-0 flex-1 bg-transparent font-medium text-fg-4 text-sm outline-none placeholder:font-normal placeholder:text-fg-2 disabled:cursor-not-allowed disabled:opacity-50',
           className
         )}
         {...props}
@@ -89,23 +90,25 @@ function CommandList({ className, ref, ...props }: React.ComponentProps<typeof C
   const indicatorRef = useAnimatedIndicator(listRef, { attribute: 'data-selected', value: 'true' });
 
   return (
-    <CommandPrimitive.List
-      ref={listRef}
-      data-slot='command-list'
-      className={cn(
-        'scrollbar-hide relative isolate max-h-[min(--spacing(96),60dvh)] scroll-py-1 overflow-y-auto overscroll-contain p-1',
-        className
-      )}
-      {...props}
-    >
-      <div
-        ref={indicatorRef}
-        aria-hidden
-        className='pointer-events-none absolute top-0 left-0 -z-10 rounded-lg bg-bg-a2 opacity-0'
-        style={{ willChange: 'transform, opacity', contain: 'layout paint', transformOrigin: 'center' }}
-      />
-      {props.children}
-    </CommandPrimitive.List>
+    <SizeAnimator>
+      <CommandPrimitive.List
+        ref={listRef}
+        data-slot='command-list'
+        className={cn(
+          'scrollbar-hide relative isolate max-h-[min(--spacing(96),60dvh)] scroll-py-1 overflow-y-auto overscroll-contain p-1',
+          className
+        )}
+        {...props}
+      >
+        <div
+          ref={indicatorRef}
+          aria-hidden
+          className='pointer-events-none absolute top-0 left-0 -z-10 rounded-lg bg-bg-a2 opacity-0'
+          style={{ willChange: 'transform, opacity', contain: 'layout paint', transformOrigin: 'center' }}
+        />
+        {props.children}
+      </CommandPrimitive.List>
+    </SizeAnimator>
   );
 }
 

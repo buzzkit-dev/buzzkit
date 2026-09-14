@@ -1,3 +1,4 @@
+import { plainLabel, useRegisterFacet } from '@buzzkit/ui/components/filter-registry';
 import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { cn } from '@buzzkit/ui/lib/utils';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
@@ -52,6 +53,7 @@ export function PillTabs<V extends string>({
   items,
   value,
   onValueChange,
+  label,
   loading = false,
   variant = 'soft',
   className,
@@ -62,6 +64,7 @@ export function PillTabs<V extends string>({
   items: PillTabsItem<V>[];
   value: V | null;
   onValueChange?: (value: V) => void;
+  label?: string;
   loading?: boolean;
   variant?: keyof typeof VARIANTS;
   className?: string;
@@ -69,6 +72,16 @@ export function PillTabs<V extends string>({
   itemClassName?: string;
   renderItem?: (item: PillTabsItem<V>, props: PillTabsItemProps) => React.ReactNode;
 }) {
+  useRegisterFacet({
+    label: label ?? '',
+    value,
+    options: items.map(plainLabel),
+    onValueChange: (next) => {
+      if (next !== null) onValueChange?.(next as V);
+    },
+    disabled: label === undefined || loading,
+    clearable: false,
+  });
   const listRef = React.useRef<HTMLDivElement>(null);
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const itemRefs = React.useRef(new Map<string, HTMLElement>());

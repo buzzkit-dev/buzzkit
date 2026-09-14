@@ -1380,7 +1380,7 @@ function OverviewHeader({ cold = false, quickstart }: { cold?: boolean; quicksta
   if (quickstart ?? hinted.quickstart) {
     return (
       <PageHeader
-        title='Quick start'
+        title='Quickstart'
         description='Connect a channel, add BuzzKit to your app and send your first message.'
       />
     );

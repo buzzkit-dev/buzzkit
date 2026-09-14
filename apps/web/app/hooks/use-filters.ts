@@ -73,9 +73,15 @@ function useHeading() {
     if (stored && !heading) setHeading(pathname, null);
   }, [stored, heading, pathname]);
 
+  const latest = () => {
+    const fresh = headings.get(pathname);
+    return fresh && fresh.anchor === location.key ? new URLSearchParams(fresh.search) : selected;
+  };
+
   return {
     params,
     selected,
+    latest,
     outgoing,
     differs: (key: string) => outgoing && selected.get(key) !== params.get(key),
     go: (next: URLSearchParams, options?: NavigateOptions) => {
@@ -95,14 +101,14 @@ export function usePendingParam(key: string) {
 }
 
 export function useFilters<K extends string>(keys: readonly K[]) {
-  const { params, selected, outgoing, differs, go } = useHeading();
+  const { params, selected, latest, outgoing, differs, go } = useHeading();
   const query = selected.get('q') ?? '';
   const [search, setSearch] = useState(query);
   const settled = search.trim() === query;
   const all = [...keys, 'q'];
 
   const build = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(selected);
+    const next = new URLSearchParams(latest());
     for (const key of PAGE_PARAMS) next.delete(key);
     for (const [key, value] of Object.entries(patch)) {
       if (value === null || value === '') next.delete(key);

@@ -2,10 +2,10 @@
 
 import { Button } from '@buzzkit/ui/components/button';
 import { Calendar } from '@buzzkit/ui/components/calendar';
+import { plainLabel, useRegisterFacet, useRegisterSearchField } from '@buzzkit/ui/components/filter-registry';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { Input } from '@buzzkit/ui/components/input';
 import { Popover, PopoverContent } from '@buzzkit/ui/components/popover';
-import { createRegistryContext } from '@buzzkit/ui/components/registry';
 import {
   Select,
   SelectContent,
@@ -43,8 +43,15 @@ function FilterBar({ className, children, ...props }: React.ComponentProps<'div'
 function FilterSearch({
   className,
   loading,
+  onValueChange,
+  onChange,
+  placeholder,
   ...props
-}: Omit<React.ComponentProps<typeof Input>, 'loading'> & { loading?: boolean }) {
+}: Omit<React.ComponentProps<typeof Input>, 'loading'> & {
+  loading?: boolean;
+  onValueChange?: (value: string) => void;
+}) {
+  useRegisterSearchField(typeof placeholder === 'string' ? placeholder : null, onValueChange);
   return (
     <span data-slot='filter-search' className={cn('relative inline-flex w-full shrink-0 sm:w-64', className)}>
       <Icon
@@ -57,6 +64,11 @@ function FilterSearch({
         spellCheck={false}
         loading={loading ?? false}
         className='w-full [&_input]:pl-9'
+        placeholder={placeholder}
+        onChange={(event) => {
+          onValueChange?.(event.target.value);
+          onChange?.(event);
+        }}
         {...props}
       />
     </span>
@@ -67,41 +79,6 @@ export type FilterOption<V extends string = string> = { value: V; label: React.R
 export type FilterGroup<V extends string = string> = { label: string; options: FilterOption<V>[] };
 
 const ANY = '__any__';
-
-export type FilterFacet = {
-  id: string;
-  label: string;
-  value: string | null;
-  options: { value: string; label: string }[];
-  onValueChange: (value: string | null) => void;
-};
-
-const { RegistryProvider: FilterRegistryProvider, useRegister: useFilterRegister } =
-  createRegistryContext<FilterFacet>('FilterRegistry');
-
-function plainLabel(option: FilterOption<string>): { value: string; label: string } {
-  return { value: option.value, label: typeof option.label === 'string' ? option.label : option.value };
-}
-
-function useRegisterFacet(facet: Omit<FilterFacet, 'id'> & { disabled: boolean }) {
-  const register = useFilterRegister();
-  const id = React.useId();
-  const { label, value, options, onValueChange, disabled } = facet;
-  const serialized = JSON.stringify(options);
-  const latest = React.useRef(onValueChange);
-  latest.current = onValueChange;
-
-  React.useEffect(() => {
-    if (!register || disabled) return;
-    return register({
-      id,
-      label,
-      value,
-      options: JSON.parse(serialized) as FilterFacet['options'],
-      onValueChange: (next) => latest.current(next),
-    });
-  }, [register, id, label, value, serialized, disabled]);
-}
 
 function isGroup<V extends string>(entry: FilterOption<V> | FilterGroup<V>): entry is FilterGroup<V> {
   return 'options' in entry;
@@ -134,6 +111,7 @@ function FilterSelect<V extends string>({
     options: flat.map(plainLabel),
     onValueChange: (next) => onValueChange(next as V | null),
     disabled: Boolean(disabled),
+    clearable: true,
   });
   const item = (entry: FilterOption<string>) => (
     <SelectItem key={entry.value} value={entry.value}>
@@ -237,6 +215,7 @@ function FilterRange({
     options: presets.map(plainLabel),
     onValueChange,
     disabled: Boolean(disabled),
+    clearable: allowAny,
   });
 
   return (
@@ -326,4 +305,4 @@ function FilterClear({ className, ...props }: Omit<React.ComponentProps<typeof B
   );
 }
 
-export { FilterBar, FilterClear, FilterRange, FilterRegistryProvider, FilterSearch, FilterSelect };
+export { FilterBar, FilterClear, FilterRange, FilterSearch, FilterSelect };

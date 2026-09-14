@@ -294,6 +294,7 @@ function EventNamePage({ detail }: { detail: Promise<EventNameDetail> | null }) 
         }
         actions={
           <PillTabs
+            label='Time'
             items={RANGES}
             value={range}
             loading={rangePending || cold}

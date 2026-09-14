@@ -148,6 +148,7 @@ export default function EventsRoute({ loaderData, params }: Route.ComponentProps
                   </CardDescription>
                   <CardAction>
                     <PillTabs
+                      label='Time'
                       items={RANGES}
                       value={range}
                       loading={rangePending}

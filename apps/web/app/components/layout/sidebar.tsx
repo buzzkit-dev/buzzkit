@@ -1,6 +1,6 @@
 import { Badge } from '@buzzkit/ui/components/badge';
 import { useAnimatedIndicator } from '@buzzkit/ui/components/highlight-list';
-import { Icon } from '@buzzkit/ui/components/icon';
+import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { Kbd, KbdGroup } from '@buzzkit/ui/components/kbd';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
 import { useHoverCapable } from '@buzzkit/ui/hooks/use-hover-capable';
@@ -13,6 +13,8 @@ import { NAVIGATION, type NavigationPage } from '@/app/components/layout/navigat
 import { WorkspaceAvatar, WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import { useCommandKey } from '@/app/hooks/use-commands';
 import type { Profile, Tenant, Workspace } from '@/app/lib/api.server';
+
+const QUICKSTART_ICON: IconName = 'IconRocketFilled';
 
 const unfold = { type: 'spring', duration: 0.3, bounce: 0 } as const;
 const fold = { type: 'spring', duration: 0.2, bounce: 0 } as const;
@@ -145,9 +147,14 @@ export function Sidebar({
               );
               const label = (
                 <>
-                  {page.icon && <Icon name={page.icon} className={cn('size-4.5', active && 'opacity-85')} />}
+                  {page.icon && (
+                    <Icon
+                      name={page.path === '' && quickstart ? QUICKSTART_ICON : page.icon}
+                      className={cn('size-4.5', active && 'opacity-85')}
+                    />
+                  )}
                   <span className='truncate'>
-                    {page.path === '' && quickstart ? 'Quick start' : page.label}
+                    {page.path === '' && quickstart ? 'Quickstart' : page.label}
                   </span>
                   {page.soon && <Badge className='ml-auto'>Soon</Badge>}
                 </>

@@ -1,5 +1,5 @@
 import { Button } from '@buzzkit/ui/components/button';
-import { FilterRegistryProvider } from '@buzzkit/ui/components/filter-bar';
+import { FilterRegistryProvider } from '@buzzkit/ui/components/filter-registry';
 import { Icon } from '@buzzkit/ui/components/icon';
 import { Sheet, SheetContent, SheetTitle } from '@buzzkit/ui/components/sheet';
 import { Skeleton } from '@buzzkit/ui/components/skeleton';
@@ -22,7 +22,7 @@ import { AccountMenu } from '@/app/components/layout/account-menu';
 import { Sidebar, SwitcherPlaceholder } from '@/app/components/layout/sidebar';
 import { WorkspaceSwitcher } from '@/app/components/layout/workspace-switcher';
 import type { PageHandle } from '@/app/components/loading/handle';
-import { registerFacet } from '@/app/hooks/use-commands';
+import { registerFilter } from '@/app/hooks/use-commands';
 import { KnownRoleProvider } from '@/app/hooks/use-known-role';
 import { useLive } from '@/app/hooks/use-live';
 import { QuickStartProvider } from '@/app/hooks/use-quick-start';
@@ -216,9 +216,10 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 
 function resolveSidebar(slug: string, chrome: Chrome | null, last: Chrome | null) {
   if (chrome) {
+    const listed = chrome.workspaces.some((entry) => entry.slug === chrome.workspace.slug);
     return {
       workspace: chrome.workspace,
-      workspaces: chrome.workspaces,
+      workspaces: listed ? chrome.workspaces : [chrome.workspace, ...chrome.workspaces],
       profile: chrome.profile,
       tenant: chrome.tenant,
       tenants: chrome.tenants,
@@ -306,6 +307,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   );
   const viewingTenant = requested !== 'default' && tenantPage;
   const tenantName = chrome && chrome.tenant.slug === requested ? chrome.tenant.name : null;
+  const supporting = chrome?.workspace.admin === true;
 
   useLive(route?.live !== false);
 
@@ -383,7 +385,10 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
 
       <main
         id='content'
-        className={cn('flex min-w-0 flex-1 flex-col gap-2 p-2 lg:pl-0', viewingTenant && 'lg:pt-3')}
+        className={cn(
+          'flex min-w-0 flex-1 flex-col gap-2 p-2 lg:pl-0',
+          (viewingTenant || supporting) && 'lg:pt-3'
+        )}
       >
         <MobileBar
           slug={slug}
@@ -391,6 +396,26 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
           onOpen={() => setNavigationOpen(true)}
           onSearch={openCommands}
         />
+        {supporting && chrome && (
+          <div className='corner-superellipse/1.125 flex h-8 shrink-0 items-center gap-2 rounded-xl bg-amber-4/10 pr-1 pl-3 text-amber-4 text-sm'>
+            <Icon name='IconShieldFilled' className='size-4 shrink-0 opacity-90' />
+            <span className='min-w-0 flex-1 truncate'>
+              Support view of <span className='font-medium'>{chrome.workspace.name}</span>
+              <span className='hidden md:inline'>
+                . You are not a member; changes show to the workspace as BuzzKit and this visit is logged.
+              </span>
+            </span>
+            <Button
+              variant='ghost'
+              size='xs'
+              className='text-amber-4 not-disabled:hover:text-amber-4 not-disabled:hover:before:bg-amber-4/15 not-disabled:active:text-amber-4 not-disabled:active:before:bg-amber-4/20'
+              nativeButton={false}
+              render={<Link to='/platform' />}
+            >
+              Back to platform
+            </Button>
+          </div>
+        )}
         {viewingTenant && (
           <div className='corner-superellipse/1.125 flex h-8 shrink-0 items-center gap-2 rounded-xl bg-amber-4/10 pr-1 pl-3 text-amber-4 text-sm'>
             <Icon name='IconBuildingsFilled' className='size-4 shrink-0 opacity-90' />
@@ -420,7 +445,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
           <div className='pb-5 lg:flex lg:flex-1 lg:flex-col lg:pb-7.5'>
             <QuickStartProvider hint={{ quickstart, connected }}>
               {chrome ? (
-                <FilterRegistryProvider register={registerFacet}>
+                <FilterRegistryProvider register={registerFilter}>
                   <Outlet
                     context={
                       {

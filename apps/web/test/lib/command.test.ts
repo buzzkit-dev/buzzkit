@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { describePath, listDestinations, parseJump, resolveChord, scoreCommand } from '@/app/lib/command';
+import {
+  describePath,
+  listDestinations,
+  listSections,
+  parseJump,
+  resolveChord,
+  scoreCommand,
+} from '@/app/lib/command';
 
 describe('listDestinations', () => {
   test('flattens the navigation into one destination per real page', () => {
@@ -11,27 +18,36 @@ describe('listDestinations', () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  test('a group lends its label to its first child and its name as the hint to the rest', () => {
+  test('an expandable page becomes its own section and children keep their labels', () => {
     const destinations = listDestinations(false);
     expect(destinations.find((entry) => entry.path === '/workflows')).toMatchObject({
-      label: 'Workflows',
-      hint: 'Catalog',
+      section: 'Workflows',
+      label: 'Catalog',
     });
     expect(destinations.find((entry) => entry.path === '/runs')).toMatchObject({
+      section: 'Workflows',
       label: 'Runs',
-      hint: 'Workflows',
+    });
+    expect(destinations.find((entry) => entry.path === '/settings')).toMatchObject({
+      section: 'Settings',
+      label: 'General',
     });
   });
 
-  test('every destination sits in a sidebar section, the overview under Workspace', () => {
-    const destinations = listDestinations(false);
-    expect(destinations.find((entry) => entry.path === '')?.section).toBe('Workspace');
-    expect(destinations.find((entry) => entry.path === '/keys')?.section).toBe('Developers');
-    expect(destinations.find((entry) => entry.path === '/messages')?.hint).toBeUndefined();
+  test('sections come in sidebar order', () => {
+    expect(listSections(false).map((section) => section.label)).toEqual([
+      'Workspace',
+      'Messaging',
+      'Workflows',
+      'Events',
+      'Audience',
+      'Developers',
+      'Settings',
+    ]);
   });
 
-  test('the overview reads Quick start until the first message', () => {
-    expect(listDestinations(true).find((entry) => entry.path === '')?.label).toBe('Quick start');
+  test('the overview reads Quickstart until the first message', () => {
+    expect(listDestinations(true).find((entry) => entry.path === '')?.label).toBe('Quickstart');
     expect(listDestinations(false).find((entry) => entry.path === '')?.label).toBe('Overview');
   });
 });

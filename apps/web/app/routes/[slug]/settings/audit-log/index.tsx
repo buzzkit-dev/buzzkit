@@ -71,7 +71,7 @@ const COLUMNS: TableColumn[] = [
       </span>
     ),
   },
-  { label: 'Details', fill: 'h-4 w-64' },
+  { label: 'Details', fill: 'h-4 w-full max-w-64' },
   { label: 'Actor', className: 'w-52', fill: 'h-4 w-32' },
   { label: 'Target', className: 'w-52', fill: 'h-4 w-32' },
   { label: 'Time', className: 'w-16', fill: 'h-4 w-12' },
@@ -360,7 +360,7 @@ function AuditLogFilters({ cold }: { cold: boolean }) {
       {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}
       <FilterSearch
         value={filters.search}
-        onChange={(change) => filters.setSearch(change.target.value)}
+        onValueChange={filters.setSearch}
         loading={filters.searching || cold}
         placeholder='Search the audit log'
         aria-label='Search the audit log'

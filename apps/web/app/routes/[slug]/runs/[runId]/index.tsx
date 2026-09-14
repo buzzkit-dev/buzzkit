@@ -103,7 +103,7 @@ function RunContent({
     taken: Object.fromEntries(
       steps
         .filter((event) => typeof event.data.taken === 'string')
-        .map((event) => [event.step as string, event.data.taken as string])
+        .map((event) => [event.step as string, String(event.data.taken)])
     ),
     status: run.status,
   };

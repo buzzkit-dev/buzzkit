@@ -703,6 +703,7 @@ function WorkflowContent({
           <div className='flex min-h-0 flex-col overflow-y-auto'>
             <div className='px-4 py-2'>
               <PillTabs
+                label='Status'
                 items={RUN_FILTERS}
                 value={filter}
                 itemClassName='h-6.5 px-2.5 text-xs'

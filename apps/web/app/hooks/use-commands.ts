@@ -1,6 +1,11 @@
-import type { FilterFacet } from '@buzzkit/ui/components/filter-bar';
+import type { RegisteredAction } from '@buzzkit/ui/components/action-registry';
+import type {
+  FilterAnnouncement,
+  FilterFacet,
+  FilterSearchField,
+} from '@buzzkit/ui/components/filter-registry';
 import type { IconName } from '@buzzkit/ui/components/icon';
-import { useEffect, useId, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router';
 import { isEditableTarget, resolveChord } from '@/app/lib/command';
 
@@ -17,74 +22,93 @@ type CommandBase = {
 
 export type Command = CommandBase & ({ to: string; external?: boolean } | { run: () => void });
 
-const registrations = new Map<string, Command[]>();
-const listeners = new Set<() => void>();
-const NONE: Command[] = [];
-let snapshot: Command[] = NONE;
+type Registry<T> = {
+  register: (key: string, entries: T[]) => () => void;
+  useEntries: () => T[];
+};
 
-function publish() {
-  snapshot = [...registrations.values()].flat();
-  for (const listener of listeners) listener();
-}
+function createRegistry<T>(): Registry<T> {
+  const owners = new Map<string, T[]>();
+  const listeners = new Set<() => void>();
+  const empty: T[] = [];
+  let snapshot = empty;
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
+  const publish = () => {
+    snapshot = [...owners.values()].flat();
+    for (const listener of listeners) listener();
   };
-}
 
-export function useRegisteredCommands(): Command[] {
-  return useSyncExternalStore(
-    subscribe,
-    () => snapshot,
-    () => NONE
-  );
-}
-
-const facets = new Map<string, FilterFacet>();
-const facetListeners = new Set<() => void>();
-const NO_FACETS: FilterFacet[] = [];
-let facetSnapshot: FilterFacet[] = NO_FACETS;
-
-function publishFacets() {
-  facetSnapshot = [...facets.values()];
-  for (const listener of facetListeners) listener();
-}
-
-export function registerFacet(facet: FilterFacet): () => void {
-  facets.set(facet.id, facet);
-  publishFacets();
-  return () => {
-    facets.delete(facet.id);
-    publishFacets();
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   };
-}
 
-export function useRegisteredFacets(): FilterFacet[] {
-  return useSyncExternalStore(
-    (listener) => {
-      facetListeners.add(listener);
+  return {
+    register: (key, entries) => {
+      owners.set(key, entries);
+      publish();
       return () => {
-        facetListeners.delete(listener);
+        owners.delete(key);
+        publish();
       };
     },
-    () => facetSnapshot,
-    () => NO_FACETS
+    useEntries: () =>
+      useSyncExternalStore(
+        subscribe,
+        () => snapshot,
+        () => empty
+      ),
+  };
+}
+
+const commands = createRegistry<Command>();
+const actions = createRegistry<RegisteredAction>();
+const facets = createRegistry<FilterFacet>();
+const searchFields = createRegistry<FilterSearchField>();
+
+export const useRegisteredCommands = commands.useEntries;
+export const useRegisteredActions = actions.useEntries;
+export const useRegisteredFacets = facets.useEntries;
+export const useRegisteredSearchFields = searchFields.useEntries;
+
+export function registerAction(action: RegisteredAction): () => void {
+  return actions.register(action.id, [action]);
+}
+
+export function registerFilter(entry: FilterAnnouncement): () => void {
+  if (entry.kind === 'search') return searchFields.register(entry.id, [entry]);
+  return facets.register(entry.id, [entry]);
+}
+
+function commandSignature(entries: Command[]): string {
+  return JSON.stringify(
+    entries.map((command) => [
+      command.id,
+      command.label,
+      command.hint,
+      command.icon,
+      command.keywords,
+      command.shortcut,
+      'to' in command ? [command.to, command.external] : 'run',
+    ])
   );
 }
 
-export function useRegisterCommands(commands: Command[]): void {
+export function useRegisterCommands(entries: Command[]): void {
   const key = useId();
+  const latest = useRef(entries);
+  latest.current = entries;
+  const signature = commandSignature(entries);
 
   useEffect(() => {
-    registrations.set(key, commands);
-    publish();
-    return () => {
-      registrations.delete(key);
-      publish();
-    };
-  }, [key, commands]);
+    const bound = latest.current.map((command, index): Command => {
+      if ('to' in command) return command;
+      return { ...command, run: () => (latest.current[index] as { run: () => void }).run() };
+    });
+    return commands.register(key, bound);
+  }, [key, signature]);
 }
 
 export function useCommandHotkeys({

@@ -434,7 +434,7 @@ function MessageContent({
       id: 'copy-message-id',
       label: 'Copy message id',
       hint: message.id,
-      icon: 'IconClipboard2',
+      icon: 'IconClipboard2Filled',
       keywords: ['clipboard', 'msg'],
       run: () => {
         void navigator.clipboard.writeText(message.id).then(() => toast.success('Message id copied.'));
@@ -582,6 +582,7 @@ function MessageContent({
               <CardTitle>Deliveries</CardTitle>
               <CardAction>
                 <PillTabs
+                  label='Status'
                   items={FILTERS}
                   value={filter}
                   itemClassName='h-6.5 px-2.5 text-xs'

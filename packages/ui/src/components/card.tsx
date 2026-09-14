@@ -2,16 +2,28 @@ import { ScrollFade } from '@buzzkit/ui/components/scroll-fade';
 import { cn } from '@buzzkit/ui/lib/utils';
 import * as React from 'react';
 
+type CardScope = { title: string | null; setTitle: (title: string | null) => void };
+
+const CardScopeContext = React.createContext<CardScope | null>(null);
+
+function useCardTitle(): string | null {
+  return React.useContext(CardScopeContext)?.title ?? null;
+}
+
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
+  const [title, setTitle] = React.useState<string | null>(null);
+  const scope = React.useMemo(() => ({ title, setTitle }), [title]);
   return (
-    <div
-      data-slot='card'
-      className={cn(
-        'group/card corner-superellipse/1.125 flex w-full flex-col overflow-hidden rounded-2xl bg-card text-card-foreground shadow-sm',
-        className
-      )}
-      {...props}
-    />
+    <CardScopeContext.Provider value={scope}>
+      <div
+        data-slot='card'
+        className={cn(
+          'group/card corner-superellipse/1.125 flex w-full flex-col overflow-hidden rounded-2xl bg-card text-card-foreground shadow-sm',
+          className
+        )}
+        {...props}
+      />
+    </CardScopeContext.Provider>
   );
 }
 
@@ -35,13 +47,24 @@ function CardHeader({
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+function CardTitle({ className, children, ...props }: React.ComponentProps<'div'>) {
+  const scope = React.useContext(CardScopeContext);
+  const text = typeof children === 'string' ? children : null;
+
+  React.useEffect(() => {
+    if (!scope || text === null) return;
+    scope.setTitle(text);
+    return () => scope.setTitle(null);
+  }, [scope, text]);
+
   return (
     <div
       data-slot='card-title'
       className={cn('flex w-full items-center gap-1 font-medium text-fg-4 leading-tighter', className)}
       {...props}
-    />
+    >
+      {children}
+    </div>
   );
 }
 
@@ -86,4 +109,4 @@ function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle };
+export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, useCardTitle };

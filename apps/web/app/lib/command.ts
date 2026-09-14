@@ -1,5 +1,5 @@
 import type { IconName } from '@buzzkit/ui/components/icon';
-import { NAVIGATION } from '@/app/components/layout/navigation';
+import { NAVIGATION, type NavigationPage } from '@/app/components/layout/navigation';
 
 export type Destination = {
   section: string;
@@ -85,39 +85,57 @@ const RECENT_LIMIT = 8;
 
 const HOME_SECTION = 'Workspace';
 
-export const SECTION_ORDER = ['Messaging', 'Audience', 'Developers', 'Workspace'];
+function pageDestination(section: string, page: NavigationPage, quickstart: boolean): Destination {
+  const home = page.path === '' && quickstart;
+  return {
+    section,
+    path: page.path,
+    label: home ? 'Quickstart' : page.label,
+    icon: home ? 'IconRocketFilled' : page.icon,
+    keywords: [...(KEYWORDS[page.path] ?? []), page.label],
+    chord: CHORDS[page.path],
+  };
+}
+
+function childDestination(page: NavigationPage, child: NavigationPage): Destination {
+  return {
+    section: page.label,
+    path: child.path,
+    label: child.label,
+    icon: page.icon,
+    keywords: [...(KEYWORDS[child.path] ?? []), page.label, child.label],
+    chord: CHORDS[child.path],
+  };
+}
 
 export function listDestinations(quickstart: boolean): Destination[] {
   const destinations: Destination[] = [];
   for (const section of NAVIGATION) {
     for (const page of section.pages) {
-      if (!page.children) {
-        if (page.soon) continue;
-        destinations.push({
-          section: section.label ?? HOME_SECTION,
-          path: page.path,
-          label: page.path === '' && quickstart ? 'Quick start' : page.label,
-          icon: page.icon,
-          keywords: [...(KEYWORDS[page.path] ?? []), page.label],
-          chord: CHORDS[page.path],
-        });
-        continue;
+      const children = page.children ?? [page];
+      for (const child of children) {
+        if (child.soon) continue;
+        destinations.push(
+          page.children
+            ? childDestination(page, child)
+            : pageDestination(section.label ?? HOME_SECTION, page, quickstart)
+        );
       }
-      page.children.forEach((child, index) => {
-        if (child.soon) return;
-        destinations.push({
-          section: section.label ?? HOME_SECTION,
-          path: child.path,
-          label: index === 0 ? page.label : child.label,
-          hint: index === 0 ? child.label : page.label,
-          icon: page.icon,
-          keywords: [...(KEYWORDS[child.path] ?? []), page.label, child.label],
-          chord: CHORDS[child.path],
-        });
-      });
     }
   }
   return destinations;
+}
+
+export type Section = { label: string; entries: Destination[] };
+
+export function listSections(quickstart: boolean): Section[] {
+  const sections: Section[] = [];
+  for (const destination of listDestinations(quickstart)) {
+    const section = sections.find((entry) => entry.label === destination.section);
+    if (section) section.entries.push(destination);
+    else sections.push({ label: destination.section, entries: [destination] });
+  }
+  return sections;
 }
 
 function scoreText(text: string, word: string): number {
@@ -178,7 +196,7 @@ export function describePath(path: string): Jump | null {
     return {
       path,
       label: destination.label,
-      hint: destination.hint ?? '',
+      hint: destination.section,
       icon: destination.icon ?? 'IconArrowRight',
     };
   }

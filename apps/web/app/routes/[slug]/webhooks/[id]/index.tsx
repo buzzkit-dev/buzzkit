@@ -512,6 +512,7 @@ function EndpointDetail({ detail, base, filter }: { detail: Detail; base: string
               <CardTitle>Deliveries</CardTitle>
               <CardAction>
                 <PillTabs
+                  label='Status'
                   items={FILTERS}
                   value={filter}
                   itemClassName='h-6.5 px-2.5 text-xs'

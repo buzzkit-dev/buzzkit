@@ -9,8 +9,8 @@ import {
   CommandList,
   CommandShortcut,
 } from '@buzzkit/ui/components/command';
-import type { FilterFacet } from '@buzzkit/ui/components/filter-bar';
-import { Icon } from '@buzzkit/ui/components/icon';
+import type { FilterFacet, FilterSearchField } from '@buzzkit/ui/components/filter-registry';
+import { Icon, type IconName } from '@buzzkit/ui/components/icon';
 import { Kbd } from '@buzzkit/ui/components/kbd';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Spinner } from '@buzzkit/ui/components/spinner';
@@ -20,14 +20,17 @@ import { WorkspaceAvatar } from '@/app/components/layout/workspace-switcher';
 import {
   type Command as RegisteredCommand,
   useCommandHotkeys,
+  useRegisteredActions,
   useRegisteredCommands,
   useRegisteredFacets,
+  useRegisteredSearchFields,
 } from '@/app/hooks/use-commands';
 import type { Tenant, Workspace } from '@/app/lib/api.server';
 import {
+  type Destination,
   describePath,
   type Jump,
-  listDestinations,
+  listSections,
   type Recent,
   readRecent,
   relativePath,
@@ -35,8 +38,8 @@ import {
   SEARCH_DEBOUNCE_MS,
   SEARCH_HEADINGS,
   SEARCH_MIN_LENGTH,
-  SECTION_ORDER,
   type SearchKind,
+  type SearchResult,
   scoreCommand,
 } from '@/app/lib/command';
 import type { loader as searchLoader } from '@/app/routes/[slug]/search/index';
@@ -57,6 +60,23 @@ const PAGE_LABELS: Record<string, string> = {
   workspaces: 'Workspaces',
   tenants: 'Tenants',
 };
+
+const values = {
+  workspace: (entry: Workspace, scope: 'root' | 'page') =>
+    scope === 'root' ? `${entry.name} ${entry.slug} workspace` : `${entry.name} ${entry.slug}`,
+  tenant: (entry: Tenant, scope: 'root' | 'page') =>
+    scope === 'root' ? `${entry.name} ${entry.slug} tenant` : `${entry.name} ${entry.slug}`,
+  destination: (entry: Destination) => `${entry.section} ${entry.label}`,
+  recent: (entry: Jump) => `${entry.label} recent ${entry.path}`,
+  result: (entry: SearchResult) => `${entry.kind} ${entry.path}`,
+  field: (field: FilterSearchField, query: string) => `${field.label} ${query}`,
+  lookup: (query: string) => `look up subscriber ${query}`,
+  audit: (query: string) => `search audit log ${query}`,
+};
+
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
+}
 
 function isJump(entry: Jump | null): entry is Jump {
   return entry !== null;
@@ -86,8 +106,6 @@ function Current() {
   return <Icon name='IconCheckmark1' className='ml-auto size-4 rotate-[4deg] opacity-100' />;
 }
 
-type Target = (value: string, to: string | null) => string;
-
 function facetPage(facet: FilterFacet): Page {
   return `facet:${facet.id}`;
 }
@@ -98,13 +116,28 @@ function currentOption(facet: FilterFacet): string {
   );
 }
 
+function anyValue(facet: FilterFacet): string {
+  return `any ${facet.label}`;
+}
+
+function firstOption(facet: FilterFacet): string {
+  const option = facet.options[0];
+  return facet.clearable || !option ? anyValue(facet) : `${option.label} ${option.value}`;
+}
+
+function filterByValue(facet: FilterFacet): string {
+  return `filter by ${facet.label} ${facet.scope ?? ''}`.trim();
+}
+
 function FacetPage({ facet, pick }: { facet: FilterFacet; pick: (value: string | null) => void }) {
   return (
     <CommandGroup heading={facet.label}>
-      <CommandItem value={`any ${facet.label}`} onSelect={() => pick(null)}>
-        Any {facet.label.toLowerCase()}
-        {facet.value === null && <Current />}
-      </CommandItem>
+      {facet.clearable && (
+        <CommandItem value={anyValue(facet)} onSelect={() => pick(null)}>
+          Any {facet.label.toLowerCase()}
+          {facet.value === null && <Current />}
+        </CommandItem>
+      )}
       {facet.options.map((option) => (
         <CommandItem
           key={option.value}
@@ -119,64 +152,117 @@ function FacetPage({ facet, pick }: { facet: FilterFacet; pick: (value: string |
   );
 }
 
+function ClearFilters({ label, onSelect }: { label: string; onSelect: () => void }) {
+  return (
+    <CommandItem
+      value={label}
+      keywords={['reset', 'remove filters', 'any']}
+      icon='IconCrossMedium'
+      onSelect={onSelect}
+    >
+      {label}
+    </CommandItem>
+  );
+}
+
+type FacetScope = { scope: string | null; heading: string; facets: FilterFacet[] };
+
+function groupFacets(facets: FilterFacet[]): FacetScope[] {
+  const scopes: FacetScope[] = [];
+  for (const facet of facets) {
+    const existing = scopes.find((entry) => entry.scope === facet.scope);
+    if (existing) existing.facets.push(facet);
+    else {
+      scopes.push({
+        scope: facet.scope,
+        heading: facet.scope ? `${facet.scope} filters` : 'Filters',
+        facets: [facet],
+      });
+    }
+  }
+  return scopes;
+}
+
+function facetHeading(group: FacetScope, facet: FilterFacet): string {
+  const subject = group.scope ? ` ${group.scope.toLowerCase()}` : '';
+  return `Filter${subject} by ${facet.label.toLowerCase()}`;
+}
+
 function FacetGroups({
   facets,
   typing,
   enter,
   pick,
+  clear,
 }: {
   facets: FilterFacet[];
   typing: boolean;
-  enter: (page: Page) => void;
+  enter: (page: Page, first: string, from: string) => void;
   pick: (facet: FilterFacet, value: string | null) => void;
+  clear: (facets: FilterFacet[]) => void;
 }) {
-  if (facets.length === 0) return null;
+  const groups = groupFacets(facets);
+  if (groups.length === 0) return null;
+  const clearLabel = (group: FacetScope) =>
+    group.scope ? `Clear ${group.scope.toLowerCase()} filters` : 'Clear filters';
+  const clearable = (group: FacetScope) =>
+    group.facets.filter((facet) => facet.clearable && facet.value !== null);
   if (!typing) {
-    return (
-      <CommandGroup heading='Filters'>
-        {facets.map((facet) => (
+    return groups.map((group) => (
+      <CommandGroup key={group.scope ?? ''} heading={group.heading}>
+        {clearable(group).length > 0 && (
+          <ClearFilters label={clearLabel(group)} onSelect={() => clear(clearable(group))} />
+        )}
+        {group.facets.map((facet) => (
           <CommandItem
             key={facet.id}
-            value={`filter by ${facet.label}`}
+            value={filterByValue(facet)}
             icon='IconSettingsSliderHorFilled'
-            onSelect={() => enter(facetPage(facet))}
+            onSelect={() => enter(facetPage(facet), firstOption(facet), filterByValue(facet))}
           >
-            Filter by {facet.label.toLowerCase()}
+            {facetHeading(group, facet)}
             <CommandHint>{currentOption(facet)}</CommandHint>
             <Icon name='IconChevronRightMedium' className='ml-auto size-4' />
           </CommandItem>
         ))}
       </CommandGroup>
-    );
+    ));
   }
-  return facets.map((facet) => (
-    <CommandGroup key={facet.id} heading={`Filter by ${facet.label.toLowerCase()}`}>
-      {facet.options.map((option) => (
-        <CommandItem
-          key={option.value}
-          value={`${option.label} ${facet.label} filter`}
-          keywords={['filter', facet.label]}
-          icon='IconSettingsSliderHorFilled'
-          onSelect={() => pick(facet, option.value)}
-        >
-          {option.label}
-          <CommandHint>{facet.label}</CommandHint>
-          {facet.value === option.value && <Current />}
-        </CommandItem>
+  return groups.map((group) => (
+    <Fragment key={group.scope ?? ''}>
+      {clearable(group).length > 0 && (
+        <CommandGroup heading={group.heading}>
+          <ClearFilters label={clearLabel(group)} onSelect={() => clear(clearable(group))} />
+        </CommandGroup>
+      )}
+      {group.facets.map((facet) => (
+        <CommandGroup key={facet.id} heading={facetHeading(group, facet)}>
+          {facet.options.map((option) => (
+            <CommandItem
+              key={option.value}
+              value={`${option.label} ${facet.label} ${group.scope ?? ''} filter`}
+              keywords={['filter', facet.label, ...(group.scope ? [group.scope] : [])]}
+              icon='IconSettingsSliderHorFilled'
+              onSelect={() => pick(facet, option.value)}
+            >
+              {option.label}
+              <CommandHint>{group.scope ? `${group.scope} · ${facet.label}` : facet.label}</CommandHint>
+              {facet.value === option.value && <Current />}
+            </CommandItem>
+          ))}
+        </CommandGroup>
       ))}
-    </CommandGroup>
+    </Fragment>
   ));
 }
 
 function WorkspacesPage({
   workspaces,
   current,
-  target,
   go,
 }: {
   workspaces: Workspace[];
   current: Workspace | null;
-  target: Target;
   go: (to: string) => void;
 }) {
   return (
@@ -184,7 +270,7 @@ function WorkspacesPage({
       {workspaces.map((entry) => (
         <CommandItem
           key={entry.id}
-          value={target(`${entry.name} ${entry.slug}`, `/${entry.slug}`)}
+          value={values.workspace(entry, 'page')}
           onSelect={() => go(`/${entry.slug}`)}
         >
           <WorkspaceAvatar slug={entry.slug} avatarUrl={entry.avatarUrl} size={18} />
@@ -200,14 +286,12 @@ function TenantsPage({
   tenants,
   current,
   base,
-  target,
   link,
   go,
 }: {
   tenants: Tenant[];
   current: Tenant | null;
   base: string;
-  target: Target;
   link: (entry: Tenant) => string;
   go: (to: string) => void;
 }) {
@@ -216,7 +300,7 @@ function TenantsPage({
       {tenants.map((entry) => (
         <CommandItem
           key={entry.id}
-          value={target(`${entry.name} ${entry.slug}`, link(entry))}
+          value={values.tenant(entry, 'page')}
           icon='IconBuildingsFilled'
           onSelect={() => go(link(entry))}
         >
@@ -259,7 +343,9 @@ export function CommandMenu({
   const { pathname } = useLocation();
   const search = useFetcher<typeof searchLoader>();
   const registered = useRegisteredCommands();
+  const headerActions = useRegisteredActions();
   const facets = useRegisteredFacets();
+  const searchFields = useRegisteredSearchFields();
   const base = `/${slug}`;
   const current = relativePath(pathname, base);
   const [query, setQuery] = useState('');
@@ -268,6 +354,8 @@ export function CommandMenu({
   const [recent, setRecent] = useState<Recent[]>([]);
   const restoreFocus = useRef(true);
   const openedFrom = useRef<HTMLElement | null>(null);
+  const cameFrom = useRef('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const trimmed = query.trim();
   const searching = page === 'root' && trimmed.length >= SEARCH_MIN_LENGTH;
   const results = searching && search.data?.q === trimmed ? search.data.results : [];
@@ -276,11 +364,7 @@ export function CommandMenu({
     kind,
     entries: results.filter((result) => result.kind === kind),
   })).filter((group) => group.entries.length > 0);
-  const destinations = listDestinations(quickstart);
-  const sections = SECTION_ORDER.map((label) => ({
-    label,
-    entries: destinations.filter((destination) => destination.section === label),
-  }));
+  const sections = listSections(quickstart);
   const switchableWorkspaces = workspaces.length > 1;
   const switchableTenants = tenants.length > 1;
   const recentEntries = recent
@@ -288,6 +372,36 @@ export function CommandMenu({
     .filter(isJump)
     .filter((entry) => entry.path !== current)
     .slice(0, RECENT_SHOWN);
+  const tenantLink = (entry: Tenant) => {
+    return entry.slug === tenant?.slug ? pathname : `${pathname}?tenant=${entry.slug}`;
+  };
+  const targets = new Map<string, string>([
+    ...sections.flatMap((section) =>
+      section.entries.map((entry): [string, string] => [
+        normalize(values.destination(entry)),
+        `${base}${entry.path}`,
+      ])
+    ),
+    ...recentEntries.map((entry): [string, string] => [
+      normalize(values.recent(entry)),
+      `${base}${entry.path}`,
+    ]),
+    ...results.map((entry): [string, string] => [normalize(values.result(entry)), `${base}${entry.path}`]),
+    ...workspaces.flatMap((entry): [string, string][] => [
+      [normalize(values.workspace(entry, 'root')), `/${entry.slug}`],
+      [normalize(values.workspace(entry, 'page')), `/${entry.slug}`],
+    ]),
+    ...tenants.flatMap((entry): [string, string][] => [
+      [normalize(values.tenant(entry, 'root')), tenantLink(entry)],
+      [normalize(values.tenant(entry, 'page')), tenantLink(entry)],
+    ]),
+    ...registered.flatMap((command): [string, string][] =>
+      'to' in command && !command.external ? [[normalize(command.label), command.to]] : []
+    ),
+    [normalize(values.lookup(trimmed)), `${base}/subscribers?q=${encodeURIComponent(trimmed)}`],
+    [normalize(values.audit(trimmed)), `${base}/settings/audit-log?q=${encodeURIComponent(trimmed)}`],
+  ]);
+  const prefetch = targets.get(normalize(selected));
 
   const close = () => onOpenChange(false);
 
@@ -297,13 +411,6 @@ export function CommandMenu({
     if (origin?.isConnected && origin !== document.body) return origin;
     return false;
   };
-
-  const targets = new Map<string, string>();
-  const target = (value: string, to: string | null) => {
-    if (to !== null) targets.set(value.trim().toLowerCase(), to);
-    return value;
-  };
-  const prefetch = targets.get(selected.trim().toLowerCase());
 
   const go = (to: string) => {
     close();
@@ -331,9 +438,26 @@ export function CommandMenu({
     void submit({ intent: 'sign-out' }, { method: 'post', action: base });
   };
 
-  const enter = (next: Page) => {
+  const enter = (next: Page, first: string, from: string) => {
+    cameFrom.current = from;
     setPage(next);
     setQuery('');
+    setSelected(first);
+  };
+
+  const type = (value: string) => {
+    setQuery(value);
+    setSelected('');
+  };
+
+  const back = () => {
+    setPage('root');
+    setSelected(cameFrom.current);
+  };
+
+  const clearFilters = (entries: FilterFacet[]) => {
+    close();
+    for (const facet of entries) facet.onValueChange(null);
   };
 
   const openFacet = facets.find((facet) => facetPage(facet) === page) ?? null;
@@ -342,10 +466,6 @@ export function CommandMenu({
   const pick = (facet: FilterFacet, value: string | null) => {
     close();
     facet.onValueChange(value);
-  };
-
-  const tenantLink = (entry: Tenant) => {
-    return entry.slug === tenant?.slug ? pathname : `${pathname}?tenant=${entry.slug}`;
   };
 
   useEffect(() => {
@@ -379,33 +499,52 @@ export function CommandMenu({
     setSelected('');
   }, [open, slug]);
 
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open, page]);
+
   useCommandHotkeys({ open, onOpenChange, base });
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} finalFocus={finalFocus}>
       <Command value={selected} onValueChange={setSelected} filter={scoreCommand}>
         <CommandInput
+          ref={inputRef}
           autoFocus
           value={query}
-          onValueChange={setQuery}
+          onValueChange={type}
           placeholder={openFacet ? `Filter by ${openFacet.label.toLowerCase()}…` : PLACEHOLDERS[page]}
           start={crumb !== null && <Crumb>{crumb}</Crumb>}
           end={looking ? <Spinner className='size-4 text-fg-2' /> : <Kbd>esc</Kbd>}
           onKeyDown={(event) => {
             if (event.key !== 'Backspace' || query !== '' || page === 'root') return;
             event.preventDefault();
-            setPage('root');
+            back();
           }}
         />
         <CommandList>
           {page === 'root' && (
             <>
-              {registered.length > 0 && (
+              {(headerActions.length > 0 || registered.length > 0) && (
                 <CommandGroup heading='On this page'>
+                  {headerActions.map((action) => (
+                    <CommandItem
+                      key={action.id}
+                      value={action.label}
+                      icon={action.icon as IconName | undefined}
+                      onSelect={() => {
+                        restoreFocus.current = false;
+                        close();
+                        setTimeout(action.activate, 0);
+                      }}
+                    >
+                      {action.label}
+                    </CommandItem>
+                  ))}
                   {registered.map((command) => (
                     <CommandItem
                       key={command.id}
-                      value={target(command.label, 'to' in command && !command.external ? command.to : null)}
+                      value={command.label}
                       keywords={command.keywords}
                       icon={command.icon}
                       onSelect={() => perform(command)}
@@ -424,7 +563,8 @@ export function CommandMenu({
                     <CommandItem
                       key={result.path}
                       forceMount
-                      value={target(`${result.kind} ${result.path}`, `${base}${result.path}`)}
+                      value={values.result(result)}
+                      keywords={[trimmed, result.label, result.hint]}
                       icon={result.icon}
                       onSelect={() => go(`${base}${result.path}`)}
                     >
@@ -435,14 +575,20 @@ export function CommandMenu({
                 </CommandGroup>
               ))}
 
-              <FacetGroups facets={facets} typing={trimmed !== ''} enter={enter} pick={pick} />
+              <FacetGroups
+                facets={facets}
+                typing={trimmed !== ''}
+                enter={enter}
+                pick={pick}
+                clear={clearFilters}
+              />
 
               {trimmed === '' && recentEntries.length > 0 && (
                 <CommandGroup heading='Recent'>
                   {recentEntries.map((entry) => (
                     <CommandItem
                       key={entry.path}
-                      value={target(`${entry.label} recent ${entry.path}`, `${base}${entry.path}`)}
+                      value={values.recent(entry)}
                       icon={entry.icon}
                       onSelect={() => go(`${base}${entry.path}`)}
                     >
@@ -454,52 +600,56 @@ export function CommandMenu({
               )}
 
               {sections.map((section) => (
-                <CommandGroup key={section.label} heading={section.label}>
-                  {section.entries.map((destination, index) => (
-                    <Fragment key={destination.path}>
+                <Fragment key={section.label}>
+                  {section.label === 'Workspace' && (switchableWorkspaces || switchableTenants) && (
+                    <CommandGroup heading='Switch'>
+                      {switchableWorkspaces && (
+                        <CommandItem
+                          value='switch workspace'
+                          keywords={['change', 'account', 'organization', 'workspaces']}
+                          icon='IconLayersTwoFilled'
+                          onSelect={() =>
+                            enter('workspaces', values.workspace(workspaces[0]!, 'page'), 'switch workspace')
+                          }
+                        >
+                          Switch workspace
+                          {workspace && <CommandHint>{workspace.name}</CommandHint>}
+                          <Icon name='IconChevronRightMedium' className='ml-auto size-4' />
+                        </CommandItem>
+                      )}
+                      {switchableTenants && (
+                        <CommandItem
+                          value='switch tenant'
+                          keywords={['change', 'app', 'environment', 'tenants']}
+                          icon='IconBuildingsFilled'
+                          onSelect={() =>
+                            enter('tenants', values.tenant(tenants[0]!, 'page'), 'switch tenant')
+                          }
+                        >
+                          Switch tenant
+                          {tenant && <CommandHint>{tenant.name}</CommandHint>}
+                          <Icon name='IconChevronRightMedium' className='ml-auto size-4' />
+                        </CommandItem>
+                      )}
+                    </CommandGroup>
+                  )}
+                  <CommandGroup heading={section.label}>
+                    {section.entries.map((destination) => (
                       <CommandItem
-                        value={target(destination.label, `${base}${destination.path}`)}
+                        key={destination.path}
+                        value={values.destination(destination)}
                         keywords={destination.keywords}
                         icon={destination.icon}
                         onSelect={() => go(`${base}${destination.path}`)}
                       >
                         {destination.label}
-                        {destination.hint && <CommandHint>{destination.hint}</CommandHint>}
                         {destination.chord && (
                           <CommandShortcut keys={['G', destination.chord.toUpperCase()]} />
                         )}
                       </CommandItem>
-                      {section.label === 'Workspace' && index === 0 && (
-                        <>
-                          {switchableWorkspaces && (
-                            <CommandItem
-                              value='switch workspace'
-                              keywords={['change', 'account', 'organization', 'workspaces']}
-                              icon='IconLayersTwoFilled'
-                              onSelect={() => enter('workspaces')}
-                            >
-                              Switch workspace
-                              {workspace && <CommandHint>{workspace.name}</CommandHint>}
-                              <Icon name='IconChevronRightMedium' className='ml-auto size-4' />
-                            </CommandItem>
-                          )}
-                          {switchableTenants && (
-                            <CommandItem
-                              value='switch tenant'
-                              keywords={['change', 'app', 'environment', 'tenants']}
-                              icon='IconBuildingsFilled'
-                              onSelect={() => enter('tenants')}
-                            >
-                              Switch tenant
-                              {tenant && <CommandHint>{tenant.name}</CommandHint>}
-                              <Icon name='IconChevronRightMedium' className='ml-auto size-4' />
-                            </CommandItem>
-                          )}
-                        </>
-                      )}
-                    </Fragment>
-                  ))}
-                </CommandGroup>
+                    ))}
+                  </CommandGroup>
+                </Fragment>
               ))}
 
               {trimmed !== '' && switchableWorkspaces && (
@@ -507,7 +657,7 @@ export function CommandMenu({
                   {workspaces.map((entry) => (
                     <CommandItem
                       key={entry.id}
-                      value={target(`${entry.name} ${entry.slug} workspace`, `/${entry.slug}`)}
+                      value={values.workspace(entry, 'root')}
                       onSelect={() => go(`/${entry.slug}`)}
                     >
                       <WorkspaceAvatar slug={entry.slug} avatarUrl={entry.avatarUrl} size={18} />
@@ -523,7 +673,7 @@ export function CommandMenu({
                   {tenants.map((entry) => (
                     <CommandItem
                       key={entry.id}
-                      value={target(`${entry.name} ${entry.slug} tenant`, tenantLink(entry))}
+                      value={values.tenant(entry, 'root')}
                       icon='IconBuildingsFilled'
                       onSelect={() => go(tenantLink(entry))}
                     >
@@ -536,28 +686,41 @@ export function CommandMenu({
 
               {trimmed !== '' && (
                 <CommandGroup heading='Search' forceMount>
+                  {searchFields.map((field) => (
+                    <CommandItem
+                      key={field.id}
+                      forceMount
+                      value={values.field(field, trimmed)}
+                      keywords={[trimmed]}
+                      icon='IconMagnifyingGlass'
+                      onSelect={() => {
+                        close();
+                        field.onValueChange(trimmed);
+                      }}
+                    >
+                      {field.label} for “{trimmed}”
+                    </CommandItem>
+                  ))}
                   <CommandItem
                     forceMount
-                    value={target(
-                      `look up subscriber ${trimmed}`,
-                      `${base}/subscribers?q=${encodeURIComponent(trimmed)}`
-                    )}
+                    value={values.lookup(trimmed)}
+                    keywords={[trimmed]}
                     icon='IconTeamFilled'
                     onSelect={() => go(`${base}/subscribers?q=${encodeURIComponent(trimmed)}`)}
                   >
                     Look up subscriber “{trimmed}”
                   </CommandItem>
-                  <CommandItem
-                    forceMount
-                    value={target(
-                      `search audit log ${trimmed}`,
-                      `${base}/settings/audit-log?q=${encodeURIComponent(trimmed)}`
-                    )}
-                    icon='IconHistoryFilled'
-                    onSelect={() => go(`${base}/settings/audit-log?q=${encodeURIComponent(trimmed)}`)}
-                  >
-                    Search the audit log for “{trimmed}”
-                  </CommandItem>
+                  {current !== '/settings/audit-log' && (
+                    <CommandItem
+                      forceMount
+                      value={values.audit(trimmed)}
+                      keywords={[trimmed]}
+                      icon='IconHistoryFilled'
+                      onSelect={() => go(`${base}/settings/audit-log?q=${encodeURIComponent(trimmed)}`)}
+                    >
+                      Search the audit log for “{trimmed}”
+                    </CommandItem>
+                  )}
                 </CommandGroup>
               )}
 
@@ -565,7 +728,7 @@ export function CommandMenu({
                 <CommandItem
                   value='documentation docs'
                   keywords={['guide', 'help', 'manual']}
-                  icon='IconBook'
+                  icon='IconBookFilled'
                   onSelect={() => openExternal(DOCS_URL)}
                 >
                   Documentation
@@ -575,19 +738,19 @@ export function CommandMenu({
                 <CommandItem
                   value='api reference'
                   keywords={['endpoints', 'openapi', 'rest']}
-                  icon='IconCode'
+                  icon='IconCodeLargeFilled'
                   onSelect={() => openExternal(`${DOCS_URL}/api-reference/introduction`)}
                 >
                   API reference
                   <Icon name='IconArrowUpRight' className='ml-auto size-4' />
                 </CommandItem>
                 <CommandItem
-                  value='quick start guide'
+                  value='quickstart guide'
                   keywords={['setup', 'install', 'sdk', 'getting started']}
-                  icon='IconRocket'
+                  icon='IconRocketFilled'
                   onSelect={() => openExternal(`${DOCS_URL}/quickstart`)}
                 >
-                  Quick start guide
+                  Quickstart guide
                   <Icon name='IconArrowUpRight' className='ml-auto size-4' />
                 </CommandItem>
               </CommandGroup>
@@ -596,7 +759,7 @@ export function CommandMenu({
                 <CommandItem
                   value='copy link to this page'
                   keywords={['url', 'share', 'clipboard']}
-                  icon='IconChainLink1'
+                  icon='IconChainLink3Filled'
                   onSelect={copyLink}
                 >
                   Copy link to this page
@@ -615,19 +778,10 @@ export function CommandMenu({
 
           {openFacet && <FacetPage facet={openFacet} pick={(value) => pick(openFacet, value)} />}
 
-          {page === 'workspaces' && (
-            <WorkspacesPage workspaces={workspaces} current={workspace} target={target} go={go} />
-          )}
+          {page === 'workspaces' && <WorkspacesPage workspaces={workspaces} current={workspace} go={go} />}
 
           {page === 'tenants' && (
-            <TenantsPage
-              tenants={tenants}
-              current={tenant}
-              base={base}
-              target={target}
-              link={tenantLink}
-              go={go}
-            />
+            <TenantsPage tenants={tenants} current={tenant} base={base} link={tenantLink} go={go} />
           )}
         </CommandList>
         <CommandFooter>

@@ -1534,7 +1534,7 @@ export default function DesignSystem() {
           title='Command menu'
           description='cmdk under the menu grammar: one sliding highlight, quiet group headings, a hint after the label and the shortcut at the right edge. In the dashboard it opens with ⌘K as a dialog; here it is inline.'
         >
-          <Command className='corner-superellipse/1.125 w-full max-w-[560px] rounded-xl shadow-md'>
+          <Command className='corner-superellipse/1.125 w-full max-w-[560px] rounded-2xl shadow-md'>
             <CommandInput placeholder='Search pages, actions, or paste an id…' end={<Kbd>esc</Kbd>} />
             <CommandList>
               <CommandEmpty>No matches.</CommandEmpty>

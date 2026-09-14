@@ -290,7 +290,7 @@ function MessagesFilters({
       {filters.active && <FilterClear onClick={filters.clear} disabled={cold} loading={filters.clearing} />}
       <FilterSearch
         value={filters.search}
-        onChange={(event) => filters.setSearch(event.target.value)}
+        onValueChange={filters.setSearch}
         loading={filters.searching || cold}
         placeholder='Search messages'
         aria-label='Search messages'

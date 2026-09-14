@@ -1157,6 +1157,7 @@ function SourceDetail({
               <CardTitle>Deliveries</CardTitle>
               <CardAction>
                 <PillTabs
+                  label='Outcome'
                   items={OUTCOME_FILTERS}
                   value={outcomeFilter}
                   itemClassName='h-6.5 px-2.5 text-xs'

@@ -718,7 +718,7 @@ function SubscriberContent({
       id: 'copy-external-id',
       label: 'Copy external id',
       hint: subscriber.externalId,
-      icon: 'IconClipboard2',
+      icon: 'IconClipboard2Filled',
       keywords: ['clipboard', 'user id', 'subscriber'],
       run: () => {
         void navigator.clipboard
