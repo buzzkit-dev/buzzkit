@@ -7,13 +7,19 @@ import { subscriberActivity } from './datasources/subscriber-activity';
 import { subscriberAttributes } from './datasources/subscriber-attributes';
 import { subscriptionState } from './datasources/subscription-state';
 import { eventCatalog } from './endpoints/event-catalog';
+import { eventRate } from './endpoints/event-rate';
 import { eventRecent } from './endpoints/event-recent';
 import { eventTop } from './endpoints/event-top';
+import { eventTopAll } from './endpoints/event-top-all';
+import { eventTopTenants } from './endpoints/event-top-tenants';
 import { eventVolume } from './endpoints/event-volume';
+import { eventVolumeAll } from './endpoints/event-volume-all';
 import { runCounts } from './endpoints/run-counts';
 import { runLatest } from './endpoints/run-latest';
+import { runRate } from './endpoints/run-rate';
 import { runSteps } from './endpoints/run-steps';
 import { runVolume } from './endpoints/run-volume';
+import { runVolumeAll } from './endpoints/run-volume-all';
 import { runs } from './endpoints/runs';
 import { subscriberTimeline } from './endpoints/subscriber-timeline';
 import { eventNamesHourlyMv } from './materializations/event-names-hourly';
@@ -42,14 +48,20 @@ export const pipes = {
   runsCurrentMv,
   eventCatalog,
   eventVolume,
+  eventVolumeAll,
+  eventRate,
   eventRecent,
   eventTop,
+  eventTopAll,
+  eventTopTenants,
   subscriberTimeline,
   runs,
   runCounts,
   runLatest,
   runSteps,
   runVolume,
+  runVolumeAll,
+  runRate,
 };
 
 export default defineProject({ datasources, pipes });

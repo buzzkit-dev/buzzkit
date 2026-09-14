@@ -2,15 +2,15 @@ import { serializeWorkspace } from '@buzzkit/api/api/workspaces/index';
 import { MissingPermissionError } from '@buzzkit/api/libs/error';
 import { decodeSqid, encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
-import { clampLimit, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
+import { clampLimit, PaginationQuerySchema, resolveCursor, toPage } from '@buzzkit/api/utils/pagination';
 import { and, type Db, desc, eq, ilike, isNull, lt, or, sql, tables } from '@buzzkit/database';
 import type { MEMBER_ROLES } from 'buzzkit';
 import { t } from 'elysia';
 
 type MemberRole = (typeof MEMBER_ROLES)[number];
 
-export const WorkspaceListQuerySchema = t.Object({
-  all: t.Optional(t.Boolean()),
+export const AdminWorkspaceQuerySchema = t.Object({
+  ...PaginationQuerySchema.properties,
   q: t.Optional(t.String({ maxLength: 200 })),
 });
 
@@ -28,8 +28,12 @@ export async function assertAdmin(db: Db, userId: string): Promise<void> {
   throw new MissingPermissionError('This action requires admin access', { code: 'admin_required' });
 }
 
+export function requireAdmin(context: { db: Db; user: { id: string } }): Promise<void> {
+  return assertAdmin(context.db, context.user.id);
+}
+
 export async function selectAdmin(db: Db, userId: string): Promise<boolean> {
-  const [row] = await trace('admins.select', async () => {
+  const [row] = await trace('admin.select', async () => {
     return await db
       .select({ admin: tables.auth.user.admin })
       .from(tables.auth.user)
@@ -63,7 +67,7 @@ export async function listEveryWorkspace(
   const limit = clampLimit(options.limit);
   const cursorId = resolveCursor(options.cursor, decodeSqid);
 
-  const rows = await trace('admins.listWorkspaces', async () => {
+  const rows = await trace('admin.listWorkspaces', async () => {
     return await db
       .select({ workspace: tables.workspace, role: tables.workspaceMember.role })
       .from(tables.workspace)

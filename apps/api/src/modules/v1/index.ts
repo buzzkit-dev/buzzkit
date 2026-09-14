@@ -1,5 +1,6 @@
 import { response } from '@buzzkit/api/libs/response';
 import Elysia from 'elysia';
+import { admin } from './admin';
 import { clientEvents } from './client/events';
 import { clientIdentify } from './client/identify';
 import { clientLiveActivities } from './client/live-activities';
@@ -87,6 +88,8 @@ export const v1 = new Elysia({ prefix: '/v1' })
   .use(response)
   /* /v1/health */
   .use(health)
+  /* /v1/admin/* */
+  .use(admin)
   /* /v1/profile */
   .use(profile)
   /* /v1/workspaces */

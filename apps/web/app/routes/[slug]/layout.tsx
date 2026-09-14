@@ -427,7 +427,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
               size='xs'
               className='text-amber-4 not-disabled:hover:text-amber-4 not-disabled:hover:before:bg-amber-4/15 not-disabled:active:text-amber-4 not-disabled:active:before:bg-amber-4/20'
               nativeButton={false}
-              render={<Link to='/admin' />}
+              render={<Link to='/admin/workspaces' />}
             >
               Back to admin
             </Button>

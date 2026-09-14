@@ -1,4 +1,4 @@
-import { markWorkspaceAccess, selectAdmin } from '@buzzkit/api/api/admins/index';
+import { markWorkspaceAccess, selectAdmin } from '@buzzkit/api/api/admin/index';
 import {
   createDefaultClientKey,
   purgeApiKeyCacheForWorkspace,

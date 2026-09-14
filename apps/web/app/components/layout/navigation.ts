@@ -9,7 +9,17 @@ export type NavigationPage = {
   children?: NavigationPage[];
 };
 
-type NavigationSection = { label?: string; pages: NavigationPage[] };
+export type NavigationSection = { label?: string; pages: NavigationPage[] };
+
+export const ADMIN_NAVIGATION: NavigationSection[] = [
+  {
+    pages: [{ label: 'Overview', path: '', icon: 'IconHomeRoundDoorFilled' }],
+  },
+  {
+    label: 'Platform',
+    pages: [{ label: 'Workspaces', path: '/workspaces', icon: 'IconBuildingsFilled' }],
+  },
+];
 
 export const NAVIGATION: NavigationSection[] = [
   {

@@ -3,22 +3,46 @@ import { listWorkflows } from '@buzzkit/api/api/workflows/index';
 import { encodeId } from '@buzzkit/api/libs/sqids';
 import { trace } from '@buzzkit/api/libs/telemetry';
 import { formatClickHouseDateTime, parseClickHouseTime, tinybird } from '@buzzkit/api/libs/tinybird';
-import { and, count, type Db, eq, gte, isNull, lte, min, sql, tables } from '@buzzkit/database';
-import { TOP_EVENTS, TOP_WORKFLOWS } from './constants';
+import {
+  and,
+  count,
+  type Db,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  min,
+  sql,
+  tables,
+} from '@buzzkit/database';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { TOP_EVENTS, TOP_WORKFLOWS, TOP_WORKSPACES } from './constants';
 import { advance, bucket, bucketKey, bucketOf, truncate } from './range';
 import type {
   DeliveryTotals,
   RunTotals,
   Stats,
   StatsDay,
+  StatsEventWorkspace,
+  StatsGrowthWorkspace,
   StatsInterval,
+  StatsNewWorkspace,
+  StatsPlatform,
   StatsRange,
   StatsWindow,
   StatsWorkflow,
+  StatsWorkspace,
 } from './types';
+
+function tenantScope(column: AnyPgColumn, tenantId: number | null) {
+  return tenantId === null ? undefined : eq(column, tenantId);
+}
 
 export * from './constants';
 export * from './range';
+export * from './rates';
 export * from './schemas';
 export type * from './types';
 
@@ -33,26 +57,30 @@ type HourlyRuns = Array<{
   failed: number;
 }>;
 
-async function listHourlyEvents(tenantId: number, range: StatsRange): Promise<HourlyEvents> {
+async function listHourlyEvents(tenantId: number | null, range: StatsRange): Promise<HourlyEvents> {
+  const params = {
+    start: formatClickHouseDateTime(range.from.toISOString()),
+    end: formatClickHouseDateTime(range.to.toISOString()),
+    bucket_seconds: 3600,
+    exclude_source: 'system',
+  };
   const result = await trace('stats.events', async () => {
-    return (await tinybird()).eventVolume.query({
-      tenant_id: tenantId,
-      start: formatClickHouseDateTime(range.from.toISOString()),
-      end: formatClickHouseDateTime(range.to.toISOString()),
-      bucket_seconds: 3600,
-      exclude_source: 'system',
-    });
+    const client = await tinybird();
+    if (tenantId === null) return client.eventVolumeAll.query(params);
+    return client.eventVolume.query({ tenant_id: tenantId, ...params });
   });
   return result.data.map((row) => ({ bucket: parseClickHouseTime(row.bucket), count: Number(row.count) }));
 }
 
-async function listHourlyRuns(tenantId: number, range: StatsRange): Promise<HourlyRuns> {
+async function listHourlyRuns(tenantId: number | null, range: StatsRange): Promise<HourlyRuns> {
+  const params = {
+    start: formatClickHouseDateTime(range.from.toISOString()),
+    end: formatClickHouseDateTime(range.to.toISOString()),
+  };
   const result = await trace('stats.runs', async () => {
-    return (await tinybird()).runVolume.query({
-      tenant_id: tenantId,
-      start: formatClickHouseDateTime(range.from.toISOString()),
-      end: formatClickHouseDateTime(range.to.toISOString()),
-    });
+    const client = await tinybird();
+    if (tenantId === null) return client.runVolumeAll.query(params);
+    return client.runVolume.query({ tenant_id: tenantId, ...params });
   });
 
   return result.data.map((row) => {
@@ -81,7 +109,7 @@ function sumRuns(rows: HourlyRuns): RunTotals {
 
 async function collectWindow(
   db: Db,
-  tenantId: number,
+  tenantId: number | null,
   range: StatsRange
 ): Promise<StatsWindow & { hourlyEvents: HourlyEvents; hourlyRuns: HourlyRuns }> {
   const [[subscribers], [messages], byStatus, hourlyEvents, hourlyRuns] = await Promise.all([
@@ -91,7 +119,7 @@ async function collectWindow(
         .from(tables.subscriber)
         .where(
           and(
-            eq(tables.subscriber.tenantId, tenantId),
+            tenantScope(tables.subscriber.tenantId, tenantId),
             isNull(tables.subscriber.deletedAt),
             gte(tables.subscriber.createdAt, range.from),
             lte(tables.subscriber.createdAt, range.to)
@@ -104,7 +132,7 @@ async function collectWindow(
         .from(tables.message)
         .where(
           and(
-            eq(tables.message.tenantId, tenantId),
+            tenantScope(tables.message.tenantId, tenantId),
             isNull(tables.message.deletedAt),
             gte(tables.message.createdAt, range.from),
             lte(tables.message.createdAt, range.to)
@@ -118,7 +146,7 @@ async function collectWindow(
         .from(tables.delivery)
         .where(
           and(
-            eq(tables.delivery.tenantId, tenantId),
+            tenantScope(tables.delivery.tenantId, tenantId),
             gte(tables.delivery.createdAt, range.from),
             lte(tables.delivery.createdAt, range.to)
           )
@@ -156,15 +184,17 @@ async function collectWindow(
   };
 }
 
-async function listTopEvents(tenantId: number, range: StatsRange) {
+async function listTopEvents(tenantId: number | null, range: StatsRange) {
+  const params = {
+    start: formatClickHouseDateTime(range.from.toISOString()),
+    end: formatClickHouseDateTime(range.to.toISOString()),
+    limit: TOP_EVENTS,
+    exclude_source: 'system',
+  };
   const result = await trace('stats.topEvents', async () => {
-    return (await tinybird()).eventTop.query({
-      tenant_id: tenantId,
-      start: formatClickHouseDateTime(range.from.toISOString()),
-      end: formatClickHouseDateTime(range.to.toISOString()),
-      limit: TOP_EVENTS,
-      exclude_source: 'system',
-    });
+    const client = await tinybird();
+    if (tenantId === null) return client.eventTopAll.query(params);
+    return client.eventTop.query({ tenant_id: tenantId, ...params });
   });
   return result.data.map((row) => ({ name: row.name, count: Number(row.count) }));
 }
@@ -202,14 +232,198 @@ async function listActiveWorkflows(db: Db, tenantId: number): Promise<StatsWorkf
     .slice(0, TOP_WORKFLOWS);
 }
 
-async function countScheduled(db: Db, tenantId: number) {
+async function listTopWorkspaces(db: Db, range: StatsRange): Promise<StatsWorkspace[]> {
+  const rows = await trace('stats.topWorkspaces', async () => {
+    return await db
+      .select({
+        slug: tables.workspace.slug,
+        name: tables.workspace.name,
+        messages: count(tables.message.id),
+      })
+      .from(tables.message)
+      .innerJoin(tables.tenant, eq(tables.tenant.id, tables.message.tenantId))
+      .innerJoin(tables.workspace, eq(tables.workspace.id, tables.tenant.workspaceId))
+      .where(
+        and(
+          isNull(tables.message.deletedAt),
+          isNull(tables.workspace.deletedAt),
+          gte(tables.message.createdAt, range.from),
+          lte(tables.message.createdAt, range.to)
+        )
+      )
+      .groupBy(tables.workspace.id, tables.workspace.slug, tables.workspace.name)
+      .orderBy(sql`count(${tables.message.id}) desc`, tables.workspace.slug)
+      .limit(TOP_WORKSPACES);
+  });
+  if (rows.length === 0) return [];
+
+  const delivered = await trace('stats.topWorkspacesDelivered', async () => {
+    return await db
+      .select({ slug: tables.workspace.slug, delivered: count(tables.delivery.id) })
+      .from(tables.delivery)
+      .innerJoin(tables.tenant, eq(tables.tenant.id, tables.delivery.tenantId))
+      .innerJoin(tables.workspace, eq(tables.workspace.id, tables.tenant.workspaceId))
+      .where(
+        and(
+          inArray(
+            tables.workspace.slug,
+            rows.map((row) => row.slug)
+          ),
+          eq(tables.delivery.status, 'delivered'),
+          gte(tables.delivery.createdAt, range.from),
+          lte(tables.delivery.createdAt, range.to)
+        )
+      )
+      .groupBy(tables.workspace.slug);
+  });
+  const deliveredBySlug = new Map(delivered.map((row) => [row.slug, Number(row.delivered)]));
+
+  return rows.map((row) => {
+    return {
+      slug: row.slug,
+      name: row.name,
+      messages: Number(row.messages),
+      delivered: deliveredBySlug.get(row.slug) ?? 0,
+    };
+  });
+}
+
+async function listEventWorkspaces(db: Db, range: StatsRange): Promise<StatsEventWorkspace[]> {
+  const result = await trace('stats.eventWorkspaces', async () => {
+    return (await tinybird()).eventTopTenants.query({
+      start: formatClickHouseDateTime(range.from.toISOString()),
+      end: formatClickHouseDateTime(range.to.toISOString()),
+      exclude_source: 'system',
+      limit: TOP_WORKSPACES * 4,
+    });
+  });
+  const byTenant = new Map(result.data.map((row) => [Number(row.tenant_id), Number(row.count)]));
+  if (byTenant.size === 0) return [];
+
+  const tenants = await db
+    .select({ id: tables.tenant.id, slug: tables.workspace.slug, name: tables.workspace.name })
+    .from(tables.tenant)
+    .innerJoin(tables.workspace, eq(tables.workspace.id, tables.tenant.workspaceId))
+    .where(and(inArray(tables.tenant.id, [...byTenant.keys()]), isNull(tables.workspace.deletedAt)));
+
+  const byWorkspace = new Map<string, StatsEventWorkspace>();
+  for (const tenant of tenants) {
+    const entry = byWorkspace.get(tenant.slug) ?? { slug: tenant.slug, name: tenant.name, events: 0 };
+    entry.events += byTenant.get(tenant.id) ?? 0;
+    byWorkspace.set(tenant.slug, entry);
+  }
+
+  return [...byWorkspace.values()]
+    .sort((a, b) => b.events - a.events || a.slug.localeCompare(b.slug))
+    .slice(0, TOP_WORKSPACES);
+}
+
+async function listGrowingWorkspaces(db: Db, range: StatsRange): Promise<StatsGrowthWorkspace[]> {
+  const added = await trace('stats.growingWorkspaces', async () => {
+    return await db
+      .select({
+        slug: tables.workspace.slug,
+        name: tables.workspace.name,
+        added: count(tables.subscriber.id),
+      })
+      .from(tables.subscriber)
+      .innerJoin(tables.tenant, eq(tables.tenant.id, tables.subscriber.tenantId))
+      .innerJoin(tables.workspace, eq(tables.workspace.id, tables.tenant.workspaceId))
+      .where(
+        and(
+          isNull(tables.subscriber.deletedAt),
+          isNull(tables.workspace.deletedAt),
+          gte(tables.subscriber.createdAt, range.from),
+          lte(tables.subscriber.createdAt, range.to)
+        )
+      )
+      .groupBy(tables.workspace.id, tables.workspace.slug, tables.workspace.name)
+      .orderBy(sql`count(${tables.subscriber.id}) desc`, tables.workspace.slug)
+      .limit(TOP_WORKSPACES);
+  });
+  if (added.length === 0) return [];
+
+  const totals = await db
+    .select({ slug: tables.workspace.slug, subscribers: count(tables.subscriber.id) })
+    .from(tables.subscriber)
+    .innerJoin(tables.tenant, eq(tables.tenant.id, tables.subscriber.tenantId))
+    .innerJoin(tables.workspace, eq(tables.workspace.id, tables.tenant.workspaceId))
+    .where(
+      and(
+        inArray(
+          tables.workspace.slug,
+          added.map((row) => row.slug)
+        ),
+        isNull(tables.subscriber.deletedAt)
+      )
+    )
+    .groupBy(tables.workspace.slug);
+  const totalBySlug = new Map(totals.map((row) => [row.slug, Number(row.subscribers)]));
+
+  return added.map((row) => {
+    return {
+      slug: row.slug,
+      name: row.name,
+      subscribers: totalBySlug.get(row.slug) ?? 0,
+      added: Number(row.added),
+    };
+  });
+}
+
+async function listNewestWorkspaces(db: Db): Promise<StatsNewWorkspace[]> {
+  const subscribers = sql<number>`(
+    select count(*) from subscriber s
+    join tenant t on t.id = s.tenant_id
+    where t.workspace_id = workspace.id and s.deleted_at is null
+  )`.mapWith(Number);
+  const members = sql<number>`(
+    select count(*) from workspace_member m
+    where m.workspace_id = workspace.id and m.deleted_at is null
+  )`.mapWith(Number);
+  const rows = await trace('stats.newestWorkspaces', async () => {
+    return await db
+      .select({
+        slug: tables.workspace.slug,
+        name: tables.workspace.name,
+        createdAt: tables.workspace.createdAt,
+        subscribers,
+        members,
+      })
+      .from(tables.workspace)
+      .where(isNull(tables.workspace.deletedAt))
+      .orderBy(desc(tables.workspace.createdAt))
+      .limit(TOP_WORKSPACES);
+  });
+
+  return rows.map((row) => {
+    return {
+      slug: row.slug,
+      name: row.name,
+      createdAt: row.createdAt.toISOString(),
+      subscribers: row.subscribers,
+      members: row.members,
+    };
+  });
+}
+
+async function collectPlatform(db: Db, range: StatsRange): Promise<StatsPlatform> {
+  const [topWorkspaces, eventWorkspaces, growingWorkspaces, newestWorkspaces] = await Promise.all([
+    listTopWorkspaces(db, range),
+    listEventWorkspaces(db, range),
+    listGrowingWorkspaces(db, range),
+    listNewestWorkspaces(db),
+  ]);
+  return { topWorkspaces, eventWorkspaces, growingWorkspaces, newestWorkspaces };
+}
+
+async function countScheduled(db: Db, tenantId: number | null) {
   const [row] = await trace('stats.scheduled', async () => {
     return await db
       .select({ total: count(), nextAt: min(tables.message.scheduledFor) })
       .from(tables.message)
       .where(
         and(
-          eq(tables.message.tenantId, tenantId),
+          tenantScope(tables.message.tenantId, tenantId),
           eq(tables.message.status, 'scheduled'),
           isNull(tables.message.deletedAt)
         )
@@ -220,12 +434,12 @@ async function countScheduled(db: Db, tenantId: number) {
 
 export async function collectStats(
   db: Db,
-  tenantId: number,
+  tenantId: number | null,
   range: StatsRange,
   interval: StatsInterval
 ): Promise<Stats> {
   const deliveriesInRange = and(
-    eq(tables.delivery.tenantId, tenantId),
+    tenantScope(tables.delivery.tenantId, tenantId),
     gte(tables.delivery.createdAt, range.from),
     lte(tables.delivery.createdAt, range.to)
   );
@@ -245,6 +459,7 @@ export async function collectStats(
     topEvents,
     workflows,
     scheduled,
+    platform,
   ] = await Promise.all([
     collectWindow(db, tenantId, range),
     collectWindow(db, tenantId, before),
@@ -252,7 +467,7 @@ export async function collectStats(
       return await db
         .select({ total: count() })
         .from(tables.subscriber)
-        .where(and(eq(tables.subscriber.tenantId, tenantId), isNull(tables.subscriber.deletedAt)));
+        .where(and(tenantScope(tables.subscriber.tenantId, tenantId), isNull(tables.subscriber.deletedAt)));
     }),
     trace('stats.series', async () => {
       const capped = sql<boolean>`${tables.delivery.lastErrorCode} = 'capped'`;
@@ -268,7 +483,7 @@ export async function collectStats(
         .from(tables.subscriber)
         .where(
           and(
-            eq(tables.subscriber.tenantId, tenantId),
+            tenantScope(tables.subscriber.tenantId, tenantId),
             isNull(tables.subscriber.deletedAt),
             gte(tables.subscriber.createdAt, range.from),
             lte(tables.subscriber.createdAt, range.to)
@@ -282,7 +497,7 @@ export async function collectStats(
         .from(tables.message)
         .where(
           and(
-            eq(tables.message.tenantId, tenantId),
+            tenantScope(tables.message.tenantId, tenantId),
             isNull(tables.message.deletedAt),
             gte(tables.message.createdAt, range.from),
             lte(tables.message.createdAt, range.to)
@@ -291,8 +506,9 @@ export async function collectStats(
         .groupBy(messageDay);
     }),
     listTopEvents(tenantId, range),
-    listActiveWorkflows(db, tenantId),
+    tenantId === null ? [] : listActiveWorkflows(db, tenantId),
     countScheduled(db, tenantId),
+    tenantId === null ? collectPlatform(db, range) : null,
   ]);
 
   const days = new Map<string, StatsDay>();
@@ -357,5 +573,6 @@ export async function collectStats(
     scheduled,
     previous: previousWindow,
     series: [...days.values()],
+    ...(platform ? { platform } : {}),
   };
 }

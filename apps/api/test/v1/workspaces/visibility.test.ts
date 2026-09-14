@@ -91,7 +91,7 @@ describe('the admin flag never reaches a customer', () => {
 
     const profile = await api<Record<string, unknown>>('/v1/profile', { headers: bearer });
     expect(profile.body.data).not.toHaveProperty('admin');
-    const everything = await api('/v1/workspaces?all=true', { headers: bearer });
+    const everything = await api('/v1/admin/workspaces', { headers: bearer });
     expect(everything.status).toBe(403);
     const { workspace } = await setupWorkspace({ bare: true });
     expect((await api(`/v1/workspaces/${workspace.slug}`, { headers: bearer })).status).toBe(404);
@@ -150,7 +150,7 @@ describe('every remaining surface that carries a user object', () => {
     expect(single.status).toBe(200);
     expect(bodyText(single.body)).not.toMatch(ADMIN_KEY);
 
-    const forbidden = await api('/v1/workspaces?all=true', { headers: ownerBearer });
+    const forbidden = await api('/v1/admin/workspaces', { headers: ownerBearer });
     expect(forbidden.status).toBe(403);
     expect(bodyText(forbidden.body)).not.toMatch(ADMIN_KEY);
     const missing = await api('/v1/workspaces/does-not-exist', { headers: bearer });

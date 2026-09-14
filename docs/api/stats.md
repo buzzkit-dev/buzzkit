@@ -41,3 +41,11 @@ The same window also carries the event stream and the engine (Tinybird behind th
 - `runs: { started, live, completed, canceled, failed }` for runs **started** in the window, split by where they stand now, and `runsStarted` / `runsCompleted` / `runsFailed` per bucket in `series`; `previous` carries `events` and `runs` for the deltas.
 - `workflows: [{ slug, name, running, sleeping, waiting, lastRunAt }]`, the active workflows with the most live runs (up to five) and when each last started a run.
 - `scheduled: { count, nextAt }`, the messages still waiting for their moment and the earliest one.
+
+## GET /v1/admin/stats
+
+Admins only ([admin.md](../admin.md)): the same response computed across every tenant on the deployment. `workflows` is always empty and a `platform` block is added: `topWorkspaces` (slug, name, messages, delivered), `eventWorkspaces` (slug, name, events), `growingWorkspaces` (slug, name, subscribers, added) and `newestWorkspaces` (slug, name, createdAt, subscribers, members), five rows each, all for the requested range except the newest list. Session-only; a non-admin session is 403 `admin_required`.
+
+## GET /v1/admin/rates
+
+Admins only ([admin.md](../admin.md)): the platform's throughput right now. `window: { from, to, sampleMinutes }` covers the last thirty whole minutes (the current, partial minute is left out), and `deliveries`, `messages`, `events` and `runs` each carry `perMinute`, the average over the last `sampleMinutes` (five) of that window rounded to one decimal, and `series`, one `{ minute, count }` per minute of the window with zeros filled in. Deliveries and messages are counted in Postgres by creation minute, events (without `source: system`) and runs by the `event_rate` and `run_rate` pipes over the raw tables, since the hourly rollups cannot resolve a minute. Cheap enough to poll: the admin Overview asks every ten seconds.

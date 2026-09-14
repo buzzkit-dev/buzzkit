@@ -725,12 +725,9 @@ describe('admin', () => {
 
     expect((await api(`/v1/workspaces/${workspace.slug}`, { headers: ownerBearer })).status).toBe(404);
     expect((await api(`/v1/workspaces/${workspace.slug}`, { headers: support.bearer })).status).toBe(404);
-    const search = await api<{ items: Array<{ slug: string }> }>(
-      `/v1/workspaces?all=true&q=${workspace.slug}`,
-      {
-        headers: support.bearer,
-      }
-    );
+    const search = await api<{ items: Array<{ slug: string }> }>(`/v1/admin/workspaces?q=${workspace.slug}`, {
+      headers: support.bearer,
+    });
     expect(search.body.data?.items).toEqual([]);
   });
 
@@ -747,7 +744,7 @@ describe('admin', () => {
   it('the admin query is session-only and no key can be granted anything resembling an admin scope', async () => {
     const { workspace, ownerBearer, keyBearer } = await setupWorkspace({ bare: true });
 
-    const withKey = await api('/v1/workspaces?all=true', { headers: keyBearer });
+    const withKey = await api('/v1/admin/workspaces', { headers: keyBearer });
     expect(withKey.status).toBe(401);
 
     const granted = await api(`/v1/workspaces/${workspace.slug}/keys`, {

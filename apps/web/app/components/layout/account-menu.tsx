@@ -23,7 +23,7 @@ import { initials } from '@/app/lib/utils/format';
 
 function useWorkspaceAction(): string {
   const { slug } = useParams();
-  return `/${slug}`;
+  return slug ? `/${slug}` : '/admin';
 }
 
 export function AccountMenu({

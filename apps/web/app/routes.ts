@@ -12,7 +12,11 @@ export default [
   route('ui', 'routes/ui/index.tsx'),
   route('ui/errors', 'routes/ui/errors/index.tsx'),
   route('design.md', 'routes/design.md/index.ts'),
-  route('admin', 'routes/admin/index.tsx'),
+  route('admin', 'routes/admin/layout.tsx', [
+    index('routes/admin/index.tsx'),
+    route('workspaces', 'routes/admin/workspaces/index.tsx'),
+    route('rates', 'routes/admin/rates/index.ts'),
+  ]),
   route(':slug/onboarding/*', 'routes/[slug]/onboarding/index.tsx'),
   route(':slug', 'routes/[slug]/layout.tsx', [
     index('routes/[slug]/index.tsx'),

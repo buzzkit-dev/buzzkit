@@ -544,54 +544,6 @@
         "tags": [
           "Workspaces"
         ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "anyOf": [
-                {
-                  "format": "integer",
-                  "default": 0,
-                  "type": "string"
-                },
-                {
-                  "minimum": 1,
-                  "maximum": 100,
-                  "type": "integer"
-                }
-              ]
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "all",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "maxLength": 200,
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Response for status 200",

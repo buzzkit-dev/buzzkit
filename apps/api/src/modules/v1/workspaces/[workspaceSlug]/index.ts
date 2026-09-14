@@ -1,4 +1,4 @@
-import { markWorkspaceAccess } from '@buzzkit/api/api/admins/index';
+import { markWorkspaceAccess } from '@buzzkit/api/api/admin/index';
 import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import {
   assertSlugAvailable,

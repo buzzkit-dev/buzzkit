@@ -119,8 +119,20 @@ export function getProfile(ctx: RequestContext, token: string) {
 
 export type AdminWorkspaceQuery = { q?: string; limit?: number; cursor?: string };
 
+export function getPlatformStats(
+  ctx: RequestContext,
+  token: string,
+  query: { from?: string; to?: string; interval?: 'hour' | 'day' | 'week' | 'month' } = {}
+) {
+  return unwrap(ctx, client(ctx.env, token).admin.stats.get({ query }));
+}
+
 export function listEveryWorkspace(ctx: RequestContext, token: string, query: AdminWorkspaceQuery = {}) {
-  return unwrap(ctx, client(ctx.env, token).workspaces.get({ query: { ...query, all: true } }));
+  return unwrap(ctx, client(ctx.env, token).admin.workspaces.get({ query }));
+}
+
+export function getPlatformRates(ctx: RequestContext, token: string) {
+  return unwrap(ctx, client(ctx.env, token).admin.rates.get());
 }
 
 export function updateProfile(ctx: RequestContext, token: string, patch: { name: string }) {
@@ -1386,6 +1398,8 @@ export type EventNameDetail = Awaited<ReturnType<typeof getEventName>>;
 export type EventVolume = Awaited<ReturnType<typeof getEventVolume>>;
 export type EventsToken = Awaited<ReturnType<typeof getEventsToken>>;
 export type Stats = Awaited<ReturnType<typeof getStats>>;
+export type PlatformStats = Awaited<ReturnType<typeof getPlatformStats>>;
+export type PlatformRates = Awaited<ReturnType<typeof getPlatformRates>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];

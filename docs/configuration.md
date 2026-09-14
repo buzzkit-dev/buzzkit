@@ -55,7 +55,7 @@ Every variable, secret and binding the two Workers read, what it is for, and whe
 ## Which accounts a self-hoster needs
 
 - A PostgreSQL database and a Cloudflare account for the two Workers, KV, the queues, Durable Objects and Hyperdrive.
-- A Tinybird workspace for the event stream (a free workspace is enough to start): `bun run deploy` in `packages/tinybird` creates the data sources, materialized views and endpoints, and its admin token becomes `TINYBIRD_TOKEN`. Locally, `docker compose` runs Tinybird Local and `bun run build` in `packages/tinybird` pushes the same project into it.
+- A Tinybird workspace for the event stream (a free workspace is enough to start): `bun run deploy` in `packages/tinybird` creates the data sources, materialized views and endpoints (on the hosted deployment CI runs it for every change to the package, `.github/workflows/tinybird.yml`), and its admin token becomes `TINYBIRD_TOKEN`. Locally, `docker compose` runs Tinybird Local and `bun run build` in `packages/tinybird` pushes the same project into it.
 - Provider credentials for the channels they use (Apple Developer key, Firebase service account, Resend key), uploaded through the dashboard, never configured as environment.
 - Nothing else. GitHub sign-in, Axiom and OTLP tracing are optional extras.
 

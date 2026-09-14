@@ -55,6 +55,37 @@ export type StatsWorkflow = {
   lastRunAt: string | null;
 };
 
+export type StatsWorkspace = { slug: string; name: string; messages: number; delivered: number };
+
+export type StatsEventWorkspace = { slug: string; name: string; events: number };
+
+export type StatsGrowthWorkspace = { slug: string; name: string; subscribers: number; added: number };
+
+export type StatsNewWorkspace = {
+  slug: string;
+  name: string;
+  createdAt: string;
+  subscribers: number;
+  members: number;
+};
+
+export type StatsPlatform = {
+  topWorkspaces: StatsWorkspace[];
+  eventWorkspaces: StatsEventWorkspace[];
+  growingWorkspaces: StatsGrowthWorkspace[];
+  newestWorkspaces: StatsNewWorkspace[];
+};
+
+export type StatsRate = { perMinute: number; series: Array<{ minute: string; count: number }> };
+
+export type StatsRates = {
+  window: { from: string; to: string; sampleMinutes: number };
+  deliveries: StatsRate;
+  messages: StatsRate;
+  events: StatsRate;
+  runs: StatsRate;
+};
+
 export type Stats = {
   range: { from: string; to: string };
   interval: StatsInterval;
@@ -68,4 +99,5 @@ export type Stats = {
   scheduled: { count: number; nextAt: string | null };
   previous: StatsWindow;
   series: StatsDay[];
+  platform?: StatsPlatform;
 };
