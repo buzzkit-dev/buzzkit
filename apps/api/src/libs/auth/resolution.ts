@@ -6,13 +6,28 @@ import {
   selectActiveApiKeyByHash,
   touchApiKey,
 } from '@buzzkit/api/api/keys/index';
+import type { WorkspaceMember } from '@buzzkit/api/api/members/index';
 import { and, type Db, eq, isNull, tables } from '@buzzkit/database';
 import { readCache, writeCache } from '../cache';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../error';
-import { ROLE_SCOPES } from '../scopes';
+import { GRANTED_SCOPES, ROLE_SCOPES } from '../scopes';
 import { trace } from '../telemetry';
 import { authClient, SESSION_CACHE_TTL, sessionCacheKey } from './client';
 import type { CachedSession, Session, User } from './types';
+
+function resolveWorkspaceGrant(
+  user: User,
+  membership: WorkspaceMember | null
+): { scopes: readonly string[]; actor: Actor } | null {
+  if (membership) {
+    return {
+      scopes: user.admin ? GRANTED_SCOPES : ROLE_SCOPES[membership.role],
+      actor: { type: 'member', user, memberId: membership.id },
+    };
+  }
+  if (!user.admin) return null;
+  return { scopes: GRANTED_SCOPES, actor: { type: 'admin', user } };
+}
 
 export const userMiddleware = (request: Request, db: Db) => {
   return trace('auth.userMiddleware', async (t) => {
@@ -70,8 +85,13 @@ export const workspaceMiddleware = (request: Request, params: Record<string, str
         .select({
           workspace: tables.workspace,
           membership: tables.workspaceMember,
+          admin: tables.auth.user.admin,
         })
         .from(tables.workspace)
+        .leftJoin(
+          tables.auth.user,
+          and(eq(tables.auth.user.id, auth.user.id), isNull(tables.auth.user.deletedAt))
+        )
         .leftJoin(
           tables.workspaceMember,
           and(
@@ -86,24 +106,24 @@ export const workspaceMiddleware = (request: Request, params: Record<string, str
       t.set('auth.error', 'workspace_not_found');
       throw new NotFoundError('Workspace not found');
     }
-    if (!result.membership) {
+    const user = { ...(auth.user as User), admin: result.admin === true };
+    const grant = resolveWorkspaceGrant(user, result.membership);
+    if (!grant) {
       t.set('auth.error', 'not_a_member');
       throw new NotFoundError('Workspace not found');
     }
-    const scopes: readonly string[] = ROLE_SCOPES[result.membership.role];
     t.set('workspace.id', result.workspace.id);
-    t.set('membership.role', result.membership.role);
-    const user = auth.user as User;
-    const actor: Actor = { type: 'member', user, memberId: result.membership.id };
+    if (user.admin) t.set('auth.admin', true);
+    if (result.membership) t.set('membership.role', result.membership.role);
     return {
       user,
       session: auth.session as Session,
       workspace: result.workspace,
       membership: result.membership,
       apiKey: null,
-      scopes,
-      actor,
-      audit: createAuditLogger(db, actor, request, result.workspace.id),
+      scopes: grant.scopes,
+      actor: grant.actor,
+      audit: createAuditLogger(db, grant.actor, request, result.workspace.id),
     };
   });
 };

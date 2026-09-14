@@ -10,6 +10,18 @@ const client = postgres('postgresql://postgres:postgres@localhost:5460/buzzkit',
 
 export const db = drizzle(client, { schema: tables });
 
+export async function grantAdmin(email: string): Promise<void> {
+  await db.update(tables.auth.user).set({ admin: true }).where(eq(tables.auth.user.email, email));
+}
+
+export async function revokeAdmin(email: string): Promise<void> {
+  await db.update(tables.auth.user).set({ admin: false }).where(eq(tables.auth.user.email, email));
+}
+
+export async function softDeleteUser(email: string): Promise<void> {
+  await db.update(tables.auth.user).set({ deletedAt: new Date() }).where(eq(tables.auth.user.email, email));
+}
+
 export async function tenantIdFor(workspaceSlug: string, tenantSlug = 'default'): Promise<number> {
   const [row] = await db
     .select({ id: tables.tenant.id })

@@ -44,6 +44,8 @@ export function Sidebar({
   workspace,
   workspaces,
   profile,
+  admin,
+  supporting,
   tenant,
   tenants,
   quickstart = false,
@@ -54,6 +56,8 @@ export function Sidebar({
   workspace: Workspace | null;
   workspaces: Workspace[];
   profile: Profile | null;
+  admin: boolean;
+  supporting: boolean;
   tenant: Tenant | null;
   tenants: Tenant[];
   quickstart?: boolean;
@@ -89,7 +93,13 @@ export function Sidebar({
   return (
     <aside className={cn('flex w-60 shrink-0 flex-col gap-0.5 px-3 pt-3 pb-2', className)}>
       {workspace ? (
-        <WorkspaceSwitcher workspaces={workspaces} current={workspace} tenant={tenant} tenants={tenants} />
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          current={workspace}
+          tenant={tenant}
+          tenants={tenants}
+          supporting={supporting}
+        />
       ) : (
         <SwitcherPlaceholder slug={slug} />
       )}
@@ -251,7 +261,7 @@ export function Sidebar({
         ))}
       </nav>
 
-      {profile ? <AccountMenu profile={profile} variant='row' /> : <AccountPlaceholder />}
+      {profile ? <AccountMenu profile={profile} admin={admin} variant='row' /> : <AccountPlaceholder />}
     </aside>
   );
 }

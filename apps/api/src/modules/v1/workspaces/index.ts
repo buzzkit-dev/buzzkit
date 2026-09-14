@@ -1,3 +1,4 @@
+import { assertAdmin, listEveryWorkspace, WorkspaceListQuerySchema } from '@buzzkit/api/api/admins/index';
 import {
   assertSlugAvailable,
   createWorkspace,
@@ -9,6 +10,7 @@ import {
 import { auth } from '@buzzkit/api/libs/auth/index';
 import { Response } from '@buzzkit/api/libs/response';
 import { UrlSchema } from '@buzzkit/api/libs/schemas';
+import { PaginationQuerySchema } from '@buzzkit/api/utils/pagination';
 import Elysia, { t } from 'elysia';
 
 export const workspaces = new Elysia()
@@ -16,11 +18,18 @@ export const workspaces = new Elysia()
   .guard({ detail: { tags: ['Workspaces'] } })
   .get(
     '/workspaces',
-    async ({ db, user }) => {
+    async ({ db, user, query }) => {
+      if (query.all) {
+        await assertAdmin(db, user.id);
+        return Response.page(await listEveryWorkspace(db, user.id, query), { entity: 'workspace' }).send();
+      }
       const rows = await listWorkspacesForUser(db, user.id);
       return Response.list(rows, { entity: 'workspace' }).send();
     },
-    { account: 'read' }
+    {
+      account: 'read',
+      query: t.Object({ ...PaginationQuerySchema.properties, ...WorkspaceListQuerySchema.properties }),
+    }
   )
   .post(
     '/workspaces',
@@ -36,7 +45,12 @@ export const workspaces = new Elysia()
         data: { name: body.name, slug: body.slug },
       });
 
-      return Response.success({ ...serializeWorkspace(workspace), role: 'owner' }, { entity: 'workspace' })
+      return Response.success(
+        { ...serializeWorkspace(workspace), role: 'owner' },
+        {
+          entity: 'workspace',
+        }
+      )
         .status(201)
         .send(set);
     },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../utils/api';
+import { grantAdmin } from '../../utils/db';
 import {
   addMember,
   createClientKey,
@@ -647,5 +648,210 @@ describe('isolation: a leaked key can never escalate', () => {
       }
     );
     expect(list.body.data?.items?.every((row) => !('token' in row))).toBe(true);
+  });
+});
+
+describe('admin', () => {
+  it('resolves any workspace with every scope, session-only ones included, without being a member', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace({ bare: true });
+    const support = await signUpUser('Support');
+    await grantAdmin(support.email);
+    const membersBefore = await api(`/v1/workspaces/${workspace.slug}/members`, { headers: ownerBearer });
+
+    const read = await api(`/v1/workspaces/${workspace.slug}`, { headers: support.bearer });
+    expect(read.status).toBe(200);
+    expect(read.body.data).toMatchObject({ role: 'owner' });
+    expect(read.body.data).not.toHaveProperty('admin');
+
+    const attempts = [
+      api(`/v1/workspaces/${workspace.slug}`, {
+        method: 'PATCH',
+        headers: support.bearer,
+        body: JSON.stringify({ name: 'Renamed by support' }),
+      }),
+      api(`/v1/workspaces/${workspace.slug}/keys`, { headers: support.bearer }),
+      api(`/v1/workspaces/${workspace.slug}/audit`, { headers: support.bearer }),
+      api(`/v1/workspaces/${workspace.slug}/invites`, { headers: support.bearer }),
+      api('/v1/tenants/default/identity-secret', {
+        headers: { ...support.bearer, 'buzzkit-workspace': workspace.slug },
+      }),
+    ];
+    for (const attempt of await Promise.all(attempts)) expect(attempt.status).toBe(200);
+
+    const membersAfter = await api(`/v1/workspaces/${workspace.slug}/members`, { headers: ownerBearer });
+    expect(membersAfter.body.data).toEqual(membersBefore.body.data);
+  });
+
+  it('an admin who is also a plain member keeps full scopes and acts there as themselves', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace({ bare: true });
+    const member = await signUpUser('Member');
+    await grantAdmin(member.email);
+    const invite = await api<{ token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: member.email, role: 'member' }),
+    });
+    await api(`/v1/invites/${invite.body.data?.token}/accept`, { method: 'POST', headers: member.bearer });
+
+    const read = await api(`/v1/workspaces/${workspace.slug}`, { headers: member.bearer });
+    expect(read.body.data).toMatchObject({ role: 'owner' });
+    expect(read.body.data).not.toHaveProperty('admin');
+
+    const rename = await api(`/v1/workspaces/${workspace.slug}`, {
+      method: 'PATCH',
+      headers: member.bearer,
+      body: JSON.stringify({ name: 'Renamed by a member admin' }),
+    });
+    expect(rename.status).toBe(200);
+
+    const log = await api<{ items: Array<{ event: string; actorType: string; actorDisplay: string }> }>(
+      `/v1/workspaces/${workspace.slug}/audit`,
+      { headers: ownerBearer }
+    );
+    const updated = log.body.data?.items.find((entry) => entry.event === 'workspace.updated');
+    expect(updated).toMatchObject({ actorType: 'member', actorDisplay: member.email });
+  });
+
+  it('an admin can delete a foreign workspace, after which it is gone for everyone including the platform search', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace({ bare: true });
+    const support = await signUpUser('Support');
+    await grantAdmin(support.email);
+
+    const deleted = await api(`/v1/workspaces/${workspace.slug}`, {
+      method: 'DELETE',
+      headers: support.bearer,
+    });
+    expect(deleted.status).toBe(200);
+
+    expect((await api(`/v1/workspaces/${workspace.slug}`, { headers: ownerBearer })).status).toBe(404);
+    expect((await api(`/v1/workspaces/${workspace.slug}`, { headers: support.bearer })).status).toBe(404);
+    const search = await api<{ items: Array<{ slug: string }> }>(
+      `/v1/workspaces?all=true&q=${workspace.slug}`,
+      {
+        headers: support.bearer,
+      }
+    );
+    expect(search.body.data?.items).toEqual([]);
+  });
+
+  it("an admin's own workspace list stays their memberships, never every workspace", async () => {
+    const foreign = await setupWorkspace({ bare: true });
+    const support = await signUpUser('Support');
+    await grantAdmin(support.email);
+    await api(`/v1/workspaces/${foreign.workspace.slug}`, { headers: support.bearer });
+
+    const list = await api<{ items: Array<{ slug: string }> }>('/v1/workspaces', { headers: support.bearer });
+    expect(list.body.data?.items).toEqual([]);
+  });
+
+  it('the admin query is session-only and no key can be granted anything resembling an admin scope', async () => {
+    const { workspace, ownerBearer, keyBearer } = await setupWorkspace({ bare: true });
+
+    const withKey = await api('/v1/workspaces?all=true', { headers: keyBearer });
+    expect(withKey.status).toBe(401);
+
+    const granted = await api(`/v1/workspaces/${workspace.slug}/keys`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ name: 'Escalation', scopes: ['admin:read'] }),
+    });
+    expect(granted.status).toBe(400);
+    expect(granted.body.error?.code).toBe('invalid_scope');
+  });
+});
+
+describe('admin through the data plane and as a member', () => {
+  it('reaches every route family through the workspace and tenant headers, attributed as BuzzKit Support', async () => {
+    const { workspace, ownerBearer } = await setupWorkspace();
+    const support = await signUpUser('Support');
+    await grantAdmin(support.email);
+    const scoped = { ...support.bearer, 'buzzkit-workspace': workspace.slug };
+
+    const tenant = await api<{ slug: string }>('/v1/tenants', {
+      method: 'POST',
+      headers: scoped,
+      body: JSON.stringify({ name: 'Support tenant', slug: `support-${uniq()}` }),
+    });
+    expect(tenant.status).toBe(201);
+    const inTenant = { ...scoped, 'buzzkit-tenant': tenant.body.data?.slug ?? '' };
+
+    const subscriber = await api('/v1/subscribers/support-probe', {
+      method: 'PUT',
+      headers: scoped,
+      body: JSON.stringify({ attributes: { plan: 'pro' } }),
+    });
+    expect([200, 201]).toContain(subscriber.status);
+    const topic = await api('/v1/topics', {
+      method: 'POST',
+      headers: scoped,
+      body: JSON.stringify({ name: 'Support topic', slug: `support-topic-${uniq()}`, channels: ['push'] }),
+    });
+    expect(topic.status).toBe(201);
+    const key = await api<{ id: string }>(`/v1/workspaces/${workspace.slug}/keys`, {
+      method: 'POST',
+      headers: support.bearer,
+      body: JSON.stringify({ name: 'Support key', scopes: ['workspace:read'] }),
+    });
+    expect(key.status).toBe(201);
+    const revoked = await api(`/v1/workspaces/${workspace.slug}/keys/${key.body.data?.id}`, {
+      method: 'DELETE',
+      headers: support.bearer,
+    });
+    expect(revoked.status).toBe(200);
+    const removedTenant = await api(`/v1/tenants/${tenant.body.data?.slug}`, {
+      method: 'DELETE',
+      headers: inTenant,
+    });
+    expect(removedTenant.status).toBe(200);
+
+    const log = await api<{ items: Array<{ event: string; actorType: string; actorDisplay: string }> }>(
+      `/v1/workspaces/${workspace.slug}/audit`,
+      { headers: ownerBearer }
+    );
+    for (const name of ['tenant.created', 'tenant.deleted', 'topic.created', 'key.created', 'key.revoked']) {
+      const row = log.body.data?.items.find((entry) => entry.event === name);
+      expect(row, name).toMatchObject({ actorType: 'admin', actorDisplay: 'BuzzKit Support' });
+    }
+    expect(JSON.stringify(log.body)).not.toContain(support.email);
+  });
+
+  it('a member-role admin can do owner-only things, acts as themselves, and their stored role never changes', async () => {
+    const { workspace, owner, ownerBearer } = await setupWorkspace({ bare: true });
+    const member = await signUpUser('Member');
+    await grantAdmin(member.email);
+    const invite = await api<{ token: string }>(`/v1/workspaces/${workspace.slug}/invites`, {
+      method: 'POST',
+      headers: ownerBearer,
+      body: JSON.stringify({ email: member.email, role: 'member' }),
+    });
+    const accepted = await api<{ id: string }>(`/v1/invites/${invite.body.data?.token}/accept`, {
+      method: 'POST',
+      headers: member.bearer,
+    });
+    const colleague = await addMember(owner.token, workspace.slug, 'member');
+
+    const promote = await api(`/v1/workspaces/${workspace.slug}/members/${colleague.memberId}`, {
+      method: 'PATCH',
+      headers: member.bearer,
+      body: JSON.stringify({ role: 'owner' }),
+    });
+    expect(promote.status).toBe(200);
+
+    const log = await api<{ items: Array<{ event: string; actorType: string; actorDisplay: string }> }>(
+      `/v1/workspaces/${workspace.slug}/audit`,
+      { headers: ownerBearer }
+    );
+    const changed = log.body.data?.items.find((entry) => entry.event === 'member.role_changed');
+    expect(changed).toMatchObject({ actorType: 'member', actorDisplay: member.email });
+
+    const members = await api<{ items: Array<{ id: string; role: string }> }>(
+      `/v1/workspaces/${workspace.slug}/members`,
+      { headers: ownerBearer }
+    );
+    expect(members.body.data?.items.find((entry) => entry.id === accepted.body.data?.id)?.role).toBe(
+      'member'
+    );
+    const self = await api(`/v1/workspaces/${workspace.slug}`, { headers: member.bearer });
+    expect(self.body.data).toMatchObject({ role: 'owner' });
   });
 });

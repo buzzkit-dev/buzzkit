@@ -58,3 +58,7 @@ Every variable, secret and binding the two Workers read, what it is for, and whe
 - A Tinybird workspace for the event stream (a free workspace is enough to start): `bun run deploy` in `packages/tinybird` creates the data sources, materialized views and endpoints, and its admin token becomes `TINYBIRD_TOKEN`. Locally, `docker compose` runs Tinybird Local and `bun run build` in `packages/tinybird` pushes the same project into it.
 - Provider credentials for the channels they use (Apple Developer key, Firebase service account, Resend key), uploaded through the dashboard, never configured as environment.
 - Nothing else. GitHub sign-in, Axiom and OTLP tracing are optional extras.
+
+## Admins
+
+Nothing to configure and no command to run. Internal support access to every workspace ([admin.md](admin.md)) is the `admin` boolean on the `user` row, off for everyone. Flip it by hand in the database when you need it; there is deliberately no API, script or UI for granting it.

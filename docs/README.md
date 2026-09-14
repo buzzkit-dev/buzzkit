@@ -8,6 +8,7 @@ Product and architecture documentation — the source of truth for what we're bu
 - [architecture.md](architecture.md) — runtime, API layers, APNs egress findings, testing, secrets
 - [configuration.md](configuration.md) — every variable, secret and binding, what it is for, and what a self-hoster actually needs
 - [authentication.md](authentication.md) — credentials, scopes, workspace addressing, isolation invariants
+- [admin.md](admin.md) — spec: `user.admin`, full invisible access to every workspace for support (changes show to the workspace as `system`), the hidden platform ledger that records each visit and change, the `?all=true` workspace search and the dashboard's support view
 - [data-model.md](data-model.md) — schema conventions and tables per phase
 - [design.md](design.md) — the design system: tokens, components, motion, writing, the dashboard conventions (served at `/design.md`)
 - [dashboard.md](dashboard.md) — `apps/web`: auth architecture, route map, the onboarding flow, and the dashboard phase plan

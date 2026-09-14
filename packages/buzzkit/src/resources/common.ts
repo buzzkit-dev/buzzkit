@@ -12,7 +12,7 @@ export const EVENT_SOURCES = ['server', 'ios', 'android', 'web', 'system'] as co
 
 export const EVENT_FILTER_SOURCES = [...EVENT_SOURCES, 'webhook'] as const;
 
-export const ACTOR_TYPES = ['member', 'user', 'key', 'system'] as const;
+export const ACTOR_TYPES = ['member', 'admin', 'key', 'system'] as const;
 
 export const CREDENTIAL_STATUSES = ['unvalidated', 'active', 'invalid'] as const;
 

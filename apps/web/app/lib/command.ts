@@ -16,6 +16,7 @@ export type Jump = { path: string; label: string; hint: string; icon: IconName }
 export type Recent = { path: string; at: number };
 
 export type SearchKind =
+  | 'workspace'
   | 'subscriber'
   | 'event'
   | 'workflow'
@@ -28,6 +29,7 @@ export type SearchKind =
 export type SearchResult = { kind: SearchKind; path: string; label: string; hint: string; icon: IconName };
 
 export const SEARCH_HEADINGS: Record<SearchKind, string> = {
+  workspace: 'Workspaces',
   subscriber: 'Subscribers',
   event: 'Events',
   workflow: 'Workflows',
@@ -37,6 +39,10 @@ export const SEARCH_HEADINGS: Record<SearchKind, string> = {
   webhook: 'Webhooks',
   source: 'Sources',
 };
+
+export function resolveResultPath(base: string, result: SearchResult): string {
+  return result.kind === 'workspace' ? result.path : `${base}${result.path}`;
+}
 
 export const SEARCH_MIN_LENGTH = 2;
 export const SEARCH_DEBOUNCE_MS = 200;

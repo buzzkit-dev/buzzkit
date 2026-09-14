@@ -16,7 +16,7 @@ import { Label } from '@buzzkit/ui/components/label';
 import { toast } from '@buzzkit/ui/components/sonner';
 import { Truncate } from '@buzzkit/ui/components/truncate';
 import { useEffect, useState } from 'react';
-import { useParams, useSubmit } from 'react-router';
+import { Link, useParams, useSubmit } from 'react-router';
 import { useActionFetcher } from '@/app/hooks/use-action-fetcher';
 import type { Profile } from '@/app/lib/api.server';
 import { initials } from '@/app/lib/utils/format';
@@ -28,9 +28,11 @@ function useWorkspaceAction(): string {
 
 export function AccountMenu({
   profile,
+  admin = false,
   variant = 'avatar',
 }: {
   profile: Profile;
+  admin?: boolean;
   variant?: 'avatar' | 'row';
 }) {
   const submit = useSubmit();
@@ -89,6 +91,11 @@ export function AccountMenu({
             <DropdownMenuItem icon='IconPeopleFilled' onClick={() => setEditOpen(true)}>
               Edit profile
             </DropdownMenuItem>
+            {admin && (
+              <DropdownMenuItem icon='IconShieldFilled' render={<Link to='/admin' />}>
+                Admin
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               icon='IconArrowBoxRight'
               onClick={() => submit({ intent: 'sign-out' }, { method: 'post', action: workspaceAction })}

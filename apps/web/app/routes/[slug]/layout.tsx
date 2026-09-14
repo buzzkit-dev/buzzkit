@@ -32,6 +32,7 @@ import {
   getProfile,
   getWorkspace,
   listCredentials,
+  listEveryWorkspace,
   listMessages,
   listTenants,
   listWorkspaces,
@@ -79,6 +80,7 @@ export type WorkspaceOutletContext = {
 type Chrome = {
   workspace: Workspace;
   workspaces: Workspace[];
+  every: Workspace[] | null;
   profile: Profile;
   connected: Channel[];
   tenant: Tenant;
@@ -102,9 +104,15 @@ async function resolveChrome(
   listed: WorkspaceList | null
 ): Promise<ChromeOutcome> {
   try {
-    const [workspace, workspaces, profile, tenants, requestedCredentials] = await Promise.all([
+    const [workspace, workspaces, every, profile, tenants, requestedCredentials] = await Promise.all([
       getWorkspace(ctx, token, slug),
       listed ?? listWorkspaces(ctx, token),
+      listEveryWorkspace(ctx, token, { limit: 100 })
+        .then((page) => page.items)
+        .catch((error: unknown) => {
+          if (error instanceof ApiError && error.status === 403) return null;
+          throw error;
+        }),
       getProfile(ctx, token),
       listTenants(ctx, token, slug),
       listCredentials(ctx, token, slug, requested).catch((error: unknown) => {
@@ -123,6 +131,7 @@ async function resolveChrome(
       chrome: {
         workspace,
         workspaces,
+        every,
         profile,
         connected: connectedChannels(credentials),
         tenant,
@@ -220,6 +229,9 @@ function resolveSidebar(slug: string, chrome: Chrome | null, last: Chrome | null
     return {
       workspace: chrome.workspace,
       workspaces: listed ? chrome.workspaces : [chrome.workspace, ...chrome.workspaces],
+      every: chrome.every ?? chrome.workspaces,
+      admin: chrome.every !== null,
+      supporting: !listed,
       profile: chrome.profile,
       tenant: chrome.tenant,
       tenants: chrome.tenants,
@@ -228,6 +240,9 @@ function resolveSidebar(slug: string, chrome: Chrome | null, last: Chrome | null
   return {
     workspace: last?.workspaces.find((entry) => entry.slug === slug) ?? null,
     workspaces: last?.workspaces ?? [],
+    every: last?.every ?? last?.workspaces ?? [],
+    admin: (last?.every ?? null) !== null,
+    supporting: false,
     profile: last?.profile ?? null,
     tenant: null,
     tenants: [],
@@ -272,6 +287,7 @@ function MobileBar({
             current={sidebar.workspace}
             tenant={sidebar.tenant}
             tenants={sidebar.tenants}
+            supporting={sidebar.supporting}
             className='w-auto max-w-full'
           />
         ) : (
@@ -279,7 +295,7 @@ function MobileBar({
         )}
       </div>
       {sidebar.profile ? (
-        <AccountMenu profile={sidebar.profile} />
+        <AccountMenu profile={sidebar.profile} admin={sidebar.admin} />
       ) : (
         <Skeleton className='size-7 shrink-0 rounded-full' />
       )}
@@ -307,7 +323,7 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
   );
   const viewingTenant = requested !== 'default' && tenantPage;
   const tenantName = chrome && chrome.tenant.slug === requested ? chrome.tenant.name : null;
-  const supporting = chrome?.workspace.admin === true;
+  const supporting = Boolean(chrome) && sidebar.supporting;
 
   useLive(route?.live !== false);
 
@@ -376,7 +392,8 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
         open={commandOpen}
         onOpenChange={setCommandOpen}
         slug={slug}
-        workspaces={sidebar.workspaces}
+        workspaces={sidebar.every}
+        admin={sidebar.admin}
         workspace={sidebar.workspace}
         tenants={sidebar.tenants}
         tenant={sidebar.tenant}
@@ -410,9 +427,9 @@ export default function WorkspaceLayout({ loaderData }: Route.ComponentProps) {
               size='xs'
               className='text-amber-4 not-disabled:hover:text-amber-4 not-disabled:hover:before:bg-amber-4/15 not-disabled:active:text-amber-4 not-disabled:active:before:bg-amber-4/20'
               nativeButton={false}
-              render={<Link to='/platform' />}
+              render={<Link to='/admin' />}
             >
-              Back to platform
+              Back to admin
             </Button>
           </div>
         )}

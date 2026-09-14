@@ -1,5 +1,5 @@
 import type { ActorEventRow } from '@buzzkit/api/actor/types';
-import type { AuditRow } from '@buzzkit/api/api/audit/index';
+import { type AuditRow, resolveActorDisplay } from '@buzzkit/api/api/audit/index';
 import { serializeCredential } from '@buzzkit/api/api/credentials/index';
 import { serializeInvite } from '@buzzkit/api/api/invites/index';
 import { serializeMember } from '@buzzkit/api/api/members/index';
@@ -53,7 +53,7 @@ export async function buildAuditPayload(db: Db, row: AuditRow, scope: WebhookSco
     apiVersion: WEBHOOK_API_VERSION,
     createdAt: row.createdAt.toISOString(),
     ...scopeFields(scope),
-    actor: { type: row.actorType, display: row.actorDisplay },
+    actor: { type: row.actorType, display: resolveActorDisplay(row) },
     request: row.requestId ? { id: row.requestId } : null,
     target: row.targetType
       ? {

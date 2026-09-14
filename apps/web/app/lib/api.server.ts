@@ -62,7 +62,7 @@ type Clean<T> = T extends { toISOString: unknown }
   : T extends Array<infer U>
     ? Clean<U>[]
     : T extends object
-      ? { [K in keyof T & string]: Clean<T[K]> }
+      ? { [K in keyof T as K & string]: Clean<T[K]> }
       : T;
 
 async function unwrap<R extends { data: unknown; error: unknown }>(
@@ -115,6 +115,12 @@ export function deleteWorkspace(ctx: RequestContext, token: string, workspaceSlu
 
 export function getProfile(ctx: RequestContext, token: string) {
   return unwrap(ctx, client(ctx.env, token).profile.get());
+}
+
+export type AdminWorkspaceQuery = { q?: string; limit?: number; cursor?: string };
+
+export function listEveryWorkspace(ctx: RequestContext, token: string, query: AdminWorkspaceQuery = {}) {
+  return unwrap(ctx, client(ctx.env, token).workspaces.get({ query: { ...query, all: true } }));
 }
 
 export function updateProfile(ctx: RequestContext, token: string, patch: { name: string }) {
@@ -859,7 +865,7 @@ export type AuditQuery = {
   cursor?: string;
   q?: string;
   event?: string;
-  actorType?: 'member' | 'user' | 'key' | 'system';
+  actorType?: 'member' | 'admin' | 'key' | 'system';
   from?: string;
   to?: string;
 };

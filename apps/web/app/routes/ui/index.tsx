@@ -1992,6 +1992,8 @@ export default function DesignSystem() {
                   { ...MOCK_WORKSPACE, id: 'ws_2', name: 'Side project', slug: 'side' },
                 ]}
                 profile={MOCK_PROFILE}
+                admin={false}
+                supporting={false}
                 tenant={MOCK_TENANTS[0]!}
                 tenants={MOCK_TENANTS}
               />
@@ -2005,6 +2007,8 @@ export default function DesignSystem() {
                 workspace={null}
                 workspaces={[]}
                 profile={null}
+                admin={false}
+                supporting={false}
                 tenant={null}
                 tenants={[]}
               />

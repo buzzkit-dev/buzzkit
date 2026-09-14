@@ -52,7 +52,7 @@ const VOCABULARIES = {
 };
 
 const POSTGRES_BACKED = {
-  ACTOR_TYPES: ['member', 'user', 'key', 'system'],
+  ACTOR_TYPES: ['member', 'admin', 'key', 'system'],
   ALIAS_SOURCES: ['system', 'manual'],
   CHANNELS: ['push', 'email'],
   CREDENTIAL_STATUSES: ['unvalidated', 'active', 'invalid'],

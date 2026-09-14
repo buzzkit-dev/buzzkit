@@ -4,9 +4,11 @@ The `event` table in Postgres is the ledger of **control-plane facts** — who d
 
 **The rule (non-negotiable):** every control-plane mutation records exactly one entry via the context-bound `audit()` function (actor + request metadata attached by the auth layer) — always `await`ed, so the row is durable before the response. Never recorded: reads, auth denials, per-request key usage. New names MUST be added to `AUDIT_CATALOG` — `audit()` calls are type-checked against it.
 
+**Support changes are ordinary entries.** A change made by an [admin](../admin.md) who is not a member of the workspace is written to the workspace's ledger with `actorType: 'admin'`; the email is stored on the row but this endpoint and the dashboard always show `actorDisplay: "BuzzKit Support"` for it. `actorType=admin` is reserved for that. There is no separate ledger and no `admin.*` event.
+
 ## GET /v1/workspaces/:workspaceSlug/audit
 
-Scope `audit:read` (admin sessions, or keys granted it). Keyset-paginated newest-first (`{ items, hasMore, nextCursor }`, cursors are `aud_…` ids); filters: `?event=tenant.created` (exact name), `?actorType=member|user|key|system`, `?from=` / `?to=` (ISO date-times on `createdAt`), and `?q=` (case-insensitive substring over the event name, the actor's display, the target id, prefixed or bare, and the subscriber's external id in `data`); `total` counts the filtered ledger for page numbering. Each event: `id`, `event`, `tenantId` (null for account/workspace-level events), `actorType`, `actorDisplay`, `actorMemberId` / `actorKeyId` (whichever applies), `targetType`, `targetId` (prefixed id), `data`, `requestId`, `ip`, `userAgent`, `createdAt`. Internal ids (workspace, BetterAuth user) are never exposed.
+Scope `audit:read` (admin sessions, or keys granted it). Keyset-paginated newest-first (`{ items, hasMore, nextCursor }`, cursors are `aud_…` ids); filters: `?event=tenant.created` (exact name), `?actorType=member|admin|key|system`, `?from=` / `?to=` (ISO date-times on `createdAt`), and `?q=` (case-insensitive substring over the event name, the actor's display, the target id, prefixed or bare, and the subscriber's external id in `data`); `total` counts the filtered ledger for page numbering. Each event: `id`, `event`, `tenantId` (null for account/workspace-level events), `actorType`, `actorDisplay`, `actorMemberId` / `actorKeyId` (whichever applies), `targetType`, `targetId` (prefixed id), `data`, `requestId`, `ip`, `userAgent`, `createdAt`. Internal ids (workspace, BetterAuth user) are never exposed.
 
 ```json
 {

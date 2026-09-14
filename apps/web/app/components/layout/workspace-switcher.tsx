@@ -49,12 +49,14 @@ export function WorkspaceSwitcher({
   current,
   tenant,
   tenants,
+  supporting = false,
   className,
 }: {
   workspaces: Workspace[];
   current: Workspace;
   tenant: Tenant | null;
   tenants: Tenant[];
+  supporting?: boolean;
   className?: string;
 }) {
   const { pathname } = useLocation();
@@ -85,6 +87,9 @@ export function WorkspaceSwitcher({
               >
                 <WorkspaceAvatar slug={workspace.slug} avatarUrl={workspace.avatarUrl} size={22} />
                 <Truncate>{workspace.name}</Truncate>
+                {supporting && workspace.slug === current.slug && (
+                  <span className='text-fg-2 text-xs'>Support</span>
+                )}
                 {workspace.slug === current.slug && (
                   <Icon name='IconCheckmark1' className='ml-auto size-4 rotate-[4deg]' />
                 )}

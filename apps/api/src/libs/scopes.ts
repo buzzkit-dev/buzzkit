@@ -70,7 +70,7 @@ export type AuthRole = 'owner' | 'admin' | 'member';
 const ALL_SCOPES = Object.keys(SCOPE_CATALOG) as Scope[];
 const WORKSPACE_SCOPES = ALL_SCOPES.filter((scope) => SCOPE_CATALOG[scope].context === 'workspace');
 const TENANT_SCOPES = ALL_SCOPES.filter((scope) => SCOPE_CATALOG[scope].context === 'tenant');
-const GRANTED_SCOPES = [...WORKSPACE_SCOPES, ...TENANT_SCOPES];
+export const GRANTED_SCOPES: readonly Scope[] = [...WORKSPACE_SCOPES, ...TENANT_SCOPES];
 
 export const SESSION_SCOPES: readonly Scope[] = ALL_SCOPES.filter(
   (scope) => SCOPE_CATALOG[scope].context === 'user'

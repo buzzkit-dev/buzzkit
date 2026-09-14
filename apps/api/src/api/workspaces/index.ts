@@ -1,3 +1,4 @@
+import { markWorkspaceAccess, selectAdmin } from '@buzzkit/api/api/admins/index';
 import {
   createDefaultClientKey,
   purgeApiKeyCacheForWorkspace,
@@ -79,7 +80,10 @@ export async function listWorkspacesForUser(db: Db, userId: string) {
       .where(and(eq(tables.workspaceMember.userId, userId), isNull(tables.workspaceMember.deletedAt)))
       .orderBy(desc(tables.workspace.createdAt));
   });
-  return rows.map(({ workspace, role }) => ({ ...serializeWorkspace(workspace), role }));
+  const admin = await selectAdmin(db, userId);
+  return rows.map(({ workspace, role }) => {
+    return markWorkspaceAccess(serializeWorkspace(workspace), { admin }, { role });
+  });
 }
 
 export async function updateWorkspace(

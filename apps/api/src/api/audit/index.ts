@@ -15,7 +15,9 @@ import {
   inArray,
   lt,
   lte,
+  ne,
   or,
+  type SQL,
   sql,
   tables,
 } from '@buzzkit/database';
@@ -44,9 +46,19 @@ export function actorColumns(actor: Actor) {
         actorKeyId: actor.apiKey.id,
         actorDisplay: `${actor.apiKey.name} (${actor.apiKey.prefix}…${actor.apiKey.last4})`,
       };
+    case 'admin':
+      return { actorType: 'admin' as const, actorUserId: actor.user.id, actorDisplay: actor.user.email };
     case 'system':
       return { actorType: 'system' as const, actorDisplay: 'system' };
   }
+}
+
+function targetColumns(target: AuditEntry['target']) {
+  if (target === undefined) return { targetType: undefined, targetId: undefined };
+  if (typeof target.id === 'number') {
+    return { targetType: target.type, targetId: encodeBareId(TARGET_ENTITIES[target.type], target.id) };
+  }
+  return { targetType: target.type, targetId: target.id };
 }
 
 export function createAuditLogger(
@@ -63,27 +75,23 @@ export function createAuditLogger(
 
   return async (entry: AuditEntry) => {
     try {
-      const [row] = await trace('audit.record', async () => {
+      const rows = await trace('audit.record', async () => {
         return await db
           .insert(tables.event)
-          .values({
-            workspaceId: entry.workspaceId !== undefined ? entry.workspaceId : boundWorkspaceId,
-            tenantId: entry.tenantId,
-            event: entry.event,
-            ...actorColumns(actor),
-            targetType: entry.target?.type,
-            targetId:
-              entry.target !== undefined
-                ? typeof entry.target.id === 'number'
-                  ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
-                  : entry.target.id
-                : undefined,
-            data: entry.data,
-            ...requestMeta,
-          })
-          .returning({ id: tables.event.id });
+          .values([
+            {
+              workspaceId: entry.workspaceId !== undefined ? entry.workspaceId : boundWorkspaceId,
+              tenantId: entry.tenantId,
+              event: entry.event,
+              ...actorColumns(actor),
+              ...targetColumns(entry.target),
+              data: entry.data,
+              ...requestMeta,
+            },
+          ])
+          .returning({ id: tables.event.id, event: tables.event.event });
       });
-      if (row && isPublicEvent(entry.event)) enqueueWebhookEvents([row.id]);
+      enqueueWebhookEvents(rows.filter((row) => isPublicEvent(row.event)).map((row) => row.id));
     } catch (error) {
       log.error('[Audit] Failed to write event', {
         event: entry.event,
@@ -119,13 +127,7 @@ export async function recordSystemAudit(
               tenantId: entry.tenantId,
               event: entry.event,
               ...actorColumns({ type: 'system' }),
-              targetType: entry.target?.type,
-              targetId:
-                entry.target !== undefined
-                  ? typeof entry.target.id === 'number'
-                    ? encodeBareId(TARGET_ENTITIES[entry.target.type], entry.target.id)
-                    : entry.target.id
-                  : undefined,
+              ...targetColumns(entry.target),
               data: entry.data,
             };
           })
@@ -166,7 +168,8 @@ function resolveAuditFilters(workspaceId: number, filters: AuditFilters) {
     needle
       ? or(
           ilike(tables.event.event, `%${needle}%`),
-          ilike(tables.event.actorDisplay, `%${needle}%`),
+          and(ne(tables.event.actorType, 'admin'), ilike(tables.event.actorDisplay, `%${needle}%`)),
+          and(eq(tables.event.actorType, 'admin'), ilike(sql`'BuzzKit Support'`, `%${needle}%`)),
           ilike(tables.event.targetId, `%${needle.replace(/^[a-z]+_/, '')}%`),
           ilike(sql`${tables.event.data}->>'externalId'`, `%${needle}%`)
         )
@@ -174,14 +177,17 @@ function resolveAuditFilters(workspaceId: number, filters: AuditFilters) {
   );
 }
 
-export async function listAuditEvents(
+export function listAuditEvents(
   db: Db,
   workspaceId: number,
   options: { cursor?: string; limit?: number } & AuditFilters = {}
 ) {
+  return listLedger(db, resolveAuditFilters(workspaceId, options), options);
+}
+
+async function listLedger(db: Db, filters: SQL | undefined, options: { cursor?: string; limit?: number }) {
   const limit = clampLimit(options.limit);
   const cursorId = resolveCursor(options.cursor, decodeSqid);
-  const filters = resolveAuditFilters(workspaceId, options);
 
   const [rows, [counted]] = await Promise.all([
     trace('audit.list', async () => {

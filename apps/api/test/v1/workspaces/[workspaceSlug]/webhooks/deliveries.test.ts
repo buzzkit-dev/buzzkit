@@ -2,9 +2,9 @@ import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { verifyWebhook } from 'buzzkit/webhooks';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { api, BASE_URL } from '../../../../utils/api';
-import { db, eq, tables } from '../../../../utils/db';
+import { db, eq, grantAdmin, tables } from '../../../../utils/db';
 import { eventually } from '../../../../utils/eventually';
-import { createClientKey, createTenant, setupWorkspace, uniq } from '../../../../utils/setup';
+import { createClientKey, createTenant, setupWorkspace, signUpUser, uniq } from '../../../../utils/setup';
 
 type Endpoint = {
   id: string;
@@ -957,5 +957,33 @@ describe('endpoint health', () => {
     });
     expect(event.status).toBe(200);
     expect(await deliveryRows(receiverUrl(path))).toHaveLength(1);
+  });
+});
+
+describe('deliveries never reveal an admin', () => {
+  it('a change by a non-member admin is delivered with actor BuzzKit Support and no email', async () => {
+    const { owner, workspace } = await setupWorkspace({ bare: true });
+    const support = await signUpUser('Support');
+    await grantAdmin(support.email);
+    const path = `/support-${uniq()}`;
+    await createEndpoint(owner.bearer, workspace.slug, {
+      url: receiverUrl(path),
+      events: ['tenant.updated'],
+    });
+
+    const renamed = await api('/v1/tenants/default', {
+      method: 'PATCH',
+      headers: workspaceBearer(support.bearer, workspace.slug),
+      body: JSON.stringify({ name: 'Renamed by support' }),
+    });
+    expect(renamed.status).toBe(200);
+
+    const hit = await eventually(() => deliveriesTo(path, 'tenant.updated')[0], {
+      label: 'support tenant.updated delivery',
+    });
+    const payload = payloadOf(hit);
+    expect(payload.actor).toEqual({ type: 'admin', display: 'BuzzKit Support' });
+    expect(JSON.stringify(hit)).not.toContain(support.email);
+    expect(JSON.stringify(hit)).not.toMatch(/"admin":/);
   });
 });

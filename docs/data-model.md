@@ -17,7 +17,7 @@ PostgreSQL schema, owned by `packages/database` (Drizzle). Tables land per roadm
 
 ### Phase 1 — identity & tenancy *(implemented — migration `0000`)*
 
-- `user`, `session`, `account`, `verification` — BetterAuth (1.6.25; pinned, its schema expectations change between minors). `user` ids are BetterAuth text ids, not serials.
+- `user`, `session`, `account`, `verification` — BetterAuth (1.6.25; pinned, its schema expectations change between minors). `user` ids are BetterAuth text ids, not serials. `user.admin` (migration `0020`, default false) is the one column we add: internal support access to every workspace ([admin.md](admin.md)); BetterAuth does not know about it: the middleware reads it from the row, so no auth endpoint can ever return it.
 - `workspace` — slug partial-unique. `workspace_member` — role enum (member/admin/owner), one active membership per (workspace, user).
 - `tenant` — the isolation boundary. Slug partial-unique **per workspace**; exactly one `is_default = true` per workspace (partial unique index), created in the workspace-create transaction; `metadata` JSONB for platform customer ids.
 - `api_key` — kind `workspace` | `tenant` (tenant keys carry `tenant_id`), SHA-256 `key_hash` (unique), display `prefix`/`last4`, `scopes` text[], `expires_at`/`revoked_at`/`last_used_at`.

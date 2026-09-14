@@ -35,6 +35,7 @@ import {
   readRecent,
   relativePath,
   rememberRecent,
+  resolveResultPath,
   SEARCH_DEBOUNCE_MS,
   SEARCH_HEADINGS,
   SEARCH_MIN_LENGTH,
@@ -324,6 +325,7 @@ export function CommandMenu({
   onOpenChange,
   slug,
   workspaces,
+  admin,
   workspace,
   tenants,
   tenant,
@@ -333,6 +335,7 @@ export function CommandMenu({
   onOpenChange: (open: boolean) => void;
   slug: string;
   workspaces: Workspace[];
+  admin: boolean;
   workspace: Workspace | null;
   tenants: Tenant[];
   tenant: Tenant | null;
@@ -386,7 +389,10 @@ export function CommandMenu({
       normalize(values.recent(entry)),
       `${base}${entry.path}`,
     ]),
-    ...results.map((entry): [string, string] => [normalize(values.result(entry)), `${base}${entry.path}`]),
+    ...results.map((entry): [string, string] => [
+      normalize(values.result(entry)),
+      resolveResultPath(base, entry),
+    ]),
     ...workspaces.flatMap((entry): [string, string][] => [
       [normalize(values.workspace(entry, 'root')), `/${entry.slug}`],
       [normalize(values.workspace(entry, 'page')), `/${entry.slug}`],
@@ -476,10 +482,10 @@ export function CommandMenu({
   useEffect(() => {
     if (!searching) return;
     const timer = window.setTimeout(() => {
-      void search.load(`${base}/search?q=${encodeURIComponent(trimmed)}`);
+      void search.load(`${base}/search?q=${encodeURIComponent(trimmed)}${admin ? '&all=true' : ''}`);
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [searching, trimmed, base, search.load]);
+  }, [searching, trimmed, base, admin, search.load]);
 
   useEffect(() => {
     if (search.data?.q !== trimmed) return;
@@ -566,7 +572,7 @@ export function CommandMenu({
                       value={values.result(result)}
                       keywords={[trimmed, result.label, result.hint]}
                       icon={result.icon}
-                      onSelect={() => go(`${base}${result.path}`)}
+                      onSelect={() => go(resolveResultPath(base, result))}
                     >
                       <span className='truncate'>{result.label}</span>
                       <CommandHint>{result.hint}</CommandHint>

@@ -103,7 +103,7 @@ Because the refresh is a loader revalidation rather than a client fetch, one rul
 | `/:slug/settings/members` | Members and pending invites: roles, remove, invite by email, resend, revoke |
 | `/:slug/settings/tenants` | Tenants: create, edit name and slug, delete |
 | `/ui`, `/design.md` | Design-system preview and the design doc (development only; both 404 when `ENVIRONMENT` is not `development`) |
-| `/platform` | Admins only (anyone else is redirected to `/dashboard`): every workspace on the deployment searchable by name, slug or member email (`?tab=workspaces`), the hidden access log of admin visits and changes (`?tab=access`, `?q=` filters by workspace slug) and the admin list with grant by email and revoke (`?tab=admins`). Reached from the account menu's Platform item, shown only when the profile carries `admin`. Opening a workspace from here lands on `/:slug` as a non-member: full access, an amber "Support view" strip above the top bar, the workspace pinned in the switcher with a `Support` label, and no cookie remembering it as the last workspace ([admin.md](admin.md)) |
+| `/admin` | Admins only (anyone else is redirected to `/dashboard`): every workspace on the deployment, searchable by name, slug or member email, each row opening the workspace. Reached from the account menu's Admin item, shown when the layout's admin probe (`GET /v1/workspaces?all=true`) answered 200. Opening a workspace from here lands on `/:slug` as an owner: an amber "Support view" strip above the top bar, the workspace pinned in the switcher with a `Support` label, every workspace listed under ⌘K's Switch workspace, and no cookie remembering it as the last workspace ([admin.md](admin.md)) |
 
 ### Redirect matrix
 

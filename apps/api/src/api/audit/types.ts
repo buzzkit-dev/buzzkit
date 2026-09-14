@@ -9,6 +9,7 @@ export type ActorUser = { id: string; email: string };
 export type Actor =
   | { type: 'member'; user: ActorUser; memberId?: number }
   | { type: 'key'; apiKey: ApiKey }
+  | { type: 'admin'; user: ActorUser }
   | { type: 'system' };
 
 export type AuditEntry = {
@@ -24,7 +25,7 @@ export type AuditFn = (entry: AuditEntry) => Promise<void>;
 export type AuditFilters = {
   q?: string;
   event?: string;
-  actorType?: 'member' | 'user' | 'key' | 'system';
+  actorType?: 'member' | 'admin' | 'key' | 'system';
   from?: string;
   to?: string;
 };

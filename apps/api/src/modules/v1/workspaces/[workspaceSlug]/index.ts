@@ -1,3 +1,4 @@
+import { markWorkspaceAccess } from '@buzzkit/api/api/admins/index';
 import { diffForEvent } from '@buzzkit/api/api/audit/index';
 import {
   assertSlugAvailable,
@@ -17,11 +18,10 @@ export const workspace = new Elysia()
   .guard({ detail: { tags: ['Workspaces'] } })
   .get(
     '/workspaces/:workspaceSlug',
-    ({ workspace: target, membership }) => {
-      return Response.success(
-        { ...serializeWorkspace(target), role: membership?.role ?? null },
-        { entity: 'workspace' }
-      ).send();
+    ({ workspace: target, membership, user }) => {
+      return Response.success(markWorkspaceAccess(serializeWorkspace(target), user, membership), {
+        entity: 'workspace',
+      }).send();
     },
     { scope: 'workspace:read' }
   )

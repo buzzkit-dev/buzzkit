@@ -6,6 +6,7 @@ import {
   getSource,
   getWebhook,
   listEventNames,
+  listEveryWorkspace,
   listMessages,
   listSegments,
   listSources,
@@ -21,7 +22,7 @@ import type { Route } from './+types/index';
 
 const PER_KIND = 5;
 
-type Scope = { ctx: RequestContext; token: string; slug: string; tenant: string };
+type Scope = { ctx: RequestContext; token: string; slug: string; tenant: string; all: boolean };
 
 async function tolerate<T>(work: Promise<T>, fallback: T): Promise<T> {
   try {
@@ -57,27 +58,45 @@ async function verifyJump(scope: Scope, query: string): Promise<SearchResult[]> 
   return [{ kind, path: jump.path, label: jump.label, hint: jump.hint, icon: jump.icon }];
 }
 
+async function searchWorkspaces(scope: Scope, query: string): Promise<SearchResult[]> {
+  const { ctx, token, slug } = scope;
+  if (!scope.all) return [];
+  const page = await tolerate(listEveryWorkspace(ctx, token, { q: query, limit: PER_KIND + 1 }), null);
+  return (page?.items ?? [])
+    .filter((workspace) => workspace.slug !== slug)
+    .slice(0, PER_KIND)
+    .map((workspace) => ({
+      kind: 'workspace' as const,
+      path: `/${workspace.slug}`,
+      label: workspace.name,
+      hint: workspace.role ? workspace.slug : `${workspace.slug} · support`,
+      icon: 'IconHomeRoundDoorFilled' as const,
+    }));
+}
+
 async function searchEverything(scope: Scope, query: string): Promise<SearchResult[]> {
   const { ctx, token, slug, tenant } = scope;
-  const [subscribers, eventNames, workflows, segments, messages, webhooks, sources] = await Promise.all([
-    tolerate(
-      listSubscribers(ctx, token, slug, tenant, { search: query, limit: PER_KIND }).then(
-        (page) => page.items
+  const [workspaces, subscribers, eventNames, workflows, segments, messages, webhooks, sources] =
+    await Promise.all([
+      searchWorkspaces(scope, query),
+      tolerate(
+        listSubscribers(ctx, token, slug, tenant, { search: query, limit: PER_KIND }).then(
+          (page) => page.items
+        ),
+        []
       ),
-      []
-    ),
-    tolerate(listEventNames(ctx, token, slug, tenant), []),
-    tolerate(listWorkflows(ctx, token, slug, tenant), []),
-    tolerate(listSegments(ctx, token, slug, tenant), []),
-    tolerate(
-      listMessages(ctx, token, slug, tenant, { q: query, limit: PER_KIND }).then((page) => page.items),
-      []
-    ),
-    tolerate(listWebhooks(ctx, token, slug), []),
-    tolerate(listSources(ctx, token, slug, tenant), []),
-  ]);
+      tolerate(listEventNames(ctx, token, slug, tenant), []),
+      tolerate(listWorkflows(ctx, token, slug, tenant), []),
+      tolerate(listSegments(ctx, token, slug, tenant), []),
+      tolerate(
+        listMessages(ctx, token, slug, tenant, { q: query, limit: PER_KIND }).then((page) => page.items),
+        []
+      ),
+      tolerate(listWebhooks(ctx, token, slug), []),
+      tolerate(listSources(ctx, token, slug, tenant), []),
+    ]);
 
-  const results: SearchResult[] = [];
+  const results: SearchResult[] = [...workspaces];
   for (const subscriber of subscribers.slice(0, PER_KIND)) {
     const attributes = (subscriber.attributes ?? {}) as Record<string, unknown>;
     const name = typeof attributes.name === 'string' ? attributes.name : null;
@@ -158,10 +177,17 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const { token } = requireSession(request);
   const tenant = await resolveTenant(request, params.slug);
-  const q = requestUrl(request).searchParams.get('q')?.trim() ?? '';
+  const search = requestUrl(request).searchParams;
+  const q = search.get('q')?.trim() ?? '';
   if (q.length < SEARCH_MIN_LENGTH) return { q, results: [] as SearchResult[] };
 
-  const scope: Scope = { ctx: { request, env }, token, slug: params.slug, tenant };
+  const scope: Scope = {
+    ctx: { request, env },
+    token,
+    slug: params.slug,
+    tenant,
+    all: search.get('all') === 'true',
+  };
   const jumped = await verifyJump(scope, q);
   if (jumped.length > 0) return { q, results: jumped };
 

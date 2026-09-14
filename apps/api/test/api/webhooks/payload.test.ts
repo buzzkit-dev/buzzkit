@@ -298,3 +298,16 @@ describe('buildAuditPayload', () => {
     ).toEqual({ type: 'key', display: 'CI (bk_ws_…ab12)' });
   });
 });
+
+describe('buildAuditPayload actor masking', () => {
+  it('shows an admin actor as BuzzKit Support and never the email', async () => {
+    const { db } = fakeDb(() => []);
+    const payload = await buildAuditPayload(
+      db,
+      auditRow({ actorType: 'admin', actorDisplay: 'support@buzzkit.dev', targetType: null, targetId: null }),
+      { ...scope, tenant: null }
+    );
+    expect(payload.actor).toEqual({ type: 'admin', display: 'BuzzKit Support' });
+    expect(JSON.stringify(payload)).not.toContain('support@buzzkit.dev');
+  });
+});

@@ -11,7 +11,7 @@ import { openapi } from '@elysiajs/openapi';
 import Elysia from 'elysia';
 import { CloudflareAdapter } from 'elysia/adapter/cloudflare-worker';
 
-export const app = new Elysia({
+const app = new Elysia({
   adapter: CloudflareAdapter,
 })
   .use(latency)
@@ -27,3 +27,5 @@ export const app = new Elysia({
   )
   .use(authHandler)
   .use(v1);
+
+export const handleFetch = app.compile().fetch;

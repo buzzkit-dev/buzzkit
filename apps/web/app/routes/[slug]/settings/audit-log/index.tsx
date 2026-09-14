@@ -43,7 +43,7 @@ const FILTER_KEYS = ['event', 'actor', 'range'] as const;
 const ACTORS: { value: NonNullable<AuditQuery['actorType']>; label: string; icon: IconName }[] = [
   { value: 'member', label: 'Member', icon: 'IconUserFilled' },
   { value: 'key', label: 'API key', icon: 'IconKeyholeFilled' },
-  { value: 'user', label: 'Subscriber', icon: 'IconPeopleFilled' },
+  { value: 'admin', label: 'BuzzKit Support', icon: 'IconShieldFilled' },
   { value: 'system', label: 'BuzzKit', icon: 'IconBuzzkit' },
 ];
 
@@ -144,7 +144,8 @@ function Glyph({ icon, children }: { icon: IconName; children: React.ReactNode }
 
 function Actor({ event }: { event: AuditEvent }) {
   const actor = ACTORS.find((entry) => entry.value === event.actorType) ?? ACTORS[3]!;
-  return <Glyph icon={actor.icon}>{event.actorType === 'system' ? 'BuzzKit' : event.actorDisplay}</Glyph>;
+  if (event.actorType === 'system') return <Glyph icon={actor.icon}>BuzzKit</Glyph>;
+  return <Glyph icon={actor.icon}>{event.actorDisplay}</Glyph>;
 }
 
 function Target({ target }: { target: NonNullable<ReturnType<typeof targetOf>> }) {
