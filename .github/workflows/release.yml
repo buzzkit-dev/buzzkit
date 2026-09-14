@@ -36,11 +36,11 @@ jobs:
         run: |
           bun run sdk:build
           bun run --cwd packages/buzzkit test
-          bun run --cwd packages/buzzkit exec publint
       - name: Prove the published package imports
         run: |
           cd packages/buzzkit
           bun run scripts/publish-manifest.ts
+          bunx publint
           bun pm pack --destination /tmp/pack
           cd /tmp/pack
           mkdir consumer && cd consumer
