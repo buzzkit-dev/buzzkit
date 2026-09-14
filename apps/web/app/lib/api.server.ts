@@ -1399,7 +1399,6 @@ export type EventVolume = Awaited<ReturnType<typeof getEventVolume>>;
 export type EventsToken = Awaited<ReturnType<typeof getEventsToken>>;
 export type Stats = Awaited<ReturnType<typeof getStats>>;
 export type PlatformStats = Awaited<ReturnType<typeof getPlatformStats>>;
-export type PlatformRates = Awaited<ReturnType<typeof getPlatformRates>>;
 export type Tenant = Awaited<ReturnType<typeof listTenants>>[number];
 export type Credential = Awaited<ReturnType<typeof listCredentials>>[number];
 export type ApiKey = Awaited<ReturnType<typeof listKeys>>['items'][number];
