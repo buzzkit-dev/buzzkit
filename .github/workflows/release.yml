@@ -59,7 +59,7 @@ jobs:
           cd "$GITHUB_WORKSPACE" && git checkout -- packages/buzzkit/package.json
       - uses: changesets/action@v1
         with:
-          version: bunx changeset version
+          version: bunx changeset version && bun install --lockfile-only
           publish: bun run sdk:release
           title: 'chore: release the SDK'
           commit: 'chore: release the SDK'
