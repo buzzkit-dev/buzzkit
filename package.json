@@ -16,6 +16,7 @@
     "test": "turbo run test --filter=buzzkit --filter=@buzzkit/auth --filter=@buzzkit/schema --filter=@buzzkit/web --filter=@buzzkit/marketing --filter=@buzzkit/ping",
     "changeset": "changeset",
     "sdk:build": "turbo run build --filter=buzzkit",
+    "sdk:version": "changeset version && bun install --lockfile-only",
     "sdk:release": "bun run --cwd packages/buzzkit scripts/publish-manifest.ts && changeset publish"
   },
   "devDependencies": {
