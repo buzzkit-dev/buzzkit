@@ -3,6 +3,8 @@ import { renderToReadableStream } from 'react-dom/server';
 import type { EntryContext, RouterContextProvider } from 'react-router';
 import { ServerRouter } from 'react-router';
 
+export const streamTimeout = 30_000;
+
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,

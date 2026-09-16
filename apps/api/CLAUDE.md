@@ -9,7 +9,11 @@ src/
 ├── index.ts              Entry point — instrument({ fetch, queue, scheduled }) (one Worker, three traced services)
 ├── libs/                 Shared infrastructure (each an Elysia plugin or utility)
 │   ├── database.ts       Drizzle client via Hyperdrive: `db` in route context, `stepDb()` for engine/DO steps, `batchDb()` for
-│   │                     queue/cron work (never raw `createDb` outside libs — lint-enforced), `countRows(db, table, where)`
+│   │                     queue/cron work (never raw `createDb` outside libs — lint-enforced), `countRows(db, table, where)`.
+│   │                     Every client retries a statement twice (50ms, 200ms) on a connection-level failure — postgres.js
+│   │                     connection codes, Hyperdrive's `58000`, SQLSTATE class 08 — never on a Postgres error, and a
+│   │                     transaction only when it failed before its callback ran (`withConnectionRetry` in `@buzzkit/database`);
+│   │                     each retry logs `[Database] Retrying after a connection error`
 │   ├── error.ts          Custom error classes + global error handler (logs carry route + requestId)
 │   ├── logger.ts         Per-invocation buffered logger (console + Axiom) from @buzzkit/observability; every line carries the requestId
 │   ├── response.ts       Response envelope builder with auto Sqids ID transformation; `Response.page(page)` for cursor pages;

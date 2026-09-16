@@ -3,11 +3,20 @@ import { count, createDrizzle, type Db, type DrizzleOptions, type SQL, type Tx }
 import { instrumentDrizzleClient } from '@kubiks/otel-drizzle';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import Elysia from 'elysia';
+import { describeError } from './error';
+import { log } from './logger';
 
 const BATCH_DB_CONNECTIONS = 2;
 
 export const createDb = (options: DrizzleOptions = {}, { traced = true }: { traced?: boolean } = {}): Db => {
-  const db = createDrizzle(env.HYPERDRIVE.connectionString, options);
+  const db = createDrizzle(env.HYPERDRIVE.connectionString, {
+    retry: {
+      onRetry: (error, attempt) => {
+        log.warn('[Database] Retrying after a connection error', { attempt, error: describeError(error) });
+      },
+    },
+    ...options,
+  });
   return traced ? instrumentDrizzleClient(db) : db;
 };
 

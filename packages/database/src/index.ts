@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { type ConnectionRetryOptions, withConnectionRetry } from './retry';
 import { authTables } from './schema/auth';
 import { credentialTables } from './schema/credential';
 import { eventTables } from './schema/event';
@@ -36,7 +37,7 @@ export const tables = {
   ...workflowTables,
 };
 
-export type DrizzleOptions = { max?: number };
+export type DrizzleOptions = { max?: number; retry?: ConnectionRetryOptions | false };
 
 export const createDrizzle = (url: string, options: DrizzleOptions = {}) => {
   const client = postgres(url, {
@@ -48,7 +49,9 @@ export const createDrizzle = (url: string, options: DrizzleOptions = {}) => {
     },
   });
 
-  return drizzle(client, { schema: tables });
+  const retrying = options.retry === false ? client : withConnectionRetry(client, options.retry ?? {});
+
+  return drizzle(retrying, { schema: tables });
 };
 
 export type Db = ReturnType<typeof createDrizzle>;
@@ -56,7 +59,14 @@ export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export * from 'drizzle-orm';
 export { drizzle } from 'drizzle-orm/postgres-js';
-export { default as postgres } from 'postgres';
+export { default as postgres, type Sql } from 'postgres';
+export {
+  CONNECTION_RETRY_DELAYS_MS,
+  type ConnectionRetryOptions,
+  isConnectionError,
+  retryOnConnectionError,
+  withConnectionRetry,
+} from './retry';
 export { credentialStatus } from './schema/credential';
 export { eventActorType } from './schema/event';
 export { apiKeyKind } from './schema/key';

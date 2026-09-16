@@ -13,7 +13,17 @@ import { Response } from './response';
 export type ErrorOptions = { code?: string; param?: string; details?: unknown };
 
 export function describeError(caught: unknown): string {
-  return caught instanceof Error ? caught.message : String(caught);
+  if (!(caught instanceof Error)) return String(caught);
+
+  const messages = [caught.message];
+  let cause = caught.cause;
+  while (cause instanceof Error && messages.length < 5) {
+    messages.push(cause.message);
+    cause = cause.cause;
+  }
+  if (cause !== undefined && !(cause instanceof Error)) messages.push(String(cause));
+
+  return messages.join(' <- ');
 }
 
 export class ApiError extends Error {
